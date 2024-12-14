@@ -1,8 +1,6 @@
 (* Main Entry Point *)
 
-let name = "Kamp"
-let main_width = 360
-let main_height = 160
+(* State *)
 
 type time = float
 type song =
@@ -32,6 +30,25 @@ type state =
   mutable volume : float;
 }
 
+
+(* Layout *)
+
+let name = "Kamp"
+let control_width = 360
+let control_height = 160
+
+let close_button = Ui.button (5, 30, 20, 20) (`Char 'Q')
+
+let play_button = Ui.control_button (5, 5, 20, 20) (`Char ' ')
+let title_scroller = Ui.scroller (10, 53, 340, 16)
+let seek_bar = Ui.progress_bar (30, 8, 300, 14)
+let volume_bar = Ui.progress_bar (30, 33, 300, 14)
+
+let resizer = Ui.resizer (-14, -14, 14, 14)
+
+
+(* Helpers *)
+
 let rec log10 n = if n < 10 then 0 else 1 + log10 (n / 10)
 
 let fmt = Printf.sprintf
@@ -44,18 +61,21 @@ let fmt_time2 t =
   let t' = int_of_float (Float.trunc t) in
   fmt "%02d:%02d" (t' / 60) (t' mod  60)
 
+
+(* Runner *)
+
 let rec run st =
   Api.Draw.start st.win `Black;
 
   (* Window *)
   Ui.window st.win;
-  Ui.resizer st.win (-14) (-14) 14 14 (main_width, main_height) (main_width, -1);
-  if Ui.button st.win 5 30 20 20 (`Char 'Q') then exit 0;
+  resizer st.win (control_width, control_height) (control_width, -1);
+  if close_button st.win then exit 0;
 
   (* Play controls *)
   let on = (st.playing <> -1) in
   let is_playing = on && Api.Audio.is_playing st.audio st.sound in
-  let is_playing' = Ui.control_button st.win 5 5 20 20 (`Char ' ') is_playing in
+  let is_playing' = play_button st.win is_playing in
   if on then Api.Audio.pause st.audio st.sound (not is_playing');
 
   (* Seek bar *)
@@ -63,7 +83,7 @@ let rec run st =
   let played = if on then Api.Audio.played st.audio st.sound else 0.0 in
   let remain = length -. played in
   let progress = if on then played /. length else 0.0 in
-  (match Ui.progress_bar st.win 30 8 300 14 progress with
+  (match seek_bar st.win progress with
   | Some x when on -> Api.Audio.seek st.audio st.sound (x *. length)
   | _ -> ()
   );
@@ -80,10 +100,10 @@ let rec run st =
     playing.artist ^ " - " ^ playing.title ^
     " (" ^ fmt_time playing.time ^ ")"
   in
-  Ui.scroller st.win 10 53 340 16 name;
+  title_scroller st.win name;
 
   (* Volume control *)
-  (match Ui.progress_bar st.win 30 33 300 14 st.volume with
+  (match volume_bar st.win st.volume with
   | Some vol when vol <> st.volume ->
     st.volume <- vol;
     if on then Api.Audio.volume st.audio st.sound vol
@@ -106,19 +126,6 @@ let rec run st =
   let ww, wh = Api.Window.size st.win in
   let s = Printf.sprintf "%dx%d" ww wh in
   Api.Draw.text st.win 140 100 20 (`Gray 0xc0) (Ui.font st.win 20) s;
-
-(*
-  let sz = 14 in
-  for i = 0 to (sh / sz) do
-    Api.Draw.text st.win 10 (120 + i*sz-i + (Api.Draw.frame st.win) mod sz) sz `Green
-      (Ui.font st.win sz) "Das Problem - Keine Lösung"
-  done;
-
-  let f = Api.Font.load st.win "micross.ttf" 20 in
-  let texture = Raylib.Font.texture f in
-  let dx = 360 - Api.Draw.frame st.win mod (360 + Raylib.Texture.width texture) in
-  Raylib.draw_texture texture dx 300 Raylib.Color.white;
-*)
 
   (* Playlist *)
   let x = 10 in
@@ -175,6 +182,8 @@ let rec run st =
   run st
 
 
+(* Startup *)
+
 let song =
 {
   artist = "Vaal";
@@ -184,7 +193,7 @@ let song =
 }
 
 let startup () =
-  let win = Api.Window.init 0 0 main_width 1000 name in
+  let win = Api.Window.init 0 0 control_width 1000 name in
 
   let audio = Api.Audio.init () in
   let sound = Api.Audio.load audio song.path in

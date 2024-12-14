@@ -82,7 +82,7 @@ let font win h =
     fonts.(h) <- Some f;
     f
 
-let element win x0 y0 w h key =
+let element (x0, y0, w, h) key win =
   let x, y = relative win x0 y0 in
   inner := (x, y, w, h) :: !inner;
   let m = Mouse.pos win in
@@ -93,8 +93,8 @@ let element win x0 y0 w h key =
   if Mouse.is_released `Left || Key.is_released key then `Released else
   `Focused
 
-let resizer win x0 y0 w h (minw, minh) (maxw, maxh) =
-  let x, y, status = element win x0 y0 w h `None in
+let resizer (x0, y0, w, h) win (minw, minh) (maxw, maxh) =
+  let x, y, status = element (x0, y0, w, h) `None win in
   if status <> `Untouched then Api.Mouse.set_cursor win (`Resize `N_S);
   Draw.fill win x y w h (fill false);
   Draw.rect win x y w h (border status);
@@ -115,20 +115,20 @@ let resizer win x0 y0 w h (minw, minh) (maxw, maxh) =
     inner := (x + dw, y + dh, w, h) :: !inner
   )
 
-let button win x0 y0 w h key =
-  let x, y, status = element win x0 y0 w h key in
+let button (x0, y0, w, h) key win =
+  let x, y, status = element (x0, y0, w, h) key win in
   Draw.fill win x y w h (fill false);
   Draw.rect win x y w h (border status);
   status = `Released
 
-let control_button win x0 y0 w h key active =
-  let x, y, status = element win x0 y0 w h key in
+let control_button (x0, y0, w, h) key win active =
+  let x, y, status = element (x0, y0, w, h) key win in
   Draw.fill_circ win x y w h (fill active);
   Draw.circ win x y w h (border status);
   if status = `Released then not active else active
 
-let progress_bar win x0 y0 w h v =
-  let x, y, status = element win x0 y0 w h `None in
+let progress_bar (x0, y0, w, h) win v =
+  let x, y, status = element (x0, y0, w, h) `None win in
   Draw.fill win x y w h (fill false);
   Draw.fill win (x + 1) y (int_of_float (v *. float (w - 2))) h (fill true);
   Draw.rect win x y w h (border status);
@@ -138,8 +138,8 @@ let progress_bar win x0 y0 w h v =
   else
     None
 
-let scroller win x0 y0 w h s =
-  let x, y, _status = element win x0 y0 w h `None in
+let scroller (x0, y0, w, h) win s =
+  let x, y, _status = element (x0, y0, w, h) `None win in
   Draw.fill win x y w h `Black;
   let tw = Draw.text_width win h (font win h) s in
   Draw.clip win (Some (x, y, w, h));
