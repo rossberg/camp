@@ -1,0 +1,12 @@
+(executable
+  (public_name kamp)
+  (name main)
+  (modules api ui main)
+  (libraries unix raylib)
+  (link_flags (:include link_flags.sexp))
+)
+
+(rule
+  (targets link_flags.sexp)
+  (action (run ./config/config.exe))
+)
