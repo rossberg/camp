@@ -141,10 +141,13 @@ type sound
 module Audio :
 sig
   val init : unit -> audio
-  val load : audio -> path -> sound
+  val silence : audio -> sound
+  val load : audio -> path -> sound  (* returns silence on error *)
+  val free : audio -> sound -> unit
   val play : audio -> sound -> unit
   val stop : audio -> sound -> unit
-  val pause : audio -> sound -> bool -> unit
+  val pause : audio -> sound -> unit
+  val resume : audio -> sound -> unit
   val volume : audio -> sound -> float -> unit
   val is_playing : audio -> sound -> bool
   val length : audio -> sound -> time

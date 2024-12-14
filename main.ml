@@ -42,18 +42,23 @@ let rec run (st : State.t) =
   if close_button st.win then exit 0;
 
   (* Play controls *)
-  let on = (st.playing <> -1) in
+  let on = (st.playing <> None) in
   let is_playing = on && Api.Audio.is_playing st.audio st.sound in
   let is_playing' = play_button st.win is_playing in
-  if on then Api.Audio.pause st.audio st.sound (not is_playing');
+  if on && is_playing' then
+    Api.Audio.resume st.audio st.sound
+  else if on then
+    Api.Audio.pause st.audio st.sound
+  else if is_playing' && st.playlist <> [||] then
+    State.switch_song st st.playlist.(st.playpos) true;
 
   (* Seek bar *)
-  let length = if on then Api.Audio.length st.audio st.sound else 0.0 in
-  let played = if on then Api.Audio.played st.audio st.sound else 0.0 in
+  let length = Api.Audio.length st.audio st.sound in
+  let played = Api.Audio.played st.audio st.sound in
   let remain = length -. played in
-  let progress = if on then played /. length else 0.0 in
+  let progress = if length > 0.0 then played /. length else 0.0 in
   (match seek_bar st.win progress with
-  | Some x when on -> Api.Audio.seek st.audio st.sound (x *. length)
+  | Some percent when on -> State.seek_song st percent
   | _ -> ()
   );
 
@@ -64,10 +69,10 @@ let rec run (st : State.t) =
   Api.Draw.text st.win (328 - w2) 10 11 `White (Ui.font st.win 11) s2;
 
   (* Title info *)
-  let name = if not on then "Kamp 0.0.1" else
-    let playing = st.playlist.(st.playing) in
-    playing.artist ^ " - " ^ playing.title ^
-    " (" ^ fmt_time playing.time ^ ")"
+  let name =
+    match st.playing with
+    | Some song -> song.name ^ " (" ^ fmt_time song.time ^ ")"
+    | None -> State.(app ^ " " ^ version)
   in
   title_scroller st.win name;
 
@@ -75,7 +80,7 @@ let rec run (st : State.t) =
   (match volume_bar st.win st.volume with
   | Some vol when vol <> st.volume ->
     st.volume <- vol;
-    if on then Api.Audio.volume st.audio st.sound vol
+    Api.Audio.volume st.audio st.sound vol
   | _ -> ()
   );
 
@@ -108,13 +113,14 @@ let rec run (st : State.t) =
     let y = y0 + i * h in
     let bg = if i mod 2 = 0 then `Black else `Gray 0x18 in
     if bg <> `Black then Api.Draw.fill st.win x y w h bg;
-    let color = if i = st.playing then `White else `Green in
-    let song = st.playlist.(i) in
-    let name =
-      if song.artist = "" then song.title else
-      song.artist ^ " - " ^ song.title
+    let color =
+      match st.playing with
+      | Some song when i = st.playpos && song.path = st.playlist.(i).path ->
+        `White
+      | _ -> `Green
     in
-    let entry = fmt "%0*d. %s" digits (i + 1) name in
+    let song = st.playlist.(i) in
+    let entry = fmt "%0*d. %s" digits (i + 1) song.name in
     let time = fmt_time song.time in
     let w1 = Api.Draw.text_width st.win h font entry in
     let w2 = Api.Draw.text_width st.win h font time in
@@ -133,18 +139,11 @@ let rec run (st : State.t) =
   st.playlist <- Array.append st.playlist songs;
 
   (* Detect end of song *)
-  if on && remain < 0.02 then
+  if on && remain < 0.2 then
   (
-    Api.Audio.stop st.audio st.sound;
-    if st.playing >= Array.length st.playlist - 1 then
-      st.playing <- -1
-    else
-    (
-      st.playing <- st.playing + 1;
-      st.sound <- Api.Audio.load st.audio st.playlist.(st.playing).path;
-      Api.Audio.play st.audio st.sound;
-      Api.Audio.volume st.audio st.sound st.volume;
-    )
+    let last = st.playpos >= Array.length st.playlist - 1 in
+    if not last then st.playpos <- st.playpos + 1;
+    State.switch_song st st.playlist.(st.playpos) (not last);
   );
 
   Api.Draw.finish st.win;
@@ -153,26 +152,13 @@ let rec run (st : State.t) =
 
 (* Startup *)
 
-let song = Song.
-{
-  artist = "Vaal";
-  title = "Interference (from the album Vaal - Nosferatu)";
-  time = 342.0;
-  path = "song.mp3";
-}
-
 let startup () =
-  let win = Api.Window.init 0 0 control_width 1000 name in
-
+  let win = Api.Window.init 0 0 control_width control_height name in
   let audio = Api.Audio.init () in
-  let sound = Api.Audio.load audio song.path in
-      
-  let volume = 0.2 in
-  Api.Audio.play audio sound;
-  Api.Audio.pause audio sound true;
-  Api.Audio.volume audio sound volume;
-  State.{win; audio; sound; playing = 0; playlist = [|song|]; volume}
-
+  let st = State.make win audio in
+  Persist.load_state st;
+  at_exit (fun () -> Persist.save_state st);
+  st
 
 let _main =
   try

@@ -283,31 +283,56 @@ end
 (* Audio *)
 
 type audio = unit
-type sound = Raylib.Music.t
+type sound = Raylib.Music.t option
 
 module Audio =
 struct
+  let iter = Option.iter
+  let set f sound x = Option.iter (fun s -> f s x) sound
+  let get f sound default = Option.value (Option.map f sound) ~default
+
   let init () = Raylib.init_audio_device ()
-  let load () path = Raylib.load_music_stream path
-  let play () sound = Raylib.play_music_stream sound
-  let stop () sound = Raylib.stop_music_stream sound
 
-  let pause () sound b =
-    (if b then
-      Raylib.pause_music_stream sound
-    else
-      Raylib.resume_music_stream sound
+  let silence () = None
+
+  let leaks = ref []
+  let load () path =
+(*
+    if not (Sys.file_exists path) then None else
+*)
+    let music = Raylib.load_music_stream path in
+    (* TODO: This is a work-around for a bug in Raylib < 5.5.
+     * We leak the music stream in order to avoid a double free segfault
+     * in Raylib. (See https://github.com/raysan5/raylib/issues/3889 and
+     * https://github.com/raysan5/raylib/pull/3966). *)
+    if not (Raylib.Music.looping music) (* failure in Raylib < 5.5 *) then
+    (
+      Raylib.Music.set_ctx_type music 0;
+      leaks := music :: !leaks;
     );
-    Raylib.update_music_stream sound
+    (* End of work-around. *)
+    if Raylib.Music.ctx_type music = 0 then None else
+    (
+      (*Raylib.Music.set_looping music false;*)  (* TODO *)
+      Some music
+    )
 
-  let volume () sound x = Raylib.set_music_volume sound x
+  let play () sound = iter Raylib.play_music_stream sound
+  let stop () sound = iter Raylib.stop_music_stream sound
+  let free () sound = stop () sound; iter Raylib.unload_music_stream sound
+  let pause () sound = iter Raylib.pause_music_stream sound
+  let resume () sound =
+    iter Raylib.resume_music_stream sound;
+    iter Raylib.update_music_stream sound
 
-  let is_playing () sound = Raylib.is_music_stream_playing sound
+  let volume () sound x = set Raylib.set_music_volume sound x
 
-  let length () sound = Raylib.get_music_time_length sound
-  let played () sound = Raylib.get_music_time_played sound
+  let is_playing () sound = get Raylib.is_music_stream_playing sound false
 
-  let seek () sound t = Raylib.seek_music_stream sound t
+  let length () sound = get Raylib.get_music_time_length sound 0.0
+  let played () sound = get Raylib.get_music_time_played sound 0.0
+  let seek () sound t = set Raylib.seek_music_stream sound t
+
 end
 
 

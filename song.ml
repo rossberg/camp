@@ -6,8 +6,7 @@ type path = string
 type t =
 {
   path : path;
-  artist : string;
-  title : string;
+  name : string;
   time : time;
 }
 
@@ -15,7 +14,6 @@ type t =
 let make path =
 {
   path;
-  artist = "";  (* TODO *)
-  title = Filename.basename path;  (* TODO *)
+  name = Filename.(remove_extension (basename path));  (* TODO *)
   time = 0.0;  (* TODO *)
 }
