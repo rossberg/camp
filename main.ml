@@ -1,36 +1,5 @@
 (* Main Entry Point *)
 
-(* State *)
-
-type time = float
-type song =
-{
-  path : string;
-  artist : string;
-  title : string;
-  time : time;
-}
-
-let song path =
-{
-  path;
-  artist = "";  (* TODO *)
-  title = Filename.basename path;  (* TODO *)
-  time = 0.0;  (* TODO *)
-}
-
-
-type state =
-{
-  win : Api.window;
-  audio : Api.audio;
-  mutable sound : Api.sound;
-  mutable playing : int;
-  mutable playlist : song array;
-  mutable volume : float;
-}
-
-
 (* Layout *)
 
 let name = "Kamp"
@@ -64,7 +33,7 @@ let fmt_time2 t =
 
 (* Runner *)
 
-let rec run st =
+let rec run (st : State.t) =
   Api.Draw.start st.win `Black;
 
   (* Window *)
@@ -160,7 +129,7 @@ let rec run st =
 
   (* Handle drag & drop *)
   let dropped = Api.File.dropped st.win in
-  let songs = Array.map song (Array.of_list dropped) in
+  let songs = Array.map Song.make (Array.of_list dropped) in
   st.playlist <- Array.append st.playlist songs;
 
   (* Detect end of song *)
@@ -184,7 +153,7 @@ let rec run st =
 
 (* Startup *)
 
-let song =
+let song = Song.
 {
   artist = "Vaal";
   title = "Interference (from the album Vaal - Nosferatu)";
@@ -202,7 +171,7 @@ let startup () =
   Api.Audio.play audio sound;
   Api.Audio.pause audio sound true;
   Api.Audio.volume audio sound volume;
-  {win; audio; sound; playing = 0; playlist = [|song|]; volume}
+  State.{win; audio; sound; playing = 0; playlist = [|song|]; volume}
 
 
 let _main =

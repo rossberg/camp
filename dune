@@ -1,7 +1,7 @@
 (executable
   (public_name kamp)
   (name main)
-  (modules api ui main)
+  (modules song state api ui main)
   (libraries unix raylib)
   (link_flags (:include link_flags.sexp))
 )
