@@ -66,7 +66,8 @@ sig
   val start : window -> color -> unit
   val finish : window -> unit
   val frame : window -> int
-  val clip : window -> rect option -> unit
+  val clip : window -> rect -> unit
+  val unclip : window -> unit
 
   val fill : window -> int -> int -> int -> int -> color -> unit
   val rect : window -> int -> int -> int -> int -> color -> unit

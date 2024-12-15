@@ -23,7 +23,7 @@ let snap min max v =
   if abs (v - max) < snap_dist then max else
   v
 
-let clip min max v =
+let clamp min max v =
   if v < min then min else
   if v > max then max else
   v
@@ -105,7 +105,7 @@ let resizer (x0, y0, w, h) win (minw, minh) (maxw, maxh) =
     let sw, sh = Window.screen_size win in
     let maxw = if maxw < 0 then sw else maxw in
     let maxh = if maxh < 0 then sh else maxh in
-    let ww', wh' = clip minw maxw ww, clip minh maxh wh in
+    let ww', wh' = clamp minw maxw ww, clamp minh maxh wh in
     Window.set_size win ww' wh';
     (* Adjust owned drag_pos for size-relative position *)
     let dw = if x0 >= 0 then 0 else ww' - fst sz in
@@ -134,7 +134,7 @@ let progress_bar (x0, y0, w, h) win v =
   Draw.rect win x y w h (border status);
   if status = `Pressed then
     let mx, _ = Mouse.pos win in
-    Some (clip 0.0 1.0 ((float mx -. float x) /. float w))
+    Some (clamp 0.0 1.0 ((float mx -. float x) /. float w))
   else
     None
 
@@ -142,7 +142,7 @@ let scroller (x0, y0, w, h) win s =
   let x, y, _status = element (x0, y0, w, h) `None win in
   Draw.fill win x y w h `Black;
   let tw = Draw.text_width win h (font win h) s in
-  Draw.clip win (Some (x, y, w, h));
+  Draw.clip win (x, y, w, h);
   let dx = if tw <= w then (w - tw)/2 else w - Draw.frame win mod (w + tw) in
   Draw.text win (x + dx) y h `Green (font win h) s;
-  Draw.clip win None
+  Draw.unclip win

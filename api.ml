@@ -131,9 +131,8 @@ struct
 
   let frame () = !frame
 
-  let clip () = function
-    | Some (x, y, w, h) -> Raylib.begin_scissor_mode x y w h
-    | None -> Raylib.end_scissor_mode ()
+  let clip () (x, y, w, h) = Raylib.begin_scissor_mode x y w h
+  let unclip () = Raylib.end_scissor_mode ()
 
   let fill () x y w h c =
     Raylib.draw_rectangle x y w h (color c)
@@ -266,7 +265,7 @@ struct
     | `F 10 -> Raylib.Key.F10
     | `F 11 -> Raylib.Key.F11
     | `F 12 -> Raylib.Key.F12
-    | `F _ -> failwith "Gui.Key.key"
+    | `F _ -> failwith "Api.Key.key"
     | `Shift `Left -> Raylib.Key.Left_shift
     | `Shift `Right -> Raylib.Key.Right_shift
     | `Control `Left -> Raylib.Key.Left_control
@@ -283,28 +282,32 @@ end
 (* Audio *)
 
 type audio = unit
-type sound = Raylib.Music.t option
+type sound = (Raylib.Music.t * path option (* for UTF-8 workaround *)) option
 
 module Audio =
 struct
-  let iter = Option.iter
-  let set f sound x = Option.iter (fun s -> f s x) sound
-  let get f sound default = Option.value (Option.map f sound) ~default
+  let ff f (x, _) = f x
+  let iter f sound = Option.iter (ff f) sound
+  let set f sound x = Option.iter (fun s -> ff f s x) sound
+  let get f sound default = Option.value (Option.map (ff f) sound) ~default
 
   let init () = Raylib.init_audio_device ()
 
   let silence () = None
 
   let leaks = ref []
+
+  let is_ascii path = String.for_all ((>) '\x80') path
+
   let load () path =
-(*
     if not (Sys.file_exists path) then None else
-*)
-    let music = Raylib.load_music_stream path in
+    (* Raylib can't handle UTF-8 file paths, so copy those to temp file. *)
+    let path' = if is_ascii path then path else File.copy_to_temp path in
+    let music = Raylib.load_music_stream path' in
     (* TODO: This is a work-around for a bug in Raylib < 5.5.
-     * We leak the music stream in order to avoid a double free segfault
-     * in Raylib. (See https://github.com/raysan5/raylib/issues/3889 and
-     * https://github.com/raysan5/raylib/pull/3966). *)
+     * We intentionally leak the music stream in order to avoid a double free
+     * segfault in Raylib. (See https://github.com/raysan5/raylib/issues/3889
+     * and https://github.com/raysan5/raylib/pull/3966). *)
     if not (Raylib.Music.looping music) (* failure in Raylib < 5.5 *) then
     (
       Raylib.Music.set_ctx_type music 0;
@@ -314,12 +317,18 @@ struct
     if Raylib.Music.ctx_type music = 0 then None else
     (
       (*Raylib.Music.set_looping music false;*)  (* TODO *)
-      Some music
+      Some (music, if path' = path then None else Some path')
     )
+
+  let free () = function
+    | None -> ()
+    | Some (sound, temp_opt) ->
+      Raylib.stop_music_stream sound;
+      Option.iter File.remove_temp temp_opt;
+      Raylib.unload_music_stream sound
 
   let play () sound = iter Raylib.play_music_stream sound
   let stop () sound = iter Raylib.stop_music_stream sound
-  let free () sound = stop () sound; iter Raylib.unload_music_stream sound
   let pause () sound = iter Raylib.pause_music_stream sound
   let resume () sound =
     iter Raylib.resume_music_stream sound;

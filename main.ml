@@ -2,7 +2,6 @@
 
 (* Layout *)
 
-let name = "Kamp"
 let control_width = 360
 let control_height = 160
 
@@ -72,7 +71,7 @@ let rec run (st : State.t) =
   let name =
     match st.playing with
     | Some song -> song.name ^ " (" ^ fmt_time song.time ^ ")"
-    | None -> State.(app ^ " " ^ version)
+    | None -> App.(name ^ " " ^ version)
   in
   title_scroller st.win name;
 
@@ -111,7 +110,14 @@ let rec run (st : State.t) =
   let digits = log10 (len + 1) + 1 in
   for i = 0 to len - 1 do
     let y = y0 + i * h in
-    let bg = if i mod 2 = 0 then `Black else `Gray 0x18 in
+    let song = st.playlist.(i) in
+    let bg =
+      match i mod 2 = 0, Sys.file_exists song.path with
+      | true, true -> `Black
+      | false, true -> `Gray 0x18
+      | true, false -> `RGB 0x500000
+      | false, false -> `RGB 0x680000
+    in
     if bg <> `Black then Api.Draw.fill st.win x y w h bg;
     let color =
       match st.playing with
@@ -119,18 +125,17 @@ let rec run (st : State.t) =
         `White
       | _ -> `Green
     in
-    let song = st.playlist.(i) in
     let entry = fmt "%0*d. %s" digits (i + 1) song.name in
     let time = fmt_time song.time in
     let w1 = Api.Draw.text_width st.win h font entry in
     let w2 = Api.Draw.text_width st.win h font time in
-    Api.Draw.clip st.win (Some (x, y, w - w2, h));
-    Api.Draw.text st.win x y h color font entry;
+    Api.Draw.clip st.win (x + 1, y, w - w2 - 2, h);
+    Api.Draw.text st.win (x + 1) y h color font entry;
     if w1 > w - w2 then
-      Api.Draw.gradient st.win (x + w - w2 - 16) y 16 h
+      Api.Draw.gradient st.win (x + w - w2 - 17) y 16 h
         (`Trans (bg, 0)) `Horizontal bg;
-    Api.Draw.clip st.win None;
-    Api.Draw.text st.win (x + w - w2) y h color font time;
+    Api.Draw.unclip st.win;
+    Api.Draw.text st.win (x + w - w2 + 1) y h color font time;
   done;
 
   (* Handle drag & drop *)
@@ -138,12 +143,14 @@ let rec run (st : State.t) =
   let songs = Array.map Song.make (Array.of_list dropped) in
   st.playlist <- Array.append st.playlist songs;
 
+Printf.printf "[pl'=%b played=%.2f remain=%.2f playpos=%d]\n%!" is_playing' played remain st.playpos;
   (* Detect end of song *)
-  if on && remain < 0.2 then
+  if is_playing' && remain < 0.2 then
   (
     let last = st.playpos >= Array.length st.playlist - 1 in
     if not last then st.playpos <- st.playpos + 1;
     State.switch_song st st.playlist.(st.playpos) (not last);
+Printf.printf "  [played=%.2f playpos=%d]\n%!" (Api.Audio.played st.audio st.sound) st.playpos;
   );
 
   Api.Draw.finish st.win;
@@ -153,11 +160,12 @@ let rec run (st : State.t) =
 (* Startup *)
 
 let startup () =
-  let win = Api.Window.init 0 0 control_width control_height name in
+  File.clear_temp ();
+  let win = Api.Window.init 0 0 control_width control_height App.name in
   let audio = Api.Audio.init () in
   let st = State.make win audio in
   Persist.load_state st;
-  at_exit (fun () -> Persist.save_state st);
+  at_exit (fun () -> Persist.save_state st; File.clear_temp ());
   st
 
 let _main =

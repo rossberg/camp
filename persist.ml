@@ -3,33 +3,6 @@
 open State
 
 
-(* File Management *)
-
-module Dirs = Directories.Base_dirs ()
-
-let dir =
-  match Dirs.data_local_dir with
-  | Some path -> Filename.concat path State.app
-  | None -> "."
-
-
-let save file f =
-  try
-    if not (Sys.file_exists dir) then Sys.mkdir dir 0o770;
-    Out_channel.with_open_bin (Filename.concat dir file) f
-  with Sys_error _ -> ()
-
-let load file f =
-  try
-    In_channel.with_open_bin (Filename.concat dir file) f
-  with Sys_error _ | End_of_file | Scanf.Scan_failure _ | Failure _ -> ()
-
-let fscanf file =
-  match In_channel.input_line file with
-  | None -> raise End_of_file
-  | Some s -> Scanf.sscanf s
-
-
 (* Helpers *)
 
 let id = Fun.id
@@ -44,7 +17,7 @@ let clamp_pair lx ly hx hy (x, y) = clamp lx hx x, clamp ly hy y
 let playlist_file = "playlist.m3u"
 
 let save_playlist songs =
-  save playlist_file (fun file ->
+  File.save playlist_file (fun file ->
     let output fmt = Printf.fprintf file fmt in
     output "%s" "#EXTM3U\n";
     Array.iter (fun (song : Song.t) ->
@@ -55,8 +28,8 @@ let save_playlist songs =
 
 let load_playlist () =
   let songs = ref [] in
-  load playlist_file (fun file ->
-    let input fmt = fscanf file fmt in
+  File.load playlist_file (fun file ->
+    let input fmt = File.fscanf file fmt in
     input " # EXTM3U " ();
     while true do
       let time, name = input " # EXTINF : %d , %[\x20-\xff]" pair in
@@ -75,9 +48,9 @@ let min_h = 160
 let state_file = "state.conf"
 
 let save_state st =
-  save state_file (fun file ->
+  File.save state_file (fun file ->
     let output fmt  = Printf.fprintf file fmt in
-    output "[%s]\n" State.app;
+    output "[%s]\n" App.name;
     let x, y = Api.Window.pos st.win in
     output "win_pos = %d, %d\n" x y;
     let w, h = Api.Window.size st.win in
@@ -92,9 +65,9 @@ let save_state st =
   save_playlist st.playlist
 
 let load_state st =
-  load state_file (fun file ->
-    let input fmt = fscanf file fmt in
-    if input " [%s@]" id <> State.app then failwith "load_state";
+  File.load state_file (fun file ->
+    let input fmt = File.fscanf file fmt in
+    if input " [%s@]" id <> App.name then failwith "load_state";
     let sw, sh = Api.Window.screen_size st.win in
     let x, y = clamp_pair 0 0 (sw - 20) (sh - 20)
       (input " win_pos = %d , %d " pair) in

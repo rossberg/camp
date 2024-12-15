@@ -11,9 +11,6 @@ type t =
   mutable playlist : Song.t array;
 }
 
-let app = "Kamp"
-let version = "0.0.2"
-
 let make win audio =
   let sound = Api.Audio.silence audio in
   {win; audio; volume = 0.5; sound; playing = None; playpos = 0; playlist = [||]}
