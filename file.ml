@@ -21,7 +21,7 @@ let temp_dir = Filename.concat dir "temp"
 let copy_to_temp path =
   if not (Sys.file_exists temp_dir) then Sys.mkdir temp_dir 0o770;
   let ext = Filename.extension path in
-  let path' = Filename.temp_file ~temp_dir "playing" ext in
+  let path' = Filename.temp_file ~temp_dir "temp" ext in
   In_channel.with_open_bin path (fun ic ->
     Out_channel.with_open_bin path' (fun oc ->
       let rec loop () =

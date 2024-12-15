@@ -129,13 +129,13 @@ let rec run (st : State.t) =
     let time = fmt_time song.time in
     let w1 = Api.Draw.text_width st.win h font entry in
     let w2 = Api.Draw.text_width st.win h font time in
-    Api.Draw.clip st.win (x + 1, y, w - w2 - 2, h);
+    Api.Draw.clip st.win (x + 1, y, w - w2 - 3, h);
     Api.Draw.text st.win (x + 1) y h color font entry;
     if w1 > w - w2 then
-      Api.Draw.gradient st.win (x + w - w2 - 17) y 16 h
+      Api.Draw.gradient st.win (x + w - w2 - 18) y 16 h
         (`Trans (bg, 0)) `Horizontal bg;
     Api.Draw.unclip st.win;
-    Api.Draw.text st.win (x + w - w2 + 1) y h color font time;
+    Api.Draw.text st.win (x + w - w2 - 2) y h color font time;
   done;
 
   (* Handle drag & drop *)
