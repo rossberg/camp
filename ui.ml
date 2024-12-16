@@ -87,19 +87,35 @@ let font win h = font' win h "bahn.ttf" 0x20 0x600 fonts
 let _symfont win h = font' win h "webdings.ttf" 0x23c0 0x2400 symfonts
 
 
-let element (x0, y0, w, h) key win =
+let shift = [`Shift `Left; `Shift `Right]
+let control = [`Control `Left; `Control `Right]
+let alt = [`Alt `Left; `Alt `Right]
+let all = shift @ control @ alt
+let non_shift = control @ alt
+let non_control = shift @ alt
+let non_alt = shift @ control
+
+let some_down = List.exists Key.is_down
+let is_modified = function
+  | `None -> not (some_down all)
+  | `Shift -> some_down shift && not (some_down non_shift)
+  | `Control -> some_down control && not (some_down non_control)
+  | `Alt -> some_down alt && not (some_down non_alt)
+
+let element (x0, y0, w, h) key modkey win =
   let x, y = relative win x0 y0 in
   inner := (x, y, w, h) :: !inner;
   let m = Mouse.pos win in
   x, y,
   if Mouse.is_down `Left && inside !drag_pos (x, y, w, h) then `Pressed else
-  if not (inside m (x, y, w, h)) then `Untouched else
-  if Key.is_down key then `Pressed else
-  if Mouse.is_released `Left || Key.is_released key then `Released else
-  `Focused
+  if Mouse.is_released `Left && inside m (x, y, w, h) then `Released else
+  if Key.is_down key && is_modified modkey then `Pressed else
+  if Key.is_released key && is_modified modkey then `Released else
+  if inside m (x, y, w, h) then `Focused else
+  `Untouched
 
 let resizer (x0, y0, w, h) win (minw, minh) (maxw, maxh) =
-  let x, y, status = element (x0, y0, w, h) `None win in
+  let x, y, status = element (x0, y0, w, h) `None `None win in
   if status <> `Untouched then Api.Mouse.set_cursor win (`Resize `N_S);
   Draw.fill win x y w h (fill false);
   Draw.rect win x y w h (border status);
@@ -121,13 +137,13 @@ let resizer (x0, y0, w, h) win (minw, minh) (maxw, maxh) =
   )
 
 let button (x0, y0, w, h) key win =
-  let x, y, status = element (x0, y0, w, h) key win in
+  let x, y, status = element (x0, y0, w, h) key `Control win in
   Draw.fill win x y w h (fill false);
   Draw.rect win x y w h (border status);
   status = `Released
 
 let control_button (x0, y0, w, h) sym key win active =
-  let x, y, status = element (x0, y0, w, h) key win in
+  let x, y, status = element (x0, y0, w, h) key `None win in
   Draw.fill win x y w h (fill active);
   Draw.rect win x y w h (border status);
   let hsym = h/2 in
@@ -137,7 +153,7 @@ let control_button (x0, y0, w, h) sym key win active =
   if status = `Released then not active else active
 
 let progress_bar (x0, y0, w, h) win v =
-  let x, y, status = element (x0, y0, w, h) `None win in
+  let x, y, status = element (x0, y0, w, h) `None `None win in
   Draw.fill win x y w h (fill false);
   Draw.fill win (x + 1) y (int_of_float (v *. float (w - 2))) h (fill true);
   Draw.rect win x y w h (border status);
@@ -148,7 +164,7 @@ let progress_bar (x0, y0, w, h) win v =
     None
 
 let scroller (x0, y0, w, h) win s =
-  let x, y, _status = element (x0, y0, w, h) `None win in
+  let x, y, _status = element (x0, y0, w, h) `None `None win in
   Draw.fill win x y w h `Black;
   let tw = Draw.text_width win h (font win h) s in
   Draw.clip win (x, y, w, h);

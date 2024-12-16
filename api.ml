@@ -300,7 +300,7 @@ struct
       silent := Some sound;
       sound
 
-  let leaks = ref []
+  let retain = ref []
 
   let load () path =
     if not (Sys.file_exists path) then silence () else
@@ -314,7 +314,7 @@ struct
     if not (Raylib.Music.looping music) (* failure in Raylib < 5.5 *) then
     (
       Raylib.Music.set_ctx_type music 0;
-      leaks := music :: !leaks;
+      retain := music :: !retain;
     );
     (* End of work-around. *)
     if Raylib.Music.ctx_type music = 0 then silence () else
