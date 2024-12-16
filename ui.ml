@@ -87,21 +87,6 @@ let font win h = font' win h "bahn.ttf" 0x20 0x600 fonts
 let _symfont win h = font' win h "webdings.ttf" 0x23c0 0x2400 symfonts
 
 
-let shift = [`Shift `Left; `Shift `Right]
-let control = [`Control `Left; `Control `Right]
-let alt = [`Alt `Left; `Alt `Right]
-let all = shift @ control @ alt
-let non_shift = control @ alt
-let non_control = shift @ alt
-let non_alt = shift @ control
-
-let some_down = List.exists Key.is_down
-let is_modified = function
-  | `None -> not (some_down all)
-  | `Shift -> some_down shift && not (some_down non_shift)
-  | `Control -> some_down control && not (some_down non_control)
-  | `Alt -> some_down alt && not (some_down non_alt)
-
 let element (x0, y0, w, h) key modkey win =
   let x, y = relative win x0 y0 in
   inner := (x, y, w, h) :: !inner;
@@ -109,8 +94,8 @@ let element (x0, y0, w, h) key modkey win =
   x, y,
   if Mouse.is_down `Left && inside !drag_pos (x, y, w, h) then `Pressed else
   if Mouse.is_released `Left && inside m (x, y, w, h) then `Released else
-  if Key.is_down key && is_modified modkey then `Pressed else
-  if Key.is_released key && is_modified modkey then `Released else
+  if Key.is_down key && Api.Key.is_modifier_down modkey then `Pressed else
+  if Key.is_released key && Api.Key.is_modifier_down modkey then `Released else
   if inside m (x, y, w, h) then `Focused else
   `Untouched
 

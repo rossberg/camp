@@ -47,6 +47,8 @@ type t =
   mutable current : song option;
   mutable playpos : int;
   mutable playlist : song array;
+  mutable undo : (int * song array) list;
+  mutable undocount : int;
 }
 
 let make win audio =
@@ -56,7 +58,9 @@ let make win audio =
     volume = 0.5;
     current = None;
     playpos = 0;
-    playlist = [||]
+    playlist = [||];
+    undo = [];
+    undocount = 0;
   }
 
 let ok st =
@@ -156,6 +160,31 @@ let seek_song st percent =
 
 (* Playlist Manipulation *)
 
+let undo_depth = 100
+
+let push_undo st =
+  if st.undocount < undo_depth then
+    st.undocount <- st.undocount + 1
+  else
+    st.undo <- List.filteri (fun i _ -> i < undo_depth - 1) st.undo;
+  st.undo <- (st.playpos, st.playlist) :: st.undo
+
+let pop_undo st =
+  match st.undo with
+  | [] -> ()
+  | (pos, list) :: undo' ->
+    st.playpos <- pos;
+    st.playlist <- list;
+    st.undo <- undo';
+    st.undocount <- st.undocount - 1
+
+
+let clear_songs st =
+  push_undo st;
+  st.playlist <- [||];
+  st.playpos <- 0
+
+
 let insert_song' songs path =
   songs := make_song path :: !songs
 
@@ -183,6 +212,7 @@ let rec insert_file' songs path =
 let insert_songs st pos paths =
   if paths <> [] then
   (
+    push_undo st;
     let songs = ref [] in
     List.iter (insert_file' songs) paths;
     let playlist' = Array.of_list (List.rev !songs) in

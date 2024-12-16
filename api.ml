@@ -192,6 +192,8 @@ type key =
   | `Caps
 ]
 
+type modifier = [`None | `Shift | `Control | `Alt]
+
 type resize = [`N_S | `E_W | `NE_SW | `NW_SE | `All]
 type cursor =
 [
@@ -278,6 +280,21 @@ struct
 
   let is_down k = Raylib.is_key_down (key k)
   let is_released k = Raylib.is_key_released (key k)
+
+  let shift = [`Shift `Left; `Shift `Right]
+  let control = [`Control `Left; `Control `Right]
+  let alt = [`Alt `Left; `Alt `Right]
+  let non_shift = control @ alt
+  let non_control = shift @ alt
+  let non_alt = shift @ control
+  let all = shift @ control @ alt
+
+  let some_down = List.exists is_down
+  let is_modifier_down = function
+    | `None -> not (some_down all)
+    | `Shift -> some_down shift && not (some_down non_shift)
+    | `Control -> some_down control && not (some_down non_control)
+    | `Alt -> some_down alt && not (some_down non_alt)
 end
 
 

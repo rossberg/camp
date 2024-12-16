@@ -100,9 +100,12 @@ let rec run (st : State.t) =
   if eject_button st.win false then
   (
     State.eject_song st;
-    st.playlist <- [||];
-    st.playpos <- 0;
-  );
+    State.clear_songs st;
+  )
+  else if
+    Api.Key.is_released (`Char 'Z') && Api.Key.is_modifier_down `Control
+  then
+    State.pop_undo st;
 
   if Api.Key.is_released (`Char ' ') then
   (
