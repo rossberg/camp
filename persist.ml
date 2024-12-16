@@ -22,7 +22,7 @@ let save_playlist songs =
   File.save playlist_file (fun file ->
     let output fmt = Printf.fprintf file fmt in
     output "%s" "#EXTM3U\n";
-    Array.iter (fun (song : Song.t) ->
+    Array.iter (fun song ->
       output "#EXTINF:%.0f,%s\n" song.time song.name;
       output "%s\n" song.path;
     ) songs
@@ -36,7 +36,7 @@ let load_playlist () =
     while true do
       let time, name = input " # EXTINF : %d , %[\x20-\xff]" pair in
       let path = String.trim (input " %[\x20-\xff]" id) in
-      songs := Song.{path; name; time = float time} :: !songs
+      songs := make_song_ext path name (float time) :: !songs
     done
   );
   Array.of_list (List.rev !songs)
@@ -79,7 +79,7 @@ let load_state st =
     Api.Window.set_size st.win w h;
     st.volume <- clamp 0.0 1.0 (input " volume = %f " id);
     st.playpos <- max 0 (input " play_pos = %d " id);
-    let current = Song.make (String.trim (input " play = %[\x20-\xff]" id)) in
+    let current = make_song (String.trim (input " play = %[\x20-\xff]" id)) in
     State.switch_song st current false;
     State.seek_song st (clamp 0.0 1.0 (input " seek_pos = %f " id));
   );

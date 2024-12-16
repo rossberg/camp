@@ -172,6 +172,7 @@ let rec run (st : State.t) =
   for i = 0 to min (len - 1) ((snd (Api.Window.size st.win) - y0) / h + 1) do
     let y = y0 + i * h in
     let song = st.playlist.(i) in
+    if not (State.is_loaded_song song) then State.update_song song;
     let bg =
       match i mod 2 = 0, Sys.file_exists song.path with
       | true, true -> `Black
@@ -187,7 +188,7 @@ let rec run (st : State.t) =
       | _ -> `Green
     in
     let entry = fmt "%0*d. %s" digits (i + 1) song.name in
-    let time = fmt_time song.time in
+    let time = if song.time = 0.0 then "" else fmt_time song.time in
     let w1 = Api.Draw.text_width st.win h font entry in
     let w2 = Api.Draw.text_width st.win h font time in
     Api.Draw.clip st.win (x + 1, y, w - w2 - 3, h);

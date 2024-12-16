@@ -3,15 +3,50 @@
 open Audio_file
 
 
+(* Songs *)
+
+type path = string
+type time = float
+
+type song =
+{
+  path : path;
+  mutable name : string;
+  mutable time : time;
+  mutable time_ok : bool;
+}
+
+let make_song path =
+{
+  path;
+  name = Filename.(remove_extension (basename path));  (* TODO *)
+  time = 0.0;  (* TODO *)
+  time_ok = false;
+}
+
+let make_song_ext path name time =
+  {path; name; time; time_ok = false}
+
+let settle_song_time song time =
+  song.time <- time;
+  song.time_ok <- true
+
+let is_loaded_song song =
+  song.time_ok || song.time <> 0.0 ||
+  song.name <> Filename.(remove_extension (basename song.path))
+
+
+(* State *)
+
 type t =
 {
   win : Api.window;
   audio : Api.audio;
   mutable volume : float;
   mutable sound : Api.sound;
-  mutable current : Song.t option;
+  mutable current : song option;
   mutable playpos : int;
-  mutable playlist : Song.t array;
+  mutable playlist : song array;
 }
 
 let make win audio =
@@ -63,6 +98,29 @@ Printf.printf "[%s current=%s played=%.2f silence=%b playpos=%d len=%d]\n%!"
 *)
 
 
+(* Song update queue *)
+
+let queue = Safe_queue.create ()
+
+let update_song song =
+  Safe_queue.add song queue
+
+let rec updater () =
+  let song = Safe_queue.take queue in
+  (try
+    let meta = Meta.load_meta song.path in
+    if not song.time_ok then song.time <- meta.length;
+    song.name <-
+      if meta.artist <> "" && meta.title <> "" then
+        meta.artist ^ " - " ^ meta.title
+      else if meta.title <> "" then meta.title
+      else song.name
+  with Sys_error _ -> ());
+  updater ()
+
+let _ = Domain.spawn updater
+
+
 (* Play Control *)
 
 let eject_song st =
@@ -74,10 +132,16 @@ let eject_song st =
     st.sound <- Api.Audio.silence st.audio;
   )
 
-let switch_song st (song : Song.t) play =
+let switch_song st song play =
   eject_song st;
   st.sound <- Api.Audio.load st.audio song.path;
   st.current <- Some song;
+  let time =
+    if st.sound = Api.Audio.silence st.audio then 0.0
+    else Api.Audio.length st.audio st.sound
+  in
+  settle_song_time song time;
+  update_song song;
   Api.Audio.volume st.audio st.sound st.volume;
   Api.Audio.play st.audio st.sound;
   if not play then Api.Audio.pause st.audio st.sound
@@ -93,16 +157,15 @@ let seek_song st percent =
 (* Playlist Manipulation *)
 
 let insert_song' songs path =
-  let song = Song.make path in
-  songs := song :: !songs
+  songs := make_song path :: !songs
 
 let insert_playlist' songs path =
   let s = In_channel.(with_open_bin path input_all) in
   List.iter (fun M3u.{path; info} ->
     let song =
       match info with
-      | None -> Song.make path
-      | Some {title; time} -> Song.{path; name = title; time = float time}
+      | None -> make_song path
+      | Some {title; time} -> make_song_ext path title (float time)
     in songs := song :: !songs
   ) (M3u.parse_ext s)
 

@@ -1,7 +1,7 @@
 (* Unicode Helpers *)
 
 let rec is_ascii' s i =
-  i = String.length s || s.[i] < '\x80' || is_ascii' s (i + 1)
+  i = String.length s || s.[i] < '\x80' && is_ascii' s (i + 1)
 
 let is_ascii s = is_ascii' s 0
 

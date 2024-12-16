@@ -1,5 +1,5 @@
 (library
   (name audio_file)
-  (modules unicode m3u)
+  (modules unicode m3u id3v1 id3v2 vorbis Jpeg Png meta)
   (libraries unix)
 )
