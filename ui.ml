@@ -37,6 +37,7 @@ let mouse_delta = ref (0, 0) (* absolute delta *)
 let drag_pos = ref (-1, -1)  (* starting point of mouse drag *)
 let win_pos = ref (0, 0)     (* logical position ignoring snap *)
 let fonts = Array.make 64 None
+let symfonts = Array.make 64 None
 
 let window win =
   Api.Mouse.set_cursor win `Default;
@@ -74,13 +75,17 @@ let border = function
   | `Focused -> `Orange
   | _ -> `Blue
 
-let font win h =
+let font' win h file min max fonts =
   match fonts.(h) with
   | Some f -> f
   | None ->
-    let f = Api.Font.load win "bahn.ttf" 0x600 h in
+    let f = Api.Font.load win file min max h in
     fonts.(h) <- Some f;
     f
+
+let font win h = font' win h "bahn.ttf" 0x20 0x600 fonts
+let _symfont win h = font' win h "webdings.ttf" 0x23c0 0x2400 symfonts
+
 
 let element (x0, y0, w, h) key win =
   let x, y = relative win x0 y0 in
@@ -121,10 +126,14 @@ let button (x0, y0, w, h) key win =
   Draw.rect win x y w h (border status);
   status = `Released
 
-let control_button (x0, y0, w, h) key win active =
+let control_button (x0, y0, w, h) sym key win active =
   let x, y, status = element (x0, y0, w, h) key win in
-  Draw.fill_circ win x y w h (fill active);
-  Draw.circ win x y w h (border status);
+  Draw.fill win x y w h (fill active);
+  Draw.rect win x y w h (border status);
+  let hsym = h/2 in
+  let font = font win hsym in  (* TODO *)
+  let wsym = Api.Draw.text_width win hsym font sym in
+  Api.Draw.text win (x + (w - wsym)/2) (y + (h - hsym)/2) hsym `White font sym;
   if status = `Released then not active else active
 
 let progress_bar (x0, y0, w, h) win v =

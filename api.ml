@@ -1,5 +1,7 @@
 (* Graphics/sound API abstraction *)
 
+open Audio_file
+
 
 (* Base types *)
 
@@ -85,9 +87,9 @@ type font = Raylib.Font.t (* * Raylib.Shader.t *)
 
 module Font =
 struct
-  let load () path max size =
-    let glyphs = Ctypes.(CArray.make int (max - 32)) in
-    for i = 32 to max - 1 do Ctypes.CArray.set glyphs (i - 32) i done;
+  let load () path min max size =
+    let glyphs = Ctypes.(CArray.make int (max - min)) in
+    for i = min to max - 1 do Ctypes.CArray.set glyphs (i - min) i done;
     let font = Raylib.load_font_ex path size (Some glyphs) in
     Raylib.(set_texture_filter (Font.texture font) TextureFilter.Bilinear);
     font
@@ -282,27 +284,28 @@ end
 (* Audio *)
 
 type audio = unit
-type sound = (Raylib.Music.t * path option (* for UTF-8 workaround *)) option
+type sound = {music : Raylib.Music.t; temp : path option (* for UTF-8 workaround *)}
 
 module Audio =
 struct
-  let ff f (x, _) = f x
-  let iter f sound = Option.iter (ff f) sound
-  let set f sound x = Option.iter (fun s -> ff f s x) sound
-  let get f sound default = Option.value (Option.map (ff f) sound) ~default
-
   let init () = Raylib.init_audio_device ()
 
-  let silence () = None
+  let silent = ref None
+  let silence () =
+    match !silent with
+    | Some sound -> sound
+    | None ->
+      let music = Raylib.load_music_stream "silence.mp3" in
+      let sound = {music; temp = None} in
+      silent := Some sound;
+      sound
 
   let leaks = ref []
 
-  let is_ascii path = String.for_all ((>) '\x80') path
-
   let load () path =
-    if not (Sys.file_exists path) then None else
+    if not (Sys.file_exists path) then silence () else
     (* Raylib can't handle UTF-8 file paths, so copy those to temp file. *)
-    let path' = if is_ascii path then path else File.copy_to_temp path in
+    let path' = if Unicode.is_ascii path then path else File.copy_to_temp path in
     let music = Raylib.load_music_stream path' in
     (* TODO: This is a work-around for a bug in Raylib < 5.5.
      * We intentionally leak the music stream in order to avoid a double free
@@ -314,34 +317,30 @@ struct
       leaks := music :: !leaks;
     );
     (* End of work-around. *)
-    if Raylib.Music.ctx_type music = 0 then None else
+    if Raylib.Music.ctx_type music = 0 then silence () else
     (
       (*Raylib.Music.set_looping music false;*)  (* TODO *)
-      Some (music, if path' = path then None else Some path')
+      {music; temp = if path' = path then None else Some path'}
     )
 
-  let free () = function
-    | None -> ()
-    | Some (sound, temp_opt) ->
-      Raylib.stop_music_stream sound;
-      Option.iter File.remove_temp temp_opt;
-      Raylib.unload_music_stream sound
+  let free () sound =
+    assert (sound != silence ());
+    Raylib.stop_music_stream sound.music;
+    Option.iter File.remove_temp sound.temp;
+    Raylib.unload_music_stream sound.music
 
-  let play () sound = iter Raylib.play_music_stream sound
-  let stop () sound = iter Raylib.stop_music_stream sound
-  let pause () sound = iter Raylib.pause_music_stream sound
+  let play () sound = Raylib.play_music_stream sound.music
+  let stop () sound = Raylib.stop_music_stream sound.music
+  let pause () sound = Raylib.pause_music_stream sound.music
   let resume () sound =
-    iter Raylib.resume_music_stream sound;
-    iter Raylib.update_music_stream sound
+    Raylib.resume_music_stream sound.music;
+    Raylib.update_music_stream sound.music
 
-  let volume () sound x = set Raylib.set_music_volume sound x
-
-  let is_playing () sound = get Raylib.is_music_stream_playing sound false
-
-  let length () sound = get Raylib.get_music_time_length sound 0.0
-  let played () sound = get Raylib.get_music_time_played sound 0.0
-  let seek () sound t = set Raylib.seek_music_stream sound t
-
+  let is_playing () sound = Raylib.is_music_stream_playing sound.music
+  let volume () sound x = Raylib.set_music_volume sound.music x
+  let length () sound = Raylib.get_music_time_length sound.music
+  let played () sound = Raylib.get_music_time_played sound.music
+  let seek () sound t = Raylib.seek_music_stream sound.music t
 end
 
 

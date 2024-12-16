@@ -16,6 +16,8 @@ let clamp_pair lx ly hx hy (x, y) = clamp lx hx x, clamp ly hy y
 
 let playlist_file = "playlist.m3u"
 
+(* TODO: unify with M3u module *)
+
 let save_playlist songs =
   File.save playlist_file (fun file ->
     let output fmt = Printf.fprintf file fmt in
@@ -57,7 +59,7 @@ let save_state st =
     output "win_size = %d, %d\n" w h;
     output "volume = %.2f\n" st.volume;
     output "play_pos = %d\n" st.playpos;
-    output "play = %s\n" (match st.playing with Some s -> s.path | None -> "");
+    output "play = %s\n" (match st.current with Some s -> s.path | None -> "");
     let length = Api.Audio.length st.audio st.sound in
     let played = Api.Audio.played st.audio st.sound in
     output "seek_pos = %.4f\n" (if length > 0.0 then played /. length else 0.0);
@@ -77,9 +79,10 @@ let load_state st =
     Api.Window.set_size st.win w h;
     st.volume <- clamp 0.0 1.0 (input " volume = %f " id);
     st.playpos <- max 0 (input " play_pos = %d " id);
-    let playing = Song.make (String.trim (input " play = %[\x20-\xff]" id)) in
-    State.switch_song st playing false;
+    let current = Song.make (String.trim (input " play = %[\x20-\xff]" id)) in
+    State.switch_song st current false;
     State.seek_song st (clamp 0.0 1.0 (input " seek_pos = %f " id));
   );
   st.playlist <- load_playlist ();
-  st.playpos <- min st.playpos (max 0 (Array.length st.playlist - 1))
+  st.playpos <- min st.playpos (max 0 (Array.length st.playlist - 1));
+  ok st
