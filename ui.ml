@@ -121,6 +121,10 @@ let resizer (x0, y0, w, h) win (minw, minh) (maxw, maxh) =
     inner := (x + dw, y + dh, w, h) :: !inner
   )
 
+let overlay_button (x0, y0, w, h) key win =
+  let _, _, status = element (x0, y0, w, h) key `Control win in
+  status = `Released
+
 let button (x0, y0, w, h) key win =
   let x, y, status = element (x0, y0, w, h) key `Control win in
   Draw.fill win x y w h (fill false);

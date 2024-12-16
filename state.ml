@@ -176,7 +176,8 @@ let pop_undo st =
     st.playpos <- pos;
     st.playlist <- list;
     st.undo <- undo';
-    st.undocount <- st.undocount - 1
+    st.undocount <- st.undocount - 1;
+    if st.current = None && list <> [||] then st.current <- list.(pos)
 
 
 let clear_songs st =

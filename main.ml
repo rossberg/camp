@@ -17,6 +17,7 @@ let pause_button = Ui.control_button (90, 122, 40, 30) "||" (`Char 'C')
 let stop_button = Ui.control_button (130, 122, 40, 30) "[]" (`Char 'V')
 let fwd_button = Ui.control_button (170, 122, 40, 30) ">>" (`Char 'B')
 let eject_button = Ui.control_button (210, 122, 40, 30) "^" (`Char 'N')
+let undo_button = Ui.overlay_button (210, 122, 40, 30) (`Char 'Z')
 
 let volume_bar = Ui.progress_bar (260, 131, 90, 12)
 
@@ -102,9 +103,7 @@ let rec run (st : State.t) =
     State.eject_song st;
     State.clear_songs st;
   )
-  else if
-    Api.Key.is_released (`Char 'Z') && Api.Key.is_modifier_down `Control
-  then
+  else if undo_button st.win then
     State.pop_undo st;
 
   if Api.Key.is_released (`Char ' ') then
