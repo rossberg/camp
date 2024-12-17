@@ -59,6 +59,7 @@ type picture =
 
 type meta =
 {
+  loaded : bool;
   artist  : string;
   title : string;
   track : int;
@@ -76,7 +77,6 @@ type meta =
   length : time;
   rating : int;
   cover : picture option;
-  playlist : string;
 }
 
 let tag_field (id3v2_name, vorbis_name) tag : string option =
@@ -294,30 +294,10 @@ let picture_tag_field path tag : picture option =
         data = pic.Vorbis.data;
       }
 
-let meta_empty =
-  { artist = "";
-    title = "";
-    track = 0;
-    tracks = 0;
-    trackfmt = 0;
-    disc = 0;
-    discs = 0;
-    discfmt = 0;
-    albumartist = "";
-    album = "";
-    year = 0;
-    date = 0.0;
-    label = "";
-    country = "";
-    length = 0.0;
-    rating = 0;
-    cover = None;
-    playlist = "";
-  }
-
 let meta path tag =
   try
-    { meta_empty with
+    {
+      loaded = tag <> None;
       artist = text_tag_field ("TPE1", "ARTIST") path tag;
       title = text_tag_field ("TIT2", "TITLE") path tag;
       track = int_tag_field ("TRCK", "TRACKNUMBER") path tag;
@@ -340,20 +320,6 @@ let meta path tag =
     let bt = Printexc.get_raw_backtrace () in
     warn path "error while loading tag";
     Printexc.raise_with_backtrace exn bt
-
-let meta_album albumartist album year date cover =
-  { meta_empty with
-    albumartist;
-    album;
-    year;
-    date;
-    cover;
-  }
-
-let meta_playlist playlist =
-  { meta_empty with
-    playlist;
-  }
 
 
 let load_meta path = meta path (load_tag path)

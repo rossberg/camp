@@ -430,24 +430,24 @@ let input_tag_body ic =
   let padding =
     if header.flags.footer then
     (
-	  require (pos_in ic = frames_pos + header.size) "inconsistent tag size" (pos_in ic) errors;
+      require (pos_in ic = frames_pos + header.size) "inconsistent tag size" (pos_in ic) errors;
       let tag = really_input_string ic 3 in
       require (tag = "3DI") "invalid footer tag" (pos_in ic - 3) errors;
-	  let footer = seq "footer" errors (input_header ic) in
-	  require (footer = header) "footer inconsistent" (frames_pos + header.size) errors;
-	  0
+      let footer = seq "footer" errors (input_header ic) in
+      require (footer = header) "footer inconsistent" (frames_pos + header.size) errors;
+      0
     )
     else
     (
-	  require (pos_in ic <= frames_pos + header.size) "inconsistent tag size" (pos_in ic) errors;
-	  let padding_size = frames_pos + header.size - pos_in ic in
-	  let padding = really_input_string ic padding_size in
+      require (pos_in ic <= frames_pos + header.size) "inconsistent tag size" (pos_in ic) errors;
+      let padding_size = max 0 (frames_pos + header.size - pos_in ic) in
+      let padding = really_input_string ic padding_size in
       let ok = ref true in
       for i = 0 to padding_size - 1 do
         if padding.[i] <> '\x00' then ok := false
       done;
-	  require !ok ("invalid padding string " ^ quote padding) (frames_pos + header.size - padding_size) errors;
-	  padding_size
+      require !ok ("invalid padding string " ^ quote padding) (frames_pos + header.size - padding_size) errors;
+      padding_size
     )
   in {header; extended; frames; padding}, !errors
 

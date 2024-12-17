@@ -11,7 +11,7 @@ let is_shift_down () =
 
 (* Helpers *)
 
-let relative win (x, y, w, h) =
+let dim win (x, y, w, h) =
   let ww, wh = Window.size win in
   (if x < 0 then ww + x else x), (if y < 0 then wh + y else y),
   (if w < 0 then ww - x + w else w), (if h < 0 then wh - y + h else h)
@@ -106,9 +106,9 @@ let key modkey win = (key_status win modkey = `Released)
 let mouse r win = (mouse_status win r = `Released)
 
 let element r modkey win =
-  let (x, y, w, h) as r' = relative win r in
+  let r' = dim win r in
   inner := r' :: !inner;
-  x, y, w, h,
+  r',
   match mouse_status win r', key_status win modkey with
   | `Released, _ | _, `Released -> `Released
   | `Pressed, _ | _, `Pressed -> `Pressed
@@ -116,7 +116,7 @@ let element r modkey win =
   | _, _ -> `Untouched
 
 let resizer r win (minw, minh) (maxw, maxh) =
-  let x, y, w, h, status = element r no_modkey win in
+  let (x, y, w, h), status = element r no_modkey win in
   if status <> `Untouched then Api.Mouse.set_cursor win (`Resize `N_S);
   Draw.fill win x y w h (fill false);
   Draw.rect win x y w h (border status);
@@ -139,13 +139,13 @@ let resizer r win (minw, minh) (maxw, maxh) =
   )
 
 let button r modkey win =
-  let x, y, w, h, status = element r modkey win in
+  let (x, y, w, h), status = element r modkey win in
   Draw.fill win x y w h (fill false);
   Draw.rect win x y w h (border status);
   status = `Released
 
 let control_button r sym modkey win active =
-  let x, y, w, h, status = element r modkey win in
+  let (x, y, w, h), status = element r modkey win in
   Draw.fill win x y w h (fill active);
   Draw.rect win x y w h (border status);
   let hsym = h/2 in
@@ -155,7 +155,7 @@ let control_button r sym modkey win active =
   if status = `Released then not active else active
 
 let progress_bar r win v =
-  let x, y, w, h, status = element r no_modkey win in
+  let (x, y, w, h), status = element r no_modkey win in
   Draw.fill win x y w h (fill false);
   Draw.fill win (x + 1) y (int_of_float (v *. float (w - 2))) h (fill true);
   Draw.rect win x y w h (border status);
@@ -166,10 +166,48 @@ let progress_bar r win v =
     None
 
 let scroller r win s =
-  let x, y, w, h, _status = element r no_modkey win in
+  let (x, y, w, h), _status = element r no_modkey win in
   Draw.fill win x y w h `Black;
   let tw = Draw.text_width win h (font win h) s in
   Draw.clip win (x, y, w, h);
   let dx = if tw <= w then (w - tw)/2 else w - Draw.frame win mod (w + tw) in
   Draw.text win (x + dx) y h `Green (font win h) s;
   Draw.unclip win
+
+
+type align = [`Left | `Center | `Right]
+type column = int * align
+type row = color * color * string array
+
+let table r ch win cols rows =
+  let (x, y, w, h), status = element r no_modkey win in
+  let font = font win ch in
+  Array.iteri (fun j (fg, bg, texts) ->
+    let cy = y + j * ch in
+    if bg <> `Black then Api.Draw.fill win x cy w ch bg;
+    let cx = ref x in
+    Array.iteri (fun i (cw, align) ->
+      let tw = Api.Draw.text_width win ch font texts.(i) in
+      let dx =
+        match align with
+        | `Left -> 0
+        | `Center -> (cw - tw) / 2
+        | `Right -> cw - tw
+      in
+      if tw >= cw then Api.Draw.clip win (!cx, y, cw - 1, h);
+      Api.Draw.text win (!cx + max 0 dx) cy ch fg font texts.(i);
+      if tw >= cw then
+      (
+        let gw = min cw 16 in
+        Api.Draw.gradient win (!cx + cw - gw) cy gw ch
+          (`Trans (bg, 0)) `Horizontal bg;
+        Api.Draw.unclip win;
+      );
+      cx := !cx + cw;
+    ) cols
+  ) rows;
+  if status = `Pressed then
+    let _, my = Api.Mouse.pos win in
+    Some ((my - y) / ch)
+  else
+    None

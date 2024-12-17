@@ -1,5 +1,10 @@
 (* Main Entry Point *)
 
+(* Configuration *)
+
+let playlist_file_check_freq = 5.0
+
+
 (* Layout *)
 
 let control_width = 360
@@ -20,6 +25,10 @@ let eject_button = Ui.control_button (210, 122, 40, 30) "^" (`Plain, `Char 'N')
 let undo_button = Ui.key (`Control, `Char 'Z')
 
 let volume_bar = Ui.progress_bar (260, 131, 90, 12)
+
+let playlist_rect = (10, 170, -10, -10)
+let playlist_row_h = 16
+let playlist = Ui.table playlist_rect playlist_row_h
 
 
 (* Helpers *)
@@ -164,48 +173,46 @@ let rec run (st : State.t) =
   Api.Draw.text st.win 140 35 20 (`Gray 0xc0) (Ui.font st.win 20) s;
 
   (* Playlist *)
-  let x = 10 in
-  let w = control_width - 2*x in
-  let h = 16 in
-  let y0 = control_height in
-  let font = Ui.font st.win h in
+  let now = Unix.time () in
   let len = Array.length st.playlist in
   let digits = log10 (len + 1) + 1 in
-  for i = 0 to min (len - 1) ((snd (Api.Window.size st.win) - y0) / h + 1) do
-    let y = y0 + i * h in
-    let song = st.playlist.(i) in
-    if not (State.is_loaded_song song) then State.update_song song;
-    let bg =
-      match i mod 2 = 0, Sys.file_exists song.path with
-      | true, true -> `Black
-      | false, true -> `Gray 0x20
-      | true, false -> `RGB 0x500000
-      | false, false -> `RGB 0x680000
-    in
-    if bg <> `Black then Api.Draw.fill st.win x y w h bg;
-    let color =
-      match st.current with
-      | Some song when i = st.playpos ->
-        if song.path = st.playlist.(i).path then `White else `Gray 0xc0
-      | _ -> `Green
-    in
-    let entry = fmt "%0*d. %s" digits (i + 1) song.name in
-    let time = if song.time = 0.0 then "" else fmt_time song.time in
-    let w1 = Api.Draw.text_width st.win h font entry in
-    let w2 = Api.Draw.text_width st.win h font time in
-    Api.Draw.clip st.win (x + 1, y, w - w2 - 3, h);
-    Api.Draw.text st.win (x + 1) y h color font entry;
-    if w1 > w - w2 then
-      Api.Draw.gradient st.win (x + w - w2 - 18) y 16 h
-        (`Trans (bg, 0)) `Horizontal bg;
-    Api.Draw.unclip st.win;
-    Api.Draw.text st.win (x + w - w2 - 2) y h color font time;
-  done;
+  let font = Ui.font st.win playlist_row_h in
+  let smax1 = String.make digits '0' ^ ". " in
+  let cw1 = Api.Draw.text_width st.win playlist_row_h font smax1 + 1 in
+  let cw3 = ref 16 in
+  let (_, y, w, h) as r = Ui.dim st.win playlist_rect in
+  let rows =
+    Array.init (h / playlist_row_h) (fun i ->
+      if i >= len then `Green, `Black, [|""; ""; ""|] else
+      let song = st.playlist.(i) in
+      if now -. song.last_update > playlist_file_check_freq then State.update_song song;
+      let bg = if i mod 2 = 0 then `Black else `Gray 0x20 in
+      let fg =
+        match song.status with
+        | _ when i = st.playpos ->
+          if song.path = (Option.get st.current).path then `White else `Gray 0xc0
+        | `Absent -> `Red
+        | `Invalid -> `Yellow
+        | `Undet -> `Blue
+        | `Predet | `Det -> `Green
+      in
+      let time = if song.time = 0.0 then "" else fmt_time song.time in
+      cw3 := max !cw3 (Api.Draw.text_width st.win playlist_row_h font time + 1);
+      fg, bg, [|fmt "%d. " (i + 1); song.name; time|]
+    )
+  in
+  let cols = [|cw1, `Right; w - cw1 - !cw3, `Left; !cw3, `Right|] in
+  (match playlist st.win cols rows with
+  | Some i when i < Array.length st.playlist ->
+    st.playpos <- i;
+    State.switch_song st st.playlist.(i) playing
+  | _ -> ()
+  );
 
   (* Handle drag & drop *)
   let dropped = Api.File.dropped st.win in
   let _, my as m = Api.Mouse.pos st.win in
-  let pos = if Api.inside m (x, y0, w, len * h) then (my - y0) / h else len in
+  let pos = if Api.inside m r then (my - y) / playlist_row_h else len in
   State.insert_songs st pos dropped;
 
   Api.Draw.finish st.win;

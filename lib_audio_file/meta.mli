@@ -16,6 +16,7 @@ type picture =
 
 type meta =
 {
+  loaded : bool;
   artist  : string;
   title : string;
   track : int;
@@ -33,7 +34,6 @@ type meta =
   length : time;
   rating : int;
   cover : picture option;
-  playlist : string;
 }
 
 val warn_hook : (path -> string -> unit) ref
@@ -46,5 +46,3 @@ val load_tag : path -> tag option
 val load_meta : path -> meta
 
 val meta : path -> tag option -> meta
-val meta_album : string -> string -> int -> time -> picture option -> meta
-val meta_playlist : string -> meta

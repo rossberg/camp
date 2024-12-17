@@ -13,27 +13,27 @@ type song =
   path : path;
   mutable name : string;
   mutable time : time;
-  mutable time_ok : bool;
+  mutable status : [`Undet | `Predet | `Det | `Invalid | `Absent];
+  mutable last_update : time;
 }
+
+let exts = [".mp3"; ".flac"; ".wav"; ".ogg"; ".mod"]
+
+let known_ext path =
+  List.mem (String.lowercase_ascii (Filename.extension path)) exts
 
 let make_song path =
-{
-  path;
-  name = Filename.(remove_extension (basename path));  (* TODO *)
-  time = 0.0;  (* TODO *)
-  time_ok = false;
-}
+  let file = Filename.basename path in
+  {
+    path;
+    name = if known_ext file then Filename.remove_extension file else file;
+    time = 0.0;
+    status = `Undet;
+    last_update = 0.0;
+  }
 
-let make_song_ext path name time =
-  {path; name; time; time_ok = false}
-
-let settle_song_time song time =
-  song.time <- time;
-  song.time_ok <- true
-
-let is_loaded_song song =
-  song.time_ok || song.time <> 0.0 ||
-  song.name <> Filename.(remove_extension (basename song.path))
+let make_song_predet path name time =
+  {path; name; time; status = `Predet; last_update = 0.0}
 
 
 (* State *)
@@ -107,19 +107,32 @@ Printf.printf "[%s current=%s played=%.2f silence=%b playpos=%d len=%d]\n%!"
 let queue = Safe_queue.create ()
 
 let update_song song =
-  Safe_queue.add song queue
+  if song.last_update >= 0.0 then
+  (
+    song.last_update <- -1.0;
+    Safe_queue.add song queue;
+  )
 
 let rec updater () =
   let song = Safe_queue.take queue in
+  let file = Filename.basename song.path in
+  song.name <- if known_ext file then Filename.remove_extension file else file;
+  if not (Sys.file_exists song.path) then song.status <- `Absent else
+  if not (known_ext song.path) then song.status <- `Invalid else
   (try
     let meta = Meta.load_meta song.path in
-    if not song.time_ok then song.time <- meta.length;
+    if meta.loaded then song.status <- `Det;
+    if song.time = 0.0 && meta.length <> 0.0 then song.time <- meta.length;
     song.name <-
-      if meta.artist <> "" && meta.title <> "" then
-        meta.artist ^ " - " ^ meta.title
-      else if meta.title <> "" then meta.title
-      else song.name
-  with Sys_error _ -> ());
+      if meta.artist <> "" && meta.title <> "" then meta.artist ^ " - " ^ meta.title else
+      if meta.title <> "" then meta.title else song.name
+  with
+  | Sys_error _ -> song.status <- `Invalid
+  | exn ->
+    Printf.fprintf stderr "uncaught exception in updater thread: %s\n%!"
+      (Printexc.to_string exn)
+  );
+  song.last_update <- Unix.time ();
   updater ()
 
 let _ = Domain.spawn updater
@@ -140,11 +153,9 @@ let switch_song st song play =
   eject_song st;
   st.sound <- Api.Audio.load st.audio song.path;
   st.current <- Some song;
-  let time =
+  song.time <-
     if st.sound = Api.Audio.silence st.audio then 0.0
-    else Api.Audio.length st.audio st.sound
-  in
-  settle_song_time song time;
+    else Api.Audio.length st.audio st.sound;
   update_song song;
   Api.Audio.volume st.audio st.sound st.volume;
   Api.Audio.play st.audio st.sound;
@@ -195,7 +206,7 @@ let insert_playlist' songs path =
     let song =
       match info with
       | None -> make_song path
-      | Some {title; time} -> make_song_ext path title (float time)
+      | Some {title; time} -> make_song_predet path title (float time)
     in songs := song :: !songs
   ) (M3u.parse_ext s)
 

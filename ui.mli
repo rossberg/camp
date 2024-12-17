@@ -3,6 +3,7 @@
 open Api
 
 val font : window -> int -> Api.font
+val dim : window -> rect -> rect
 
 val window : window -> unit
 
@@ -15,12 +16,8 @@ val control_button : rect -> string -> modifier * key -> window -> bool -> bool
 val progress_bar : rect -> window -> float -> float option
 val scroller : rect -> window -> string -> unit
 
-(*
 type align = [`Left | `Center | `Right]
 type column = int * align
-type row = color * color * string list
-val table : rect -> column list -> window -> row array -> int option
+type row = color * color * string array
 
-
-let playlist = Ui.table (10, 170, -10, -10) [`Right, `Min; `Left, `Max; `Right, `Min]
-*)
+val table : rect -> int -> window -> column array -> row array -> int option

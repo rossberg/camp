@@ -36,7 +36,7 @@ let load_playlist () =
     while true do
       let time, name = input " # EXTINF : %d , %[\x20-\xff]" pair in
       let path = String.trim (input " %[\x20-\xff]" id) in
-      songs := make_song_ext path name (float time) :: !songs
+      songs := make_song_predet path name (float time) :: !songs
     done
   );
   Array.of_list (List.rev !songs)
