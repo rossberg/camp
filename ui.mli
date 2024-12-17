@@ -14,6 +14,7 @@ val resizer : rect -> window -> size -> size -> unit
 val button : rect -> modifier * key -> window -> bool
 val control_button : rect -> string -> modifier * key -> window -> bool -> bool
 val progress_bar : rect -> window -> float -> float option
+val scroll_bar : rect -> window -> float -> float -> float option
 val scroller : rect -> window -> string -> unit
 
 type align = [`Left | `Center | `Right]

@@ -26,9 +26,10 @@ let undo_button = Ui.key (`Control, `Char 'Z')
 
 let volume_bar = Ui.progress_bar (260, 131, 90, 12)
 
-let playlist_rect = (10, 170, -10, -10)
+let playlist_rect = (10, 170, -23, -18)
 let playlist_row_h = 16
 let playlist = Ui.table playlist_rect playlist_row_h
+let playlist_scroll = Ui.scroll_bar (-20, 170, 10, -18)
 
 
 (* Helpers *)
@@ -36,6 +37,12 @@ let playlist = Ui.table playlist_rect playlist_row_h
 let modulo n m = let k = n mod m in if k < 0 then k + m else k
 
 let rec log10 n = if n < 10 then 0 else 1 + log10 (n / 10)
+
+let clamp min max v =
+  if v < min then min else
+  if v > max then max else
+  v
+
 
 let fmt = Printf.sprintf
 
@@ -181,8 +188,12 @@ let rec run (st : State.t) =
   let cw1 = Api.Draw.text_width st.win playlist_row_h font smax1 + 1 in
   let cw3 = ref 16 in
   let (_, y, w, h) as r = Ui.dim st.win playlist_rect in
+  let vlen = int_of_float (Float.floor (float h /. float playlist_row_h)) in
+  let h' = vlen * playlist_row_h in
+  st.playscroll <- clamp 0 (max 0 (len - vlen)) st.playscroll;  (* correct for possible resize *)
   let rows =
-    Array.init (h / playlist_row_h) (fun i ->
+    Array.init vlen (fun i ->
+      let i = i + st.playscroll in
       if i >= len then `Green, `Black, [|""; ""; ""|] else
       let song = st.playlist.(i) in
       if now -. song.last_update > playlist_file_check_freq then State.update_song st song;
@@ -203,16 +214,36 @@ let rec run (st : State.t) =
   in
   let cols = [|cw1, `Right; w - cw1 - !cw3, `Left; !cw3, `Right|] in
   (match playlist st.win cols rows with
-  | Some i when i < Array.length st.playlist ->
-    st.playpos <- i;
-    State.switch_song st st.playlist.(i) playing
+  | Some i when st.playscroll + i < Array.length st.playlist ->
+    st.playpos <- st.playscroll + i;
+    State.switch_song st st.playlist.(st.playpos) playing
+  | _ -> ()
+  );
+
+  let ext = min 1.0 (float h' /. float (len * playlist_row_h)) in
+  let pos = float st.playscroll /. float len in
+  (match playlist_scroll st.win pos ext with
+(* TODO: remove
+| exception (Assert_failure _ as exn) ->
+Printf.printf "[scroll] len=%d pos=%d->%.2f ext=%d->%.2f\n%!"
+len st.playscroll pos vlen ext
+;raise exn
+*)
+  | Some pos' ->
+(* TODO: remove
+Printf.printf "[scroll] len=%d pos=%d->%.2f ext=%d->%.2f pos'=%.2f->%d\n%!"
+len st.playscroll pos vlen ext pos' (int_of_float (pos' *. float len))
+;
+*)
+    st.playscroll <- min (len - vlen) (int_of_float (Float.round (pos' *. float len)));
   | _ -> ()
   );
 
   (* Handle drag & drop *)
   let dropped = Api.File.dropped st.win in
   let _, my as m = Api.Mouse.pos st.win in
-  let pos = if Api.inside m r then min len ((my - y) / playlist_row_h) else len in
+  let pos = if Api.inside m r then
+    min len ((my - y) / playlist_row_h + st.playscroll) else len in
   State.insert_songs st pos dropped;
 
   Api.Draw.finish st.win;

@@ -165,6 +165,24 @@ let progress_bar r win v =
   else
     None
 
+let scroll_bar r win v len =
+  assert (v +. len <= 1.0);
+  let (x, y, w, h), status = element r no_modkey win in
+  Draw.fill win x y w h (fill false);
+  let y' = y + int_of_float (v *. float (h - 2)) + 1 in
+  let h' = int_of_float (Float.ceil (len *. float (h - 2))) in
+  Draw.fill win x y' w h' (fill true);
+  Draw.rect win x y w h (border status);
+  if status = `Released then
+    let _, my = Mouse.pos win in
+    let v' =
+      if my < y' then v -. len else
+      if my >= y' + h' then v +. len else
+      v
+    in Some (clamp 0.0 (1.0 -. len) v')
+  else
+    None
+
 let scroller r win s =
   let (x, y, w, h), _status = element r no_modkey win in
   Draw.fill win x y w h `Black;

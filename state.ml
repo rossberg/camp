@@ -50,7 +50,8 @@ type t =
   mutable current : song option;
   mutable playpos : int;
   mutable playlist : song array;
-  mutable undo : (int * song array) list;
+  mutable playscroll : int;
+  mutable undo : (int * song array * int) list;
   mutable undocount : int;
 }
 
@@ -62,6 +63,7 @@ let make win audio =
     current = None;
     playpos = 0;
     playlist = [||];
+    playscroll = 0;
     undo = [];
     undocount = 0;
   }
@@ -200,14 +202,15 @@ let push_undo st =
     st.undocount <- st.undocount + 1
   else
     st.undo <- List.filteri (fun i _ -> i < undo_depth - 1) st.undo;
-  st.undo <- (st.playpos, st.playlist) :: st.undo
+  st.undo <- (st.playpos, st.playlist, st.playscroll) :: st.undo
 
 let pop_undo st =
   match st.undo with
   | [] -> ()
-  | (pos, list) :: undo' ->
+  | (pos, list, scroll) :: undo' ->
     st.playpos <- pos;
     st.playlist <- list;
+    st.playscroll <- scroll;
     st.undo <- undo';
     st.undocount <- st.undocount - 1;
     if st.current = None && list <> [||] then st.current <- Some list.(pos)
@@ -216,7 +219,8 @@ let pop_undo st =
 let clear_songs st =
   push_undo st;
   st.playlist <- [||];
-  st.playpos <- 0
+  st.playpos <- 0;
+  st.playscroll <- 0
 
 
 let insert_song' songs path =
@@ -267,5 +271,6 @@ let insert_songs st pos paths =
           st.playlist.(i - len')
         );
       if pos < st.playpos then st.playpos <- st.playpos + len';
+      if pos < st.playscroll then st.playscroll <- st.playscroll + len';
     )
   )
