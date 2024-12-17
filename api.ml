@@ -192,7 +192,7 @@ type key =
   | `Caps
 ]
 
-type modifier = [`None | `Shift | `Control | `Alt]
+type modifier = [`Plain | `Shift | `Control | `Alt]
 
 type resize = [`N_S | `E_W | `NE_SW | `NW_SE | `All]
 type cursor =
@@ -291,7 +291,7 @@ struct
 
   let some_down = List.exists is_down
   let is_modifier_down = function
-    | `None -> not (some_down all)
+    | `Plain -> not (some_down all)
     | `Shift -> some_down shift && not (some_down non_shift)
     | `Control -> some_down control && not (some_down non_control)
     | `Alt -> some_down alt && not (some_down non_alt)

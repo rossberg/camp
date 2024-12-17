@@ -5,19 +5,19 @@
 let control_width = 360
 let control_height = 160
 
-let close_button = Ui.button (-14, 0, 14, 14) (`Char 'Q')
+let close_button = Ui.button (-14, 0, 14, 14) (`Control, `Char 'Q')
 let resizer = Ui.resizer (-14, -14, 14, 14)
 
-let title_scroller = Ui.scroller (10, 70, 340, 16)
-let seek_bar = Ui.progress_bar (10, 90, 340, 14)
+let title_scroller = Ui.scroller (10, 70, -10, 16)
+let seek_bar = Ui.progress_bar (10, 90, -10, 14)
 
-let bwd_button = Ui.control_button (10, 122, 40, 30) "<<" (`Char 'Z')
-let play_button = Ui.control_button (50, 122, 40, 30) ">" (`Char 'X')
-let pause_button = Ui.control_button (90, 122, 40, 30) "||" (`Char 'C')
-let stop_button = Ui.control_button (130, 122, 40, 30) "[]" (`Char 'V')
-let fwd_button = Ui.control_button (170, 122, 40, 30) ">>" (`Char 'B')
-let eject_button = Ui.control_button (210, 122, 40, 30) "^" (`Char 'N')
-let undo_button = Ui.overlay_button (210, 122, 40, 30) (`Char 'Z')
+let bwd_button = Ui.control_button (10, 122, 40, 30) "<<" (`Plain, `Char 'Z')
+let play_button = Ui.control_button (50, 122, 40, 30) ">" (`Plain, `Char 'X')
+let pause_button = Ui.control_button (90, 122, 40, 30) "||" (`Plain, `Char 'C')
+let stop_button = Ui.control_button (130, 122, 40, 30) "[]" (`Plain, `Char 'V')
+let fwd_button = Ui.control_button (170, 122, 40, 30) ">>" (`Plain, `Char 'B')
+let eject_button = Ui.control_button (210, 122, 40, 30) "^" (`Plain, `Char 'N')
+let undo_button = Ui.key (`Control, `Char 'Z')
 
 let volume_bar = Ui.progress_bar (260, 131, 90, 12)
 

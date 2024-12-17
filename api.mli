@@ -104,7 +104,7 @@ type key =
   | `Caps
 ]
 
-type modifier = [`None | `Shift | `Control | `Alt]
+type modifier = [`Plain | `Shift | `Control | `Alt]
 
 type resize = [`N_S | `E_W | `NE_SW | `NW_SE | `All]
 type cursor =
