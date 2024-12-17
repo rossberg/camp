@@ -219,8 +219,7 @@ let pop_undo st =
 let clear_songs st =
   push_undo st;
   st.playlist <- [||];
-  st.playpos <- 0;
-  st.playscroll <- 0
+  st.playpos <- 0
 
 
 let insert_song' songs path =

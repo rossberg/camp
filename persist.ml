@@ -63,6 +63,7 @@ let save_state st =
     let length = Api.Audio.length st.audio st.sound in
     let played = Api.Audio.played st.audio st.sound in
     output "seek_pos = %.4f\n" (if length > 0.0 then played /. length else 0.0);
+    output "play_scroll = %d\n" st.playscroll;
   );
   save_playlist st.playlist
 
@@ -82,6 +83,7 @@ let load_state st =
     let current = make_song (String.trim (input " play = %[\x20-\xff]" id)) in
     State.switch_song st current false;
     State.seek_song st (clamp 0.0 1.0 (input " seek_pos = %f " id));
+    st.playscroll <- input " play_scroll = %d " id;
   );
   st.playlist <- load_playlist ();
   st.playpos <- min st.playpos (max 0 (Array.length st.playlist - 1));

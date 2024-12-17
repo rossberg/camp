@@ -220,8 +220,8 @@ let rec run (st : State.t) =
   | _ -> ()
   );
 
-  let ext = min 1.0 (float h' /. float (len * playlist_row_h)) in
-  let pos = float st.playscroll /. float len in
+  let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * playlist_row_h)) in
+  let pos = if len = 0 then 0.0 else float st.playscroll /. float len in
   (match playlist_scroll st.win pos ext with
 (* TODO: remove
 | exception (Assert_failure _ as exn) ->
