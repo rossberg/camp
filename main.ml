@@ -185,7 +185,7 @@ let rec run (st : State.t) =
     Array.init (h / playlist_row_h) (fun i ->
       if i >= len then `Green, `Black, [|""; ""; ""|] else
       let song = st.playlist.(i) in
-      if now -. song.last_update > playlist_file_check_freq then State.update_song song;
+      if now -. song.last_update > playlist_file_check_freq then State.update_song st song;
       let bg = if i mod 2 = 0 then `Black else `Gray 0x20 in
       let fg =
         match song.status with
@@ -198,7 +198,7 @@ let rec run (st : State.t) =
       in
       let time = if song.time = 0.0 then "" else fmt_time song.time in
       cw3 := max !cw3 (Api.Draw.text_width st.win playlist_row_h font time + 1);
-      fg, bg, [|fmt "%d. " (i + 1); song.name; time|]
+      fg, bg, [|fmt "%0*d. " digits (i + 1); song.name; time|]
     )
   in
   let cols = [|cw1, `Right; w - cw1 - !cw3, `Left; !cw3, `Right|] in
@@ -212,7 +212,7 @@ let rec run (st : State.t) =
   (* Handle drag & drop *)
   let dropped = Api.File.dropped st.win in
   let _, my as m = Api.Mouse.pos st.win in
-  let pos = if Api.inside m r then (my - y) / playlist_row_h else len in
+  let pos = if Api.inside m r then min len ((my - y) / playlist_row_h) else len in
   State.insert_songs st pos dropped;
 
   Api.Draw.finish st.win;

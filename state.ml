@@ -22,11 +22,14 @@ let exts = [".mp3"; ".flac"; ".wav"; ".ogg"; ".mod"]
 let known_ext path =
   List.mem (String.lowercase_ascii (Filename.extension path)) exts
 
-let make_song path =
+let name_of_path path =
   let file = Filename.basename path in
+  if known_ext file then Filename.remove_extension file else file
+
+let make_song path =
   {
     path;
-    name = if known_ext file then Filename.remove_extension file else file;
+    name = name_of_path path;
     time = 0.0;
     status = `Undet;
     last_update = 0.0;
@@ -106,31 +109,50 @@ Printf.printf "[%s current=%s played=%.2f silence=%b playpos=%d len=%d]\n%!"
 
 let queue = Safe_queue.create ()
 
-let update_song song =
+let update_song st song =
   if song.last_update >= 0.0 then
   (
     song.last_update <- -1.0;
-    Safe_queue.add song queue;
+    Safe_queue.add (st, song) queue;
   )
 
 let rec updater () =
-  let song = Safe_queue.take queue in
-  let file = Filename.basename song.path in
-  song.name <- if known_ext file then Filename.remove_extension file else file;
-  if not (Sys.file_exists song.path) then song.status <- `Absent else
-  if not (known_ext song.path) then song.status <- `Invalid else
-  (try
-    let meta = Meta.load_meta song.path in
-    if meta.loaded then song.status <- `Det;
-    if song.time = 0.0 && meta.length <> 0.0 then song.time <- meta.length;
-    song.name <-
-      if meta.artist <> "" && meta.title <> "" then meta.artist ^ " - " ^ meta.title else
-      if meta.title <> "" then meta.title else song.name
-  with
-  | Sys_error _ -> song.status <- `Invalid
-  | exn ->
-    Printf.fprintf stderr "uncaught exception in updater thread: %s\n%!"
-      (Printexc.to_string exn)
+  let st, song = Safe_queue.take queue in
+  if not (Sys.file_exists song.path) then
+  (
+    song.status <- `Absent;
+    song.name <- name_of_path song.path
+  )
+  else if not (known_ext song.path) then
+  (
+    song.status <- `Invalid;
+    song.name <- name_of_path song.path
+  )
+  else
+  (
+    try
+      let meta = Meta.load_meta song.path in
+      if meta.loaded then song.status <- `Det;
+      if song.time = 0.0 then
+      (
+        if meta.length <> 0.0 then song.time <- meta.length else
+        let sound = Api.Audio.load st.audio song.path in
+        song.time <-
+          if sound = Api.Audio.silence st.audio then 0.0 else
+          (
+            let t = Api.Audio.length st.audio sound in
+            Api.Audio.free st.audio sound;
+            t
+          )
+      );
+      song.name <-
+        if meta.artist <> "" && meta.title <> "" then meta.artist ^ " - " ^ meta.title else
+        if meta.title <> "" then meta.title else name_of_path song.path
+    with
+    | Sys_error _ -> song.status <- `Invalid
+    | exn ->
+      Printf.fprintf stderr "uncaught exception in updater thread: %s\n%!"
+        (Printexc.to_string exn)
   );
   song.last_update <- Unix.time ();
   updater ()
@@ -156,7 +178,7 @@ let switch_song st song play =
   song.time <-
     if st.sound = Api.Audio.silence st.audio then 0.0
     else Api.Audio.length st.audio st.sound;
-  update_song song;
+  update_song st song;
   Api.Audio.volume st.audio st.sound st.volume;
   Api.Audio.play st.audio st.sound;
   if not play then Api.Audio.pause st.audio st.sound
