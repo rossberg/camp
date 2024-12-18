@@ -102,20 +102,25 @@ let key_status _win (modifier, key) =
   if Key.is_released key && Key.is_modifier_down modifier then `Released else
   `Untouched
 
-let mouse_status win r =
-  if Mouse.is_down `Left && inside !drag_pos r then `Pressed else
+let mouse_status win r side =
+  if Mouse.is_down side && inside !drag_pos r then `Pressed else
   if not (inside (Mouse.pos win) r) then `Untouched else
   if Mouse.is_released `Left then `Released else
   `Focused
 
+let wheel_status win r =
+  let r' = dim win r in
+  if inside (Mouse.pos win) r' then snd (Mouse.wheel win) else 0.0
+
 let key modkey win = (key_status win modkey = `Released)
-let mouse r win = (mouse_status win r = `Released)
+let mouse r side win = (mouse_status win r side = `Released)
+let wheel r win = wheel_status win r
 
 let element r modkey win =
   let r' = dim win r in
   inner := r' :: !inner;
   r',
-  match mouse_status win r', key_status win modkey with
+  match mouse_status win r' `Left, key_status win modkey with
   | `Released, _ | _, `Released -> `Released
   | `Pressed, _ | _, `Pressed -> `Pressed
   | `Focused, _ | _, `Focused -> `Focused
@@ -165,9 +170,9 @@ let progress_bar r win v =
   Draw.fill win x y w h (fill false);
   Draw.fill win (x + 1) y (int_of_float (v *. float (w - 2))) h (fill true);
   Draw.rect win x y w h (border status);
-  if status <> `Pressed then None else
+  if status <> `Pressed then v else
   let mx, _ = Mouse.pos win in
-  Some (clamp 0.0 1.0 ((float mx -. float x) /. float w))
+  clamp 0.0 1.0 ((float mx -. float x) /. float w)
 
 type drag_extra += Scroll_bar_page of time
 type drag_extra += Scroll_bar_drag of float * int
@@ -180,8 +185,8 @@ let scroll_bar r win v len =
   let h' = int_of_float (Float.ceil (len *. float (h - 2))) in
   Draw.fill win x y' w h' (fill true);
   Draw.rect win x y w h (border status);
-  if status <> `Pressed then None else
-  let (_, my) as m = Mouse.pos win in
+  if status <> `Pressed then v else
+  let _, my = Mouse.pos win in
   let v0, my0, t, dragging =
     match !drag_extra with
     | No_drag -> v, my, 0.0, false
@@ -204,8 +209,7 @@ let scroll_bar r win v len =
       v
     )
     else v
-  in
-  if v = v' then None else Some (clamp 0.0 (1.0 -. len) v')
+  in clamp 0.0 (1.0 -. len) v'
 
 
 let scroller r win s =

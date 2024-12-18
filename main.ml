@@ -25,11 +25,13 @@ let eject_button = Ui.control_button (210, 122, 40, 30) "^" (`Plain, `Char 'N')
 let undo_button = Ui.key (`Control, `Char 'Z')
 
 let volume_bar = Ui.progress_bar (260, 131, 90, 12)
+let volume_wheel = Ui.wheel (0, 0, control_width, control_height)
 
 let playlist_rect = (10, 170, -23, -18)
 let playlist_row_h = 16
 let playlist = Ui.table playlist_rect playlist_row_h
 let playlist_scroll = Ui.scroll_bar (-20, 170, 10, -18)
+let playlist_wheel = Ui.wheel (10, 170, -10, -18)
 
 
 (* Helpers *)
@@ -135,10 +137,9 @@ let rec run (st : State.t) =
   (* Seek bar *)
   let progress =
     if length > 0.0 && not silence then played /. length else 0.0 in
-  (match seek_bar st.win progress with
-  | Some percent when not silence -> State.seek_song st percent
-  | _ -> ()
-  );
+  let progress' = seek_bar st.win progress in
+  if progress' <> progress && not silence then
+    State.seek_song st progress';
 
   let s1 = fmt_time2 played in
   let s2 = "-" ^ fmt_time2 remain in
@@ -155,11 +156,11 @@ let rec run (st : State.t) =
   title_scroller st.win name;
 
   (* Volume control *)
-  (match volume_bar st.win st.volume with
-  | Some vol when vol <> st.volume ->
-    st.volume <- vol;
-    Api.Audio.volume st.audio st.sound vol
-  | _ -> ()
+  let vol = volume_bar st.win st.volume +. 0.05 *. volume_wheel st.win in
+  if vol <> st.volume then
+  (
+    st.volume <- clamp 0.0 1.0 vol;
+    Api.Audio.volume st.audio st.sound st.volume
   );
 
   (* Coordinate debug info *)
@@ -222,22 +223,8 @@ let rec run (st : State.t) =
 
   let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * playlist_row_h)) in
   let pos = if len = 0 then 0.0 else float st.playscroll /. float len in
-  (match playlist_scroll st.win pos ext with
-(* TODO: remove
-| exception (Assert_failure _ as exn) ->
-Printf.printf "[scroll] len=%d pos=%d->%.2f ext=%d->%.2f\n%!"
-len st.playscroll pos vlen ext
-;raise exn
-*)
-  | Some pos' ->
-(* TODO: remove
-Printf.printf "[scroll] len=%d pos=%d->%.2f ext=%d->%.2f pos'=%.2f->%d\n%!"
-len st.playscroll pos vlen ext pos' (int_of_float (pos' *. float len))
-;
-*)
-    st.playscroll <- min (len - vlen) (int_of_float (Float.round (pos' *. float len)));
-  | _ -> ()
-  );
+  let pos' = playlist_scroll st.win pos ext -. 0.05 *. playlist_wheel st.win in
+  st.playscroll <- clamp 0 (len - vlen) (int_of_float (Float.round (pos' *. float len)));
 
   (* Handle drag & drop *)
   let dropped = Api.File.dropped st.win in
