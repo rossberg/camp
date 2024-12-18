@@ -246,7 +246,9 @@ module Key =
 struct
   let key = function
     | `None -> Raylib.Key.Null
-    | `Char c -> Raylib.Key.of_int (Char.code c)
+    | `Char '-' -> Raylib.Key.Minus
+    | `Char '+' -> Raylib.Key.Equal
+    | `Char c -> Raylib.Key.of_int (Char.code (Char.uppercase_ascii c))
     | `Arrow `Left -> Raylib.Key.Left
     | `Arrow `Right -> Raylib.Key.Right
     | `Arrow `Up -> Raylib.Key.Up

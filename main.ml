@@ -15,6 +15,8 @@ let resizer = Ui.resizer (-14, -14, 14, 14)
 
 let title_scroller = Ui.scroller (10, 70, -10, 16)
 let seek_bar = Ui.progress_bar (10, 90, -10, 14)
+let rw_key = Ui.key (`Plain, `Arrow `Left)
+let ff_key = Ui.key (`Plain, `Arrow `Right)
 
 let bwd_button = Ui.control_button (10, 122, 40, 30) "<<" (`Plain, `Char 'Z')
 let play_button = Ui.control_button (50, 122, 40, 30) ">" (`Plain, `Char 'X')
@@ -26,12 +28,16 @@ let undo_button = Ui.key (`Control, `Char 'Z')
 
 let volume_bar = Ui.progress_bar (260, 131, 90, 12)
 let volume_wheel = Ui.wheel (0, 0, control_width, control_height)
+let volup_key = Ui.key (`Plain, `Char '+')
+let voldown_key = Ui.key (`Plain, `Char '-')
 
 let playlist_rect = (10, 170, -23, -18)
 let playlist_row_h = 16
 let playlist = Ui.table playlist_rect playlist_row_h
 let playlist_scroll = Ui.scroll_bar (-20, 170, 10, -18)
 let playlist_wheel = Ui.wheel (10, 170, -10, -18)
+let _up_key = Ui.key (`Plain, `Arrow `Up)
+let _down_key = Ui.key (`Plain, `Arrow `Down)
 
 
 (* Helpers *)
@@ -44,6 +50,8 @@ let clamp min max v =
   if v < min then min else
   if v > max then max else
   v
+
+let float_of_bool b = float (Bool.to_int b)
 
 
 let fmt = Printf.sprintf
@@ -137,9 +145,10 @@ let rec run (st : State.t) =
   (* Seek bar *)
   let progress =
     if length > 0.0 && not silence then played /. length else 0.0 in
-  let progress' = seek_bar st.win progress in
+  let progress' = seek_bar st.win progress +.
+    0.05 *. (float_of_bool (ff_key st.win) -. float_of_bool (rw_key st.win)) in
   if progress' <> progress && not silence then
-    State.seek_song st progress';
+    State.seek_song st (clamp 0.0 1.0 progress');
 
   let s1 = fmt_time2 played in
   let s2 = "-" ^ fmt_time2 remain in
@@ -156,7 +165,8 @@ let rec run (st : State.t) =
   title_scroller st.win name;
 
   (* Volume control *)
-  let vol = volume_bar st.win st.volume +. 0.05 *. volume_wheel st.win in
+  let vol = volume_bar st.win st.volume +. 0.05 *. volume_wheel st.win +.
+    0.05 *. (float_of_bool (volup_key st.win) -. float_of_bool (voldown_key st.win)) in
   if vol <> st.volume then
   (
     st.volume <- clamp 0.0 1.0 vol;
