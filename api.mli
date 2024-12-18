@@ -123,6 +123,7 @@ module Mouse :
 sig
   val pos : window -> point
   val delta : window -> point
+  val wheel : window -> float * float
   val is_down : side -> bool
   val is_released : side -> bool
 

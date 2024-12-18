@@ -28,6 +28,9 @@ let point_of_vec2 v =
 let vec2_of_point (x, y) =
   Raylib.Vector2.create (float x) (float y)
 
+let floats_of_vec2 v =
+  Raylib.Vector2.(x v, y v)
+
 
 (* Window *)
 
@@ -211,6 +214,7 @@ module Mouse =
 struct
   let pos () = point_of_vec2 (Raylib.get_mouse_position ())
   let delta () = point_of_vec2 (Raylib.get_mouse_delta ())
+  let wheel () = floats_of_vec2 (Raylib.get_mouse_wheel_move_v ())
 
   let button = function
     | `Left -> Raylib.MouseButton.Left

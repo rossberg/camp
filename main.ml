@@ -188,7 +188,7 @@ let rec run (st : State.t) =
   let cw1 = Api.Draw.text_width st.win playlist_row_h font smax1 + 1 in
   let cw3 = ref 16 in
   let (_, y, w, h) as r = Ui.dim st.win playlist_rect in
-  let vlen = int_of_float (Float.floor (float h /. float playlist_row_h)) in
+  let vlen = max 0 (int_of_float (Float.floor (float h /. float playlist_row_h))) in
   let h' = vlen * playlist_row_h in
   st.playscroll <- clamp 0 (max 0 (len - vlen)) st.playscroll;  (* correct for possible resize *)
   let rows =

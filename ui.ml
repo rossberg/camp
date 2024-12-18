@@ -32,10 +32,16 @@ let clamp min max v =
 
 (* Window *)
 
+type drag_extra = ..
+type drag_extra += No_drag
+
+let no_drag = (min_int, min_int)
+
 let inner = ref []           (* list of inner elements *)
 let mouse_pos = ref (0, 0)   (* absolute mouse position *)
 let mouse_delta = ref (0, 0) (* absolute delta *)
-let drag_pos = ref (-1, -1)  (* starting point of mouse drag *)
+let drag_pos = ref no_drag   (* starting point of mouse drag *)
+let drag_extra = ref No_drag (* associated data for drag operation *)
 let win_pos = ref (0, 0)     (* logical position ignoring snap *)
 let fonts = Array.make 64 None
 let symfonts = Array.make 64 None
@@ -48,7 +54,7 @@ let window win =
   mouse_pos := mouse';
   if Mouse.is_down `Left then
   (
-    if !drag_pos = (-1, -1) then drag_pos := m;
+    if !drag_pos = no_drag then drag_pos := m;
     if not (List.exists (inside !drag_pos) !inner) then
     (
       let wx, wy = add !win_pos !mouse_delta in
@@ -59,7 +65,8 @@ let window win =
   )
   else
   (
-    drag_pos := -1, -1;
+    drag_pos := no_drag;
+    drag_extra := No_drag;
     win_pos := Window.pos win
   );
   inner := []
@@ -91,16 +98,15 @@ let _symfont win h = font' win h "webdings.ttf" 0x23c0 0x2400 symfonts
 let no_modkey = (`Plain, `None)
 
 let key_status _win (modifier, key) =
-  if Key.is_down key && Api.Key.is_modifier_down modifier then `Pressed else
-  if Key.is_released key && Api.Key.is_modifier_down modifier then `Released else
+  if Key.is_down key && Key.is_modifier_down modifier then `Pressed else
+  if Key.is_released key && Key.is_modifier_down modifier then `Released else
   `Untouched
 
 let mouse_status win r =
-  let pos = Mouse.pos win in
   if Mouse.is_down `Left && inside !drag_pos r then `Pressed else
-  if Mouse.is_released `Left && inside pos r then `Released else
-  if inside pos r then `Focused else
-  `Untouched
+  if not (inside (Mouse.pos win) r) then `Untouched else
+  if Mouse.is_released `Left then `Released else
+  `Focused
 
 let key modkey win = (key_status win modkey = `Released)
 let mouse r win = (mouse_status win r = `Released)
@@ -159,11 +165,12 @@ let progress_bar r win v =
   Draw.fill win x y w h (fill false);
   Draw.fill win (x + 1) y (int_of_float (v *. float (w - 2))) h (fill true);
   Draw.rect win x y w h (border status);
-  if status = `Pressed then
-    let mx, _ = Mouse.pos win in
-    Some (clamp 0.0 1.0 ((float mx -. float x) /. float w))
-  else
-    None
+  if status <> `Pressed then None else
+  let mx, _ = Mouse.pos win in
+  Some (clamp 0.0 1.0 ((float mx -. float x) /. float w))
+
+type drag_extra += Scroll_bar_page of time
+type drag_extra += Scroll_bar_drag of float * int
 
 let scroll_bar r win v len =
   assert (v +. len <= 1.0);
@@ -173,15 +180,33 @@ let scroll_bar r win v len =
   let h' = int_of_float (Float.ceil (len *. float (h - 2))) in
   Draw.fill win x y' w h' (fill true);
   Draw.rect win x y w h (border status);
-  if status = `Released then
-    let _, my = Mouse.pos win in
-    let v' =
+  if status <> `Pressed then None else
+  let (_, my) as m = Mouse.pos win in
+  let v0, my0, t, dragging =
+    match !drag_extra with
+    | No_drag -> v, my, 0.0, false
+    | Scroll_bar_page t -> v, my, t, false
+    | Scroll_bar_drag (v0, my0) -> v0, my0, 0.0, true
+    | _ -> assert false
+  in
+  let now = Unix.gettimeofday () in
+  let v' =
+    if dragging || y' <= my && my < y' + h' then
+    (
+      drag_extra := Scroll_bar_drag (v0, my0);
+      v0 +. float (my - my0) /. float (h - 2)
+    )
+    else if now -. t > 0.5 then
+    (
+      drag_extra := Scroll_bar_page now;
       if my < y' then v -. len else
       if my >= y' + h' then v +. len else
       v
-    in Some (clamp 0.0 (1.0 -. len) v')
-  else
-    None
+    )
+    else v
+  in
+  if v = v' then None else Some (clamp 0.0 (1.0 -. len) v')
+
 
 let scroller r win s =
   let (x, y, w, h), _status = element r no_modkey win in
