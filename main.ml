@@ -232,11 +232,21 @@ let rec run (st : State.t) =
   | Some i ->
     let i = st.playscroll + i in
     let i' = min i (len - 1) in
-    if Api.Key.is_modifier_down `Plain then
+    if Api.Key.is_modifier_down `Plain && Api.Mouse.is_pressed `Left then
     (
       st.playrange <- (if i >= len then max_int else i), i';
       State.deselect_all st;
-      if i < len then State.select st i i;
+      if i < len then
+      (
+        if Api.Mouse.is_doubleclick `Left then
+        (
+          st.playpos <- i;
+          State.switch_track st st.playlist.(i) true;
+          State.deselect st i i;
+        )
+        else
+          State.select st i i;
+      )
     )
     else if Api.Key.is_modifier_down `Control && Api.Mouse.is_pressed `Left then
     (

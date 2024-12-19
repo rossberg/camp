@@ -127,6 +127,7 @@ sig
   val is_down : side -> bool
   val is_pressed : side -> bool
   val is_released : side -> bool
+  val is_doubleclick : side -> bool
 
   val set_cursor : window -> cursor -> unit
 end
@@ -135,7 +136,7 @@ module Key :
 sig
   val is_down : key -> bool
   val is_released : key -> bool
-  val is_modifier_down : modifier -> bool  (* exclusive *)
+  val is_modifier_down : modifier -> bool
 end
 
 

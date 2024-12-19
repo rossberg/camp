@@ -125,10 +125,12 @@ end
 module Draw =
 struct
   let frame = ref 0
+  let updates = ref []
 
   let start () c =
     Raylib.begin_drawing ();
-    Raylib.clear_background (color c)
+    Raylib.clear_background (color c);
+    List.iter (fun f -> f ()) !updates
 
   let finish () =
     incr frame;
@@ -212,6 +214,12 @@ type cursor =
 
 module Mouse =
 struct
+  let last_press_pos = ref (min_int, min_int)
+  let last_press_left = ref 0.0
+  let last_press_right = ref 0.0
+  let is_double_left = ref false
+  let is_double_right = ref false
+
   let pos () = point_of_vec2 (Raylib.get_mouse_position ())
   let delta () = point_of_vec2 (Raylib.get_mouse_delta ())
   let wheel () = floats_of_vec2 (Raylib.get_mouse_wheel_move_v ())
@@ -223,6 +231,32 @@ struct
   let is_down but = Raylib.is_mouse_button_down (button but)
   let is_pressed but = Raylib.is_mouse_button_pressed (button but)
   let is_released but = Raylib.is_mouse_button_released (button but)
+
+  let is_doubleclick = function
+    | `Left -> !is_double_left
+    | `Right -> !is_double_right
+
+  let _ = Draw.updates :=
+    (fun () ->
+      let left = Raylib.(is_mouse_button_pressed MouseButton.Left) in
+      let right = Raylib.(is_mouse_button_pressed MouseButton.Right) in
+      is_double_left := false;
+      is_double_right := false;
+      if left || right then
+      (
+        if left then last_press_right := 0.0;
+        if right then last_press_left := 0.0;
+        let now = Unix.gettimeofday () in
+        let mx, my = !last_press_pos in
+        let (mx', my') as m' = pos () in
+        let unmoved = abs (mx' - mx) < 16 && abs (my' - my) < 16 in
+        is_double_left := left && unmoved && now -. !last_press_left < 0.5;
+        is_double_right := right && unmoved && now -. !last_press_right < 0.5;
+        last_press_left := now;
+        last_press_right := now;
+        last_press_pos := m';
+      )
+    ) :: !Draw.updates
 
   let set_cursor () cursor =
     Raylib.set_mouse_cursor (
