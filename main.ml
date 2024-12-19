@@ -31,13 +31,14 @@ let volume_wheel = Ui.wheel (0, 0, control_width, control_height)
 let volup_key = Ui.key (`Plain, `Char '+')
 let voldown_key = Ui.key (`Plain, `Char '-')
 
-let playlist_rect = (10, 170, -23, -18)
+let playlist_rect = (10, 170, -21, -18)
 let playlist_row_h = 16
 let playlist = Ui.table playlist_rect playlist_row_h
 let playlist_scroll = Ui.scroll_bar (-20, 170, 10, -18)
 let playlist_wheel = Ui.wheel (10, 170, -10, -18)
 let _up_key = Ui.key (`Plain, `Arrow `Up)
 let _down_key = Ui.key (`Plain, `Arrow `Down)
+let del_key = Ui.key (`Plain, `Delete)
 
 
 (* Helpers *)
@@ -127,7 +128,7 @@ let rec run (st : State.t) =
   if eject_button st.win false then
   (
     State.eject_track st;
-    State.clear_tracks st;
+    State.remove_all st;
   )
   else if undo_button st.win then
     State.pop_undo st;
@@ -219,31 +220,68 @@ let rec run (st : State.t) =
         | `Undet -> `Blue
         | `Predet | `Det -> `Green
       in
+      let fg, bg = if track.selected then bg, fg else fg, bg in
       let time = if track.time = 0.0 then "" else fmt_time track.time in
       cw3 := max !cw3 (Api.Draw.text_width st.win playlist_row_h font time + 1);
       fg, bg, [|fmt "%0*d. " digits (i + 1); track.name; time|]
     )
   in
-  let cols = [|cw1, `Right; w - cw1 - !cw3, `Left; !cw3, `Right|] in
+  let cols = [|cw1, `Right; w - cw1 - !cw3 - 2, `Left; !cw3, `Right|] in
   (match playlist st.win cols rows with
-  | Some i when st.playscroll + i < Array.length st.playlist ->
-    st.playpos <- st.playscroll + i;
-    State.switch_track st st.playlist.(st.playpos) playing
-  | _ -> ()
+  | None -> ()
+  | Some i ->
+    let i = st.playscroll + i in
+    let i' = min i (len - 1) in
+    if Api.Key.is_modifier_down `Plain then
+    (
+      st.playrange <- (if i >= len then max_int else i), i';
+      State.deselect_all st;
+      if i < len then State.select st i i;
+    )
+    else if Api.Key.is_modifier_down `Control && Api.Mouse.is_pressed `Left then
+    (
+      st.playrange <- (if i >= len then max_int else i), i';
+      if i < len then
+        if st.playlist.(i).selected then
+          State.deselect st i i
+        else
+          State.select st i i
+    )
+    else if Api.Key.is_modifier_down `Shift then
+    (
+      let fst, snd = st.playrange in
+      st.playrange <- fst, i';
+      if fst < 0 || fst >= len || st.playlist.(fst).selected then
+      (
+        State.deselect st snd i';
+        State.select st (max 0 fst) i'
+      )
+      else
+      (
+        State.select st snd i';
+        State.deselect st (max 0 fst) i'
+      )
+    )
   );
 
+  (* Playlist scrolling *)
   let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * playlist_row_h)) in
   let pos = if len = 0 then 0.0 else float st.playscroll /. float len in
   let pos' = playlist_scroll st.win pos ext -. 0.05 *. playlist_wheel st.win in
-  st.playscroll <- clamp 0 (len - vlen) (int_of_float (Float.round (pos' *. float len)));
+  st.playscroll <- clamp 0 (max 0 (len - vlen)) (int_of_float (Float.round (pos' *. float len)));
 
-  (* Handle drag & drop *)
+  (* Playlist deletion *)
+  if del_key st.win then
+    State.remove_selected st;
+
+  (* Playlist drag & drop *)
   let dropped = Api.File.dropped st.win in
   let _, my as m = Api.Mouse.pos st.win in
   let pos = if Api.inside m r then
     min len ((my - y) / playlist_row_h + st.playscroll) else len in
-  State.insert_tracks st pos dropped;
+  State.insert st pos dropped;
 
+  (* All done *)
   Api.Draw.finish st.win;
   run st
 

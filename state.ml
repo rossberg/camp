@@ -15,6 +15,7 @@ type track =
   mutable time : time;
   mutable status : [`Undet | `Predet | `Det | `Invalid | `Absent];
   mutable last_update : time;
+  mutable selected : bool;
 }
 
 let exts = [".mp3"; ".flac"; ".wav"; ".ogg"; ".mod"]
@@ -26,17 +27,11 @@ let name_of_path path =
   let file = Filename.basename path in
   if known_ext file then Filename.remove_extension file else file
 
-let make_track path =
-  {
-    path;
-    name = name_of_path path;
-    time = 0.0;
-    status = `Undet;
-    last_update = 0.0;
-  }
+let make_track' path name time status =
+  {path; name; time; status; last_update = 0.0; selected = false}
 
-let make_track_predet path name time =
-  {path; name; time; status = `Predet; last_update = 0.0}
+let make_track path = make_track' path (name_of_path path) 0.0 `Undet
+let make_track_predet path name time = make_track' path name time `Det
 
 
 (* State *)
@@ -51,6 +46,8 @@ type t =
   mutable playpos : int;
   mutable playlist : track array;
   mutable playscroll : int;
+  mutable playrange : int * int;
+  mutable playselect : int;
   mutable undo : (int * track array * int) list;
   mutable undocount : int;
 }
@@ -64,6 +61,8 @@ let make win audio =
     playpos = 0;
     playlist = [||];
     playscroll = 0;
+    playrange = min_int, 0;
+    playselect = 0;
     undo = [];
     undocount = 0;
   }
@@ -82,7 +81,10 @@ Printf.printf "[%s current=%b played=%.2f silence=%b playpos=%d len=%d]\n%!"
   assert (st.current <> None || silence);
   assert (st.current <> None || stopped);
   assert (st.current <> None || st.playlist = [||]);
-  assert (st.playpos >= 0 && st.playpos <= max 0 (Array.length st.playlist - 1))
+  assert (st.playpos >= 0 && st.playpos < Array.length st.playlist);
+  assert (st.playscroll >= 0 && st.playscroll < Array.length st.playlist);
+  assert (st.playselect = Array.fold_left (fun n tr -> n + Bool.to_int tr.selected) 0 st.playlist);
+  ()
 (*
   let length = Api.Audio.length st.audio st.sound in
   let played = Api.Audio.played st.audio st.sound in
@@ -193,7 +195,42 @@ let seek_track st percent =
   )
 
 
-(* Playlist Manipulation *)
+(* Playlist Selection *)
+
+let select_all st =
+  st.playselect <- Array.length st.playlist;
+  for k = 0 to Array.length st.playlist - 1 do
+    st.playlist.(k).selected <- true
+  done
+
+let deselect_all st =
+  st.playselect <- 0;
+  for k = 0 to Array.length st.playlist - 1 do
+    st.playlist.(k).selected <- false
+  done
+
+let select st i j =
+  let i, j = min i j, max i j in
+  for k = i to j do
+    if not st.playlist.(k).selected then
+    (
+      st.playlist.(k).selected <- true;
+      st.playselect <- st.playselect + 1
+    )
+  done
+
+let deselect st i j =
+  let i, j = min i j, max i j in
+  for k = i to j do
+    if st.playlist.(k).selected then
+    (
+      st.playlist.(k).selected <- false;
+      st.playselect <- st.playselect - 1
+    )
+  done
+
+
+(* Playlist Undo *)
 
 let undo_depth = 100
 
@@ -208,6 +245,7 @@ let pop_undo st =
   match st.undo with
   | [] -> ()
   | (pos, list, scroll) :: undo' ->
+    deselect_all st;
     st.playpos <- pos;
     st.playlist <- list;
     st.playscroll <- scroll;
@@ -216,16 +254,12 @@ let pop_undo st =
     if st.current = None && list <> [||] then st.current <- Some list.(pos)
 
 
-let clear_tracks st =
-  push_undo st;
-  st.playlist <- [||];
-  st.playpos <- 0
+(* Playlist Manipulation *)
 
-
-let insert_track' tracks path =
+let insert_track tracks path =
   tracks := make_track path :: !tracks
 
-let insert_playlist' tracks path =
+let insert_playlist tracks path =
   let s = In_channel.(with_open_bin path input_all) in
   List.iter (fun M3u.{path; info} ->
     let track =
@@ -235,23 +269,23 @@ let insert_playlist' tracks path =
     in tracks := track :: !tracks
   ) (M3u.parse_ext s)
 
-let rec insert_file' tracks path =
+let rec insert_file tracks path =
   try
     match String.lowercase_ascii (Filename.extension path) with
     | _ when Sys.file_exists path && Sys.is_directory path ->
       Array.iter (fun file ->
-        insert_file' tracks (Filename.concat path file)
+        insert_file tracks (Filename.concat path file)
       ) (Sys.readdir path)
-    | ".m3u" | ".m3u8" -> insert_playlist' tracks path
-    | _ -> insert_track' tracks path
-  with Sys_error _ -> insert_track' tracks path
+    | ".m3u" | ".m3u8" -> insert_playlist tracks path
+    | _ -> insert_track tracks path
+  with Sys_error _ -> insert_track tracks path
 
-let insert_tracks st pos paths =
+let insert st pos paths =
   if paths <> [] then
   (
     push_undo st;
     let tracks = ref [] in
-    List.iter (insert_file' tracks) paths;
+    List.iter (insert_file tracks) paths;
     let playlist' = Array.of_list (List.rev !tracks) in
     if st.playlist = [||] then
     (
@@ -272,4 +306,38 @@ let insert_tracks st pos paths =
       if pos < st.playpos then st.playpos <- st.playpos + len';
       if pos < st.playscroll then st.playscroll <- st.playscroll + len';
     )
+  )
+
+let remove_all st =
+  if st.playlist <> [||] then
+  (
+    push_undo st;
+    deselect_all st;
+    st.playlist <- [||];
+    st.playpos <- 0;
+    st.playselect <- 0;
+  )
+
+let remove_selected st =
+  let n = st.playselect in
+  if n > 0 then
+  (
+    push_undo st;
+    st.playrange <- min_int, 0;
+    st.playselect <- 0;
+    let off = ref 0 in
+    st.playlist <-
+      Array.init (Array.length st.playlist - n) (fun i ->
+        let off' = !off in
+        while st.playlist.(i + !off).selected do
+          st.playlist.(i + !off).selected <- false;
+          incr off
+        done;
+        let adjust pos =
+          if i + off' <= pos && pos <= i + !off then pos - off' else pos
+        in
+        st.playpos <- adjust st.playpos;
+        st.playscroll <- adjust st.playscroll;
+        st.playlist.(i + !off)
+      )
   )

@@ -125,6 +125,7 @@ sig
   val delta : window -> point
   val wheel : window -> float * float
   val is_down : side -> bool
+  val is_pressed : side -> bool
   val is_released : side -> bool
 
   val set_cursor : window -> cursor -> unit

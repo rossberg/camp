@@ -221,6 +221,7 @@ struct
     | `Right -> Raylib.MouseButton.Right
 
   let is_down but = Raylib.is_mouse_button_down (button but)
+  let is_pressed but = Raylib.is_mouse_button_pressed (button but)
   let is_released but = Raylib.is_mouse_button_released (button but)
 
   let set_cursor () cursor =
@@ -290,17 +291,19 @@ struct
   let shift = [`Shift `Left; `Shift `Right]
   let control = [`Control `Left; `Control `Right]
   let alt = [`Alt `Left; `Alt `Right]
+(*
   let non_shift = control @ alt
   let non_control = shift @ alt
   let non_alt = shift @ control
+*)
   let all = shift @ control @ alt
 
   let some_down = List.exists is_down
   let is_modifier_down = function
     | `Plain -> not (some_down all)
-    | `Shift -> some_down shift && not (some_down non_shift)
-    | `Control -> some_down control && not (some_down non_control)
-    | `Alt -> some_down alt && not (some_down non_alt)
+    | `Shift -> some_down shift (*&& not (some_down non_shift)*)
+    | `Control -> some_down control (*&& not (some_down non_control)*)
+    | `Alt -> some_down alt (*&& not (some_down non_alt)*)
 end
 
 

@@ -5,7 +5,7 @@ open State
 
 (* Helpers *)
 
-let id = Fun.id
+let value = Fun.id
 let pair x y = x, y
 
 let clamp l h x = max l (min h x)
@@ -35,7 +35,7 @@ let load_playlist () =
     input " # EXTM3U " ();
     while true do
       let time, name = input " # EXTINF : %d , %[\x20-\xff]" pair in
-      let path = String.trim (input " %[\x20-\xff]" id) in
+      let path = String.trim (input " %[\x20-\xff]" value) in
       tracks := make_track_predet path name (float time) :: !tracks
     done
   );
@@ -70,7 +70,7 @@ let save_state st =
 let load_state st =
   File.load state_file (fun file ->
     let input fmt = File.fscanf file fmt in
-    if input " [%s@]" id <> App.name then failwith "load_state";
+    if input " [%s@]" value <> App.name then failwith "load_state";
     let sw, sh = Api.Window.screen_size st.win in
     let x, y = clamp_pair 0 0 (sw - 20) (sh - 20)
       (input " win_pos = %d , %d " pair) in
@@ -78,12 +78,12 @@ let load_state st =
     let w, h = clamp_pair min_w min_h min_w sh
       (input " win_size = %d , %d " pair) in
     Api.Window.set_size st.win w h;
-    st.volume <- clamp 0.0 1.0 (input " volume = %f " id);
-    st.playpos <- max 0 (input " play_pos = %d " id);
-    let current = make_track (String.trim (input " play = %[\x20-\xff]" id)) in
+    st.volume <- clamp 0.0 1.0 (input " volume = %f " value);
+    st.playpos <- max 0 (input " play_pos = %d " value);
+    let current = make_track (String.trim (input " play = %[\x20-\xff]" value)) in
     State.switch_track st current false;
-    State.seek_track st (clamp 0.0 1.0 (input " seek_pos = %f " id));
-    st.playscroll <- input " play_scroll = %d " id;
+    State.seek_track st (clamp 0.0 1.0 (input " seek_pos = %f " value));
+    st.playscroll <- max 0 (input " play_scroll = %d " value);
   );
   st.playlist <- load_playlist ();
   st.playpos <- min st.playpos (max 0 (Array.length st.playlist - 1));
