@@ -3,12 +3,12 @@
 open Audio_file
 
 
-(* Songs *)
+(* Tracks *)
 
 type path = string
 type time = float
 
-type song =
+type track =
 {
   path : path;
   mutable name : string;
@@ -26,7 +26,7 @@ let name_of_path path =
   let file = Filename.basename path in
   if known_ext file then Filename.remove_extension file else file
 
-let make_song path =
+let make_track path =
   {
     path;
     name = name_of_path path;
@@ -35,7 +35,7 @@ let make_song path =
     last_update = 0.0;
   }
 
-let make_song_predet path name time =
+let make_track_predet path name time =
   {path; name; time; status = `Predet; last_update = 0.0}
 
 
@@ -47,11 +47,11 @@ type t =
   audio : Api.audio;
   mutable volume : float;
   mutable sound : Api.sound;
-  mutable current : song option;
+  mutable current : track option;
   mutable playpos : int;
-  mutable playlist : song array;
+  mutable playlist : track array;
   mutable playscroll : int;
-  mutable undo : (int * song array * int) list;
+  mutable undo : (int * track array * int) list;
   mutable undocount : int;
 }
 
@@ -107,39 +107,39 @@ Printf.printf "[%s current=%s played=%.2f silence=%b playpos=%d len=%d]\n%!"
 *)
 
 
-(* Song update queue *)
+(* Track update queue *)
 
 let queue = Safe_queue.create ()
 
-let update_song st song =
-  if song.last_update >= 0.0 then
+let update_track st track =
+  if track.last_update >= 0.0 then
   (
-    song.last_update <- -1.0;
-    Safe_queue.add (st, song) queue;
+    track.last_update <- -1.0;
+    Safe_queue.add (st, track) queue;
   )
 
 let rec updater () =
-  let st, song = Safe_queue.take queue in
-  if not (Sys.file_exists song.path) then
+  let st, track = Safe_queue.take queue in
+  if not (Sys.file_exists track.path) then
   (
-    song.status <- `Absent;
-    song.name <- name_of_path song.path
+    track.status <- `Absent;
+    track.name <- name_of_path track.path
   )
-  else if not (known_ext song.path) then
+  else if not (known_ext track.path) then
   (
-    song.status <- `Invalid;
-    song.name <- name_of_path song.path
+    track.status <- `Invalid;
+    track.name <- name_of_path track.path
   )
   else
   (
     try
-      let meta = Meta.load_meta song.path in
-      if meta.loaded then song.status <- `Det;
-      if song.time = 0.0 then
+      let meta = Meta.load_meta track.path in
+      if meta.loaded then track.status <- `Det;
+      if track.time = 0.0 then
       (
-        if meta.length <> 0.0 then song.time <- meta.length else
-        let sound = Api.Audio.load st.audio song.path in
-        song.time <-
+        if meta.length <> 0.0 then track.time <- meta.length else
+        let sound = Api.Audio.load st.audio track.path in
+        track.time <-
           if sound = Api.Audio.silence st.audio then 0.0 else
           (
             let t = Api.Audio.length st.audio sound in
@@ -147,16 +147,16 @@ let rec updater () =
             t
           )
       );
-      song.name <-
+      track.name <-
         if meta.artist <> "" && meta.title <> "" then meta.artist ^ " - " ^ meta.title else
-        if meta.title <> "" then meta.title else name_of_path song.path
+        if meta.title <> "" then meta.title else name_of_path track.path
     with
-    | Sys_error _ -> song.status <- `Invalid
+    | Sys_error _ -> track.status <- `Invalid
     | exn ->
       Printf.fprintf stderr "uncaught exception in updater thread: %s\n%!"
         (Printexc.to_string exn)
   );
-  song.last_update <- Unix.time ();
+  track.last_update <- Unix.time ();
   updater ()
 
 let _ = Domain.spawn updater
@@ -164,7 +164,7 @@ let _ = Domain.spawn updater
 
 (* Play Control *)
 
-let eject_song st =
+let eject_track st =
   Api.Audio.stop st.audio st.sound;
   st.current <- None;
   if st.sound <> Api.Audio.silence st.audio then
@@ -173,19 +173,19 @@ let eject_song st =
     st.sound <- Api.Audio.silence st.audio;
   )
 
-let switch_song st song play =
-  eject_song st;
-  st.sound <- Api.Audio.load st.audio song.path;
-  st.current <- Some song;
-  song.time <-
+let switch_track st track play =
+  eject_track st;
+  st.sound <- Api.Audio.load st.audio track.path;
+  st.current <- Some track;
+  track.time <-
     if st.sound = Api.Audio.silence st.audio then 0.0
     else Api.Audio.length st.audio st.sound;
-  update_song st song;
+  update_track st track;
   Api.Audio.volume st.audio st.sound st.volume;
   Api.Audio.play st.audio st.sound;
   if not play then Api.Audio.pause st.audio st.sound
 
-let seek_song st percent =
+let seek_track st percent =
   if st.sound <> Api.Audio.silence st.audio then
   (
     let length = Api.Audio.length st.audio st.sound in
@@ -216,48 +216,48 @@ let pop_undo st =
     if st.current = None && list <> [||] then st.current <- Some list.(pos)
 
 
-let clear_songs st =
+let clear_tracks st =
   push_undo st;
   st.playlist <- [||];
   st.playpos <- 0
 
 
-let insert_song' songs path =
-  songs := make_song path :: !songs
+let insert_track' tracks path =
+  tracks := make_track path :: !tracks
 
-let insert_playlist' songs path =
+let insert_playlist' tracks path =
   let s = In_channel.(with_open_bin path input_all) in
   List.iter (fun M3u.{path; info} ->
-    let song =
+    let track =
       match info with
-      | None -> make_song path
-      | Some {title; time} -> make_song_predet path title (float time)
-    in songs := song :: !songs
+      | None -> make_track path
+      | Some {title; time} -> make_track_predet path title (float time)
+    in tracks := track :: !tracks
   ) (M3u.parse_ext s)
 
-let rec insert_file' songs path =
+let rec insert_file' tracks path =
   try
     match String.lowercase_ascii (Filename.extension path) with
     | _ when Sys.file_exists path && Sys.is_directory path ->
       Array.iter (fun file ->
-        insert_file' songs (Filename.concat path file)
+        insert_file' tracks (Filename.concat path file)
       ) (Sys.readdir path)
-    | ".m3u" | ".m3u8" -> insert_playlist' songs path
-    | _ -> insert_song' songs path
-  with Sys_error _ -> insert_song' songs path
+    | ".m3u" | ".m3u8" -> insert_playlist' tracks path
+    | _ -> insert_track' tracks path
+  with Sys_error _ -> insert_track' tracks path
 
-let insert_songs st pos paths =
+let insert_tracks st pos paths =
   if paths <> [] then
   (
     push_undo st;
-    let songs = ref [] in
-    List.iter (insert_file' songs) paths;
-    let playlist' = Array.of_list (List.rev !songs) in
+    let tracks = ref [] in
+    List.iter (insert_file' tracks) paths;
+    let playlist' = Array.of_list (List.rev !tracks) in
     if st.playlist = [||] then
     (
       st.playlist <- playlist';
       if st.current = None then
-        switch_song st st.playlist.(0) false;
+        switch_track st st.playlist.(0) false;
     )
     else
     (

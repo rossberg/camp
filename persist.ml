@@ -18,28 +18,28 @@ let playlist_file = "playlist.m3u"
 
 (* TODO: unify with M3u module *)
 
-let save_playlist songs =
+let save_playlist tracks =
   File.save playlist_file (fun file ->
     let output fmt = Printf.fprintf file fmt in
     output "%s" "#EXTM3U\n";
-    Array.iter (fun song ->
-      output "#EXTINF:%.0f,%s\n" song.time song.name;
-      output "%s\n" song.path;
-    ) songs
+    Array.iter (fun track ->
+      output "#EXTINF:%.0f,%s\n" track.time track.name;
+      output "%s\n" track.path;
+    ) tracks
   )
 
 let load_playlist () =
-  let songs = ref [] in
+  let tracks = ref [] in
   File.load playlist_file (fun file ->
     let input fmt = File.fscanf file fmt in
     input " # EXTM3U " ();
     while true do
       let time, name = input " # EXTINF : %d , %[\x20-\xff]" pair in
       let path = String.trim (input " %[\x20-\xff]" id) in
-      songs := make_song_predet path name (float time) :: !songs
+      tracks := make_track_predet path name (float time) :: !tracks
     done
   );
-  Array.of_list (List.rev !songs)
+  Array.of_list (List.rev !tracks)
 
 
 (* State *)
@@ -80,9 +80,9 @@ let load_state st =
     Api.Window.set_size st.win w h;
     st.volume <- clamp 0.0 1.0 (input " volume = %f " id);
     st.playpos <- max 0 (input " play_pos = %d " id);
-    let current = make_song (String.trim (input " play = %[\x20-\xff]" id)) in
-    State.switch_song st current false;
-    State.seek_song st (clamp 0.0 1.0 (input " seek_pos = %f " id));
+    let current = make_track (String.trim (input " play = %[\x20-\xff]" id)) in
+    State.switch_track st current false;
+    State.seek_track st (clamp 0.0 1.0 (input " seek_pos = %f " id));
     st.playscroll <- input " play_scroll = %d " id;
   );
   st.playlist <- load_playlist ();

@@ -85,7 +85,7 @@ let rec run (st : State.t) =
   let stopped = not playing && not paused in
   let silence = st.sound = Api.Audio.silence st.audio in
 
-  (* Detect end of song *)
+  (* Detect end of track *)
   if playing && (remain < 0.2 || silence) then
   (
     let last = st.playpos >= Array.length st.playlist - 1 in
@@ -93,24 +93,24 @@ let rec run (st : State.t) =
       if last then Option.get st.current else
       (st.playpos <- st.playpos + 1; st.playlist.(st.playpos))
     in
-    State.switch_song st next (not last);
+    State.switch_track st next (not last);
   );
 
   (* Play controls *)
   if bwd_button st.win false && st.playlist <> [||] then
   (
     st.playpos <- modulo (st.playpos - 1) (Array.length st.playlist);
-    State.switch_song st st.playlist.(st.playpos) playing
+    State.switch_track st st.playlist.(st.playpos) playing
   );
   if fwd_button st.win false && st.playlist <> [||] then
   (
     st.playpos <- modulo (st.playpos + 1) (Array.length st.playlist);
-    State.switch_song st st.playlist.(st.playpos) playing
+    State.switch_track st st.playlist.(st.playpos) playing
   );
 
   let playing' = play_button st.win playing in
   if not playing && playing' && st.playlist <> [||] then
-    State.switch_song st st.playlist.(st.playpos) true;
+    State.switch_track st st.playlist.(st.playpos) true;
 
   let paused' = pause_button st.win paused in
   if playing && paused' then
@@ -121,13 +121,13 @@ let rec run (st : State.t) =
   if stop_button st.win false && not stopped then
   (
     Api.Audio.pause st.audio st.sound;
-    State.switch_song st st.playlist.(st.playpos) false;
+    State.switch_track st st.playlist.(st.playpos) false;
   );
 
   if eject_button st.win false then
   (
-    State.eject_song st;
-    State.clear_songs st;
+    State.eject_track st;
+    State.clear_tracks st;
   )
   else if undo_button st.win then
     State.pop_undo st;
@@ -139,7 +139,7 @@ let rec run (st : State.t) =
     else if paused then
       Api.Audio.resume st.audio st.sound
     else if stopped && st.playlist <> [||] then
-      State.switch_song st st.playlist.(st.playpos) true
+      State.switch_track st st.playlist.(st.playpos) true
   );
 
   (* Seek bar *)
@@ -148,7 +148,7 @@ let rec run (st : State.t) =
   let progress' = seek_bar st.win progress +.
     0.05 *. (float_of_bool (ff_key st.win) -. float_of_bool (rw_key st.win)) in
   if progress' <> progress && not silence then
-    State.seek_song st (clamp 0.0 1.0 progress');
+    State.seek_track st (clamp 0.0 1.0 progress');
 
   let s1 = fmt_time2 played in
   let s2 = "-" ^ fmt_time2 remain in
@@ -159,7 +159,7 @@ let rec run (st : State.t) =
   (* Title info *)
   let name =
     match st.current with
-    | Some song -> song.name ^ " (" ^ fmt_time song.time ^ ")"
+    | Some track -> track.name ^ " (" ^ fmt_time track.time ^ ")"
     | None -> App.(name ^ " " ^ version)
   in
   title_scroller st.win name;
@@ -206,28 +206,29 @@ let rec run (st : State.t) =
     Array.init vlen (fun i ->
       let i = i + st.playscroll in
       if i >= len then `Green, `Black, [|""; ""; ""|] else
-      let song = st.playlist.(i) in
-      if now -. song.last_update > playlist_file_check_freq then State.update_song st song;
+      let track = st.playlist.(i) in
+      if now -. track.last_update > playlist_file_check_freq then
+        State.update_track st track;
       let bg = if i mod 2 = 0 then `Black else `Gray 0x20 in
       let fg =
-        match song.status with
+        match track.status with
         | _ when i = st.playpos ->
-          if song.path = (Option.get st.current).path then `White else `Gray 0xc0
+          if track.path = (Option.get st.current).path then `White else `Gray 0xc0
         | `Absent -> `Red
         | `Invalid -> `Yellow
         | `Undet -> `Blue
         | `Predet | `Det -> `Green
       in
-      let time = if song.time = 0.0 then "" else fmt_time song.time in
+      let time = if track.time = 0.0 then "" else fmt_time track.time in
       cw3 := max !cw3 (Api.Draw.text_width st.win playlist_row_h font time + 1);
-      fg, bg, [|fmt "%0*d. " digits (i + 1); song.name; time|]
+      fg, bg, [|fmt "%0*d. " digits (i + 1); track.name; time|]
     )
   in
   let cols = [|cw1, `Right; w - cw1 - !cw3, `Left; !cw3, `Right|] in
   (match playlist st.win cols rows with
   | Some i when st.playscroll + i < Array.length st.playlist ->
     st.playpos <- st.playscroll + i;
-    State.switch_song st st.playlist.(st.playpos) playing
+    State.switch_track st st.playlist.(st.playpos) playing
   | _ -> ()
   );
 
@@ -241,7 +242,7 @@ let rec run (st : State.t) =
   let _, my as m = Api.Mouse.pos st.win in
   let pos = if Api.inside m r then
     min len ((my - y) / playlist_row_h + st.playscroll) else len in
-  State.insert_songs st pos dropped;
+  State.insert_tracks st pos dropped;
 
   Api.Draw.finish st.win;
   run st
