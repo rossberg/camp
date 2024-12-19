@@ -48,8 +48,8 @@ type t =
   mutable playscroll : int;
   mutable playrange : int * int;
   mutable playselect : int;
-  mutable undo : (int * track array * int) list;
-  mutable undocount : int;
+  mutable undo : (int * track array * int) list ref;
+  mutable redo : (int * track array * int) list ref;
 }
 
 let make win audio =
@@ -63,8 +63,8 @@ let make win audio =
     playscroll = 0;
     playrange = min_int, 0;
     playselect = 0;
-    undo = [];
-    undocount = 0;
+    undo = ref [];
+    redo = ref [];
   }
 
 let ok st =
@@ -235,23 +235,25 @@ let deselect st i j =
 let undo_depth = 100
 
 let push_undo st =
-  if st.undocount < undo_depth then
-    st.undocount <- st.undocount + 1
-  else
-    st.undo <- List.filteri (fun i _ -> i < undo_depth - 1) st.undo;
-  st.undo <- (st.playpos, st.playlist, st.playscroll) :: st.undo
+  if List.length !(st.undo) >= undo_depth then
+    st.undo := List.filteri (fun i _ -> i < undo_depth - 1) !(st.undo);
+  st.undo := (st.playpos, st.playlist, st.playscroll) :: !(st.undo);
+  st.redo := []
 
-let pop_undo st =
-  match st.undo with
+let pop_unredo st undo redo =
+  match !undo with
   | [] -> ()
   | (pos, list, scroll) :: undo' ->
+    redo := (st.playpos, st.playlist, st.playscroll) :: !redo;
+    undo := undo';
     deselect_all st;
     st.playpos <- pos;
     st.playlist <- list;
     st.playscroll <- scroll;
-    st.undo <- undo';
-    st.undocount <- st.undocount - 1;
     if st.current = None && list <> [||] then st.current <- Some list.(pos)
+
+let pop_undo st = pop_unredo st st.undo st.redo
+let pop_redo st = pop_unredo st st.redo st.undo
 
 
 (* Playlist Manipulation *)

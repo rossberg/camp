@@ -95,11 +95,11 @@ let font win h = font' win h "bahn.ttf" 0x20 0x600 fonts
 let _symfont win h = font' win h "webdings.ttf" 0x23c0 0x2400 symfonts
 
 
-let no_modkey = (`Plain, `None)
+let no_modkey = ([], `None)
 
-let key_status _win (modifier, key) =
-  if Key.is_down key && Key.is_modifier_down modifier then `Pressed else
-  if Key.is_released key && Key.is_modifier_down modifier then `Released else
+let key_status _win (modifiers, key) =
+  if Key.is_down key && Api.Key.are_modifiers_down modifiers then `Pressed else
+  if Key.is_released key && Api.Key.are_modifiers_down modifiers then `Released else
   `Untouched
 
 let mouse_status win r side =

@@ -10,35 +10,36 @@ let playlist_file_check_freq = 5.0
 let control_width = 360
 let control_height = 160
 
-let close_button = Ui.button (-14, 0, 14, 14) (`Control, `Char 'Q')
+let close_button = Ui.button (-14, 0, 14, 14) ([`Control], `Char 'Q')
 let resizer = Ui.resizer (-14, -14, 14, 14)
 
 let title_scroller = Ui.scroller (10, 70, -10, 16)
 let seek_bar = Ui.progress_bar (10, 90, -10, 14)
-let rw_key = Ui.key (`Plain, `Arrow `Left)
-let ff_key = Ui.key (`Plain, `Arrow `Right)
+let rw_key = Ui.key ([], `Arrow `Left)
+let ff_key = Ui.key ([], `Arrow `Right)
 
-let bwd_button = Ui.control_button (10, 122, 40, 30) "<<" (`Plain, `Char 'Z')
-let play_button = Ui.control_button (50, 122, 40, 30) ">" (`Plain, `Char 'X')
-let pause_button = Ui.control_button (90, 122, 40, 30) "||" (`Plain, `Char 'C')
-let stop_button = Ui.control_button (130, 122, 40, 30) "[]" (`Plain, `Char 'V')
-let fwd_button = Ui.control_button (170, 122, 40, 30) ">>" (`Plain, `Char 'B')
-let eject_button = Ui.control_button (210, 122, 40, 30) "^" (`Plain, `Char 'N')
-let undo_button = Ui.key (`Control, `Char 'Z')
+let bwd_button = Ui.control_button (10, 122, 40, 30) "<<" ([], `Char 'Z')
+let play_button = Ui.control_button (50, 122, 40, 30) ">" ([], `Char 'X')
+let pause_button = Ui.control_button (90, 122, 40, 30) "||" ([], `Char 'C')
+let stop_button = Ui.control_button (130, 122, 40, 30) "[]" ([], `Char 'V')
+let fwd_button = Ui.control_button (170, 122, 40, 30) ">>" ([], `Char 'B')
+let eject_button = Ui.control_button (210, 122, 40, 30) "^" ([], `Char 'N')
+let undo_button = Ui.key ([`Control], `Char 'Z')
+let redo_button = Ui.key ([`Shift; `Control], `Char 'Z')
 
 let volume_bar = Ui.progress_bar (260, 131, 90, 12)
 let volume_wheel = Ui.wheel (0, 0, control_width, control_height)
-let volup_key = Ui.key (`Plain, `Char '+')
-let voldown_key = Ui.key (`Plain, `Char '-')
+let volup_key = Ui.key ([], `Char '+')
+let voldown_key = Ui.key ([], `Char '-')
 
 let playlist_rect = (10, 170, -21, -18)
 let playlist_row_h = 16
 let playlist = Ui.table playlist_rect playlist_row_h
 let playlist_scroll = Ui.scroll_bar (-20, 170, 10, -18)
 let playlist_wheel = Ui.wheel (10, 170, -10, -18)
-let _up_key = Ui.key (`Plain, `Arrow `Up)
-let _down_key = Ui.key (`Plain, `Arrow `Down)
-let del_key = Ui.key (`Plain, `Delete)
+let _up_key = Ui.key ([], `Arrow `Up)
+let _down_key = Ui.key ([], `Arrow `Down)
+let del_key = Ui.key ([], `Delete)
 
 
 (* Helpers *)
@@ -131,7 +132,9 @@ let rec run (st : State.t) =
     State.remove_all st;
   )
   else if undo_button st.win then
-    State.pop_undo st;
+    State.pop_undo st
+  else if redo_button st.win then
+    State.pop_redo st;
 
   if Api.Key.is_released (`Char ' ') then
   (
@@ -232,7 +235,7 @@ let rec run (st : State.t) =
   | Some i ->
     let i = st.playscroll + i in
     let i' = min i (len - 1) in
-    if Api.Key.is_modifier_down `Plain && Api.Mouse.is_pressed `Left then
+    if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left then
     (
       st.playrange <- (if i >= len then max_int else i), i';
       State.deselect_all st;
@@ -248,7 +251,7 @@ let rec run (st : State.t) =
           State.select st i i;
       )
     )
-    else if Api.Key.is_modifier_down `Control && Api.Mouse.is_pressed `Left then
+    else if Api.Key.are_modifiers_down [`Control] && Api.Mouse.is_pressed `Left then
     (
       st.playrange <- (if i >= len then max_int else i), i';
       if i < len then
@@ -257,7 +260,7 @@ let rec run (st : State.t) =
         else
           State.select st i i
     )
-    else if Api.Key.is_modifier_down `Shift then
+    else if Api.Key.are_modifiers_down [`Shift] then
     (
       let fst, snd = st.playrange in
       st.playrange <- fst, i';

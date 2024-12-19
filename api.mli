@@ -104,7 +104,7 @@ type key =
   | `Caps
 ]
 
-type modifier = [`Plain | `Shift | `Control | `Alt]
+type modifier = [`Shift | `Control | `Alt]
 
 type resize = [`N_S | `E_W | `NE_SW | `NW_SE | `All]
 type cursor =
@@ -137,6 +137,7 @@ sig
   val is_down : key -> bool
   val is_released : key -> bool
   val is_modifier_down : modifier -> bool
+  val are_modifiers_down : modifier list -> bool
 end
 
 
