@@ -108,6 +108,22 @@ let mouse_status win r side =
   if Mouse.is_released `Left then `Released else
   `Focused
 
+type drag_extra += Drag_gen of point
+
+let drag_status win r (stepx, stepy) =
+  let r' = dim win r in
+  let (mx, my) as m = Mouse.pos win in
+  if not (inside !drag_pos r') then None else
+  match !drag_extra with
+  | No_drag -> drag_extra := Drag_gen m; None
+  | Drag_gen m' ->
+    let dx, dy = sub m m' in
+    let dx' = dx / stepx in
+    let dy' = dy / stepy in
+    drag_extra := Drag_gen (mx - dx mod stepx, my - dy mod stepy);
+    if dx' = 0 && dy' = 0 then None else Some (dx', dy')
+  | _ -> assert false
+
 let wheel_status win r =
   let r' = dim win r in
   if inside (Mouse.pos win) r' then snd (Mouse.wheel win) else 0.0
@@ -115,6 +131,7 @@ let wheel_status win r =
 let key modkey win = (key_status win modkey = `Released)
 let mouse r side win = (mouse_status win r side = `Released)
 let wheel r win = wheel_status win r
+let drag r win eps = drag_status win r eps
 
 let element r modkey win =
   let r' = dim win r in
@@ -253,7 +270,7 @@ let table r ch win cols rows =
       cx := !cx + cw;
     ) cols
   ) rows;
-  if status = `Pressed then
+  if status = `Pressed || status = `Released then
     let _, my = Api.Mouse.pos win in
     Some ((my - y) / ch)
   else

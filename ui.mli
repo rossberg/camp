@@ -9,6 +9,7 @@ val window : window -> unit
 
 val key : modifier list * key -> window -> bool
 val mouse : rect -> side -> window -> bool
+val drag : rect -> window -> int * int -> (int * int) option
 val wheel : rect -> window -> float
 
 val resizer : rect -> window -> size -> size -> unit

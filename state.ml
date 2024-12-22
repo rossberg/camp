@@ -46,11 +46,13 @@ type t =
   mutable playpos : int;
   mutable playlist : track array;
   mutable playscroll : int;
-  mutable playrange : int * int;
   mutable playselect : int;
+  mutable playrange : int * int;
   mutable undo : (int * track array * int) list ref;
   mutable redo : (int * track array * int) list ref;
 }
+
+let no_range = min_int, 0
 
 let make win audio =
   let sound = Api.Audio.silence audio in
@@ -61,8 +63,8 @@ let make win audio =
     playpos = 0;
     playlist = [||];
     playscroll = 0;
-    playrange = min_int, 0;
     playselect = 0;
+    playrange = no_range;
     undo = ref [];
     redo = ref [];
   }
@@ -73,6 +75,7 @@ let ok st =
   let paused = not playing && played > 0.0 in
   let stopped = not playing && not paused in
   let silence = st.sound = Api.Audio.silence st.audio in
+  let len = Array.length st.playlist in
 (*
 Printf.printf "[%s current=%b played=%.2f silence=%b playpos=%d len=%d]\n%!"
 (if playing then "playing" else if paused then "paused" else "stopped")
@@ -81,9 +84,11 @@ Printf.printf "[%s current=%b played=%.2f silence=%b playpos=%d len=%d]\n%!"
   assert (st.current <> None || silence);
   assert (st.current <> None || stopped);
   assert (st.current <> None || st.playlist = [||]);
-  assert (st.playpos = 0 || st.playpos > 0 && st.playpos < Array.length st.playlist);
-  assert (st.playscroll = 0 || st.playscroll > 0 && st.playscroll < Array.length st.playlist);
+  assert (st.playpos = 0 && len = 0 || st.playpos >= 0 && st.playpos < len);
+  assert (st.playscroll = 0 && len = 0 || st.playscroll >= 0 && st.playscroll < len);
   assert (st.playselect = Array.fold_left (fun n tr -> n + Bool.to_int tr.selected) 0 st.playlist);
+  assert (fst st.playrange = min_int || fst st.playrange = max_int || fst st.playrange >= 0 && fst st.playrange < len);
+  assert (snd st.playrange = 0 || snd st.playrange >= 0 && snd st.playrange < len);
   ()
 (*
   let length = Api.Audio.length st.audio st.sound in
@@ -335,7 +340,7 @@ let remove_selected st =
   if n > 0 then
   (
     push_undo st;
-    st.playrange <- min_int, 0;
+    st.playrange <- no_range;
     st.playselect <- 0;
     let off = ref 0 in
     st.playlist <-
@@ -355,6 +360,7 @@ let remove_selected st =
   )
 
 let move_selected st d =
+  if st.playselect = 0 then () else
   let len = Array.length st.playlist in
   if d < 0 then
     for i = 0 to len - 1 do
@@ -364,6 +370,13 @@ let move_selected st d =
         let temp = st.playlist.(i) in
         for j = i - 1 downto i + d do st.playlist.(j + 1) <- st.playlist.(j) done;
         st.playlist.(i + d) <- temp;
+        let adjust pos =
+          if pos = i then i + d else
+          if i + d <= pos && pos < i then pos + 1 else
+          pos
+        in
+        st.playpos <- adjust st.playpos;
+        st.playrange <- adjust (fst st.playrange), adjust (snd st.playrange);
       )
     done
   else
@@ -374,5 +387,12 @@ let move_selected st d =
         let temp = st.playlist.(i) in
         for j = i + 1 to i + d do st.playlist.(j - 1) <- st.playlist.(j) done;
         st.playlist.(i + d) <- temp;
+        let adjust pos =
+          if pos = i then i + d else
+          if i < pos && pos <= i + d then pos - 1 else
+          pos
+        in
+        st.playpos <- adjust st.playpos;
+        st.playrange <- adjust (fst st.playrange), adjust (snd st.playrange);
       )
     done

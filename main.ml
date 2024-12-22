@@ -37,6 +37,7 @@ let playlist_row_h = 16
 let playlist = Ui.table playlist_rect playlist_row_h
 let playlist_scroll = Ui.scroll_bar (-20, 170, 10, -18)
 let playlist_wheel = Ui.wheel (10, 170, -10, -18)
+let playlist_drag = Ui.drag (10, 170, -20, -18)
 let del_key = Ui.key ([], `Delete)
 
 let up_key = Ui.key ([], `Arrow `Up)
@@ -250,15 +251,19 @@ let rec run (st : State.t) =
     )
   in
   let cols = [|cw1, `Right; w - cw1 - !cw3 - 2, `Left; !cw3, `Right|] in
+  let dragging = playlist_drag st.win (max_int, playlist_row_h) in
   (match playlist st.win cols rows with
   | None -> ()
   | Some i ->
     let i = st.playscroll + i in
     let i' = min i (len - 1) in
-    if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left then
+    if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left && dragging = None then
     (
-      st.playrange <- (if i >= len then max_int else i), i';
-      State.deselect_all st;
+      if i >= len || not st.playlist.(i).selected then
+      (
+        st.playrange <- (if i >= len then max_int else i), i';
+        State.deselect_all st;
+      );
       if i < len then
       (
         if Api.Mouse.is_doubleclick `Left then
@@ -268,7 +273,9 @@ let rec run (st : State.t) =
           State.deselect st i i;
         )
         else
+        (
           State.select st i i;
+        )
       )
     )
     else if Api.Key.are_modifiers_down [`Control] && Api.Mouse.is_pressed `Left then
@@ -280,7 +287,7 @@ let rec run (st : State.t) =
         else
           State.select st i i
     )
-    else if Api.Key.are_modifiers_down [`Shift] then
+    else if Api.Key.are_modifiers_down [`Shift] && Api.Mouse.is_down `Left then
     (
       let fst, snd = st.playrange in
       st.playrange <- fst, i';
@@ -351,7 +358,12 @@ let rec run (st : State.t) =
   );
 
   (* Playlist reordering *)
-  let d =
+  let d0 =
+    match dragging with
+    | None -> 0
+    | Some (_, dy) -> dy
+  in
+  let d = d0 +
     if movebegin_key st.win then -len else
     if moveend_key st.win then +len else
     if movepageup_key st.win then -vlen else
@@ -369,7 +381,8 @@ let rec run (st : State.t) =
       else min d (len - Option.value (State.last_selected st) ~default: 0 - 1)
     in
     State.move_selected st d';
-    st.playscroll <- clamp 0 (max 0 (len - vlen)) (st.playscroll + d);
+    if dragging = None then
+      st.playscroll <- clamp 0 (max 0 (len - vlen)) (st.playscroll + d);
   );
 
   (* Playlist scrolling *)
