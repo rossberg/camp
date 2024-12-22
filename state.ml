@@ -81,8 +81,8 @@ Printf.printf "[%s current=%b played=%.2f silence=%b playpos=%d len=%d]\n%!"
   assert (st.current <> None || silence);
   assert (st.current <> None || stopped);
   assert (st.current <> None || st.playlist = [||]);
-  assert (st.playpos >= 0 && st.playpos < Array.length st.playlist);
-  assert (st.playscroll >= 0 && st.playscroll < Array.length st.playlist);
+  assert (st.playpos = 0 || st.playpos > 0 && st.playpos < Array.length st.playlist);
+  assert (st.playscroll = 0 || st.playscroll > 0 && st.playscroll < Array.length st.playlist);
   assert (st.playselect = Array.fold_left (fun n tr -> n + Bool.to_int tr.selected) 0 st.playlist);
   ()
 (*
@@ -196,6 +196,16 @@ let seek_track st percent =
 
 
 (* Playlist Selection *)
+
+let first_selected st =
+  let i = ref 0 in
+  while !i < Array.length st.playlist && not st.playlist.(!i).selected do incr i done;
+  if !i = Array.length st.playlist then None else Some !i
+
+let last_selected st =
+  let i = ref (Array.length st.playlist - 1) in
+  while !i >= 0 && not st.playlist.(!i).selected do decr i done;
+  if !i = -1 then None else Some !i
 
 let select_all st =
   st.playselect <- Array.length st.playlist;

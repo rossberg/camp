@@ -37,9 +37,22 @@ let playlist_row_h = 16
 let playlist = Ui.table playlist_rect playlist_row_h
 let playlist_scroll = Ui.scroll_bar (-20, 170, 10, -18)
 let playlist_wheel = Ui.wheel (10, 170, -10, -18)
-let _up_key = Ui.key ([], `Arrow `Up)
-let _down_key = Ui.key ([], `Arrow `Down)
 let del_key = Ui.key ([], `Delete)
+
+let up_key = Ui.key ([], `Arrow `Up)
+let down_key = Ui.key ([], `Arrow `Down)
+let pageup_key = Ui.key ([], `Page `Up)
+let pagedown_key = Ui.key ([], `Page `Down)
+let begin_key = Ui.key ([], `End `Up)
+let end_key = Ui.key ([], `End `Down)
+
+let selup_key = Ui.key ([`Shift], `Arrow `Up)
+let seldown_key = Ui.key ([`Shift], `Arrow `Down)
+let selpageup_key = Ui.key ([`Shift], `Page `Up)
+let selpagedown_key = Ui.key ([`Shift], `Page `Down)
+let selbegin_key = Ui.key ([`Shift], `End `Up)
+let selend_key = Ui.key ([`Shift], `End `Down)
+let selall_key = Ui.key ([`Control], `Char 'A')
 
 
 (* Helpers *)
@@ -275,6 +288,59 @@ let rec run (st : State.t) =
         State.deselect st (max 0 fst) i'
       )
     )
+  );
+
+  (* Playlist selection *)
+  let d =
+    if begin_key st.win then -len else
+    if end_key st.win then +len else
+    if pageup_key st.win then -vlen else
+    if pagedown_key st.win then +vlen else
+    if up_key st.win then -1 else
+    if down_key st.win then +1 else
+    0
+  in
+  if min len (abs d) > 0 then
+  (
+    let i =
+      if d < 0
+      then max 0 (Option.value (State.first_selected st) ~default: (len - 1) + d)
+      else min (len - 1) (Option.value (State.last_selected st) ~default: 0 + d)
+    in
+    State.deselect_all st;
+    State.select st i i;
+  );
+
+  let d =
+    if selbegin_key st.win then -len else
+    if selend_key st.win then +len else
+    if selpageup_key st.win then -vlen else
+    if selpagedown_key st.win then +vlen else
+    if selup_key st.win then -1 else
+    if seldown_key st.win then +1 else
+    0
+  in
+  if min len (abs d) > 0 then
+  (
+    let fst, snd = st.playrange in
+    let i = max 0 (min (len - 1) (snd + d)) in
+    st.playrange <- fst, i;
+    if fst < 0 || fst >= len || st.playlist.(fst).selected then
+    (
+      State.deselect st snd i;
+      State.select st (max 0 fst) i
+    )
+    else
+    (
+      State.select st snd i;
+      State.deselect st (max 0 fst) i
+    )
+  );
+
+  if selall_key st.win then
+  (
+    State.select_all st;
+    st.playrange <- 0, len - 1;
   );
 
   (* Playlist scrolling *)
