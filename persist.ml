@@ -78,6 +78,9 @@ let load_state st =
     let w, h = clamp_pair min_w min_h min_w sh
       (input " win_size = %d , %d " pair) in
     Api.Window.set_size st.win w h;
+    Api.Draw.start st.win `Black;
+    Api.Draw.finish st.win;
+
     st.volume <- clamp 0.0 1.0 (input " volume = %f " value);
 
     st.playlist <- load_playlist ();
