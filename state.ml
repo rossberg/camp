@@ -353,3 +353,26 @@ let remove_selected st =
         st.playlist.(i + !off)
       )
   )
+
+let move_selected st d =
+  let len = Array.length st.playlist in
+  if d < 0 then
+    for i = 0 to len - 1 do
+      if i < -d then assert (not st.playlist.(i).selected) else
+      if st.playlist.(i).selected then
+      (
+        let temp = st.playlist.(i) in
+        for j = i - 1 downto i + d do st.playlist.(j + 1) <- st.playlist.(j) done;
+        st.playlist.(i + d) <- temp;
+      )
+    done
+  else
+    for i = len - 1 downto 0 do
+      if i >= len - d then assert (not st.playlist.(i).selected) else
+      if st.playlist.(i).selected then
+      (
+        let temp = st.playlist.(i) in
+        for j = i + 1 to i + d do st.playlist.(j - 1) <- st.playlist.(j) done;
+        st.playlist.(i + d) <- temp;
+      )
+    done

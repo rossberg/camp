@@ -54,6 +54,13 @@ let selbegin_key = Ui.key ([`Shift], `End `Up)
 let selend_key = Ui.key ([`Shift], `End `Down)
 let selall_key = Ui.key ([`Control], `Char 'A')
 
+let moveup_key = Ui.key ([`Control], `Arrow `Up)
+let movedown_key = Ui.key ([`Control], `Arrow `Down)
+let movepageup_key = Ui.key ([`Control], `Page `Up)
+let movepagedown_key = Ui.key ([`Control], `Page `Down)
+let movebegin_key = Ui.key ([`Control], `End `Up)
+let moveend_key = Ui.key ([`Control], `End `Down)
+
 
 (* Helpers *)
 
@@ -343,11 +350,34 @@ let rec run (st : State.t) =
     st.playrange <- 0, len - 1;
   );
 
+  (* Playlist reordering *)
+  let d =
+    if movebegin_key st.win then -len else
+    if moveend_key st.win then +len else
+    if movepageup_key st.win then -vlen else
+    if movepagedown_key st.win then +vlen else
+    if moveup_key st.win then -1 else
+    if movedown_key st.win then +1 else
+    0
+  in
+  if min len (abs d) > 0 then
+  (
+    State.push_undo st;
+    let d' =
+      if d < 0
+      then max d (- Option.value (State.first_selected st) ~default: (len - 1))
+      else min d (len - Option.value (State.last_selected st) ~default: 0 - 1)
+    in
+    State.move_selected st d';
+    st.playscroll <- clamp 0 (max 0 (len - vlen)) (st.playscroll + d);
+  );
+
   (* Playlist scrolling *)
   let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * playlist_row_h)) in
   let pos = if len = 0 then 0.0 else float st.playscroll /. float len in
   let pos' = playlist_scroll st.win pos ext -. 0.05 *. playlist_wheel st.win in
-  st.playscroll <- clamp 0 (max 0 (len - vlen)) (int_of_float (Float.round (pos' *. float len)));
+  st.playscroll <- clamp 0 (max 0 (len - vlen))
+    (int_of_float (Float.round (pos' *. float len)));
 
   (* Playlist deletion *)
   if del_key st.win then

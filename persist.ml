@@ -79,12 +79,14 @@ let load_state st =
       (input " win_size = %d , %d " pair) in
     Api.Window.set_size st.win w h;
     st.volume <- clamp 0.0 1.0 (input " volume = %f " value);
-    st.playpos <- max 0 (input " play_pos = %d " value);
+
+    st.playlist <- load_playlist ();
+
+    let len = Array.length st.playlist - 1 in
+    st.playpos <- clamp 0 (len - 1) (input " play_pos = %d " value);
     let current = make_track (String.trim (input " play = %[\x20-\xff]" value)) in
     State.switch_track st current false;
     State.seek_track st (clamp 0.0 1.0 (input " seek_pos = %f " value));
-    st.playscroll <- max 0 (input " play_scroll = %d " value);
+    st.playscroll <- clamp 0 (len - 1) (input " play_scroll = %d " value);
   );
-  st.playlist <- load_playlist ();
-  st.playpos <- min st.playpos (max 0 (Array.length st.playlist - 1));
   ok st
