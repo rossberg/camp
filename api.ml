@@ -160,7 +160,7 @@ struct
     Raylib.draw_ellipse_lines (x + w/2) (y + h/2) (float w /. 2.0) (float h /. 2.0) (color c)
 
   let text () x y h c f s =
-    Raylib.draw_text_ex f s (vec2_of_point (x, y)) (float h) 0.0 (color c)
+    Raylib.draw_text_ex f s (vec2_of_point (x, y)) (float h) 1.0 (color c)
 (*
     Raylib.begin_shader_mode (snd f);
     Raylib.draw_text_ex (fst f) s (vec2_of_point (x, y)) (float h) 0.0 (color c);
@@ -168,7 +168,7 @@ struct
 *)
 
   let text_width () h f s =
-    fst (point_of_vec2 (Raylib.measure_text_ex f s (float h) 0.0))
+    fst (point_of_vec2 (Raylib.measure_text_ex f s (float h) 1.0))
 end
 
 

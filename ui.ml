@@ -91,7 +91,7 @@ let font' win h file min max fonts =
     fonts.(h) <- Some f;
     f
 
-let font win h = font' win h "bahn.ttf" 0x20 0x600 fonts
+let font win h = font' win h "tahoma.ttf" 0x0020 0x0600 fonts
 let _symfont win h = font' win h "webdings.ttf" 0x23c0 0x2400 symfonts
 
 

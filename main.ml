@@ -33,7 +33,7 @@ let volup_key = Ui.key ([], `Char '+')
 let voldown_key = Ui.key ([], `Char '-')
 
 let playlist_rect = (10, 170, -21, -18)
-let playlist_row_h = 16
+let playlist_row_h = 13
 let playlist = Ui.table playlist_rect playlist_row_h
 let playlist_scroll = Ui.scroll_bar (-20, 170, 10, -18)
 let playlist_wheel = Ui.wheel (10, 170, -10, -18)
@@ -360,8 +360,8 @@ let rec run (st : State.t) =
   (* Playlist reordering *)
   let d0 =
     match dragging with
-    | None -> 0
-    | Some (_, dy) -> dy
+    | Some (_, dy) when Api.Key.are_modifiers_down [] -> dy
+    | _ -> 0
   in
   let d = d0 +
     if movebegin_key st.win then -len else
