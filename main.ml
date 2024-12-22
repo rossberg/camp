@@ -13,7 +13,7 @@ let control_height = 160
 let close_button = Ui.button (-14, 0, 14, 14) ([`Control], `Char 'Q')
 let resizer = Ui.resizer (-14, -14, 14, 14)
 
-let title_scroller = Ui.scroller (10, 70, -10, 16)
+let title_ticker = Ui.ticker (10, 70, -10, 16)
 let seek_bar = Ui.progress_bar (10, 90, -10, 14)
 let rw_key = Ui.key ([], `Arrow `Left)
 let ff_key = Ui.key ([], `Arrow `Right)
@@ -187,7 +187,7 @@ let rec run (st : State.t) =
     | Some track -> track.name ^ " (" ^ fmt_time track.time ^ ")"
     | None -> App.(name ^ " " ^ version)
   in
-  title_scroller st.win name;
+  title_ticker st.win name;
 
   (* Volume control *)
   let vol = volume_bar st.win st.volume +. 0.05 *. volume_wheel st.win +.

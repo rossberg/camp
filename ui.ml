@@ -229,7 +229,7 @@ let scroll_bar r win v len =
   in clamp 0.0 (1.0 -. len) v'
 
 
-let scroller r win s =
+let ticker r win s =
   let (x, y, w, h), _status = element r no_modkey win in
   Draw.fill win x y w h `Black;
   let tw = Draw.text_width win h (font win h) s in

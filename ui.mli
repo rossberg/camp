@@ -17,7 +17,7 @@ val button : rect -> modifier list * key -> window -> bool
 val control_button : rect -> string -> modifier list * key -> window -> bool -> bool
 val progress_bar : rect -> window -> float -> float
 val scroll_bar : rect -> window -> float -> float -> float
-val scroller : rect -> window -> string -> unit
+val ticker : rect -> window -> string -> unit
 
 type align = [`Left | `Center | `Right]
 type column = int * align
