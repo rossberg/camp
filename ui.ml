@@ -141,6 +141,18 @@ let mouse r side win = (mouse_status win r side = `Pressed)
 let wheel r win = wheel_status win r
 let drag r win eps = drag_status win r eps
 
+
+let text r align s win =
+  let x, y, w, h = dim win r in
+  let font = font win h in
+  let tw = Api.Draw.text_width win h font s in
+  let dx =
+    match align with
+    | `Left -> 0
+    | `Center -> (w - tw) / 2
+    | `Right -> w - tw
+  in Api.Draw.text win (x + dx) y h `White font s
+
 let element r modkey win =
   let r' = dim win r in
   inner := r' :: !inner;

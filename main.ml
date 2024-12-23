@@ -11,7 +11,11 @@ let control_width = 360
 let control_height = 160
 
 let close_button = Ui.button (-14, 0, 14, 14) ([`Control], `Char 'Q')
-let resizer = Ui.resizer (-14, -14, 14, 14)
+
+let volume_bar = Ui.progress_bar (260, 50, 90, 12)
+let volume_wheel = Ui.wheel (0, 0, control_width, control_height)
+let volup_key = Ui.key ([], `Char '+')
+let voldown_key = Ui.key ([], `Char '-')
 
 let title_ticker = Ui.ticker (10, 70, -10, 16)
 let seek_bar = Ui.progress_bar (10, 90, -10, 14)
@@ -24,16 +28,14 @@ let pause_button = Ui.control_button (90, 122, 40, 30) "||" ([], `Char 'C')
 let stop_button = Ui.control_button (130, 122, 40, 30) "[]" ([], `Char 'V')
 let fwd_button = Ui.control_button (170, 122, 40, 30) ">>" ([], `Char 'B')
 let eject_button = Ui.control_button (210, 122, 40, 30) "^" ([], `Char 'N')
-let undo_button = Ui.key ([`Control], `Char 'Z')
-let redo_button = Ui.key ([`Shift; `Control], `Char 'Z')
 
-let volume_bar = Ui.progress_bar (260, 131, 90, 12)
-let volume_wheel = Ui.wheel (0, 0, control_width, control_height)
-let volup_key = Ui.key ([], `Char '+')
-let voldown_key = Ui.key ([], `Char '-')
+let playlist_text = Ui.text (280, 125, 25, 10) `Center "PLAYLIST"
+let playlist_button = Ui.control_button (280, 137, 25, 15) "" ([], `Char 'P')
+let playlist_resizer = Ui.resizer (-14, -14, 14, 14)
 
-let playlist_rect = (10, 170, -21, -18)
 let playlist_row_h = 13
+let playlist_min = 31 + 4 * playlist_row_h
+let playlist_rect = (10, 170, -21, -18)
 let playlist = Ui.table playlist_rect playlist_row_h
 let playlist_scroll = Ui.scroll_bar (-20, 170, 10, -18)
 let playlist_wheel = Ui.wheel (10, 170, -10, -18)
@@ -61,6 +63,9 @@ let movepageup_key = Ui.key ([`Control], `Page `Up)
 let movepagedown_key = Ui.key ([`Control], `Page `Down)
 let movebegin_key = Ui.key ([`Control], `End `Up)
 let moveend_key = Ui.key ([`Control], `End `Down)
+
+let undo_button = Ui.key ([`Control], `Char 'Z')
+let redo_button = Ui.key ([`Shift; `Control], `Char 'Z')
 
 
 (* Helpers *)
@@ -95,8 +100,9 @@ let rec run (st : State.t) =
 
   (* Window *)
   Ui.window st.win;
-  resizer st.win (control_width, control_height) (control_width, -1);
   if close_button st.win then exit 0;
+  if st.playopen then
+    playlist_resizer st.win (control_width, control_height + playlist_min) (control_width, -1);
 
   (* Current status *)
   State.ok st;
@@ -215,7 +221,22 @@ let rec run (st : State.t) =
   let s = Printf.sprintf "%dx%d" ww wh in
   Api.Draw.text st.win 140 35 20 (`Gray 0xc0) (Ui.font st.win 20) s;
 
+  playlist_text st.win;
+  let playopen' = playlist_button st.win st.playopen in
+  if st.playopen then
+    st.playheight <- snd (Api.Window.size st.win) - control_height;
+  (match st.playopen, playopen' with
+  | false, true ->
+    Api.Window.set_size st.win control_width (control_height + st.playheight)
+  | true, false ->
+    Api.Window.set_size st.win control_width control_height
+  | _, _ -> ()
+  );
+  st.playopen <- playopen';
+
   (* Playlist *)
+if st.playopen then
+(
   let now = Unix.time () in
   let len = Array.length st.playlist in
   let digits = log10 (len + 1) + 1 in
@@ -402,6 +423,7 @@ let rec run (st : State.t) =
   let pos = if Api.inside m r then
     min len ((my - y) / playlist_row_h + st.playscroll) else len in
   State.insert st pos dropped;
+);
 
   (* All done *)
   Api.Draw.finish st.win;

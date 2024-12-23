@@ -64,6 +64,8 @@ let save_state st =
     let played = Api.Audio.played st.audio st.sound in
     output "seek_pos = %.4f\n" (if length > 0.0 then played /. length else 0.0);
     output "play_scroll = %d\n" st.playscroll;
+    output "play_open = %d\n" (Bool.to_int st.playopen);
+    output "play_height = %d\n" st.playheight;
   );
   save_playlist st.playlist
 
@@ -91,5 +93,8 @@ let load_state st =
     State.switch_track st current false;
     State.seek_track st (clamp 0.0 1.0 (input " seek_pos = %f " value));
     st.playscroll <- clamp 0 (len - 1) (input " play_scroll = %d " value);
+    st.playopen <- (0 <> input " play_open = %d " value);
+    (* TODO: 73 = playlist_min; use constant *)
+    st.playheight <- max 83 (input " play_height = %d " value);
   );
   ok st

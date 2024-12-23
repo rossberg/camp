@@ -43,6 +43,8 @@ type t =
   mutable volume : float;
   mutable sound : Api.sound;
   mutable current : track option;
+  mutable playopen : bool;
+  mutable playheight : int;
   mutable playpos : int;
   mutable playlist : track array;
   mutable playscroll : int;
@@ -60,6 +62,8 @@ let make win audio =
     win; audio; sound;
     volume = 0.5;
     current = None;
+    playopen = false;
+    playheight = 200;
     playpos = 0;
     playlist = [||];
     playscroll = 0;
