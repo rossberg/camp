@@ -135,6 +135,8 @@ end
 module Key :
 sig
   val is_down : key -> bool
+  val is_pressed : key -> bool
+  val is_repeated : key -> bool
   val is_released : key -> bool
   val is_modifier_down : modifier -> bool
   val are_modifiers_down : modifier list -> bool

@@ -320,6 +320,8 @@ struct
     | `Caps -> Raylib.Key.Caps_lock
 
   let is_down k = Raylib.is_key_down (key k)
+  let is_pressed k = Raylib.is_key_pressed (key k)
+  let is_repeated k = Raylib.is_key_pressed_repeat (key k)
   let is_released k = Raylib.is_key_released (key k)
 
   let shift = [`Shift `Left; `Shift `Right]

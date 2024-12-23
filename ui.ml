@@ -98,15 +98,23 @@ let _symfont win h = font' win h "webdings.ttf" 0x23c0 0x2400 symfonts
 let no_modkey = ([], `None)
 
 let key_status _win (modifiers, key) =
-  if Key.is_down key && Api.Key.are_modifiers_down modifiers then `Pressed else
-  if Key.is_released key && Api.Key.are_modifiers_down modifiers then `Released else
-  `Untouched
+  if (Key.is_pressed key || Key.is_repeated key)
+  && Api.Key.are_modifiers_down modifiers then
+    `Pressed
+  else if Key.is_released key && Api.Key.are_modifiers_down modifiers then
+    `Released
+  else
+    `Untouched
 
 let mouse_status win r side =
-  if Mouse.is_down side && inside !drag_pos r then `Pressed else
-  if not (inside (Mouse.pos win) r) then `Untouched else
-  if Mouse.is_released `Left then `Released else
-  `Focused
+  if Mouse.is_down side && inside !drag_pos r then
+    `Pressed
+  else if not (inside (Mouse.pos win) r) then
+    `Untouched
+  else if Mouse.is_released `Left then
+    `Released
+  else
+    `Focused
 
 type drag_extra += Drag_gen of point
 
@@ -128,8 +136,8 @@ let wheel_status win r =
   let r' = dim win r in
   if inside (Mouse.pos win) r' then snd (Mouse.wheel win) else 0.0
 
-let key modkey win = (key_status win modkey = `Released)
-let mouse r side win = (mouse_status win r side = `Released)
+let key modkey win = (key_status win modkey = `Pressed)
+let mouse r side win = (mouse_status win r side = `Pressed)
 let wheel r win = wheel_status win r
 let drag r win eps = drag_status win r eps
 
