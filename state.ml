@@ -44,6 +44,7 @@ type t =
   mutable volume : float;
   mutable sound : Api.sound;
   mutable current : track option;
+  mutable timemode : [`Played | `Remain];
   mutable shuffle : bool;
   mutable repeat : [`None | `One | `All];
   mutable loop : [`None | `A of time | `AB of time * time];
@@ -68,6 +69,7 @@ let make win audio =
     win; audio; sound;
     volume = 0.5;
     current = None;
+    timemode = `Played;
     shuffle = false;
     repeat = `None;
     loop = `None;

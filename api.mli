@@ -69,6 +69,7 @@ sig
   val clip : window -> rect -> unit
   val unclip : window -> unit
 
+  val line : window -> int -> int -> int -> int -> color -> unit
   val fill : window -> int -> int -> int -> int -> color -> unit
   val rect : window -> int -> int -> int -> int -> color -> unit
   val fill_circ : window -> int -> int -> int -> int -> color -> unit

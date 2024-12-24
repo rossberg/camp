@@ -137,7 +137,7 @@ let wheel_status win r =
   if inside (Mouse.pos win) r' then snd (Mouse.wheel win) else 0.0
 
 let key modkey win = (key_status win modkey = `Pressed)
-let mouse r side win = (mouse_status win r side = `Pressed)
+let mouse r side win = (mouse_status win r side = `Released)
 let wheel r win = wheel_status win r
 let drag r win eps = drag_status win r eps
 
@@ -157,6 +157,55 @@ let indicator r win on =
   let x, y, w, h = dim win r in
   Draw.fill_circ win x y w h (fill on);
   Draw.circ win x y w h (border `Untouched)
+
+let lcd' win r' elem =
+  let open Api.Draw in
+  let x, y, w, h = r' in
+  let m = h / 2 in
+  let c = `Green in
+  match elem with
+  | `N ->
+    line win (x + 1) (y + 0) (x + w - 2) (y + 0) c;
+    line win (x + 2) (y + 1) (x + w - 3) (y + 1) c;
+  | `S ->
+    line win (x + 1) (y + h - 1) (x + w - 2) (y + h - 1) c;
+    line win (x + 2) (y + h - 2) (x + w - 3) (y + h - 2) c;
+  | `C ->
+    line win (x + 1) (y + m) (x + w - 2) (y + m) c;
+    line win (x + 2) (y + m + 1) (x + w - 3) (y + m + 1) c;
+  | `NW ->
+    line win (x + 0) (y + 1) (x + 0) (y + m - 1) c;
+    line win (x + 1) (y + 2) (x + 1) (y + m - 2) c;
+  | `NE ->
+    line win (x + w - 1) (y + 1) (x + w - 1) (y + m - 1) c;
+    line win (x + w - 2) (y + 2) (x + w - 2) (y + m - 2) c;
+  | `SW ->
+    line win (x + 0) (y + m + 1) (x + 0) (y + h - 1) c;
+    line win (x + 1) (y + m + 2) (x + 1) (y + h - 2) c;
+  | `SE ->
+    line win (x + w - 1) (y + m + 1) (x + w - 1) (y + h - 1) c;
+    line win (x + w - 2) (y + m + 2) (x + w - 2) (y + h - 2) c
+  | `Dots ->
+    rect win x (y + h / 4) 2 2 c;
+    rect win x (y + 3 * h / 4) 2 2 c
+
+let lcd r win d =
+  List.iter (lcd' win (dim win r))
+    (match d with
+    | '-' -> [`C]
+    | '0' -> [`N; `S; `NW; `SW; `NE; `SE]
+    | '1' -> [`NE; `SE]
+    | '2' -> [`N; `S; `C; `SW; `NE]
+    | '3' -> [`N; `S; `C; `NE; `SE]
+    | '4' -> [`C; `NW; `NE; `SE]
+    | '5' -> [`N; `S; `C; `NW; `SE]
+    | '6' -> [`N; `S; `C; `NW; `SW; `SE]
+    | '7' -> [`N; `NE; `SE]
+    | '8' -> [`N; `S; `C; `NW; `SW; `NE; `SE]
+    | '9' -> [`N; `S; `C; `NW; `NE; `SE]
+    | ':' -> [`Dots]
+    | _ -> failwith "lcd"
+    )
 
 
 let element r modkey win =

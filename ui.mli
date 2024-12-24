@@ -16,6 +16,7 @@ val wheel : rect -> window -> float
 
 val label : rect -> align -> string -> window -> unit
 val indicator : rect -> window -> bool -> unit
+val lcd : rect -> window -> char -> unit
 
 val resizer : rect -> window -> size -> size -> size
 val button : rect -> modifier list * key -> window -> bool

@@ -141,6 +141,9 @@ struct
   let clip () (x, y, w, h) = Raylib.begin_scissor_mode x y w h
   let unclip () = Raylib.end_scissor_mode ()
 
+  let line () x y x' y' c =
+    Raylib.draw_line x y x' y' (color c)
+
   let fill () x y w h c =
     Raylib.draw_rectangle x y w h (color c)
 

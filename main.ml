@@ -22,7 +22,13 @@ let library_indicator = Ui.indicator (-30, 85, 7, 7)
 let library_button = Ui.control_button (-45, 94, 35, 11) "" ([], `Char 'L')
 let library_label = Ui.label (-45, 106, 35, label_h) `Center "LIBRARY"
 
-let playlist_resizer = Ui.resizer (-14, -14, 14, 14)
+let lcd_minus = Ui.lcd (15, 15, 20, 30)
+let lcd1 = Ui.lcd (38, 15, 20, 30)
+let lcd2 = Ui.lcd (61, 15, 20, 30)
+let lcd_colon = Ui.lcd (84, 15, 4, 30)
+let lcd3 = Ui.lcd (91, 15, 20, 30)
+let lcd4 = Ui.lcd (114, 15, 20, 30)
+let lcd_button = Ui.mouse (15, 15, 120, 30) `Left
 
 let volume_bar = Ui.progress_bar (200, 21, 90, 12)
 let volume_wheel = Ui.wheel (0, 0, control_w, control_h)
@@ -63,6 +69,7 @@ let playlist_scroll = Ui.scroll_bar (-20, 170, 10, -18)
 let playlist_wheel = Ui.wheel (10, 170, -10, -18)
 let playlist_drag = Ui.drag (10, 170, -20, -18)
 let playlist_summary = Ui.ticker (10, -16, 80, 10)
+let playlist_resizer = Ui.resizer (-14, -14, 14, 14)
 
 let up_key = Ui.key ([], `Arrow `Up)
 let down_key = Ui.key ([], `Arrow `Down)
@@ -250,6 +257,27 @@ let run_control (st : State.t) =
     | `AB (t1, t2), true -> `AB (t1, t2)
     );
 
+  (* LCD *)
+  lcd_colon st.win ':';
+  let time =
+    match st.timemode with
+    | `Played -> played
+    | `Remain -> lcd_minus st.win '-'; remain
+  in
+  let seconds = int_of_float (Float.round time) in
+  lcd1 st.win (Char.chr (Char.code '0' + seconds mod 6000 / 600));
+  lcd2 st.win (Char.chr (Char.code '0' + seconds mod 600 / 60));
+  lcd3 st.win (Char.chr (Char.code '0' + seconds mod 60 / 10));
+  lcd4 st.win (Char.chr (Char.code '0' + seconds mod 10));
+
+  if lcd_button st.win then
+  (
+    st.timemode <-
+      match st.timemode with
+      | `Played -> `Remain
+      | `Remain -> `Played
+  );
+
   (* Seek bar *)
   let progress =
     if length > 0.0 && not silence then played /. length else 0.0 in
@@ -267,7 +295,7 @@ let run_control (st : State.t) =
   (* Title info *)
   let name =
     match st.current with
-    | Some track -> track.name ^ " (" ^ fmt_time track.time ^ ")"
+    | Some track -> track.name ^ " - " ^ fmt_time track.time
     | None -> App.(name ^ " " ^ version)
   in
   title_ticker st.win name;
@@ -281,6 +309,7 @@ let run_control (st : State.t) =
     Api.Audio.volume st.audio st.sound st.volume
   );
 
+(*
   (* Coordinate debug info *)
   let wx, wy = Api.Window.pos st.win in
   let s = Printf.sprintf "%d,%d" wx wy in
@@ -297,6 +326,7 @@ let run_control (st : State.t) =
   let ww, wh = Api.Window.size st.win in
   let s = Printf.sprintf "%dx%d" ww wh in
   Api.Draw.text st.win 120 35 20 (`Gray 0xc0) (Ui.font st.win 20) s;
+*)
 
   (* Window modes *)
   playlist_label st.win;
