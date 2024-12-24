@@ -72,6 +72,7 @@ let save_state st =
       match st.loop with `None -> -1.0, -1.0 | `A t1 -> t1, -1.0 | `AB tt -> tt
     in
     output "loop = %.4f, %.4f\n" a b;
+    output "shuffle = %d\n" (Bool.to_int st.shuffle);
   );
   save_playlist st.playlist
 
@@ -110,5 +111,6 @@ let load_state st =
       | t1, t2 when t2 < 0.0 -> `A t1
       | t1, t2 -> `AB (t1, max t1 t2)
       );
+    st.shuffle <- (0 <> input " shuffle = %d " value);
   );
   ok st

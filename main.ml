@@ -148,6 +148,8 @@ let rec run (st : State.t) =
   (
     let play_on =
       match st.repeat with
+      | `None when st.shuffle ->
+        st.playpos <- Random.int (max 1 (Array.length st.playlist)); true
       | `None when st.playpos >= Array.length st.playlist - 1 -> false
       | `None -> st.playpos <- st.playpos + 1; true
       | `One -> true
@@ -169,7 +171,10 @@ let rec run (st : State.t) =
   );
   if fwd_button st.win false && st.playlist <> [||] then
   (
-    st.playpos <- modulo (st.playpos + 1) (Array.length st.playlist);
+    st.playpos <-
+      if st.shuffle
+      then Random.int (max 1 (Array.length st.playlist))
+      else modulo (st.playpos + 1) (Array.length st.playlist);
     State.switch_track st st.playlist.(st.playpos) playing
   );
 
@@ -211,12 +216,12 @@ let rec run (st : State.t) =
 
   (* Play modes *)
   shuffle_label st.win;
-  (* TODO *)
-  shuffle_indicator st.win false;
-  let _shuffle' = shuffle_button st.win false in
+  shuffle_indicator st.win st.shuffle;
+  let shuffle' = shuffle_button st.win st.shuffle in
+  st.shuffle <- shuffle';
 
   repeat_label st.win;
-  repeat_indicator1 st.win (st.repeat <> `None);
+  repeat_indicator1 st.win (st.repeat = `One);
   repeat_indicator2 st.win (st.repeat = `All);
   let repeat' = repeat_button st.win (st.repeat <> `None) in
   st.repeat <-
