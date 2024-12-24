@@ -22,13 +22,13 @@ let library_indicator = Ui.indicator (-30, 85, 7, 7)
 let library_button = Ui.control_button (-45, 94, 35, 11) "" ([], `Char 'L')
 let library_label = Ui.label (-45, 106, 35, label_h) `Center "LIBRARY"
 
-let lcd_minus = Ui.lcd (15, 15, 20, 30)
-let lcd1 = Ui.lcd (38, 15, 20, 30)
-let lcd2 = Ui.lcd (61, 15, 20, 30)
-let lcd_colon = Ui.lcd (84, 15, 4, 30)
-let lcd3 = Ui.lcd (91, 15, 20, 30)
-let lcd4 = Ui.lcd (114, 15, 20, 30)
-let lcd_button = Ui.mouse (15, 15, 120, 30) `Left
+let lcd_minus = Ui.lcd (15, 15, 14, 20)
+let lcd1 = Ui.lcd (32, 15, 14, 20)
+let lcd2 = Ui.lcd (49, 15, 14, 20)
+let lcd_colon = Ui.lcd (66, 15, 4, 20)
+let lcd3 = Ui.lcd (73, 15, 14, 20)
+let lcd4 = Ui.lcd (90, 15, 14, 20)
+let lcd_button = Ui.mouse (15, 15, 90, 20) `Left
 
 let volume_bar = Ui.progress_bar (200, 21, 90, 12)
 let volume_wheel = Ui.wheel (0, 0, control_w, control_h)
