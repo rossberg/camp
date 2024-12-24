@@ -7,18 +7,30 @@ let playlist_file_check_freq = 5.0
 
 (* Layout *)
 
-let control_width = 360
-let control_height = 160
+let control_w = 360
+let control_h = 160
+let label_h = 8
 
-let close_button = Ui.button (-14, 0, 14, 14) ([`Control], `Char 'Q')
+let power_button = Ui.control_button (-45, 10, 35, 22) "" ([`Control], `Char 'Q')
+let power_label = Ui.label (-45, 33, 35, label_h) `Center "POWER"
 
-let volume_bar = Ui.progress_bar (260, 50, 90, 12)
-let volume_wheel = Ui.wheel (0, 0, control_width, control_height)
+let playlist_indicator = Ui.indicator (-30, 48, 7, 7)
+let playlist_button = Ui.control_button (-45, 57, 35, 11) "" ([], `Char 'P')
+let playlist_label = Ui.label (-45, 69, 35, label_h) `Center "PLAYLIST"
+
+let library_indicator = Ui.indicator (-30, 85, 7, 7)
+let library_button = Ui.control_button (-45, 94, 35, 11) "" ([], `Char 'L')
+let library_label = Ui.label (-45, 106, 35, label_h) `Center "LIBRARY"
+
+let playlist_resizer = Ui.resizer (-14, -14, 14, 14)
+
+let volume_bar = Ui.progress_bar (200, 21, 90, 12)
+let volume_wheel = Ui.wheel (0, 0, control_w, control_h)
 let volup_key = Ui.key ([], `Char '+')
 let voldown_key = Ui.key ([], `Char '-')
 
-let title_ticker = Ui.ticker (10, 70, -10, 16)
-let seek_bar = Ui.progress_bar (10, 90, -10, 14)
+let title_ticker = Ui.ticker (10, 70, -60, 16)
+let seek_bar = Ui.progress_bar (10, 90, -60, 14)
 let rw_key = Ui.key ([], `Arrow `Left)
 let ff_key = Ui.key ([], `Arrow `Right)
 
@@ -29,9 +41,19 @@ let stop_button = Ui.control_button (130, 122, 40, 30) "[]" ([], `Char 'V')
 let fwd_button = Ui.control_button (170, 122, 40, 30) ">>" ([], `Char 'B')
 let eject_button = Ui.control_button (210, 122, 40, 30) "^" ([], `Char 'N')
 
-let playlist_text = Ui.text (280, 125, 25, 10) `Center "PLAYLIST"
-let playlist_button = Ui.control_button (280, 137, 25, 15) "" ([], `Char 'P')
-let playlist_resizer = Ui.resizer (-14, -14, 14, 14)
+let shuffle_indicator = Ui.indicator (270, 122, 7, 7)
+let shuffle_button = Ui.control_button (259, 131, 25, 11) "" ([], `Char 'T')
+let shuffle_label = Ui.label (259, 143, 25, label_h) `Center "SHUFFLE"
+
+let repeat_indicator1 = Ui.indicator (296, 122, 7, 7)
+let repeat_indicator2 = Ui.indicator (307, 122, 7, 7)
+let repeat_button = Ui.control_button (292, 131, 25, 11) "" ([], `Char 'R')
+let repeat_label = Ui.label (292, 143, 25, label_h) `Center "REPEAT"
+
+let loop_indicator1 = Ui.indicator (329, 122, 7, 7)
+let loop_indicator2 = Ui.indicator (340, 122, 7, 7)
+let loop_button = Ui.control_button (325, 131, 25, 11) "" ([], `Char 'J')
+let loop_label = Ui.label (325, 143, 25, label_h) `Center "LOOP"
 
 let playlist_row_h = 13
 let playlist_min = 31 + 4 * playlist_row_h
@@ -100,9 +122,9 @@ let rec run (st : State.t) =
 
   (* Window *)
   Ui.window st.win;
-  if close_button st.win then exit 0;
-  if st.playopen then
-    playlist_resizer st.win (control_width, control_height + playlist_min) (control_width, -1);
+
+  if not (power_button st.win true) then exit 0;
+  power_label st.win;
 
   (* Current status *)
   State.ok st;
@@ -117,12 +139,19 @@ let rec run (st : State.t) =
   (* Detect end of track *)
   if playing && (remain < 0.2 || silence) then
   (
-    let last = st.playpos >= Array.length st.playlist - 1 in
-    let next =
-      if last then Option.get st.current else
-      (st.playpos <- st.playpos + 1; st.playlist.(st.playpos))
+    let play_on =
+      match st.repeat with
+      | `None when st.playpos >= Array.length st.playlist - 1 -> false
+      | `None -> st.playpos <- st.playpos + 1; true
+      | `One -> true
+      | `All -> st.playpos <- 0; true
     in
-    State.switch_track st next (not last);
+    let next =
+      if st.playlist = [||]
+      then Option.get st.current
+      else st.playlist.(st.playpos)
+    in
+    State.switch_track st next play_on;
   );
 
   (* Play controls *)
@@ -173,6 +202,29 @@ let rec run (st : State.t) =
       State.switch_track st st.playlist.(st.playpos) true
   );
 
+  (* Play modes *)
+  shuffle_label st.win;
+  (* TODO *)
+  shuffle_indicator st.win false;
+  let _shuffle' = shuffle_button st.win false in
+
+  repeat_label st.win;
+  repeat_indicator1 st.win (st.repeat <> `None);
+  repeat_indicator2 st.win (st.repeat = `All);
+  let repeat' = repeat_button st.win (st.repeat <> `None) in
+  st.repeat <-
+    (match st.repeat, repeat' with
+    | `None, false | `All, false -> `None
+    | `None, true | `One, true -> `One
+    | `One, false | `All, true -> `All
+    );
+
+  loop_label st.win;
+  (* TODO *)
+  loop_indicator1 st.win false;
+  loop_indicator2 st.win false;
+  let _loop' = loop_button st.win false in
+
   (* Seek bar *)
   let progress =
     if length > 0.0 && not silence then played /. length else 0.0 in
@@ -185,7 +237,7 @@ let rec run (st : State.t) =
   let s2 = "-" ^ fmt_time2 remain in
   let w2 = Api.Draw.text_width st.win 11 (Ui.font st.win 11) s2 in
   Api.Draw.text st.win 12 91 11 `White (Ui.font st.win 11) s1;
-  Api.Draw.text st.win (348 - w2) 91 11 `White (Ui.font st.win 11) s2;
+  Api.Draw.text st.win (298 - w2) 91 11 `White (Ui.font st.win 11) s2;
 
   (* Title info *)
   let name =
@@ -207,32 +259,40 @@ let rec run (st : State.t) =
   (* Coordinate debug info *)
   let wx, wy = Api.Window.pos st.win in
   let s = Printf.sprintf "%d,%d" wx wy in
-  Api.Draw.text st.win 20 10 20 (`Gray 0xc0) (Ui.font st.win 20) s;
+  Api.Draw.text st.win 15 10 20 (`Gray 0xc0) (Ui.font st.win 20) s;
 
   let mx, my = Api.Mouse.pos st.win in
   let s = Printf.sprintf "%d,%d" mx my in
-  Api.Draw.text st.win 140 10 20 (`Gray 0xc0) (Ui.font st.win 20) s;
+  Api.Draw.text st.win 120 10 20 (`Gray 0xc0) (Ui.font st.win 20) s;
 
   let sw, sh = Api.Window.screen_size st.win in
   let s = Printf.sprintf "%dx%d" sw sh in
-  Api.Draw.text st.win 20 35 20 (`Gray 0xc0) (Ui.font st.win 20) s;
+  Api.Draw.text st.win 15 35 20 (`Gray 0xc0) (Ui.font st.win 20) s;
 
   let ww, wh = Api.Window.size st.win in
   let s = Printf.sprintf "%dx%d" ww wh in
-  Api.Draw.text st.win 140 35 20 (`Gray 0xc0) (Ui.font st.win 20) s;
+  Api.Draw.text st.win 120 35 20 (`Gray 0xc0) (Ui.font st.win 20) s;
 
-  playlist_text st.win;
+  (* Window modes *)
+  playlist_label st.win;
+  playlist_indicator st.win st.playopen;
   let playopen' = playlist_button st.win st.playopen in
   if st.playopen then
-    st.playheight <- snd (Api.Window.size st.win) - control_height;
+    st.playheight <- snd (Api.Window.size st.win) - control_h;
   (match st.playopen, playopen' with
   | false, true ->
-    Api.Window.set_size st.win control_width (control_height + st.playheight)
+    Api.Window.set_size st.win control_w (control_h + st.playheight)
   | true, false ->
-    Api.Window.set_size st.win control_width control_height
+    Api.Window.set_size st.win control_w control_h
   | _, _ -> ()
   );
   st.playopen <- playopen';
+
+  (* TODO *)
+  library_label st.win;
+  library_indicator st.win false;
+  let _libopen' = library_button st.win false in
+
 
   (* Playlist *)
 if st.playopen then
@@ -423,6 +483,8 @@ if st.playopen then
   let pos = if Api.inside m r then
     min len ((my - y) / playlist_row_h + st.playscroll) else len in
   State.insert st pos dropped;
+
+  playlist_resizer st.win (control_w, control_h + playlist_min) (control_w, -1);
 );
 
   (* All done *)
@@ -434,7 +496,7 @@ if st.playopen then
 
 let startup () =
   File.clear_temp ();
-  let win = Api.Window.init 0 0 control_width control_height App.name in
+  let win = Api.Window.init 0 0 control_w control_h App.name in
   let audio = Api.Audio.init () in
   let st = State.make win audio in
   Persist.load_state st;

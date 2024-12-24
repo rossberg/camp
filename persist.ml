@@ -66,6 +66,8 @@ let save_state st =
     output "play_scroll = %d\n" st.playscroll;
     output "play_open = %d\n" (Bool.to_int st.playopen);
     output "play_height = %d\n" st.playheight;
+    output "repeat = %d\n"
+      (match st.repeat with `None -> 0 | `One -> 1 | `All -> 2);
   );
   save_playlist st.playlist
 
@@ -96,5 +98,7 @@ let load_state st =
     st.playopen <- (0 <> input " play_open = %d " value);
     (* TODO: 73 = playlist_min; use constant *)
     st.playheight <- max 83 (input " play_height = %d " value);
+    st.repeat <-
+      (match input " repeat = %d " value with 1 -> `One | 2 -> `All | _ -> `None);
   );
   ok st

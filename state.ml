@@ -43,6 +43,7 @@ type t =
   mutable volume : float;
   mutable sound : Api.sound;
   mutable current : track option;
+  mutable repeat : [`None | `One | `All];
   mutable playopen : bool;
   mutable playheight : int;
   mutable playpos : int;
@@ -62,6 +63,7 @@ let make win audio =
     win; audio; sound;
     volume = 0.5;
     current = None;
+    repeat = `None;
     playopen = false;
     playheight = 200;
     playpos = 0;
@@ -224,6 +226,7 @@ let select_all st =
 
 let deselect_all st =
   st.playselect <- 0;
+  st.playrange <- no_range;
   for k = 0 to Array.length st.playlist - 1 do
     st.playlist.(k).selected <- false
   done

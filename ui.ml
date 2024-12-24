@@ -142,7 +142,7 @@ let wheel r win = wheel_status win r
 let drag r win eps = drag_status win r eps
 
 
-let text r align s win =
+let label r align s win =
   let x, y, w, h = dim win r in
   let font = font win h in
   let tw = Api.Draw.text_width win h font s in
@@ -152,6 +152,12 @@ let text r align s win =
     | `Center -> (w - tw) / 2
     | `Right -> w - tw
   in Api.Draw.text win (x + dx) y h `White font s
+
+let indicator r win on =
+  let x, y, w, h = dim win r in
+  Draw.fill_circ win x y w h (fill on);
+  Draw.circ win x y w h (border `Untouched)
+
 
 let element r modkey win =
   let r' = dim win r in
