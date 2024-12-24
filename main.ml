@@ -115,14 +115,10 @@ let fmt_time2 t =
   fmt "%02d:%02d" (t' / 60) (t' mod  60)
 
 
-(* Runner *)
+(* Control Section *)
 
-let rec run (st : State.t) =
-  Api.Draw.start st.win `Black;
-
-  (* Window *)
-  Ui.window st.win;
-
+let run_control (st : State.t) =
+  (* This has to come first, otherwise Raylib crashes? *)
   if not (power_button st.win true) then exit 0;
   power_label st.win;
 
@@ -312,13 +308,16 @@ let rec run (st : State.t) =
   library_label st.win;
   library_indicator st.win false;
   let _libopen' = library_button st.win false in
+  ()
 
 
-  (* Playlist *)
-if st.playopen then
-(
+(* Playlist Section *)
+
+let run_playlist (st : State.t) =
   let now = Unix.time () in
   let len = Array.length st.playlist in
+
+  (* Playlist table *)
   let digits = log10 (len + 1) + 1 in
   let font = Ui.font st.win playlist_row_h in
   let smax1 = String.make digits '0' ^ ". " in
@@ -362,7 +361,7 @@ if st.playopen then
     if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left && dragging = None then
     (
       st.playrange <- fst', i';
-      State.deselect_all st;
+      if i < len && not (State.is_selected st i) then State.deselect_all st;
       if i < len then
       (
         if Api.Mouse.is_doubleclick `Left then
@@ -501,11 +500,18 @@ if st.playopen then
     min len ((my - y) / playlist_row_h + st.playscroll) else len in
   State.insert st pos dropped;
 
-  playlist_resizer st.win (control_w, control_h + playlist_min) (control_w, -1);
-);
+  playlist_resizer st.win (control_w, control_h + playlist_min) (control_w, -1)
 
-  (* All done *)
+
+(* Runner *)
+
+let rec run (st : State.t) =
+  Api.Draw.start st.win `Black;
+  Ui.window st.win;
+  run_control st;
+  if st.playopen then run_playlist st;
   Api.Draw.finish st.win;
+
   run st
 
 
