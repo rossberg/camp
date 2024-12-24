@@ -165,14 +165,14 @@ let lcd' win r' elem =
   let c = `Green in
   match elem with
   | `N ->
-    line win (x + 1) (y + 0) (x + w - 2) (y + 0) c;
-    line win (x + 2) (y + 1) (x + w - 3) (y + 1) c;
+    line win (x + 1) (y + 0) (x + w - 3) (y + 0) c;
+    line win (x + 2) (y + 1) (x + w - 4) (y + 1) c;
   | `S ->
-    line win (x + 1) (y + h - 1) (x + w - 2) (y + h - 1) c;
-    line win (x + 2) (y + h - 2) (x + w - 3) (y + h - 2) c;
+    line win (x + 1) (y + h - 1) (x + w - 3) (y + h - 1) c;
+    line win (x + 2) (y + h - 2) (x + w - 4) (y + h - 2) c;
   | `C ->
-    line win (x + 1) (y + m) (x + w - 2) (y + m) c;
-    line win (x + 2) (y + m + 1) (x + w - 3) (y + m + 1) c;
+    line win (x + 1) (y + m - 1) (x + w - 3) (y + m - 1) c;
+    line win (x + 2) (y + m) (x + w - 4) (y + m) c;
   | `NW ->
     line win (x + 0) (y + 1) (x + 0) (y + m - 1) c;
     line win (x + 1) (y + 2) (x + 1) (y + m - 2) c;
