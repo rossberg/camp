@@ -152,6 +152,7 @@ type sound
 module Audio :
 sig
   val init : unit -> audio
+
   val silence : audio -> sound
   val load : audio -> path -> sound  (* returns silence on error *)
   val free : audio -> sound -> unit
@@ -164,6 +165,10 @@ sig
   val length : audio -> sound -> time
   val played : audio -> sound -> time
   val seek : audio -> sound -> time -> unit
+
+  val channels : audio -> sound -> int
+  val depth : audio -> sound -> int
+  val rate : audio -> sound -> int
 end
 
 

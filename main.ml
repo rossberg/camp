@@ -30,6 +30,11 @@ let lcd3 = Ui.lcd (73, 15, 14, 20)
 let lcd4 = Ui.lcd (90, 15, 14, 20)
 let lcd_button = Ui.mouse (15, 15, 90, 20) `Left
 
+let bitrate_ticker = Ui.ticker (15, 38, 50, 12)
+let rate_ticker = Ui.ticker (70, 38, 50, 12)
+let depth_ticker = Ui.ticker (125, 38, 50, 12)
+let channels_ticker = Ui.ticker (180, 38, 50, 12)
+
 let volume_bar = Ui.progress_bar (200, 21, 90, 12)
 let volume_wheel = Ui.wheel (0, 0, control_w, control_h)
 let volup_key = Ui.key ([], `Char '+')
@@ -276,6 +281,23 @@ let run_control (st : State.t) =
       match st.timemode with
       | `Played -> `Remain
       | `Remain -> `Played
+  );
+
+  (* Audio info *)
+  if not silence then
+  (
+    let rate = Api.Audio.rate st.audio st.sound in
+    let depth = Api.Audio.depth st.audio st.sound in
+    let channels = Api.Audio.channels st.audio st.sound in
+    bitrate_ticker st.win (fmt "%.0f KBPS" 320.0);  (* TODO *)
+    rate_ticker st.win (fmt "%.1f KHZ" (float rate /. 1000.0));
+    depth_ticker st.win (fmt "%d BIT" (depth / channels));
+    channels_ticker st.win
+      (match channels with
+      | 1 -> "MONO"
+      | 2 -> "STEREO"
+      | n -> fmt "%d CHAN" n
+      )
   );
 
   (* Seek bar *)
