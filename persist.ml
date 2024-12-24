@@ -68,6 +68,10 @@ let save_state st =
     output "play_height = %d\n" st.playheight;
     output "repeat = %d\n"
       (match st.repeat with `None -> 0 | `One -> 1 | `All -> 2);
+    let a, b =
+      match st.loop with `None -> -1.0, -1.0 | `A t1 -> t1, -1.0 | `AB tt -> tt
+    in
+    output "loop = %.4f, %.4f\n" a b;
   );
   save_playlist st.playlist
 
@@ -100,5 +104,11 @@ let load_state st =
     st.playheight <- max 83 (input " play_height = %d " value);
     st.repeat <-
       (match input " repeat = %d " value with 1 -> `One | 2 -> `All | _ -> `None);
+    st.loop <-
+      (match input " loop = %f, %f " pair with
+      | t1, _t2 when t1 < 0.0 -> `None
+      | t1, t2 when t2 < 0.0 -> `A t1
+      | t1, t2 -> `AB (t1, max t1 t2)
+      );
   );
   ok st

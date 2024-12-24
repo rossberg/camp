@@ -44,6 +44,7 @@ type t =
   mutable sound : Api.sound;
   mutable current : track option;
   mutable repeat : [`None | `One | `All];
+  mutable loop : [`None | `A of time | `AB of time * time];
   mutable playopen : bool;
   mutable playheight : int;
   mutable playpos : int;
@@ -64,6 +65,7 @@ let make win audio =
     volume = 0.5;
     current = None;
     repeat = `None;
+    loop = `None;
     playopen = false;
     playheight = 200;
     playpos = 0;
@@ -95,6 +97,7 @@ Printf.printf "[%s current=%b played=%.2f silence=%b playpos=%d len=%d]\n%!"
   assert (st.playselect = Array.fold_left (fun n tr -> n + Bool.to_int tr.selected) 0 st.playlist);
   assert (fst st.playrange = min_int || fst st.playrange = max_int || fst st.playrange >= 0 && fst st.playrange < len);
   assert (snd st.playrange = 0 || snd st.playrange >= 0 && snd st.playrange < len);
+  assert (match st.loop with `AB (t1, t2) -> t1 <= t2 | _ -> true);
   ()
 (*
   let length = Api.Audio.length st.audio st.sound in
@@ -180,6 +183,7 @@ let _ = Domain.spawn updater
 let eject_track st =
   Api.Audio.stop st.audio st.sound;
   st.current <- None;
+  st.loop <- `None;
   if st.sound <> Api.Audio.silence st.audio then
   (
     Api.Audio.free st.audio st.sound;

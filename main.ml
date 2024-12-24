@@ -136,7 +136,14 @@ let rec run (st : State.t) =
   let stopped = not playing && not paused in
   let silence = st.sound = Api.Audio.silence st.audio in
 
-  (* Detect end of track *)
+  (* Looping *)
+  (match st.loop with
+  | `AB (t1, t2) when playing && t2 < played ->
+    State.seek_track st (t1 /. length);
+  | _ -> ()
+  );
+
+  (* End of track *)
   if playing && (remain < 0.2 || silence) then
   (
     let play_on =
@@ -220,10 +227,18 @@ let rec run (st : State.t) =
     );
 
   loop_label st.win;
-  (* TODO *)
-  loop_indicator1 st.win false;
-  loop_indicator2 st.win false;
-  let _loop' = loop_button st.win false in
+  loop_indicator1 st.win (st.loop <> `None);
+  loop_indicator2 st.win (match st.loop with `AB _ -> true | _ -> false);
+  let loop' = loop_button st.win (st.loop <> `None) in
+  st.loop <-
+    (match st.loop, loop' with
+    | `None, false | `AB _, false -> `None
+    | `None, true -> `A played
+    | `A t1, true -> `A t1
+    | `A t1, false when t1 > played -> `A played
+    | `A t1, false -> `AB (t1, played)
+    | `AB (t1, t2), true -> `AB (t1, t2)
+    );
 
   (* Seek bar *)
   let progress =
