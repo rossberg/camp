@@ -113,4 +113,5 @@ let load_state st =
       );
     st.shuffle <- (0 <> input " shuffle = %d " value);
   );
+  State.update_summary st;
   ok st

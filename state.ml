@@ -49,13 +49,15 @@ type t =
   mutable loop : [`None | `A of time | `AB of time * time];
   mutable playopen : bool;
   mutable playheight : int;
-  mutable playpos : int;
-  mutable playlist : track array;
   mutable playscroll : int;
-  mutable playselected : IntSet.t;
+  mutable playpos : int;
   mutable playrange : int * int;
-  mutable undo : (int * track array * int) list ref;
-  mutable redo : (int * track array * int) list ref;
+  mutable playlist : track array;
+  mutable playselected : IntSet.t;
+  mutable playsum : time * int;
+  mutable playselsum : time * int;
+  mutable undo : (int * track array * int * (time * int)) list ref;
+  mutable redo : (int * track array * int * (time * int)) list ref;
 }
 
 let no_range = min_int, 0
@@ -71,11 +73,13 @@ let make win audio =
     loop = `None;
     playopen = false;
     playheight = 200;
-    playpos = 0;
-    playlist = [||];
     playscroll = 0;
-    playselected = IntSet.empty;
+    playpos = 0;
     playrange = no_range;
+    playlist = [||];
+    playselected = IntSet.empty;
+    playsum = 0.0, 0;
+    playselsum = 0.0, 0;
     undo = ref [];
     redo = ref [];
   }
@@ -124,6 +128,27 @@ Printf.printf "[%s current=%s played=%.2f silence=%b playpos=%d len=%d]\n%!"
   assert (not silence || st.status <> Paused);
   assert (st.playpos >= 0 && st.playpos <= max 0 (Array.length st.playlist - 1))
 *)
+
+
+(* Playlist Summary *)
+
+let add_summary (t1, n1) (t2, n2) = (t1 +. t2, n1 + n2)
+let sub_summary (t1, n1) (t2, n2) = (max 0.0 (t1 -. t2), max 0 (n1 - n2))
+
+let track_summary track =
+  match track.status with
+  | `Undet | `Invalid | `Absent -> 0.0, 1
+  | `Predet | `Det -> track.time, 0
+
+let update_summary st =
+  st.playsum <- 0.0, 0;
+  st.playselsum <- 0.0, 0;
+  for i = 0 to Array.length st.playlist - 1 do
+    let sum = track_summary st.playlist.(i) in
+    st.playsum <- add_summary st.playsum sum;
+    if IntSet.mem i st.playselected then
+      st.playselsum <- add_summary st.playselsum sum;
+  done
 
 
 (* Track update queue *)
@@ -220,22 +245,39 @@ let first_selected st = IntSet.min_elt_opt st.playselected
 let last_selected st = IntSet.max_elt_opt st.playselected
 let is_selected st i = IntSet.mem i st.playselected
 
-let select_one st i = st.playselected <- IntSet.add i st.playselected
-let deselect_one st i = st.playselected <- IntSet.remove i st.playselected
+let move_select st i j =
+  assert (IntSet.mem i st.playselected);
+  st.playselected <- IntSet.add j (IntSet.remove i st.playselected)
 
 let select_all st =
-  for i = 0 to Array.length st.playlist - 1 do select_one st i done
+  for i = 0 to Array.length st.playlist - 1 do
+    st.playselected <- IntSet.add i st.playselected
+  done;
+  st.playselsum <- st.playsum
 
 let deselect_all st =
-  st.playselected <- IntSet.empty
+  st.playselected <- IntSet.empty;
+  st.playselsum <- 0.0, 0
 
 let select st i j =
   let i, j = min i j, max i j in
-  for k = i to j do select_one st k done
+  for k = i to j do
+    if not (IntSet.mem k st.playselected) then
+    (
+      st.playselected <- IntSet.add k st.playselected;
+      st.playselsum <- add_summary st.playselsum (track_summary st.playlist.(k))
+    )
+  done
 
 let deselect st i j =
   let i, j = min i j, max i j in
-  for k = i to j do deselect_one st k done
+  for k = i to j do
+    if IntSet.mem k st.playselected then
+    (
+      st.playselected <- IntSet.remove k st.playselected;
+      st.playselsum <- sub_summary st.playselsum (track_summary st.playlist.(k))
+    )
+  done
 
 
 (* Playlist Undo *)
@@ -245,20 +287,21 @@ let undo_depth = 100
 let push_undo st =
   if List.length !(st.undo) >= undo_depth then
     st.undo := List.filteri (fun i _ -> i < undo_depth - 1) !(st.undo);
-  st.undo := (st.playpos, st.playlist, st.playscroll) :: !(st.undo);
+  st.undo := (st.playpos, st.playlist, st.playscroll, st.playsum) :: !(st.undo);
   st.redo := []
 
 let pop_unredo st undo redo =
   match !undo with
   | [] -> ()
-  | (pos, list, scroll) :: undo' ->
-    redo := (st.playpos, st.playlist, st.playscroll) :: !redo;
+  | (pos, list, scroll, sum) :: undo' ->
+    redo := (st.playpos, st.playlist, st.playscroll, st.playsum) :: !redo;
     undo := undo';
     deselect_all st;
     st.playpos <- pos;
-    st.playlist <- list;
     st.playscroll <- scroll;
     st.playrange <- no_range;
+    st.playlist <- list;
+    st.playsum <- sum;
     if st.current = None && list <> [||] then st.current <- Some list.(pos)
 
 let pop_undo st = pop_unredo st st.undo st.redo
@@ -314,9 +357,15 @@ let insert st pos paths =
           if i < pos + len' then playlist'.(i - pos) else
           st.playlist.(i - len')
         );
-      if pos < st.playpos then st.playpos <- st.playpos + len';
-      if pos < st.playscroll then st.playscroll <- st.playscroll + len';
-    )
+      if pos <= st.playpos then st.playpos <- st.playpos + len';
+      if pos <= st.playscroll then st.playscroll <- st.playscroll + len';
+      IntSet.iter (fun i -> if pos <= i then move_select st i (i + len'))
+        st.playselected;
+    );
+    for i = 0 to Array.length playlist' - 1 do
+      let sum = track_summary playlist'.(i) in
+      st.playsum <- add_summary st.playsum sum
+    done
   )
 
 let remove_all st =
@@ -327,6 +376,8 @@ let remove_all st =
     st.playlist <- [||];
     st.playpos <- 0;
     st.playrange <- no_range;
+    st.playsum <- 0.0, 0;
+    st.playselsum <- 0.0, 0;
   )
 
 let remove_selected st =
@@ -348,6 +399,8 @@ let remove_selected st =
       );
     deselect_all st;
     st.playrange <- no_range;
+    st.playsum <- sub_summary st.playsum st.playselsum;
+    st.playsum <- 0.0, 0;
   )
 
 let move_selected st d =
@@ -364,8 +417,7 @@ let move_selected st d =
             st.playlist.(j + 1) <- st.playlist.(j)
           done;
           st.playlist.(i + d) <- temp;
-          deselect_one st i;
-          select_one st (i + d);
+          move_select st i (i + d);
           let adjust pos =
             if pos = i then i + d else
             if i + d <= pos && pos < i then pos + 1 else
@@ -385,8 +437,7 @@ let move_selected st d =
             st.playlist.(j - 1) <- st.playlist.(j)
           done;
           st.playlist.(i + d) <- temp;
-          deselect_one st i;
-          select_one st (i + d);
+          move_select st i (i + d);
           let adjust pos =
             if pos = i then i + d else
             if i < pos && pos <= i + d then pos - 1 else

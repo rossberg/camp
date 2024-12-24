@@ -174,22 +174,23 @@ let resizer r win (minw, minh) (maxw, maxh) =
   if status <> `Untouched then Api.Mouse.set_cursor win (`Resize `N_S);
   Draw.fill win x y w h (fill false);
   Draw.rect win x y w h (border status);
-  if status = `Pressed then
+  let sz = Window.size win in
+  if status <> `Pressed then sz else
   (
-    let sz = Window.size win in
     let ww, wh = add sz !mouse_delta in
     let sw, sh = Window.screen_size win in
     let maxw = if maxw < 0 then sw else maxw in
     let maxh = if maxh < 0 then sh else maxh in
     let ww', wh' = clamp minw maxw ww, clamp minh maxh wh in
-    Window.set_size win ww' wh';
+    (*Window.set_size win ww' wh';*)
     (* Adjust owned drag_pos for size-relative position *)
     let x0, y0, _, _ = r in
     let dw = if x0 >= 0 then 0 else ww' - fst sz in
     let dh = if y0 >= 0 then 0 else wh' - snd sz in
     drag_pos := add !drag_pos (dw, dh);
     assert (inside !drag_pos (x + dw, y + dh, w, h));
-    inner := (x + dw, y + dh, w, h) :: !inner
+    inner := (x + dw, y + dh, w, h) :: !inner;
+    ww', wh'
   )
 
 let button r modkey win =

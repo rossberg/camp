@@ -62,7 +62,7 @@ let playlist = Ui.table playlist_rect playlist_row_h
 let playlist_scroll = Ui.scroll_bar (-20, 170, 10, -18)
 let playlist_wheel = Ui.wheel (10, 170, -10, -18)
 let playlist_drag = Ui.drag (10, 170, -20, -18)
-let del_key = Ui.key ([], `Delete)
+let playlist_summary = Ui.ticker (10, -16, 80, 10)
 
 let up_key = Ui.key ([], `Arrow `Up)
 let down_key = Ui.key ([], `Arrow `Down)
@@ -85,6 +85,8 @@ let movepageup_key = Ui.key ([`Control], `Page `Up)
 let movepagedown_key = Ui.key ([`Control], `Page `Down)
 let movebegin_key = Ui.key ([`Control], `End `Up)
 let moveend_key = Ui.key ([`Control], `End `Down)
+
+let del_key = Ui.key ([], `Delete)
 
 let undo_button = Ui.key ([`Control], `Char 'Z')
 let redo_button = Ui.key ([`Shift; `Control], `Char 'Z')
@@ -113,6 +115,13 @@ let fmt_time t =
 let fmt_time2 t =
   let t' = int_of_float (Float.trunc t) in
   fmt "%02d:%02d" (t' / 60) (t' mod  60)
+
+let fmt_time3 t =
+  let t' = int_of_float (Float.trunc t) in
+  if t' < 3600 then
+    fmt_time t
+  else
+    fmt "%d:%02d:%02d" (t' / 3600) (t' / 60 mod 60) (t' mod  60)
 
 
 (* Control Section *)
@@ -361,7 +370,7 @@ let run_playlist (st : State.t) =
     if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left && dragging = None then
     (
       st.playrange <- fst', i';
-      if i < len && not (State.is_selected st i) then State.deselect_all st;
+      if i >= len || not (State.is_selected st i) then State.deselect_all st;
       if i < len then
       (
         if Api.Mouse.is_doubleclick `Left then
@@ -500,6 +509,12 @@ let run_playlist (st : State.t) =
     min len ((my - y) / playlist_row_h + st.playscroll) else len in
   State.insert st pos dropped;
 
+  (* Playlist summary *)
+  if Api.Draw.frame st.win mod (10 * 60) = 0 then State.update_summary st;
+  let fmt_sum (t, n) = fmt_time3 t ^ if n > 0 then "+" else "" in
+  playlist_summary st.win (fmt_sum st.playselsum ^ " / " ^ fmt_sum st.playsum);
+
+  (* Playlist resizing *)
   playlist_resizer st.win (control_w, control_h + playlist_min) (control_w, -1)
 
 
@@ -509,8 +524,9 @@ let rec run (st : State.t) =
   Api.Draw.start st.win `Black;
   Ui.window st.win;
   run_control st;
-  if st.playopen then run_playlist st;
+  let w, h = if st.playopen then run_playlist st else Api.Window.size st.win in
   Api.Draw.finish st.win;
+  Api.Window.set_size st.win w h;
 
   run st
 
