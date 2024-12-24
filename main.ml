@@ -221,7 +221,7 @@ let rec run (st : State.t) =
   st.shuffle <- shuffle';
 
   repeat_label st.win;
-  repeat_indicator1 st.win (st.repeat = `One);
+  repeat_indicator1 st.win (st.repeat <> `None);
   repeat_indicator2 st.win (st.repeat = `All);
   let repeat' = repeat_button st.win (st.repeat <> `None) in
   st.repeat <-
@@ -345,7 +345,7 @@ if st.playopen then
         | `Undet -> `Blue
         | `Predet | `Det -> `Green
       in
-      let fg, bg = if track.selected then bg, fg else fg, bg in
+      let fg, bg = if State.is_selected st i then bg, fg else fg, bg in
       let time = if track.time = 0.0 then "" else fmt_time track.time in
       cw3 := max !cw3 (Api.Draw.text_width st.win playlist_row_h font time + 1);
       fg, bg, [|fmt "%0*d. " digits (i + 1); track.name; time|]
@@ -358,20 +358,17 @@ if st.playopen then
   | Some i ->
     let i = st.playscroll + i in
     let i' = min i (len - 1) in
+    let fst' = if i >= len then max_int else i in
     if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left && dragging = None then
     (
-      if i >= len || not st.playlist.(i).selected then
-      (
-        st.playrange <- (if i >= len then max_int else i), i';
-        State.deselect_all st;
-      );
+      st.playrange <- fst', i';
+      State.deselect_all st;
       if i < len then
       (
         if Api.Mouse.is_doubleclick `Left then
         (
           st.playpos <- i;
           State.switch_track st st.playlist.(i) true;
-          State.deselect st i i;
         )
         else
         (
@@ -381,9 +378,9 @@ if st.playopen then
     )
     else if Api.Key.are_modifiers_down [`Control] && Api.Mouse.is_pressed `Left then
     (
-      st.playrange <- (if i >= len then max_int else i), i';
+      st.playrange <- fst', i';
       if i < len then
-        if st.playlist.(i).selected then
+        if State.is_selected st i then
           State.deselect st i i
         else
           State.select st i i
@@ -392,7 +389,7 @@ if st.playopen then
     (
       let fst, snd = st.playrange in
       st.playrange <- fst, i';
-      if fst < 0 || fst >= len || st.playlist.(fst).selected then
+      if fst < 0 || fst >= len || State.is_selected st fst then
       (
         State.deselect st snd i';
         State.select st (max 0 fst) i'
@@ -440,7 +437,7 @@ if st.playopen then
     let fst, snd = st.playrange in
     let i = max 0 (min (len - 1) (snd + d)) in
     st.playrange <- fst, i;
-    if fst < 0 || fst >= len || st.playlist.(fst).selected then
+    if fst < 0 || fst >= len || State.is_selected st fst then
     (
       State.deselect st snd i;
       State.select st (max 0 fst) i
