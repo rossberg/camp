@@ -30,16 +30,12 @@ let lcd3 = Ui.lcd (73, 15, 14, 20)
 let lcd4 = Ui.lcd (90, 15, 14, 20)
 let lcd_button = Ui.mouse (15, 15, 90, 20) `Left
 
-let bitrate_ticker = Ui.ticker (15, 38, 50, 12)
-let rate_ticker = Ui.ticker (70, 38, 50, 12)
-let depth_ticker = Ui.ticker (125, 38, 50, 12)
-let channels_ticker = Ui.ticker (180, 38, 50, 12)
-
 let volume_bar = Ui.progress_bar (200, 21, 90, 12)
 let volume_wheel = Ui.wheel (0, 0, control_w, control_h)
 let volup_key = Ui.key ([], `Char '+')
 let voldown_key = Ui.key ([], `Char '-')
 
+let prop_ticker = Ui.ticker (15, 38, -60, 12)
 let title_ticker = Ui.ticker (10, 70, -60, 16)
 let seek_bar = Ui.progress_bar (10, 90, -60, 14)
 let rw_key = Ui.key ([], `Arrow `Left)
@@ -283,21 +279,36 @@ let run_control (st : State.t) =
       | `Remain -> `Played
   );
 
-  (* Audio info *)
+  (* Volume control *)
+  let vol = volume_bar st.win st.volume +. 0.05 *. volume_wheel st.win +.
+    0.05 *. (float_of_bool (volup_key st.win) -. float_of_bool (voldown_key st.win)) in
+  if vol <> st.volume then
+  (
+    st.volume <- clamp 0.0 1.0 vol;
+    Api.Audio.volume st.audio st.sound st.volume
+  );
+
+  (* Audio properties *)
   if not silence then
   (
+    let track = Option.get st.current in
+    let ext = Filename.extension track.path in
+    let format = if ext = "" || ext.[0] <> '.' then "???" else
+      String.uppercase_ascii (String.sub ext 1 (String.length ext - 1)) in
+    let bitrate = Api.Audio.bitrate st.audio st.sound in
     let rate = Api.Audio.rate st.audio st.sound in
-    let depth = Api.Audio.depth st.audio st.sound in
+    let depth = if format = "MP3" then "" else
+      fmt "%d BIT    " (Api.Audio.depth st.audio st.sound) in
     let channels = Api.Audio.channels st.audio st.sound in
-    bitrate_ticker st.win (fmt "%.0f KBPS" 320.0);  (* TODO *)
-    rate_ticker st.win (fmt "%.1f KHZ" (float rate /. 1000.0));
-    depth_ticker st.win (fmt "%d BIT" (depth / channels));
-    channels_ticker st.win
-      (match channels with
-      | 1 -> "MONO"
-      | 2 -> "STEREO"
-      | n -> fmt "%d CHAN" n
-      )
+    prop_ticker st.win
+      (fmt "%s    %.0f KBPS    %.1f KHZ    %s%s"
+        format (float bitrate /. 1000.0) (float rate /. 1000.0) depth
+        (match channels with
+        | 1 -> "MONO"
+        | 2 -> "STEREO"
+        | n -> fmt "%d CHAN" n
+        )
+      );
   );
 
   (* Seek bar *)
@@ -321,15 +332,6 @@ let run_control (st : State.t) =
     | None -> App.(name ^ " " ^ version)
   in
   title_ticker st.win name;
-
-  (* Volume control *)
-  let vol = volume_bar st.win st.volume +. 0.05 *. volume_wheel st.win +.
-    0.05 *. (float_of_bool (volup_key st.win) -. float_of_bool (voldown_key st.win)) in
-  if vol <> st.volume then
-  (
-    st.volume <- clamp 0.0 1.0 vol;
-    Api.Audio.volume st.audio st.sound st.volume
-  );
 
 (*
   (* Coordinate debug info *)

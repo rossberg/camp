@@ -348,7 +348,7 @@ end
 (* Audio *)
 
 type audio = unit
-type sound = {music : Raylib.Music.t; temp : path option (* for UTF-8 workaround *)}
+type sound = {music : Raylib.Music.t; format : Format.t; temp : path option (* for UTF-8 workaround *)}
 
 module Audio =
 struct
@@ -360,7 +360,7 @@ struct
     | Some sound -> sound
     | None ->
       let music = Raylib.load_music_stream "silence.mp3" in
-      let sound = {music; temp = None} in
+      let sound = {music; format = Format.unknown; temp = None} in
       silent := Some sound;
       sound
 
@@ -370,6 +370,10 @@ struct
     if not (Sys.file_exists path) then silence () else
     (* Raylib can't handle UTF-8 file paths, so copy those to temp file. *)
     let path' = if Unicode.is_ascii path then path else File.copy_to_temp path in
+    let format = try Format.read path' with exn ->
+Printexc.print_backtrace stdout;
+Printf.printf "[load %s] %s\n%!" path (Printexc.to_string exn);
+    Format.unknown in
     let music = Raylib.load_music_stream path' in
     (* TODO: This is a work-around for a bug in Raylib < 5.5.
      * We intentionally leak the music stream in order to avoid a double free
@@ -384,7 +388,7 @@ struct
     if Raylib.Music.ctx_type music = 0 then silence () else
     (
       (*Raylib.Music.set_looping music false;*)  (* TODO *)
-      {music; temp = if path' = path then None else Some path'}
+      {music; format; temp = if path' = path then None else Some path'}
     )
 
   let free () sound =
@@ -414,6 +418,8 @@ struct
     Unsigned.UInt.to_int (Raylib.AudioStream.sample_size (stream sound))
   let rate () sound =
     Unsigned.UInt.to_int (Raylib.AudioStream.sample_rate (stream sound))
+  let bitrate () sound =
+    sound.format.bitrate
 end
 
 

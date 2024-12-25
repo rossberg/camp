@@ -169,6 +169,7 @@ sig
   val channels : audio -> sound -> int
   val depth : audio -> sound -> int
   val rate : audio -> sound -> int
+  val bitrate : audio -> sound -> int
 end
 
 
