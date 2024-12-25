@@ -370,10 +370,7 @@ struct
     if not (Sys.file_exists path) then silence () else
     (* Raylib can't handle UTF-8 file paths, so copy those to temp file. *)
     let path' = if Unicode.is_ascii path then path else File.copy_to_temp path in
-    let format = try Format.read path' with exn ->
-Printexc.print_backtrace stdout;
-Printf.printf "[load %s] %s\n%!" path (Printexc.to_string exn);
-    Format.unknown in
+    let format = try Format.read path' with _ -> Format.unknown in
     let music = Raylib.load_music_stream path' in
     (* TODO: This is a work-around for a bug in Raylib < 5.5.
      * We intentionally leak the music stream in order to avoid a double free

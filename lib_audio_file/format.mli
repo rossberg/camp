@@ -4,7 +4,7 @@ type t =
   channels : int;
   depth : int;
   rate : int; (* Hz *)
-  bitrate : int; (* kb/s *)
+  bitrate : float; (* b/s *)
   time : float; (* s *)
   size : int; (* B *)
 }

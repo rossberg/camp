@@ -4,7 +4,7 @@ type t =
   channels : int;
   depth : int;
   rate : int; (* Hz *)
-  bitrate : int; (* kb/s *)
+  bitrate : float; (* b/s *)
   time : float; (* s *)
   size : int; (* B *)
 }
@@ -15,7 +15,7 @@ let unknown =
   channels = 0;
   depth = 0;
   rate  = 0;
-  bitrate = 0;
+  bitrate = 0.0;
   time  = 0.0;
   size = 0;
 }
@@ -29,7 +29,7 @@ let read path =
       channels = (match mp3.channels with Mono -> 1 | _ -> 2);
       depth = 0;
       rate = mp3.rate;
-      bitrate = 1000 * mp3.bitrate;
+      bitrate = float (1000 * mp3.bitrate);
       time = mp3.time;
       size = mp3.size;
     }
@@ -42,7 +42,7 @@ let read path =
       channels = flac.channels;
       depth = flac.depth;
       rate = flac.rate;
-      bitrate = int_of_float (8.0 *. float flac.size /. time);
+      bitrate = float (8 * flac.size) /. time;
       time = time;
       size = flac.size;
     }
@@ -54,7 +54,7 @@ let read path =
       channels = wav.channels;
       depth = wav.depth;
       rate = wav.rate;
-      bitrate = wav.rate * wav.depth * wav.channels;
+      bitrate = float (wav.rate * wav.depth * wav.channels);
       time = float (wav.size / wav.channels / (wav.depth / 8) / wav.rate);
       size = wav.size;
     }

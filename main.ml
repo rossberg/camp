@@ -302,7 +302,7 @@ let run_control (st : State.t) =
     let channels = Api.Audio.channels st.audio st.sound in
     prop_ticker st.win
       (fmt "%s    %.0f KBPS    %.1f KHZ    %s%s"
-        format (float bitrate /. 1000.0) (float rate /. 1000.0) depth
+        format (bitrate /. 1000.0) (float rate /. 1000.0) depth
         (match channels with
         | 1 -> "MONO"
         | 2 -> "STEREO"
