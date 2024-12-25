@@ -143,22 +143,22 @@ let run_control (st : State.t) =
   (* Current status *)
   State.ok st;
   let length = Api.Audio.length st.audio st.sound in
-  let played = Api.Audio.played st.audio st.sound in
-  let remain = length -. played in
+  let elapsed = Api.Audio.played st.audio st.sound in
+  let remaining = length -. elapsed in
   let playing = Api.Audio.is_playing st.audio st.sound in
-  let paused = not playing && played > 0.0 in
+  let paused = not playing && elapsed > 0.0 in
   let stopped = not playing && not paused in
   let silence = st.sound = Api.Audio.silence st.audio in
 
   (* Looping *)
   (match st.loop with
-  | `AB (t1, t2) when playing && t2 < played ->
+  | `AB (t1, t2) when playing && t2 < elapsed ->
     State.seek_track st (t1 /. length);
   | _ -> ()
   );
 
   (* End of track *)
-  if playing && (remain < 0.2 || silence) then
+  if playing && (remaining < 0.2 || silence) then
   (
     let play_on =
       match st.repeat with
@@ -252,10 +252,10 @@ let run_control (st : State.t) =
   st.loop <-
     (match st.loop, loop' with
     | `None, false | `AB _, false -> `None
-    | `None, true -> `A played
+    | `None, true -> `A elapsed
     | `A t1, true -> `A t1
-    | `A t1, false when t1 > played -> `A played
-    | `A t1, false -> `AB (t1, played)
+    | `A t1, false when t1 > elapsed -> `A elapsed
+    | `A t1, false -> `AB (t1, elapsed)
     | `AB (t1, t2), true -> `AB (t1, t2)
     );
 
@@ -263,8 +263,8 @@ let run_control (st : State.t) =
   lcd_colon st.win ':';
   let time =
     match st.timemode with
-    | `Played -> played
-    | `Remain -> lcd_minus st.win '-'; remain
+    | `Elapse -> elapsed
+    | `Remain -> lcd_minus st.win '-'; remaining
   in
   let seconds = int_of_float (Float.round time) in
   lcd1 st.win (Char.chr (Char.code '0' + seconds mod 6000 / 600));
@@ -276,8 +276,8 @@ let run_control (st : State.t) =
   (
     st.timemode <-
       match st.timemode with
-      | `Played -> `Remain
-      | `Remain -> `Played
+      | `Elapse -> `Remain
+      | `Remain -> `Elapse
   );
 
   (* Volume control *)
@@ -316,14 +316,14 @@ let run_control (st : State.t) =
 
   (* Seek bar *)
   let progress =
-    if length > 0.0 && not silence then played /. length else 0.0 in
+    if length > 0.0 && not silence then elapsed /. length else 0.0 in
   let progress' = seek_bar st.win progress +.
     0.05 *. (float_of_bool (ff_key st.win) -. float_of_bool (rw_key st.win)) in
   if progress' <> progress && not silence then
     State.seek_track st (clamp 0.0 1.0 progress');
 
-  let s1 = fmt_time2 played in
-  let s2 = "-" ^ fmt_time2 remain in
+  let s1 = fmt_time2 elapsed in
+  let s2 = "-" ^ fmt_time2 remaining in
   let w2 = Api.Draw.text_width st.win 11 (Ui.font st.win 11) s2 in
   Api.Draw.text st.win 12 91 11 `White (Ui.font st.win 11) s1;
   Api.Draw.text st.win (278 - w2) 91 11 `White (Ui.font st.win 11) s2;

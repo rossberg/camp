@@ -115,7 +115,7 @@ let load_state st =
       );
     st.shuffle <- (0 <> input " shuffle = %d " value);
     st.timemode <-
-      if input " timemode = %d " value = 0 then `Played else `Remain;
+      if input " timemode = %d " value = 0 then `Elapse else `Remain;
     st.mute <- (0 <> input " mute = %d " value);
   );
   State.update_summary st;
