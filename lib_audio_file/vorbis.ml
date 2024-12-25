@@ -1,3 +1,6 @@
+(* https://www.rfc-editor.org/rfc/rfc9639.html, Section 8.6 *)
+(* https://wiki.xiph.org/index.php/VorbisComment *)
+
 type comment =
 {
   offset : int;

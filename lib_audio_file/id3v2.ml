@@ -1,3 +1,6 @@
+(* https://id3.org/id3v2.3.0 *)
+(* https://id3.org/id3v2.4.0-structure, https://id3.org/id3v2.4.0-frames *)
+
 type flags =
 {
   unsynchronisation : bool;
@@ -276,7 +279,7 @@ let input_status_flags_v3 ic =
 
 let input_status_flags ic header =
   (if header.version = 4 then input_status_flags_v4 else input_status_flags_v3) ic
-  
+
 let input_format_flags_v4 ic =
   let errors = ref [] in
   let flags = input_byte ic in

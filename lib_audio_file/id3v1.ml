@@ -1,3 +1,6 @@
+(* https://id3.org/ID3v1 *)
+(* http://mpgedit.org/mpgedit/mpeg_format/mpeghdr.htm#MPEGTAG *)
+
 type tag =
 {
   offset : int;

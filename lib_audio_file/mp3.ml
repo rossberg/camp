@@ -1,3 +1,5 @@
+(* https://www.datavoyage.com/mpgscript/mpeghdr.htm *)
+
 type version = Mpeg1 | Mpeg2 | Mpeg2_5
 type joint = {intensity : bool; ms : bool}
 type channels = Stereo | Joint of joint | Dual | Mono
@@ -165,7 +167,7 @@ let kbits = 8.0 /. 1000.0
 let read_format_from ic =
   seek_in ic (read_id3_header_size ic);
   let f, _ = read_frame_header ic in
-  let offset = pos_in ic - 4 in 
+  let offset = pos_in ic - 4 in
   let size = in_channel_length ic in
   let encoding, frames, time, bitrate =
     match read_xing_header ic f with
@@ -200,7 +202,7 @@ let analyze_from ic =
     (if id3_header_size > 0 then Id3v2.input_tag ic else None, []) in
   seek_in ic id3_header_size;
   let f = seq "first frame" errors (read_frame_header ic) in
-  let offset = pos_in ic - 4 in 
+  let offset = pos_in ic - 4 in
   let size = in_channel_length ic in
   let encoding, frames, time, bitrate =
     match read_xing_header ic f with
