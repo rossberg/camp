@@ -41,6 +41,7 @@ type t =
 {
   win : Api.window;
   audio : Api.audio;
+  mutable mute : bool;
   mutable volume : float;
   mutable sound : Api.sound;
   mutable current : track option;
@@ -67,6 +68,7 @@ let make win audio =
   let sound = Api.Audio.silence audio in
   {
     win; audio; sound;
+    mute = false;
     volume = 0.5;
     current = None;
     timemode = `Played;
@@ -228,7 +230,7 @@ let switch_track st track play =
     if st.sound = Api.Audio.silence st.audio then 0.0
     else Api.Audio.length st.audio st.sound;
   update_track st track;
-  Api.Audio.volume st.audio st.sound st.volume;
+  Api.Audio.volume st.audio st.sound (if st.mute then 0.0 else st.volume);
   Api.Audio.play st.audio st.sound;
   if not play then Api.Audio.pause st.audio st.sound
 

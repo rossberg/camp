@@ -24,10 +24,11 @@ let read path =
   match String.lowercase_ascii (Filename.extension path) with
   | ".mp3" ->
     let mp3 = Mp3.read_format path in
+    let channels = match mp3.channels with Mono -> 1 | _ -> 2 in
     {
       name = "MP3";
-      channels = (match mp3.channels with Mono -> 1 | _ -> 2);
-      depth = 0;
+      channels = channels;
+      depth = 1000 * mp3.bitrate / mp3.rate / channels;
       rate = mp3.rate;
       bitrate = float (1000 * mp3.bitrate);
       time = mp3.time;

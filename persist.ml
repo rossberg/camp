@@ -74,6 +74,7 @@ let save_state st =
     output "loop = %.4f, %.4f\n" a b;
     output "shuffle = %d\n" (Bool.to_int st.shuffle);
     output "timemode = %d\n" (Bool.to_int (st.timemode = `Remain));
+    output "mute = %d\n" (Bool.to_int st.mute);
   );
   save_playlist st.playlist
 
@@ -115,6 +116,7 @@ let load_state st =
     st.shuffle <- (0 <> input " shuffle = %d " value);
     st.timemode <-
       if input " timemode = %d " value = 0 then `Played else `Remain;
+    st.mute <- (0 <> input " mute = %d " value);
   );
   State.update_summary st;
   ok st

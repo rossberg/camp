@@ -407,16 +407,10 @@ struct
   let played () sound = Raylib.get_music_time_played sound.music
   let seek () sound t = Raylib.seek_music_stream sound.music t
 
-  let stream sound = Raylib.Music.stream sound.music
-
-  let channels () sound =
-    Unsigned.UInt.to_int (Raylib.AudioStream.channels (stream sound))
-  let depth () sound =
-    Unsigned.UInt.to_int (Raylib.AudioStream.sample_size (stream sound))
-  let rate () sound =
-    Unsigned.UInt.to_int (Raylib.AudioStream.sample_rate (stream sound))
-  let bitrate () sound =
-    sound.format.bitrate
+  let channels () sound = sound.format.channels
+  let rate () sound = sound.format.rate
+  let depth () sound = sound.format.depth
+  let bitrate () sound = sound.format.bitrate
 end
 
 

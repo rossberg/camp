@@ -30,14 +30,15 @@ let lcd3 = Ui.lcd (73, 15, 14, 20)
 let lcd4 = Ui.lcd (90, 15, 14, 20)
 let lcd_button = Ui.mouse (15, 15, 90, 20) `Left
 
-let volume_bar = Ui.progress_bar (200, 21, 90, 12)
+let volume_bar = Ui.volume_bar (-72, 15, 12, 50)
 let volume_wheel = Ui.wheel (0, 0, control_w, control_h)
+let mute_button = Ui.control_button (-72, 70, 12, 12) "" ([], `Char '0')
 let volup_key = Ui.key ([], `Char '+')
 let voldown_key = Ui.key ([], `Char '-')
 
-let prop_ticker = Ui.ticker (15, 38, -60, 12)
-let title_ticker = Ui.ticker (10, 70, -60, 16)
-let seek_bar = Ui.progress_bar (10, 90, -60, 14)
+let prop_ticker = Ui.ticker (15, 38, -80, 12)
+let title_ticker = Ui.ticker (10, 70, -80, 16)
+let seek_bar = Ui.progress_bar (10, 90, -80, 14)
 let rw_key = Ui.key ([], `Arrow `Left)
 let ff_key = Ui.key ([], `Arrow `Right)
 
@@ -280,12 +281,14 @@ let run_control (st : State.t) =
   );
 
   (* Volume control *)
-  let vol = volume_bar st.win st.volume +. 0.05 *. volume_wheel st.win +.
+  let volume' = volume_bar st.win st.volume +. 0.05 *. volume_wheel st.win +.
     0.05 *. (float_of_bool (volup_key st.win) -. float_of_bool (voldown_key st.win)) in
-  if vol <> st.volume then
+  let mute' = mute_button st.win st.mute in
+  if volume' <> st.volume || mute' <> st.mute then
   (
-    st.volume <- clamp 0.0 1.0 vol;
-    Api.Audio.volume st.audio st.sound st.volume
+    st.mute <- mute';
+    st.volume <- clamp 0.0 1.0 volume';
+    Api.Audio.volume st.audio st.sound (if st.mute then 0.0 else st.volume);
   );
 
   (* Audio properties *)
@@ -297,12 +300,12 @@ let run_control (st : State.t) =
       String.uppercase_ascii (String.sub ext 1 (String.length ext - 1)) in
     let bitrate = Api.Audio.bitrate st.audio st.sound in
     let rate = Api.Audio.rate st.audio st.sound in
-    let depth = if format = "MP3" then "" else
-      fmt "%d BIT    " (Api.Audio.depth st.audio st.sound) in
     let channels = Api.Audio.channels st.audio st.sound in
+    let depth = bitrate /. float rate /. float channels in
     prop_ticker st.win
-      (fmt "%s    %.0f KBPS    %.1f KHZ    %s%s"
-        format (bitrate /. 1000.0) (float rate /. 1000.0) depth
+      (fmt "%s    %.0f KBPS    %.1f KHZ    %s BIT    %s"
+        format (bitrate /. 1000.0) (float rate /. 1000.0)
+        (fmt (if depth = Float.round depth then "%.0f" else "%.1f") depth)
         (match channels with
         | 1 -> "MONO"
         | 2 -> "STEREO"
@@ -323,7 +326,7 @@ let run_control (st : State.t) =
   let s2 = "-" ^ fmt_time2 remain in
   let w2 = Api.Draw.text_width st.win 11 (Ui.font st.win 11) s2 in
   Api.Draw.text st.win 12 91 11 `White (Ui.font st.win 11) s1;
-  Api.Draw.text st.win (298 - w2) 91 11 `White (Ui.font st.win 11) s2;
+  Api.Draw.text st.win (278 - w2) 91 11 `White (Ui.font st.win 11) s2;
 
   (* Title info *)
   let name =

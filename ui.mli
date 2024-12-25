@@ -22,6 +22,7 @@ val resizer : rect -> window -> size -> size -> size
 val button : rect -> modifier list * key -> window -> bool
 val control_button : rect -> string -> modifier list * key -> window -> bool -> bool
 val progress_bar : rect -> window -> float -> float
+val volume_bar : rect -> window -> float -> float
 val scroll_bar : rect -> window -> float -> float -> float
 val ticker : rect -> window -> string -> unit
 
