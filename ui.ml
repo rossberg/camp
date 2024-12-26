@@ -46,17 +46,23 @@ let win_pos = ref (0, 0)     (* logical position ignoring snap *)
 let fonts = Array.make 64 None
 let symfonts = Array.make 64 None
 
-let background = ref None
+let background_img = ref (`Unloaded "bg.jpg")
+let button_img = ref (`Unloaded "but.jpg")
+
+let (//) = Filename.concat
+let assets = Filename.dirname Sys.argv.(0) // "assets"
+
+let get_img win rimg =
+  match !rimg with
+  | `Loaded img -> img
+  | `Unloaded file ->
+    let img = Image.load win (assets // file) in
+    rimg := `Loaded img;
+    img
+
 
 let window win =
-  if !background = None then
-  (
-    let (/) = Filename.concat in
-    let path = Filename.dirname Sys.argv.(0) / "assets" / "bg.jpg" in
-    background := Some (Image.load win path)
-  );
-  let bg = Option.get !background in
-
+  let bg = get_img win background_img in
   let ww, wh = Window.size win in
   let iw, ih = Image.size bg in
   for i = 0 to (ww + iw - 1)/iw - 1 do
@@ -96,12 +102,12 @@ let window win =
 
 let fill = function
   | true -> `Green
-  | false -> `Gray 0x80
+  | false -> `Trans (`Green, 0x20)
 
 let border = function
-  | `Pressed -> `Yellow
-  | `Focused -> `Orange
-  | _ -> `Blue
+  | `Pressed -> `Orange
+  | `Focused -> `Blue
+  | _ -> `Black
 
 let font' win h file min max fonts =
   match fonts.(h) with
@@ -219,7 +225,7 @@ let lcd r win d =
     lcd' win (dim win r) `Green `Dots
   else
     List.iter (lcd' win (dim win r) `Green) [`N; `S; `C; `NW; `SW; `NE; `SE];
-  List.iter (lcd' win (dim win r) (`Trans (`Black, 0xc0)))
+  List.iter (lcd' win (dim win r) (`Trans (`Black, 0xe0)))
     (match d with
     | '+' -> [`C]
     | '0' -> [`C]
@@ -288,20 +294,54 @@ let button r modkey win =
   Draw.rect win x y w h (border status);
   status = `Released
 
+let control_sym win x y w h c = function
+  | "" -> ()
+  | "[]" ->
+    Draw.fill win x y w h c
+  | "||" ->
+    Draw.fill win x y (w/3) h c;
+    Draw.fill win (x + w - w/3) y (w/3) h c;
+  | ">" ->
+    Draw.arrow win x y w h c `Right
+  | ">>" ->
+    Draw.arrow win x y (w/2 + 1) h c `Right;
+    Draw.arrow win (x + w/2) y (w/2 + 1) h c `Right;
+  | "<<" ->
+    Draw.arrow win x y (w/2) h c `Left;
+    Draw.arrow win (x + w/2) y (w/2) h c `Left;
+  | "^" ->
+    Draw.arrow win x y w (h/2) c `Up;
+    Draw.fill win x (y + h - h/3) w (h/3) c;
+  | _ -> assert false
+
 let control_button r sym modkey win active =
   let (x, y, w, h), status = element r modkey win in
+  let img = get_img win button_img in
+  Draw.clip win x y w h;
+  Draw.image win (x - 200) y 1 img;
+  Draw.unclip win;
+  Draw.rect win x y w h (border status);
+  let hsym = h/3 in
+  let c = if active then `RGB 0x40ff40 else `Gray 0xc0 in
+  control_sym win (x + (w - hsym)/2) (y + (h - hsym)/2) hsym hsym c sym;
+(*
   Draw.fill win x y w h (fill active);
   Draw.rect win x y w h (border status);
   let hsym = h/2 in
   let font = font win hsym in  (* TODO *)
-  let wsym = Api.Draw.text_width win hsym font sym in
-  Api.Draw.text win (x + (w - wsym)/2) (y + (h - hsym)/2) hsym `White font sym;
+  let wsym = Draw.text_width win hsym font sym in
+  let c = if active then `Green else `White in
+  Draw.text win (x + (w - wsym)/2) (y + (h - hsym)/2) hsym c font sym;
+*)
   if status = `Released then not active else active
 
 let progress_bar r win v =
   let (x, y, w, h), status = element r no_modkey win in
   Draw.fill win x y w h (fill false);
   Draw.fill win (x + 1) y (int_of_float (v *. float (w - 2))) h (fill true);
+  for i = 0 to w / 2 - 1 do
+    Draw.line win (x + 2*i + 1) y (x + 2*i + 1) (y + h) `Black
+  done;
   Draw.rect win x y w h (border status);
   if status <> `Pressed then v else
   let mx, _ = Mouse.pos win in
@@ -310,9 +350,9 @@ let progress_bar r win v =
 let volume_bar r win v =
   let (x, y, w, h), status = element r no_modkey win in
   let h' = int_of_float ((1.0 -. v) *. float h) in
-  Draw.fill win (x + w - 2) y 2 h `Green;
-  Draw.tri win x y (w - 2) h `Green `NE;
-  Draw.fill win x y w h' (`Trans (`Black, 0xc0));
+  Draw.fill win (x + w - 2) y 2 h (fill true);
+  Draw.tri win x y (w - 2) h (fill true) `NE;
+  Draw.fill win x y w h' (`Trans (`Black, 0xe0));
   for j = 0 to h / 2 - 1 do
     Draw.line win x (y + 2*j + 1) (x + w) (y + 2*j) `Black
   done;
@@ -340,6 +380,9 @@ let scroll_bar r win v len =
   let y' = y + int_of_float (v *. float (h - 2)) + 1 in
   let h' = int_of_float (Float.ceil (len *. float (h - 2))) in
   Draw.fill win x y' w h' (fill true);
+  for j = 0 to h / 2 - 1 do
+    Draw.line win x (y + 2*j + 1) (x + w) (y + 2*j) `Black
+  done;
   Draw.rect win x y w h (border status);
   if status <> `Pressed then v else
   let _, my = Mouse.pos win in

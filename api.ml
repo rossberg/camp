@@ -14,6 +14,10 @@ type time = float
 type point = int * int
 type size = int * int
 type rect = int * int * int * int
+
+type side = [`Left | `Right]
+type face = [`Up | `Down]
+type dir = [side | face]
 type orientation = [`Horizontal | `Vertical]
 type corner = [`NW | `NE | `SW | `SE]
 
@@ -201,6 +205,17 @@ struct
     let vs' = Array.of_list (List.filteri (fun i _ -> i <> drop) vs) in
     Raylib.draw_triangle vs'.(0) vs'.(1) vs'.(2) (color c)
 
+  let arrow () x y w h c dir =
+    let vs = Array.map vec2_of_point
+      (match dir with
+      | `Up -> [|x + w/2, y; x, y + h; x + w, y + h|]
+      | `Down -> [|x + w/2, y + h; x + w, y; x, y|]
+      | `Left -> [|x, y + h/2; x + w, y + h; x + w, y|]
+      | `Right -> [|x + w, y + h/2; x, y; x, y + h|]
+      )
+    in
+    Raylib.draw_triangle vs.(0) vs.(1) vs.(2) (color c)
+
   let text () x y h c f s =
     Raylib.draw_text_ex f s (vec2_of_point (x, y)) (float h) 1.0 (color c)
 (*
@@ -220,9 +235,6 @@ end
 
 (* Input devices *)
 
-type side = [`Left | `Right]
-type face = [`Up | `Down]
-type dir = [side | face]
 type key =
 [
   | `None
