@@ -266,18 +266,27 @@ let run_control (st : State.t) =
 
   (* LCD *)
   info_box st.win;
-  lcd_colon st.win ':';
-  let sign, time =
-    match st.timemode with
-    | `Elapse -> '+', elapsed
-    | `Remain -> '-', remaining
+  let sign, d1, d2, d3, d4 =
+    if paused && Api.Draw.frame st.win / 40 mod 2 = 0 then
+      '+', ' ', ' ', ' ', ' ' else
+    let sign, time =
+      match st.timemode with
+      | `Elapse -> '+', elapsed
+      | `Remain -> '-', remaining
+    in
+    lcd_colon st.win ':';
+    let seconds = int_of_float (Float.round time) in
+    sign,
+    (Char.chr (Char.code '0' + seconds mod 6000 / 600)),
+    (Char.chr (Char.code '0' + seconds mod 600 / 60)),
+    (Char.chr (Char.code '0' + seconds mod 60 / 10)),
+    (Char.chr (Char.code '0' + seconds mod 10))
   in
-  let seconds = int_of_float (Float.round time) in
   lcd_minus st.win sign;
-  lcd1 st.win (Char.chr (Char.code '0' + seconds mod 6000 / 600));
-  lcd2 st.win (Char.chr (Char.code '0' + seconds mod 600 / 60));
-  lcd3 st.win (Char.chr (Char.code '0' + seconds mod 60 / 10));
-  lcd4 st.win (Char.chr (Char.code '0' + seconds mod 10));
+  lcd1 st.win d1;
+  lcd2 st.win d2;
+  lcd3 st.win d3;
+  lcd4 st.win d4;
 
   if lcd_button st.win then
   (

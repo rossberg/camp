@@ -227,6 +227,7 @@ let lcd r win d =
     List.iter (lcd' win (dim win r) `Green) [`N; `S; `C; `NW; `SW; `NE; `SE];
   List.iter (lcd' win (dim win r) (`Trans (`Black, 0xe0)))
     (match d with
+    | ' ' -> [`N; `S; `C; `NW; `SW; `NE; `SE]
     | '+' -> [`C]
     | '0' -> [`C]
     | '1' -> [`N; `C; `S; `NW; `SW]
