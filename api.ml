@@ -15,6 +15,7 @@ type point = int * int
 type size = int * int
 type rect = int * int * int * int
 type orientation = [`Horizontal | `Vertical]
+type corner = [`NW | `NE | `SW | `SE]
 
 let add (x1, y1) (x2, y2) = (x1 + x2, y1 + y2)
 let sub (x1, y1) (x2, y2) = (x1 - x2, y1 - y2)
@@ -161,6 +162,13 @@ struct
 
   let circ () x y w h c =
     Raylib.draw_ellipse_lines (x + w/2) (y + h/2) (float w /. 2.0) (float h /. 2.0) (color c)
+
+  let tri () x y w h c corner =
+    let x', y' = x + w - 1, y + h - 1 in
+    let vs = List.map vec2_of_point [x, y; x, y'; x', y'; x', y] in
+    let drop = match corner with `NW -> 2 | `NE -> 1 | `SW -> 3 | `SE -> 0 in
+    let vs' = Array.of_list (List.filteri (fun i _ -> i <> drop) vs) in
+    Raylib.draw_triangle vs'.(0) vs'.(1) vs'.(2) (color c)
 
   let text () x y h c f s =
     Raylib.draw_text_ex f s (vec2_of_point (x, y)) (float h) 1.0 (color c)

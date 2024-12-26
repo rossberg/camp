@@ -30,7 +30,7 @@ let lcd3 = Ui.lcd (73, 15, 14, 20)
 let lcd4 = Ui.lcd (90, 15, 14, 20)
 let lcd_button = Ui.mouse (15, 15, 90, 20) `Left
 
-let volume_bar = Ui.volume_bar (-72, 15, 12, 50)
+let volume_bar = Ui.volume_bar (-85, 15, 25, 50)
 let volume_wheel = Ui.wheel (0, 0, control_w, control_h)
 let mute_button = Ui.control_button (-72, 70, 12, 12) "" ([], `Char '0')
 let volup_key = Ui.key ([], `Char '+')
@@ -335,25 +335,6 @@ let run_control (st : State.t) =
     | None -> App.(name ^ " " ^ version)
   in
   title_ticker st.win name;
-
-(*
-  (* Coordinate debug info *)
-  let wx, wy = Api.Window.pos st.win in
-  let s = Printf.sprintf "%d,%d" wx wy in
-  Api.Draw.text st.win 15 10 20 (`Gray 0xc0) (Ui.font st.win 20) s;
-
-  let mx, my = Api.Mouse.pos st.win in
-  let s = Printf.sprintf "%d,%d" mx my in
-  Api.Draw.text st.win 120 10 20 (`Gray 0xc0) (Ui.font st.win 20) s;
-
-  let sw, sh = Api.Window.screen_size st.win in
-  let s = Printf.sprintf "%dx%d" sw sh in
-  Api.Draw.text st.win 15 35 20 (`Gray 0xc0) (Ui.font st.win 20) s;
-
-  let ww, wh = Api.Window.size st.win in
-  let s = Printf.sprintf "%dx%d" ww wh in
-  Api.Draw.text st.win 120 35 20 (`Gray 0xc0) (Ui.font st.win 20) s;
-*)
 
   (* Window modes *)
   playlist_label st.win;

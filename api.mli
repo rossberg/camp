@@ -13,6 +13,7 @@ type point = int * int
 type size = int * int
 type rect = int * int * int * int
 type orientation = [`Horizontal | `Vertical]
+type corner = [`NW | `NE | `SW | `SE]
 
 val add : point -> point -> point
 val sub : point -> point -> point
@@ -74,6 +75,7 @@ sig
   val rect : window -> int -> int -> int -> int -> color -> unit
   val fill_circ : window -> int -> int -> int -> int -> color -> unit
   val circ : window -> int -> int -> int -> int -> color -> unit
+  val tri : window -> int -> int -> int -> int -> color -> corner -> unit
   val gradient : window -> int -> int -> int -> int -> color -> orientation -> color -> unit
   val text : window -> int -> int -> int -> color -> font -> string -> unit
   val text_width : window -> int -> font -> string -> int

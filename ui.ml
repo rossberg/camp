@@ -269,6 +269,17 @@ let progress_bar r win v =
 
 let volume_bar r win v =
   let (x, y, w, h), status = element r no_modkey win in
+  let h' = int_of_float ((1.0 -. v) *. float h) in
+  Draw.tri win x y w h `Green `NE;
+  Draw.fill win x y w h' (`Trans (`Black, 0xc0));
+  for j = 0 to h/2 do
+    Draw.line win x (y + 2*j + 1) (x + w - 1) (y + 2*j + 1) `Black
+  done;
+  if status <> `Pressed then v else
+  let _, my = Mouse.pos win in
+  clamp 0.0 1.0 (float (y + h - my) /. float h)
+(*
+  let (x, y, w, h), status = element r no_modkey win in
   let h' = int_of_float (v *. float (h - 2)) in
   Draw.fill win x y w h (fill false);
   Draw.fill win x (y + h - h' - 1) w h' (fill true);
@@ -276,6 +287,7 @@ let volume_bar r win v =
   if status <> `Pressed then v else
   let _, my = Mouse.pos win in
   clamp 0.0 1.0 (float (y + h - my) /. float h)
+*)
 
 type drag_extra += Scroll_bar_page of time
 type drag_extra += Scroll_bar_drag of float * int
