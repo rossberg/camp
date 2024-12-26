@@ -318,13 +318,14 @@ let control_sym win x y w h c = function
 let control_button r sym modkey win active =
   let (x, y, w, h), status = element r modkey win in
   let img = get_img win button_img in
+  let sx, sy, dy = if status = `Pressed then 800, 400, 1 else 0, 200, 0 in
   Draw.clip win x y w h;
-  Draw.image win (x - 200) y 1 img;
+  Draw.image win (x - sx) (y - sy) 1 img;
   Draw.unclip win;
   Draw.rect win x y w h (border status);
   let hsym = h/3 in
   let c = if active then `RGB 0x40ff40 else `Gray 0xc0 in
-  control_sym win (x + (w - hsym)/2) (y + (h - hsym)/2) hsym hsym c sym;
+  control_sym win (x + (w - hsym)/2) (y + (h - hsym)/2 + dy) hsym hsym c sym;
 (*
   Draw.fill win x y w h (fill active);
   Draw.rect win x y w h (border status);
