@@ -34,6 +34,8 @@ let make_track' path name time status =
 let make_track path = make_track' path (name_of_path path) 0.0 `Undet
 let make_track_predet path name time = make_track' path name time `Det
 
+let separator = String.make 80 '-'
+
 
 (* State *)
 
@@ -168,7 +170,13 @@ let update_track st track =
 
 let rec updater () =
   let st, track = Safe_queue.take queue in
-  if not (Sys.file_exists track.path) then
+  if M3u.is_separator track.path then
+  (
+    track.status <- `Det;
+    track.time <- 0.0;
+    track.name <- separator;
+  )
+  else if not (Sys.file_exists track.path) then
   (
     track.status <- `Absent;
     track.name <- name_of_path track.path

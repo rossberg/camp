@@ -7,7 +7,7 @@ type info = {time : int; title : string}
 type item = {path : path; info : info option}
 
 
-let is_separator item = String.starts_with ~prefix:"separator:" item.path
+let is_separator path = String.starts_with ~prefix:"separator:" path
 
 
 let string_of_item {path; info} =

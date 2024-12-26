@@ -1,5 +1,8 @@
 (* Main Entry Point *)
 
+open Audio_file
+
+
 (* Configuration *)
 
 let playlist_file_check_freq = 5.0
@@ -383,6 +386,7 @@ let run_playlist (st : State.t) =
         match track.status with
         | _ when i = st.playpos ->
           if track.path = (Option.get st.current).path then `White else `Gray 0xc0
+        | _ when M3u.is_separator track.path -> `Green
         | `Absent -> `Red
         | `Invalid -> `Yellow
         | `Undet -> `Blue

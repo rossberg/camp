@@ -6,7 +6,7 @@ type playlist = string
 type info = {time : int; title : string}
 type item = {path : path; info : info option}
 
-val is_separator : item -> bool
+val is_separator : path -> bool
 
 val make : path list -> playlist
 val make_ext : item list -> playlist
