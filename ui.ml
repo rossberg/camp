@@ -270,10 +270,11 @@ let progress_bar r win v =
 let volume_bar r win v =
   let (x, y, w, h), status = element r no_modkey win in
   let h' = int_of_float ((1.0 -. v) *. float h) in
-  Draw.tri win x y w h `Green `NE;
+  Draw.fill win (x + w - 2) y 2 h `Green;
+  Draw.tri win x y (w - 2) h `Green `NE;
   Draw.fill win x y w h' (`Trans (`Black, 0xc0));
-  for j = 0 to h/2 do
-    Draw.line win x (y + 2*j + 1) (x + w - 1) (y + 2*j + 1) `Black
+  for j = 0 to h / 2 - 1 do
+    Draw.line win x (y + 2*j + 1) (x + w) (y + 2*j) `Black
   done;
   if status <> `Pressed then v else
   let _, my = Mouse.pos win in
@@ -331,7 +332,7 @@ let ticker r win s =
   let (x, y, w, h), _status = element r no_modkey win in
   Draw.fill win x y w h `Black;
   let tw = Draw.text_width win h (font win h) s in
-  Draw.clip win (x, y, w, h);
+  Draw.clip win x y w h;
   let dx = if tw <= w then (w - tw)/2 else w - Draw.frame win mod (w + tw) in
   Draw.text win (x + dx) y h `Green (font win h) s;
   Draw.unclip win
@@ -344,32 +345,33 @@ type row = color * color * string array
 let table r ch win cols rows =
   let (x, y, w, h), status = element r no_modkey win in
   let font = font win ch in
+  Draw.fill win x y w h `Black;
   Array.iteri (fun j (fg, bg, texts) ->
     let cy = y + j * ch in
-    if bg <> `Black then Api.Draw.fill win x cy w ch bg;
+    if bg <> `Black then Draw.fill win x cy w ch bg;
     let cx = ref x in
     Array.iteri (fun i (cw, align) ->
-      let tw = Api.Draw.text_width win ch font texts.(i) in
+      let tw = Draw.text_width win ch font texts.(i) in
       let dx =
         match align with
         | `Left -> 0
         | `Center -> (cw - tw) / 2
         | `Right -> cw - tw
       in
-      if tw >= cw then Api.Draw.clip win (!cx, y, cw - 1, h);
-      Api.Draw.text win (!cx + max 0 dx) cy ch fg font texts.(i);
+      if tw >= cw then Draw.clip win !cx y (cw - 1) h;
+      Draw.text win (!cx + max 0 dx) cy ch fg font texts.(i);
       if tw >= cw then
       (
         let gw = min cw 16 in
-        Api.Draw.gradient win (!cx + cw - gw) cy gw ch
+        Draw.gradient win (!cx + cw - gw) cy gw ch
           (`Trans (bg, 0)) `Horizontal bg;
-        Api.Draw.unclip win;
+        Draw.unclip win;
       );
       cx := !cx + cw;
     ) cols
   ) rows;
   if status = `Pressed || status = `Released then
-    let _, my = Api.Mouse.pos win in
+    let _, my = Mouse.pos win in
     Some ((my - y) / ch)
   else
     None

@@ -42,9 +42,10 @@ struct
   let init x y w h s =
     Raylib.(set_trace_log_level TraceLogLevel.Warning);
     Raylib.(set_exit_key Key.Null);
+    Raylib.(set_config_flags
+      ConfigFlags.[Window_undecorated; (*Window_transparent;*) Vsync_hint]);
     Raylib.init_window w h s;
-    Raylib.set_window_position x y;
-    Raylib.(set_window_state ConfigFlags.[Window_undecorated; Vsync_hint])
+    Raylib.set_window_position x y
 
   let pos () = point_of_vec2 (Raylib.get_window_position ())
   let size () = Raylib.get_screen_width (), Raylib.get_screen_height ()
@@ -61,7 +62,7 @@ end
 
 type color =
 [
-  | `Black | `White
+  | `Blank | `Black | `White
   | `Red | `Orange | `Yellow | `Green | `Blue
   | `Gray of int
   | `RGB of int
@@ -69,6 +70,7 @@ type color =
 ]
 
 let rec color = function
+  | `Blank -> Raylib.Color.blank
   | `Black -> Raylib.Color.black
   | `White -> Raylib.Color.white
   | `Red -> Raylib.Color.red
@@ -131,6 +133,12 @@ struct
   let start () c =
     Raylib.begin_drawing ();
     Raylib.clear_background (color c);
+(* TODO: Raylib OCaml is missing set_blend_factors_separate
+    Raylib.(begin_blend_mode BlendMode.Custom_separate);
+    let rl_func_add = 0x8006 in
+    let rl_max = 0x8008 in
+    Raylib.Rlgl.set_blend_factors_separate 1 1 1 1 rl_func_add rl_max;
+*)
     List.iter (fun f -> f ()) !updates
 
   let finish () =
@@ -139,7 +147,7 @@ struct
 
   let frame () = !frame
 
-  let clip () (x, y, w, h) = Raylib.begin_scissor_mode x y w h
+  let clip () x y w h = Raylib.begin_scissor_mode x y w h
   let unclip () = Raylib.end_scissor_mode ()
 
   let line () x y x' y' c =
@@ -164,7 +172,7 @@ struct
     Raylib.draw_ellipse_lines (x + w/2) (y + h/2) (float w /. 2.0) (float h /. 2.0) (color c)
 
   let tri () x y w h c corner =
-    let x', y' = x + w - 1, y + h - 1 in
+    let x', y' = x + w, y + h in
     let vs = List.map vec2_of_point [x, y; x, y'; x', y'; x', y] in
     let drop = match corner with `NW -> 2 | `NE -> 1 | `SW -> 3 | `SE -> 0 in
     let vs' = Array.of_list (List.filteri (fun i _ -> i <> drop) vs) in

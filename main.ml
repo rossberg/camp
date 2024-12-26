@@ -30,7 +30,7 @@ let lcd3 = Ui.lcd (73, 15, 14, 20)
 let lcd4 = Ui.lcd (90, 15, 14, 20)
 let lcd_button = Ui.mouse (15, 15, 90, 20) `Left
 
-let volume_bar = Ui.volume_bar (-85, 15, 25, 50)
+let volume_bar = Ui.volume_bar (-87, 15, 27, 50)
 let volume_wheel = Ui.wheel (0, 0, control_w, control_h)
 let mute_button = Ui.control_button (-72, 70, 12, 12) "" ([], `Char '0')
 let volup_key = Ui.key ([], `Char '+')
@@ -381,7 +381,7 @@ let run_playlist (st : State.t) =
       let track = st.playlist.(i) in
       if now -. track.last_update > playlist_file_check_freq then
         State.update_track st track;
-      let bg = if i mod 2 = 0 then `Black else `Gray 0x20 in
+      let bg = if i mod 2 = 0 then `Black else `Gray 0x18 in
       let fg =
         match track.status with
         | _ when i = st.playpos ->
@@ -559,7 +559,7 @@ let run_playlist (st : State.t) =
 (* Runner *)
 
 let rec run (st : State.t) =
-  Api.Draw.start st.win `Black;
+  Api.Draw.start st.win (`Trans (`Black, 0x40));
   Ui.window st.win;
   run_control st;
   let w, h = if st.playopen then run_playlist st else Api.Window.size st.win in

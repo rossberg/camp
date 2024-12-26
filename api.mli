@@ -42,7 +42,7 @@ end
 
 type color =
 [
-  | `Black | `White
+  | `Blank | `Black | `White
   | `Red | `Orange | `Yellow | `Green | `Blue
   | `Gray of int
   | `RGB of int
@@ -67,7 +67,7 @@ sig
   val start : window -> color -> unit
   val finish : window -> unit
   val frame : window -> int
-  val clip : window -> rect -> unit
+  val clip : window -> int -> int -> int -> int -> unit
   val unclip : window -> unit
 
   val line : window -> int -> int -> int -> int -> color -> unit
