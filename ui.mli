@@ -14,6 +14,7 @@ val mouse : rect -> side -> window -> bool
 val drag : rect -> window -> int * int -> (int * int) option
 val wheel : rect -> window -> float
 
+val box : rect -> color -> window -> unit
 val label : rect -> align -> string -> window -> unit
 val indicator : rect -> window -> bool -> unit
 val lcd : rect -> window -> char -> unit

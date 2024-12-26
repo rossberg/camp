@@ -46,8 +46,28 @@ let win_pos = ref (0, 0)     (* logical position ignoring snap *)
 let fonts = Array.make 64 None
 let symfonts = Array.make 64 None
 
+let background = ref None
+
 let window win =
-  Api.Mouse.set_cursor win `Default;
+  if !background = None then
+  (
+    let (/) = Filename.concat in
+    let path = Filename.dirname Sys.argv.(0) / "assets" / "bg.jpg" in
+    background := Some (Image.load win path)
+  );
+  let bg = Option.get !background in
+
+  let ww, wh = Window.size win in
+  let iw, ih = Image.size bg in
+  for i = 0 to (ww + iw - 1)/iw - 1 do
+    let x = if ww < iw then - (iw - ww)/2 else i*iw in
+    for j = 0 to (wh + ih - 1)/ih - 1 do
+      let y = if wh < ih then - (ih - wh)/2 else j*ih in
+      Draw.image win x y 1 bg
+    done
+  done;
+
+  Mouse.set_cursor win `Default;
   let m = Mouse.pos win in
   let mouse' = add m (Window.pos win) in
   mouse_delta := sub mouse' !mouse_pos;
@@ -142,6 +162,10 @@ let wheel r win = wheel_status win r
 let drag r win eps = drag_status win r eps
 
 
+let box r c win =
+  let x, y, w, h = dim win r in
+  Draw.fill win x y w h c
+
 let label r align s win =
   let x, y, w, h = dim win r in
   let font = font win h in
@@ -158,11 +182,10 @@ let indicator r win on =
   Draw.fill_circ win x y w h (fill on);
   Draw.circ win x y w h (border `Untouched)
 
-let lcd' win r' elem =
+let lcd' win r' c elem =
   let open Api.Draw in
   let x, y, w, h = r' in
   let m = h / 2 in
-  let c = `Green in
   match elem with
   | `N ->
     line win (x + 1) (y + 0) (x + w - 3) (y + 0) c;
@@ -190,9 +213,26 @@ let lcd' win r' elem =
     rect win x (y + 3 * h / 4) 2 2 c
 
 let lcd r win d =
-  List.iter (lcd' win (dim win r))
+  if d = '-' || d = '+' then
+    lcd' win (dim win r) `Green `C
+  else if d = ':' then
+    lcd' win (dim win r) `Green `Dots
+  else
+    List.iter (lcd' win (dim win r) `Green) [`N; `S; `C; `NW; `SW; `NE; `SE];
+  List.iter (lcd' win (dim win r) (`Trans (`Black, 0xc0)))
     (match d with
-    | '-' -> [`C]
+    | '+' -> [`C]
+    | '0' -> [`C]
+    | '1' -> [`N; `C; `S; `NW; `SW]
+    | '2' -> [`NW; `SE]
+    | '3' -> [`NW; `SW]
+    | '4' -> [`N; `S; `SW]
+    | '5' -> [`NE; `SW]
+    | '6' -> [`NE]
+    | '7' -> [`C; `S; `NW; `SW]
+    | '8' -> []
+    | '9' -> [`SW]
+(*
     | '0' -> [`N; `S; `NW; `SW; `NE; `SE]
     | '1' -> [`NE; `SE]
     | '2' -> [`N; `S; `C; `SW; `NE]
@@ -203,8 +243,8 @@ let lcd r win d =
     | '7' -> [`N; `NE; `SE]
     | '8' -> [`N; `S; `C; `NW; `SW; `NE; `SE]
     | '9' -> [`N; `S; `C; `NW; `NE; `SE]
-    | ':' -> [`Dots]
-    | _ -> failwith "lcd"
+*)
+    | _ -> []
     )
 
 

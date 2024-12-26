@@ -22,6 +22,8 @@ let library_indicator = Ui.indicator (-30, 85, 7, 7)
 let library_button = Ui.control_button (-45, 94, 35, 11) "" ([], `Char 'L')
 let library_label = Ui.label (-45, 106, 35, label_h) `Center "LIBRARY"
 
+let info_box = Ui.box (10, 10, -55, 98) `Black
+
 let lcd_minus = Ui.lcd (15, 15, 14, 20)
 let lcd1 = Ui.lcd (32, 15, 14, 20)
 let lcd2 = Ui.lcd (49, 15, 14, 20)
@@ -37,8 +39,8 @@ let volup_key = Ui.key ([], `Char '+')
 let voldown_key = Ui.key ([], `Char '-')
 
 let prop_ticker = Ui.ticker (15, 38, -80, 12)
-let title_ticker = Ui.ticker (10, 70, -80, 16)
-let seek_bar = Ui.progress_bar (10, 90, -80, 14)
+let title_ticker = Ui.ticker (12, 70, -80, 16)
+let seek_bar = Ui.progress_bar (12, 90, -80, 14)
 let rw_key = Ui.key ([], `Arrow `Left)
 let ff_key = Ui.key ([], `Arrow `Right)
 
@@ -70,7 +72,7 @@ let playlist = Ui.table playlist_rect playlist_row_h
 let playlist_scroll = Ui.scroll_bar (-20, 170, 10, -18)
 let playlist_wheel = Ui.wheel (10, 170, -10, -18)
 let playlist_drag = Ui.drag (10, 170, -20, -18)
-let playlist_summary = Ui.ticker (10, -16, 80, 10)
+let playlist_summary = Ui.ticker (10, -14, 80, 10)
 let playlist_resizer = Ui.resizer (-14, -14, 14, 14)
 
 let up_key = Ui.key ([], `Arrow `Up)
@@ -121,7 +123,7 @@ let fmt_time t =
   let t' = int_of_float (Float.trunc t) in
   fmt "%d:%02d" (t' / 60) (t' mod  60)
 
-let fmt_time2 t =
+let _fmt_time2 t =
   let t' = int_of_float (Float.trunc t) in
   fmt "%02d:%02d" (t' / 60) (t' mod  60)
 
@@ -260,13 +262,15 @@ let run_control (st : State.t) =
     );
 
   (* LCD *)
+  info_box st.win;
   lcd_colon st.win ':';
-  let time =
+  let sign, time =
     match st.timemode with
-    | `Elapse -> elapsed
-    | `Remain -> lcd_minus st.win '-'; remaining
+    | `Elapse -> '+', elapsed
+    | `Remain -> '-', remaining
   in
   let seconds = int_of_float (Float.round time) in
+  lcd_minus st.win sign;
   lcd1 st.win (Char.chr (Char.code '0' + seconds mod 6000 / 600));
   lcd2 st.win (Char.chr (Char.code '0' + seconds mod 600 / 60));
   lcd3 st.win (Char.chr (Char.code '0' + seconds mod 60 / 10));
@@ -322,11 +326,13 @@ let run_control (st : State.t) =
   if progress' <> progress && not silence then
     State.seek_track st (clamp 0.0 1.0 progress');
 
+(*
   let s1 = fmt_time2 elapsed in
   let s2 = "-" ^ fmt_time2 remaining in
   let w2 = Api.Draw.text_width st.win 11 (Ui.font st.win 11) s2 in
-  Api.Draw.text st.win 12 91 11 `White (Ui.font st.win 11) s1;
+  Api.Draw.text st.win 14 91 11 `White (Ui.font st.win 11) s1;
   Api.Draw.text st.win (278 - w2) 91 11 `White (Ui.font st.win 11) s2;
+*)
 
   (* Title info *)
   let name =
@@ -340,15 +346,6 @@ let run_control (st : State.t) =
   playlist_label st.win;
   playlist_indicator st.win st.playopen;
   let playopen' = playlist_button st.win st.playopen in
-  if st.playopen then
-    st.playheight <- snd (Api.Window.size st.win) - control_h;
-  (match st.playopen, playopen' with
-  | false, true ->
-    Api.Window.set_size st.win control_w (control_h + st.playheight)
-  | true, false ->
-    Api.Window.set_size st.win control_w control_h
-  | _, _ -> ()
-  );
   st.playopen <- playopen';
 
   (* TODO *)
@@ -381,7 +378,7 @@ let run_playlist (st : State.t) =
       let track = st.playlist.(i) in
       if now -. track.last_update > playlist_file_check_freq then
         State.update_track st track;
-      let bg = if i mod 2 = 0 then `Black else `Gray 0x18 in
+      let bg = if i mod 2 = 0 then `Black else `Gray 0x10 in
       let fg =
         match track.status with
         | _ when i = st.playpos ->
@@ -465,6 +462,7 @@ let run_playlist (st : State.t) =
       then max 0 (Option.value (State.first_selected st) ~default: (len - 1) + d)
       else min (len - 1) (Option.value (State.last_selected st) ~default: 0 + d)
     in
+    st.playrange <- i, i;
     State.deselect_all st;
     State.select st i i;
   );
@@ -497,8 +495,8 @@ let run_playlist (st : State.t) =
 
   if selall_key st.win then
   (
-    State.select_all st;
     st.playrange <- 0, len - 1;
+    State.select_all st;
   );
 
   (* Playlist reordering *)
@@ -553,7 +551,9 @@ let run_playlist (st : State.t) =
   playlist_summary st.win (fmt_sum st.playselsum ^ " / " ^ fmt_sum st.playsum);
 
   (* Playlist resizing *)
-  playlist_resizer st.win (control_w, control_h + playlist_min) (control_w, -1)
+  let _, h' =
+    playlist_resizer st.win (control_w, control_h + playlist_min) (control_w, -1) in
+  st.playheight <- h' - control_h
 
 
 (* Runner *)
@@ -561,10 +561,13 @@ let run_playlist (st : State.t) =
 let rec run (st : State.t) =
   Api.Draw.start st.win (`Trans (`Black, 0x40));
   Ui.window st.win;
+  let playopen = st.playopen in
   run_control st;
-  let w, h = if st.playopen then run_playlist st else Api.Window.size st.win in
+  if playopen then run_playlist st;
   Api.Draw.finish st.win;
-  Api.Window.set_size st.win w h;
+
+  let dh = if st.playopen then st.playheight else 0 in
+  Api.Window.set_size st.win control_w (control_h + dh);
 
   run st
 

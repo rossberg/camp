@@ -123,6 +123,29 @@ struct
 end
 
 
+(* Image *)
+
+type image = Raylib.Texture.t
+
+module Image =
+struct
+  type raw = Raylib.Image.t
+  type prepared = image
+
+  let load_raw path = Raylib.load_image path
+
+  let extract img x y w h =
+    Raylib.image_from_image img
+      (Raylib.Rectangle.create (float x) (float y) (float w) (float h))
+
+  let prepare () img = Raylib.load_texture_from_image img
+
+  let load () path = prepare () (load_raw path)
+
+  let size img = Raylib.Texture.(width img, height img)
+end
+
+
 (* Drawing *)
 
 module Draw =
@@ -188,6 +211,10 @@ struct
 
   let text_width () h f s =
     fst (point_of_vec2 (Raylib.measure_text_ex f s (float h) 1.0))
+
+  let image () x y scale img =
+    let v = vec2_of_point (x, y) in
+    Raylib.draw_texture_ex img v 0.0 (float scale) Raylib.Color.white
 end
 
 

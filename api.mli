@@ -60,6 +60,25 @@ sig
 end
 
 
+(* Image *)
+
+type image
+
+module Image :
+sig
+  type raw
+  type prepared = image
+
+  val load : window -> path -> image
+
+  val load_raw : path -> raw
+  val extract : raw -> int -> int -> int -> int -> raw
+  val prepare : window -> raw -> image
+
+  val size : image -> size
+end
+
+
 (* Drawing *)
 
 module Draw :
@@ -79,6 +98,7 @@ sig
   val gradient : window -> int -> int -> int -> int -> color -> orientation -> color -> unit
   val text : window -> int -> int -> int -> color -> font -> string -> unit
   val text_width : window -> int -> font -> string -> int
+  val image : window -> int -> int -> int -> image -> unit
 end
 
 
