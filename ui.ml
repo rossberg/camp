@@ -100,9 +100,11 @@ let window win =
 
 (* GUI elements *)
 
+let unlit = 0x28
+
 let fill = function
   | true -> `Green
-  | false -> `Trans (`Green, 0x20)
+  | false -> `Trans (`Green, unlit)
 
 let border = function
   | `Pressed -> `Orange
@@ -225,7 +227,7 @@ let lcd r win d =
     lcd' win (dim win r) `Green `Dots
   else
     List.iter (lcd' win (dim win r) `Green) [`N; `S; `C; `NW; `SW; `NE; `SE];
-  List.iter (lcd' win (dim win r) (`Trans (`Black, 0xe0)))
+  List.iter (lcd' win (dim win r) (`Trans (`Black, 0x100 - unlit)))
     (match d with
     | ' ' -> [`N; `S; `C; `NW; `SW; `NE; `SE]
     | '+' -> [`C]
@@ -289,33 +291,27 @@ let resizer r win (minw, minh) (maxw, maxh) =
     ww', wh'
   )
 
-let button r modkey win =
-  let (x, y, w, h), status = element r modkey win in
-  Draw.fill win x y w h (fill false);
-  Draw.rect win x y w h (border status);
-  status = `Released
-
-let control_sym win x y w h c = function
-  | "" -> ()
+let button_text win x y w h c = function
   | "[]" ->
-    Draw.fill win x y w h c
+    Draw.fill win x y w w c
   | "||" ->
-    Draw.fill win x y (w/3) h c;
-    Draw.fill win (x + w - w/3) y (w/3) h c;
+    Draw.fill win x y (w/3) w c;
+    Draw.fill win (x + w - w/3) y (w/3) w c;
   | ">" ->
-    Draw.arrow win x y w h c `Right
+    Draw.arrow win x y w w c `Right
   | ">>" ->
-    Draw.arrow win x y (w/2 + 1) h c `Right;
-    Draw.arrow win (x + w/2) y (w/2 + 1) h c `Right;
+    Draw.arrow win x y (w/2 + 1) w c `Right;
+    Draw.arrow win (x + w/2) y (w/2 + 1) w c `Right;
   | "<<" ->
-    Draw.arrow win x y (w/2) h c `Left;
-    Draw.arrow win (x + w/2) y (w/2) h c `Left;
+    Draw.arrow win x y (w/2) w c `Left;
+    Draw.arrow win (x + w/2) y (w/2) w c `Left;
   | "^" ->
-    Draw.arrow win x y w (h/2) c `Up;
-    Draw.fill win x (y + h - h/3) w (h/3) c;
-  | _ -> assert false
+    Draw.arrow win x y w (w/2) c `Up;
+    Draw.fill win x (y + w - w/3) w (w/3) c;
+  | s ->
+    label (x, y, w, h) `Center s win
 
-let control_button r sym modkey win active =
+let button r txt modkey win active =
   let (x, y, w, h), status = element r modkey win in
   let img = get_img win button_img in
   let sx, sy, dy = if status = `Pressed then 800, 400, 1 else 0, 200, 0 in
@@ -323,9 +319,9 @@ let control_button r sym modkey win active =
   Draw.image win (x - sx) (y - sy) 1 img;
   Draw.unclip win;
   Draw.rect win x y w h (border status);
-  let hsym = h/3 in
+  let wsym = h/3 in
   let c = if active then `RGB 0x40ff40 else `Gray 0xc0 in
-  control_sym win (x + (w - hsym)/2) (y + (h - hsym)/2 + dy) hsym hsym c sym;
+  button_text win (x + (w - wsym)/2) (y + (h - wsym)/2 + dy) wsym (h/2) c txt;
 (*
   Draw.fill win x y w h (fill active);
   Draw.rect win x y w h (border status);
@@ -354,7 +350,7 @@ let volume_bar r win v =
   let h' = int_of_float ((1.0 -. v) *. float h) in
   Draw.fill win (x + w - 2) y 2 h (fill true);
   Draw.tri win x y (w - 2) h (fill true) `NE;
-  Draw.fill win x y w h' (`Trans (`Black, 0xe0));
+  Draw.fill win x y w h' (`Trans (`Black, 0x100 - unlit));
   for j = 0 to h / 2 - 1 do
     Draw.line win x (y + 2*j + 1) (x + w) (y + 2*j) `Black
   done;

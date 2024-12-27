@@ -24,7 +24,10 @@ let exts = [".mp3"; ".flac"; ".wav"; ".ogg"; ".mod"]
 let known_ext path =
   List.mem (String.lowercase_ascii (Filename.extension path)) exts
 
+let separator = String.make 80 '-'
+
 let name_of_path path =
+  if M3u.is_separator path then separator else
   let file = Filename.basename path in
   if known_ext file then Filename.remove_extension file else file
 
@@ -32,9 +35,11 @@ let make_track' path name time status =
   {path; name; time; status; last_update = 0.0}
 
 let make_track path = make_track' path (name_of_path path) 0.0 `Undet
-let make_track_predet path name time = make_track' path name time `Det
+let make_track_predet path name time = make_track' path name time `Predet
 
-let separator = String.make 80 '-'
+let make_separator () = make_track' "separator://" separator 0.0 `Det
+
+let is_separator track = M3u.is_separator track.path
 
 
 (* State *)
@@ -234,6 +239,7 @@ let switch_track st track play =
   eject_track st;
   st.sound <- Api.Audio.load st.audio track.path;
   st.current <- Some track;
+  st.loop <- `None;
   track.time <-
     if st.sound = Api.Audio.silence st.audio then 0.0
     else Api.Audio.length st.audio st.sound;
@@ -270,6 +276,17 @@ let select_all st =
 let deselect_all st =
   st.playselected <- IntSet.empty;
   st.playselsum <- 0.0, 0
+
+let select_inv st =
+  let s = st.playselected in
+  deselect_all st;
+  for i = 0 to Array.length st.playlist - 1 do
+    if not (IntSet.mem i s) then
+    (
+      st.playselected <- IntSet.add i st.playselected;
+      st.playselsum <- add_summary st.playselsum (track_summary st.playlist.(i));
+    )
+  done
 
 let select st i j =
   let i, j = min i j, max i j in
@@ -371,14 +388,16 @@ let insert st pos paths =
         );
       if pos <= st.playpos then st.playpos <- st.playpos + len';
       if pos <= st.playscroll then st.playscroll <- st.playscroll + len';
-      IntSet.iter (fun i -> if pos <= i then move_select st i (i + len'))
-        st.playselected;
+      for i = len - 1 downto pos do
+        if is_selected st i then move_select st i (i + len')
+      done;
     );
     for i = 0 to Array.length playlist' - 1 do
       let sum = track_summary playlist'.(i) in
       st.playsum <- add_summary st.playsum sum
     done
   )
+
 
 let remove_all st =
   if st.playlist <> [||] then
@@ -390,34 +409,63 @@ let remove_all st =
     st.playrange <- no_range;
     st.playsum <- 0.0, 0;
     st.playselsum <- 0.0, 0;
+    if st.current <> None && st.sound = Api.Audio.silence st.audio then eject_track st;
   )
 
-let remove_selected st =
-  let n = num_selected st in
+let remove_if p st n =
   if n > 0 then
   (
     push_undo st;
-    let off = ref 0 in
-    st.playlist <-
-      Array.init (Array.length st.playlist - n) (fun i ->
-        let off' = !off in
-        while is_selected st (i + !off) do incr off done;
-        let adjust pos =
-          if i + off' <= pos && pos <= i + !off then pos - off' else pos
-        in
-        st.playpos <- adjust st.playpos;
-        st.playscroll <- adjust st.playscroll;
-        st.playlist.(i + !off)
-      );
-    deselect_all st;
-    st.playrange <- no_range;
-    st.playsum <- sub_summary st.playsum st.playselsum;
-    st.playsum <- 0.0, 0;
+    let len = Array.length st.playlist in
+    let len' = len - n in
+    let d = ref 0 in
+    let rec skip i =
+      let j = i + !d in
+      let adjust pos = if pos = j then max 0 (min i (len' - 1)) else pos in
+      st.playpos <- adjust st.playpos;
+      st.playscroll <- adjust st.playscroll;
+      if j < len && p j then
+      (
+        st.playsum <- sub_summary st.playsum (track_summary st.playlist.(j));
+        deselect st j j;
+        incr d;
+        skip i
+      )
+      else if is_selected st j then
+        move_select st j i
+    in
+    let playlist' = Array.init len' (fun i -> skip i; st.playlist.(i + !d)) in
+    skip len';
+    assert (len' + !d = len);
+    st.playlist <- playlist';
+    if st.current <> None && st.sound = Api.Audio.silence st.audio then
+      if len' = 0 then eject_track st else switch_track st st.playlist.(st.playpos) false;
   )
+
+let remove_selected st =
+  remove_if (is_selected st) st (num_selected st);
+  st.playrange <- no_range
+
+
+let is_invalid track =
+  match track.status with
+  | `Invalid | `Absent -> true
+  | `Det | `Predet | `Undet -> false
+
+let num_invalid st =
+  Array.fold_left (fun n track -> n + Bool.to_int (is_invalid track)) 0 st.playlist
+
+let remove_invalid st =
+  remove_if (fun i -> is_invalid st.playlist.(i)) st (num_invalid st);
+  st.playrange <-
+    Option.value (first_selected st) ~default: (fst no_range),
+    Option.value (last_selected st) ~default: (snd no_range)
+
 
 let move_selected st d =
   if num_selected st > 0 then
   (
+    push_undo st;
     let len = Array.length st.playlist in
     if d < 0 then
       for i = 0 to len - 1 do

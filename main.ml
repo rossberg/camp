@@ -1,7 +1,5 @@
 (* Main Entry Point *)
 
-open Audio_file
-
 
 (* Configuration *)
 
@@ -14,15 +12,15 @@ let control_w = 360
 let control_h = 160
 let label_h = 8
 
-let power_button = Ui.control_button (-45, 10, 35, 22) "" ([`Control], `Char 'Q')
+let power_button = Ui.button (-45, 10, 35, 22) "" ([`Control], `Char 'Q')
 let power_label = Ui.label (-45, 33, 35, label_h) `Center "POWER"
 
 let playlist_indicator = Ui.indicator (-30, 48, 7, 7)
-let playlist_button = Ui.control_button (-45, 57, 35, 11) "" ([], `Char 'P')
+let playlist_button = Ui.button (-45, 57, 35, 11) "" ([], `Char 'P')
 let playlist_label = Ui.label (-45, 69, 35, label_h) `Center "PLAYLIST"
 
 let library_indicator = Ui.indicator (-30, 85, 7, 7)
-let library_button = Ui.control_button (-45, 94, 35, 11) "" ([], `Char 'L')
+let library_button = Ui.button (-45, 94, 35, 11) "" ([], `Char 'L')
 let library_label = Ui.label (-45, 106, 35, label_h) `Center "LIBRARY"
 
 let info_box = Ui.box (10, 10, -55, 98) `Black
@@ -37,7 +35,7 @@ let lcd_button = Ui.mouse (15, 15, 90, 20) `Left
 
 let volume_bar = Ui.volume_bar (-87, 15, 27, 50)
 let volume_wheel = Ui.wheel (0, 0, control_w, control_h)
-let mute_button = Ui.control_button (-72, 70, 12, 12) "" ([], `Char '0')
+let mute_button = Ui.button (-72, 70, 12, 12) "" ([], `Char '0')
 let volup_key = Ui.key ([], `Char '+')
 let voldown_key = Ui.key ([], `Char '-')
 
@@ -47,25 +45,25 @@ let seek_bar = Ui.progress_bar (12, 90, -80, 14)
 let rw_key = Ui.key ([], `Arrow `Left)
 let ff_key = Ui.key ([], `Arrow `Right)
 
-let bwd_button = Ui.control_button (10, 122, 40, 30) "<<" ([], `Char 'Z')
-let play_button = Ui.control_button (50, 122, 40, 30) ">" ([], `Char 'X')
-let pause_button = Ui.control_button (90, 122, 40, 30) "||" ([], `Char 'C')
-let stop_button = Ui.control_button (130, 122, 40, 30) "[]" ([], `Char 'V')
-let fwd_button = Ui.control_button (170, 122, 40, 30) ">>" ([], `Char 'B')
-let eject_button = Ui.control_button (210, 122, 40, 30) "^" ([], `Char 'N')
+let bwd_button = Ui.button (10, 122, 40, 30) "<<" ([], `Char 'Z')
+let play_button = Ui.button (50, 122, 40, 30) ">" ([], `Char 'X')
+let pause_button = Ui.button (90, 122, 40, 30) "||" ([], `Char 'C')
+let stop_button = Ui.button (130, 122, 40, 30) "[]" ([], `Char 'V')
+let fwd_button = Ui.button (170, 122, 40, 30) ">>" ([], `Char 'B')
+let eject_button = Ui.button (210, 122, 40, 30) "^" ([], `Char 'N')
 
 let shuffle_indicator = Ui.indicator (270, 122, 7, 7)
-let shuffle_button = Ui.control_button (259, 131, 25, 11) "" ([], `Char 'T')
+let shuffle_button = Ui.button (259, 131, 25, 11) "" ([], `Char 'T')
 let shuffle_label = Ui.label (259, 143, 25, label_h) `Center "SHUFFLE"
 
 let repeat_indicator1 = Ui.indicator (296, 122, 7, 7)
 let repeat_indicator2 = Ui.indicator (307, 122, 7, 7)
-let repeat_button = Ui.control_button (292, 131, 25, 11) "" ([], `Char 'R')
+let repeat_button = Ui.button (292, 131, 25, 11) "" ([], `Char 'R')
 let repeat_label = Ui.label (292, 143, 25, label_h) `Center "REPEAT"
 
 let loop_indicator1 = Ui.indicator (329, 122, 7, 7)
 let loop_indicator2 = Ui.indicator (340, 122, 7, 7)
-let loop_button = Ui.control_button (325, 131, 25, 11) "" ([], `Char 'J')
+let loop_button = Ui.button (325, 131, 25, 11) "" ([], `Char 'J')
 let loop_label = Ui.label (325, 143, 25, label_h) `Center "LOOP"
 
 let playlist_row_h = 13
@@ -91,7 +89,10 @@ let selpageup_key = Ui.key ([`Shift], `Page `Up)
 let selpagedown_key = Ui.key ([`Shift], `Page `Down)
 let selbegin_key = Ui.key ([`Shift], `End `Up)
 let selend_key = Ui.key ([`Shift], `End `Down)
+
+let selnone_key = Ui.key ([`Control], `Char 'N')
 let selall_key = Ui.key ([`Control], `Char 'A')
+let selinv_key = Ui.key ([`Control], `Char 'I')
 
 let moveup_key = Ui.key ([`Control], `Arrow `Up)
 let movedown_key = Ui.key ([`Control], `Arrow `Down)
@@ -100,10 +101,13 @@ let movepagedown_key = Ui.key ([`Control], `Page `Down)
 let movebegin_key = Ui.key ([`Control], `End `Up)
 let moveend_key = Ui.key ([`Control], `End `Down)
 
-let del_key = Ui.key ([], `Delete)
-
-let undo_button = Ui.key ([`Control], `Char 'Z')
-let redo_button = Ui.key ([`Shift; `Control], `Char 'Z')
+let sep_button = Ui.button (125, -16, 25, 16) "SEP" ([`Control], `Char ' ')
+let del_button = Ui.button (150, -16, 25, 16) "DEL" ([], `Delete)
+let crop_button = Ui.button (175, -16, 25, 16) "CROP" ([`Shift], `Delete)
+let clean_button = Ui.button (200, -16, 25, 16) "CLEAN" ([`Control], `Delete)
+let undo_button = Ui.button (225, -16, 25, 16) "UNDO" ([`Control], `Char 'Z')
+let redo_button = Ui.button (250, -16, 25, 16) "REDO" ([`Shift; `Control], `Char 'Z')
+let save_button = Ui.button (275, -16, 25, 16) "SAVE" ([`Control], `Char 'S')
 
 
 (* Helpers *)
@@ -217,11 +221,7 @@ let run_control (st : State.t) =
   (
     State.eject_track st;
     State.remove_all st;
-  )
-  else if undo_button st.win then
-    State.pop_undo st
-  else if redo_button st.win then
-    State.pop_redo st;
+  );
 
   if Api.Key.is_released (`Char ' ') then
   (
@@ -330,6 +330,15 @@ let run_control (st : State.t) =
       );
   );
 
+  (* Title info *)
+  let name =
+    match st.current with
+    | Some track when not (State.is_separator track) ->
+      track.name ^ " - " ^ fmt_time track.time
+    | _ -> App.(name ^ " " ^ version)
+  in
+  title_ticker st.win name;
+
   (* Seek bar *)
   let progress =
     if length > 0.0 && not silence then elapsed /. length else 0.0 in
@@ -345,14 +354,6 @@ let run_control (st : State.t) =
   Api.Draw.text st.win 14 91 11 `White (Ui.font st.win 11) s1;
   Api.Draw.text st.win (278 - w2) 91 11 `White (Ui.font st.win 11) s2;
 *)
-
-  (* Title info *)
-  let name =
-    match st.current with
-    | Some track -> track.name ^ " - " ^ fmt_time track.time
-    | None -> App.(name ^ " " ^ version)
-  in
-  title_ticker st.win name;
 
   (* Window modes *)
   playlist_label st.win;
@@ -395,7 +396,7 @@ let run_playlist (st : State.t) =
         match track.status with
         | _ when i = st.playpos ->
           if track.path = (Option.get st.current).path then `White else `Gray 0xc0
-        | _ when M3u.is_separator track.path -> `Green
+        | _ when State.is_separator track -> `Green
         | `Absent -> `Red
         | `Invalid -> `Yellow
         | `Undet -> `Blue
@@ -413,7 +414,7 @@ let run_playlist (st : State.t) =
   | None -> ()
   | Some i ->
     let i = st.playscroll + i in
-    let i' = min i (len - 1) in
+    let i' = max 0 (min i (len - 1)) in
     let fst' = if i >= len then max_int else i in
     if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left && dragging = None then
     (
@@ -510,6 +511,15 @@ let run_playlist (st : State.t) =
   (
     st.playrange <- 0, len - 1;
     State.select_all st;
+  )
+  else if selnone_key st.win then
+  (
+    st.playrange <- State.no_range;
+    State.deselect_all st;
+  )
+  else if selinv_key st.win then
+  (
+    State.select_inv st;
   );
 
   (* Playlist reordering *)
@@ -529,7 +539,6 @@ let run_playlist (st : State.t) =
   in
   if min len (abs d) > 0 then
   (
-    State.push_undo st;
     let d' =
       if d < 0
       then max d (- Option.value (State.first_selected st) ~default: (len - 1))
@@ -547,9 +556,39 @@ let run_playlist (st : State.t) =
   st.playscroll <- clamp 0 (max 0 (len - vlen))
     (int_of_float (Float.round (pos' *. float len)));
 
-  (* Playlist deletion *)
-  if del_key st.win then
+  (* Playlist buttons *)
+  if sep_button st.win false then
+  (
+    let pos = Option.value (State.first_selected st) ~default: 0 in
+    State.insert st pos ["separator://"];
+    if State.num_selected st = 1 then
+    (
+      State.deselect_all st;
+      State.select st pos pos;
+    )
+  );
+
+  if del_button st.win false then
     State.remove_selected st;
+
+  if crop_button st.win false then
+  (
+    State.select_inv st;
+    State.remove_selected st;
+    State.select_all st;
+  );
+
+  if clean_button st.win false then
+    State.remove_invalid st;
+
+  if undo_button st.win false then
+    State.pop_undo st;
+
+  if redo_button st.win false then
+    State.pop_redo st;
+
+  if save_button st.win false then
+    ();  (* TODO *)
 
   (* Playlist drag & drop *)
   let dropped = Api.File.dropped st.win in
