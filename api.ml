@@ -37,6 +37,16 @@ let floats_of_vec2 v =
   Raylib.Vector2.(x v, y v)
 
 
+(* OS-specific Nonsense *)
+
+let is_mac =
+  Sys.unix &&
+  let ic = Unix.open_process_in "uname" in
+  let uname = input_line ic in
+  close_in ic;
+  uname = "Darwin"
+
+
 (* Window *)
 
 type window = unit
@@ -250,12 +260,12 @@ type key =
   | `Insert
   | `F of int
   | `Shift of side
-  | `Control of side
+  | `Command of side
   | `Alt of side
   | `Caps
 ]
 
-type modifier = [`Shift | `Control | `Alt]
+type modifier = [`Shift | `Command | `Alt]
 
 type resize = [`N_S | `E_W | `NE_SW | `NW_SE | `All]
 type cursor =
@@ -371,8 +381,8 @@ struct
     | `F _ -> failwith "Api.Key.key"
     | `Shift `Left -> Raylib.Key.Left_shift
     | `Shift `Right -> Raylib.Key.Right_shift
-    | `Control `Left -> Raylib.Key.Left_control
-    | `Control `Right -> Raylib.Key.Right_control
+    | `Command `Left -> Raylib.Key.(if is_mac then Left_super else Left_control)
+    | `Command `Right -> Raylib.Key.(if is_mac then Right_super else Right_control)
     | `Alt `Left -> Raylib.Key.Left_alt
     | `Alt `Right -> Raylib.Key.Right_alt
     | `Caps -> Raylib.Key.Caps_lock
@@ -383,16 +393,16 @@ struct
   let is_released k = Raylib.is_key_released (key k)
 
   let shift = [`Shift `Left; `Shift `Right]
-  let control = [`Control `Left; `Control `Right]
+  let control = [`Command `Left; `Command `Right]
   let alt = [`Alt `Left; `Alt `Right]
 
   let some_down = List.exists is_down
   let is_modifier_down = function
     | `Shift -> some_down shift
-    | `Control -> some_down control
+    | `Command -> some_down control
     | `Alt -> some_down alt
 
-  let all_modifiers = [|`Shift ; `Control ; `Alt|]
+  let all_modifiers = [|`Shift ; `Command ; `Alt|]
   let are_modifiers_down modifiers =
     Array.for_all (fun key ->
       is_modifier_down key = List.mem key modifiers
@@ -424,7 +434,7 @@ struct
   let load () path =
     if not (Sys.file_exists path) then silence () else
     (* Raylib can't handle UTF-8 file paths, so copy those to temp file. *)
-    let path' = if Unicode.is_ascii path then path else File.copy_to_temp path in
+    let path' = if Unicode.is_ascii path then path else Storage.copy_to_temp path in
     let format = try Format.read path' with _ -> Format.unknown in
     let music = Raylib.load_music_stream path' in
     (* TODO: This is a work-around for a bug in Raylib < 5.5.
@@ -446,7 +456,7 @@ struct
   let free () sound =
     assert (sound != silence ());
     Raylib.stop_music_stream sound.music;
-    Option.iter File.remove_temp sound.temp;
+    Option.iter Storage.remove_temp sound.temp;
     Raylib.unload_music_stream sound.music
 
   let play () sound = Raylib.play_music_stream sound.music
@@ -479,4 +489,13 @@ struct
     let paths = Raylib.FilePathList.files list in
     Raylib.unload_dropped_files list;
     paths
+end
+
+
+(* Clipboard *)
+
+module Clipboard =
+struct
+  let read () = Raylib.get_clipboard_text ()
+  let write () s = Raylib.set_clipboard_text s
 end

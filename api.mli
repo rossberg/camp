@@ -124,12 +124,12 @@ type key =
   | `Insert
   | `F of int
   | `Shift of side
-  | `Control of side
+  | `Command of side
   | `Alt of side
   | `Caps
 ]
 
-type modifier = [`Shift | `Control | `Alt]
+type modifier = [`Shift | `Command | `Alt]
 
 type resize = [`N_S | `E_W | `NE_SW | `NW_SE | `All]
 type cursor =
@@ -202,4 +202,13 @@ end
 module File :
 sig
   val dropped : window -> path list
+end
+
+
+(* Clipboard *)
+
+module Clipboard :
+sig
+  val read : window -> string option
+  val write : window -> string -> unit
 end

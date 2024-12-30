@@ -352,7 +352,7 @@ let volume_bar r win v =
   Draw.tri win x y (w - 2) h (fill true) `NE;
   Draw.fill win x y w h' (`Trans (`Black, 0x100 - unlit));
   for j = 0 to h / 2 - 1 do
-    Draw.line win x (y + 2*j + 1) (x + w) (y + 2*j) `Black
+    Draw.line win x (y + 2*j + 1) (x + w + 1) (y + 2*j + 1) `Black
   done;
   if status <> `Pressed then v else
   let _, my = Mouse.pos win in
@@ -379,7 +379,7 @@ let scroll_bar r win v len =
   let h' = int_of_float (Float.ceil (len *. float (h - 2))) in
   Draw.fill win x y' w h' (fill true);
   for j = 0 to h / 2 - 1 do
-    Draw.line win x (y + 2*j + 1) (x + w) (y + 2*j) `Black
+    Draw.line win x (y + 2*j + 1) (x + w) (y + 2*j + 1) `Black
   done;
   Draw.rect win x y w h (border status);
   if status <> `Pressed then v else

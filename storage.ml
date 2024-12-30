@@ -46,19 +46,13 @@ let clear_temp () =
 
 (* Loading & Saving *)
 
-let save file f =
+let save filename f =
   try
     if not (Sys.file_exists dir) then Sys.mkdir dir 0o770;
-    Out_channel.with_open_bin (Filename.concat dir file) f
+    Out_channel.with_open_bin (Filename.concat dir filename) f
   with Sys_error _ -> ()
 
-let load file f =
+let load filename f =
   try
-    In_channel.with_open_bin (Filename.concat dir file) f
+    In_channel.with_open_bin (Filename.concat dir filename) f
   with Sys_error _ | End_of_file | Scanf.Scan_failure _ | Failure _ -> ()
-
-
-let fscanf file =
-  match In_channel.input_line file with
-  | None -> raise End_of_file
-  | Some s -> Scanf.sscanf s

@@ -1,5 +1,6 @@
 (* Persisted State *)
 
+open Audio_file
 open State
 
 
@@ -14,32 +15,35 @@ let clamp_pair lx ly hx hy (x, y) = clamp lx hx x, clamp ly hy y
 
 (* Playlist *)
 
+let string_of_playlist tracks =
+  List.init (Array.length tracks) (fun i ->
+    let time = int_of_float tracks.(i).time in
+    let info =
+      if time = 0 then None else Some M3u.{time; title = tracks.(i).name} in
+    M3u.{path = tracks.(i).path; info}
+  ) |> M3u.make_ext
+
+let playlist_of_string s =
+  Array.map (fun (item : M3u.item) ->
+    match item.info with
+    | None -> State.make_track item.path
+    | Some info ->
+      State.make_track_predet item.path info.title (float info.time)
+  ) (Array.of_list (M3u.parse_ext s))
+
 let playlist_file = "playlist.m3u"
 
-(* TODO: unify with M3u module *)
-
 let save_playlist tracks =
-  File.save playlist_file (fun file ->
-    let output fmt = Printf.fprintf file fmt in
-    output "%s" "#EXTM3U\n";
-    Array.iter (fun track ->
-      output "#EXTINF:%.0f,%s\n" track.time track.name;
-      output "%s\n" track.path;
-    ) tracks
+  Storage.save playlist_file (fun file ->
+    Out_channel.output_string file (string_of_playlist tracks)
   )
 
 let load_playlist () =
-  let tracks = ref [] in
-  File.load playlist_file (fun file ->
-    let input fmt = File.fscanf file fmt in
-    input " # EXTM3U " ();
-    while true do
-      let time, name = input " # EXTINF : %d , %[\x20-\xff]" pair in
-      let path = String.trim (input " %[\x20-\xff]" value) in
-      tracks := make_track_predet path name (float time) :: !tracks
-    done
+  let tracks = ref [||] in
+  Storage.load playlist_file (fun file ->
+    tracks := playlist_of_string (In_channel.input_all file)
   );
-  Array.of_list (List.rev !tracks)
+  !tracks
 
 
 (* State *)
@@ -50,7 +54,7 @@ let min_h = 160
 let state_file = "state.conf"
 
 let save_state st =
-  File.save state_file (fun file ->
+  Storage.save state_file (fun file ->
     let output fmt  = Printf.fprintf file fmt in
     output "[%s]\n" App.name;
     let x, y = Api.Window.pos st.win in
@@ -58,14 +62,14 @@ let save_state st =
     let w, h = Api.Window.size st.win in
     output "win_size = %d, %d\n" w h;
     output "volume = %.2f\n" st.volume;
-    output "play_pos = %d\n" st.playpos;
+    output "play_pos = %d\n" st.playlist_pos;
     output "play = %s\n" (match st.current with Some s -> s.path | None -> "");
     let length = Api.Audio.length st.audio st.sound in
     let played = Api.Audio.played st.audio st.sound in
     output "seek_pos = %.4f\n" (if length > 0.0 then played /. length else 0.0);
-    output "play_scroll = %d\n" st.playscroll;
-    output "play_open = %d\n" (Bool.to_int st.playopen);
-    output "play_height = %d\n" st.playheight;
+    output "play_scroll = %d\n" st.playlist_scroll;
+    output "play_open = %d\n" (Bool.to_int st.playlist_open);
+    output "play_height = %d\n" st.playlist_height;
     output "repeat = %d\n"
       (match st.repeat with `None -> 0 | `One -> 1 | `All -> 2);
     let a, b =
@@ -78,9 +82,14 @@ let save_state st =
   );
   save_playlist st.playlist
 
+let fscanf file =
+  match In_channel.input_line file with
+  | None -> raise End_of_file
+  | Some s -> Scanf.sscanf s
+
 let load_state st =
-  File.load state_file (fun file ->
-    let input fmt = File.fscanf file fmt in
+  Storage.load state_file (fun file ->
+    let input fmt = fscanf file fmt in
     if input " [%s@]" value <> App.name then failwith "load_state";
     let sw, sh = Api.Window.screen_size st.win in
     let x, y = clamp_pair 0 0 (sw - 20) (sh - 20)
@@ -97,14 +106,14 @@ let load_state st =
     st.playlist <- load_playlist ();
 
     let len = Array.length st.playlist - 1 in
-    st.playpos <- clamp 0 (len - 1) (input " play_pos = %d " value);
+    st.playlist_pos <- clamp 0 (len - 1) (input " play_pos = %d " value);
     let current = make_track (String.trim (input " play = %[\x20-\xff]" value)) in
     State.switch_track st current false;
     State.seek_track st (clamp 0.0 1.0 (input " seek_pos = %f " value));
-    st.playscroll <- clamp 0 (len - 1) (input " play_scroll = %d " value);
-    st.playopen <- (0 <> input " play_open = %d " value);
+    st.playlist_scroll <- clamp 0 (len - 1) (input " play_scroll = %d " value);
+    st.playlist_open <- (0 <> input " play_open = %d " value);
     (* TODO: 73 = playlist_min; use constant *)
-    st.playheight <- max 83 (input " play_height = %d " value);
+    st.playlist_height <- max 83 (input " play_height = %d " value);
     st.repeat <-
       (match input " repeat = %d " value with 1 -> `One | 2 -> `All | _ -> `None);
     st.loop <-

@@ -56,15 +56,15 @@ type t =
   mutable shuffle : bool;
   mutable repeat : [`None | `One | `All];
   mutable loop : [`None | `A of time | `AB of time * time];
-  mutable playopen : bool;
-  mutable playheight : int;
-  mutable playscroll : int;
-  mutable playpos : int;
-  mutable playrange : int * int;
+  mutable playlist_open : bool;
+  mutable playlist_height : int;
+  mutable playlist_scroll : int;
+  mutable playlist_pos : int;
+  mutable playlist_range : int * int;
   mutable playlist : track array;
-  mutable playselected : IntSet.t;
-  mutable playsum : time * int;
-  mutable playselsum : time * int;
+  mutable playlist_selected : IntSet.t;
+  mutable playlist_sum : time * int;
+  mutable playlist_sum_selected : time * int;
   mutable undo : (int * track array * int * (time * int)) list ref;
   mutable redo : (int * track array * int * (time * int)) list ref;
 }
@@ -82,15 +82,15 @@ let make win audio =
     shuffle = false;
     repeat = `None;
     loop = `None;
-    playopen = false;
-    playheight = 200;
-    playscroll = 0;
-    playpos = 0;
-    playrange = no_range;
+    playlist_open = false;
+    playlist_height = 200;
+    playlist_scroll = 0;
+    playlist_pos = 0;
+    playlist_range = no_range;
     playlist = [||];
-    playselected = IntSet.empty;
-    playsum = 0.0, 0;
-    playselsum = 0.0, 0;
+    playlist_selected = IntSet.empty;
+    playlist_sum = 0.0, 0;
+    playlist_sum_selected = 0.0, 0;
     undo = ref [];
     redo = ref [];
   }
@@ -102,43 +102,29 @@ let ok st =
   let stopped = not playing && not paused in
   let silence = st.sound = Api.Audio.silence st.audio in
   let len = Array.length st.playlist in
-(*
-Printf.printf "[%s current=%b played=%.2f silence=%b playpos=%d len=%d]\n%!"
-(if playing then "playing" else if paused then "paused" else "stopped")
-(st.current <> None) played silence st.playpos (Array.length st.playlist);
-*)
   assert (st.current <> None || silence);
   assert (st.current <> None || stopped);
   assert (st.current <> None || st.playlist = [||]);
-  assert (st.playpos = 0 && len = 0 || st.playpos >= 0 && st.playpos < len);
-  assert (st.playscroll = 0 && len = 0 || st.playscroll >= 0 && st.playscroll < len);
-  assert (IntSet.max_elt_opt st.playselected <= Some (len - 1));
-  assert (fst st.playrange = min_int || fst st.playrange = max_int || fst st.playrange >= 0 && fst st.playrange < len);
-  assert (snd st.playrange = 0 || snd st.playrange >= 0 && snd st.playrange < len);
+  assert (
+    st.playlist_pos = 0 && len = 0 ||
+    st.playlist_pos >= 0 && st.playlist_pos < len
+  );
+  assert (
+    st.playlist_scroll = 0 && len = 0 ||
+    st.playlist_scroll >= 0 && st.playlist_scroll < len
+  );
+  assert (IntSet.max_elt_opt st.playlist_selected <= Some (len - 1));
+  assert (
+    fst st.playlist_range = min_int ||
+    fst st.playlist_range = max_int ||
+    fst st.playlist_range >= 0 && fst st.playlist_range < len
+  );
+  assert (
+    snd st.playlist_range = 0 ||
+    snd st.playlist_range >= 0 && snd st.playlist_range < len
+  );
   assert (match st.loop with `AB (t1, t2) -> t1 <= t2 | _ -> true);
   ()
-(*
-  let length = Api.Audio.length st.audio st.sound in
-  let played = Api.Audio.played st.audio st.sound in
-  let playing = Api.Audio.is_playing st.audio st.sound in
-  let paused = not playing && played > 0.0 in
-  let stopped = not playing && not paused in
-  let silence = st.sound = Api.Audio.silence st.audio in
-Printf.printf "[%s current=%s played=%.2f silence=%b playpos=%d len=%d]\n%!"
-(match st.status with Playing -> "playing" | Paused -> "paused" | Stopped -> "stopped")
-(st.current <> None) played silence st.playpos (Array.length st.playlist);
-  assert (st.current <> None || silence);
-  assert (st.current <> None || st.status = Stopped);
-  assert (st.current <> None || st.playlist = [||]);
-  assert (st.status <> Playing || playing || stopped);  (* silence can be playing at 0.0 *)
-  assert (st.status <> Paused || paused);
-  assert (st.status <> Stopped || stopped);
-  assert (not playing || st.status = Playing);
-  assert (not paused || st.status = Paused);
-  assert (not stopped || st.status = Stopped);
-  assert (not silence || st.status <> Paused);
-  assert (st.playpos >= 0 && st.playpos <= max 0 (Array.length st.playlist - 1))
-*)
 
 
 (* Playlist Summary *)
@@ -152,13 +138,13 @@ let track_summary track =
   | `Predet | `Det -> track.time, 0
 
 let update_summary st =
-  st.playsum <- 0.0, 0;
-  st.playselsum <- 0.0, 0;
+  st.playlist_sum <- 0.0, 0;
+  st.playlist_sum_selected <- 0.0, 0;
   for i = 0 to Array.length st.playlist - 1 do
     let sum = track_summary st.playlist.(i) in
-    st.playsum <- add_summary st.playsum sum;
-    if IntSet.mem i st.playselected then
-      st.playselsum <- add_summary st.playselsum sum;
+    st.playlist_sum <- add_summary st.playlist_sum sum;
+    if IntSet.mem i st.playlist_selected then
+      st.playlist_sum_selected <- add_summary st.playlist_sum_selected sum;
   done
 
 
@@ -258,53 +244,52 @@ let seek_track st percent =
 
 (* Playlist Selection *)
 
-let num_selected st = IntSet.cardinal st.playselected
-let first_selected st = IntSet.min_elt_opt st.playselected
-let last_selected st = IntSet.max_elt_opt st.playselected
-let is_selected st i = IntSet.mem i st.playselected
-
-let move_select st i j =
-  assert (IntSet.mem i st.playselected);
-  st.playselected <- IntSet.add j (IntSet.remove i st.playselected)
+let num_selected st = IntSet.cardinal st.playlist_selected
+let first_selected st = IntSet.min_elt_opt st.playlist_selected
+let last_selected st = IntSet.max_elt_opt st.playlist_selected
+let is_selected st i = IntSet.mem i st.playlist_selected
 
 let select_all st =
   for i = 0 to Array.length st.playlist - 1 do
-    st.playselected <- IntSet.add i st.playselected
+    st.playlist_selected <- IntSet.add i st.playlist_selected
   done;
-  st.playselsum <- st.playsum
+  st.playlist_sum_selected <- st.playlist_sum
 
 let deselect_all st =
-  st.playselected <- IntSet.empty;
-  st.playselsum <- 0.0, 0
+  st.playlist_selected <- IntSet.empty;
+  st.playlist_sum_selected <- 0.0, 0
 
 let select_inv st =
-  let s = st.playselected in
+  let s = st.playlist_selected in
   deselect_all st;
   for i = 0 to Array.length st.playlist - 1 do
     if not (IntSet.mem i s) then
     (
-      st.playselected <- IntSet.add i st.playselected;
-      st.playselsum <- add_summary st.playselsum (track_summary st.playlist.(i));
+      st.playlist_selected <- IntSet.add i st.playlist_selected;
+      st.playlist_sum_selected <-
+        add_summary st.playlist_sum_selected (track_summary st.playlist.(i));
     )
   done
 
 let select st i j =
   let i, j = min i j, max i j in
   for k = i to j do
-    if not (IntSet.mem k st.playselected) then
+    if not (IntSet.mem k st.playlist_selected) then
     (
-      st.playselected <- IntSet.add k st.playselected;
-      st.playselsum <- add_summary st.playselsum (track_summary st.playlist.(k))
+      st.playlist_selected <- IntSet.add k st.playlist_selected;
+      st.playlist_sum_selected <-
+        add_summary st.playlist_sum_selected (track_summary st.playlist.(k))
     )
   done
 
 let deselect st i j =
   let i, j = min i j, max i j in
   for k = i to j do
-    if IntSet.mem k st.playselected then
+    if IntSet.mem k st.playlist_selected then
     (
-      st.playselected <- IntSet.remove k st.playselected;
-      st.playselsum <- sub_summary st.playselsum (track_summary st.playlist.(k))
+      st.playlist_selected <- IntSet.remove k st.playlist_selected;
+      st.playlist_sum_selected <-
+        sub_summary st.playlist_sum_selected (track_summary st.playlist.(k))
     )
   done
 
@@ -316,21 +301,25 @@ let undo_depth = 100
 let push_undo st =
   if List.length !(st.undo) >= undo_depth then
     st.undo := List.filteri (fun i _ -> i < undo_depth - 1) !(st.undo);
-  st.undo := (st.playpos, st.playlist, st.playscroll, st.playsum) :: !(st.undo);
+  st.undo :=
+    (st.playlist_pos, st.playlist, st.playlist_scroll, st.playlist_sum)
+      :: !(st.undo);
   st.redo := []
 
 let pop_unredo st undo redo =
   match !undo with
   | [] -> ()
   | (pos, list, scroll, sum) :: undo' ->
-    redo := (st.playpos, st.playlist, st.playscroll, st.playsum) :: !redo;
+    redo :=
+      (st.playlist_pos, st.playlist, st.playlist_scroll, st.playlist_sum)
+        :: !redo;
     undo := undo';
     deselect_all st;
-    st.playpos <- pos;
-    st.playscroll <- scroll;
-    st.playrange <- no_range;
+    st.playlist_pos <- pos;
+    st.playlist_scroll <- scroll;
+    st.playlist_range <- no_range;
     st.playlist <- list;
-    st.playsum <- sum;
+    st.playlist_sum <- sum;
     if st.current = None && list <> [||] then st.current <- Some list.(pos)
 
 let pop_undo st = pop_unredo st st.undo st.redo
@@ -339,64 +328,83 @@ let pop_redo st = pop_unredo st st.redo st.undo
 
 (* Playlist Manipulation *)
 
-let insert_track tracks path =
-  tracks := make_track path :: !tracks
+let move_pos st i j =
+  if i <> j then
+  (
+    if i = st.playlist_pos then st.playlist_pos <- j;
+    if i = fst st.playlist_range then st.playlist_range <- j, snd st.playlist_range;
+    if i = snd st.playlist_range then st.playlist_range <- fst st.playlist_range, j;
+    assert (not (IntSet.mem j st.playlist_selected));
+    if IntSet.mem i st.playlist_selected then
+      st.playlist_selected <- IntSet.add j (IntSet.remove i st.playlist_selected)
+  )
 
-let insert_playlist tracks path =
-  let s = In_channel.(with_open_bin path input_all) in
-  List.iter (fun M3u.{path; info} ->
-    let track =
-      match info with
-      | None -> make_track path
-      | Some {title; time} -> make_track_predet path title (float time)
-    in tracks := track :: !tracks
-  ) (M3u.parse_ext s)
+let copy_selected st =
+  let d = ref 0 in
+  Array.init (num_selected st) (fun i ->
+    while not (is_selected st (i + !d)) do incr d done;
+    st.playlist.(i + !d)
+  )
 
-let rec insert_file tracks path =
-  try
-    match String.lowercase_ascii (Filename.extension path) with
-    | _ when Sys.file_exists path && Sys.is_directory path ->
-      Array.iter (fun file ->
-        insert_file tracks (Filename.concat path file)
-      ) (Sys.readdir path)
-    | ".m3u" | ".m3u8" -> insert_playlist tracks path
-    | _ -> insert_track tracks path
-  with Sys_error _ -> insert_track tracks path
 
-let insert st pos paths =
-  if paths <> [] then
+let insert st pos tracks =
+  if tracks <> [||] then
   (
     push_undo st;
-    let tracks = ref [] in
-    List.iter (insert_file tracks) paths;
-    let playlist' = Array.of_list (List.rev !tracks) in
     if st.playlist = [||] then
     (
-      st.playlist <- playlist';
+      st.playlist <- tracks;
       if st.current = None then
         switch_track st st.playlist.(0) false;
     )
     else
     (
       let len = Array.length st.playlist in
-      let len' = Array.length playlist' in
+      let len' = Array.length tracks in
       st.playlist <-
         Array.init (len + len') (fun i ->
           if i < pos then st.playlist.(i) else
-          if i < pos + len' then playlist'.(i - pos) else
+          if i < pos + len' then tracks.(i - pos) else
           st.playlist.(i - len')
         );
-      if pos <= st.playpos then st.playpos <- st.playpos + len';
-      if pos <= st.playscroll then st.playscroll <- st.playscroll + len';
       for i = len - 1 downto pos do
-        if is_selected st i then move_select st i (i + len')
+        move_pos st i (i + len')
       done;
     );
-    for i = 0 to Array.length playlist' - 1 do
-      let sum = track_summary playlist'.(i) in
-      st.playsum <- add_summary st.playsum sum
+    for i = 0 to Array.length tracks - 1 do
+      let sum = track_summary tracks.(i) in
+      st.playlist_sum <- add_summary st.playlist_sum sum
     done
   )
+
+let insert_paths st pos paths =
+  let tracks = ref [] in
+  let add_track path =
+    tracks := make_track path :: !tracks
+  in
+  let add_playlist path =
+    let s = In_channel.(with_open_bin path input_all) in
+    List.iter (fun M3u.{path; info} ->
+      let track =
+        match info with
+        | None -> make_track path
+        | Some {title; time} -> make_track_predet path title (float time)
+      in tracks := track :: !tracks
+    ) (M3u.parse_ext s)
+  in
+  let rec add_path path =
+    try
+      match String.lowercase_ascii (Filename.extension path) with
+      | _ when Sys.file_exists path && Sys.is_directory path ->
+        Array.iter (fun file ->
+          add_path (Filename.concat path file)
+        ) (Sys.readdir path)
+      | ".m3u" | ".m3u8" -> add_playlist path
+      | _ -> add_track path
+    with Sys_error _ -> add_track path
+  in
+  List.iter add_path paths;
+  insert st pos (Array.of_list (List.rev !tracks))
 
 
 let remove_all st =
@@ -405,10 +413,11 @@ let remove_all st =
     push_undo st;
     deselect_all st;
     st.playlist <- [||];
-    st.playpos <- 0;
-    st.playrange <- no_range;
-    st.playsum <- 0.0, 0;
-    st.playselsum <- 0.0, 0;
+    st.playlist_pos <- 0;
+    st.playlist_scroll <- 0;
+    st.playlist_range <- no_range;
+    st.playlist_sum <- 0.0, 0;
+    st.playlist_sum_selected <- 0.0, 0;
     if st.current <> None && st.sound = Api.Audio.silence st.audio then eject_track st;
   )
 
@@ -421,30 +430,40 @@ let remove_if p st n =
     let d = ref 0 in
     let rec skip i =
       let j = i + !d in
-      let adjust pos = if pos = j then max 0 (min i (len' - 1)) else pos in
-      st.playpos <- adjust st.playpos;
-      st.playscroll <- adjust st.playscroll;
-      if j < len && p j then
+      if j < len then
       (
-        st.playsum <- sub_summary st.playsum (track_summary st.playlist.(j));
-        deselect st j j;
-        incr d;
-        skip i
+        let b = p j in
+        move_pos st j i;  (* could affect (p j)! *)
+        if b then
+        (
+          st.playlist_sum <-
+            sub_summary st.playlist_sum (track_summary st.playlist.(j));
+          deselect st i i;
+          incr d;
+          skip i
+        )
       )
-      else if is_selected st j then
-        move_select st j i
     in
     let playlist' = Array.init len' (fun i -> skip i; st.playlist.(i + !d)) in
     skip len';
     assert (len' + !d = len);
     st.playlist <- playlist';
+    st.playlist_scroll <- max 0 (min (len' - 1) st.playlist_scroll);
     if st.current <> None && st.sound = Api.Audio.silence st.audio then
-      if len' = 0 then eject_track st else switch_track st st.playlist.(st.playpos) false;
+      if len' = 0 then
+        eject_track st
+      else 
+        switch_track st st.playlist.(st.playlist_pos) false;
   )
 
 let remove_selected st =
   remove_if (is_selected st) st (num_selected st);
-  st.playrange <- no_range
+  st.playlist_range <- no_range
+
+let remove_unselected st =
+  remove_if (fun i -> not (is_selected st i)) st
+    (Array.length st.playlist - num_selected st);
+  st.playlist_range <- 0, Array.length st.playlist
 
 
 let is_invalid track =
@@ -457,7 +476,7 @@ let num_invalid st =
 
 let remove_invalid st =
   remove_if (fun i -> is_invalid st.playlist.(i)) st (num_invalid st);
-  st.playrange <-
+  st.playlist_range <-
     Option.value (first_selected st) ~default: (fst no_range),
     Option.value (last_selected st) ~default: (snd no_range)
 
@@ -473,18 +492,13 @@ let move_selected st d =
         if is_selected st i then
         (
           let temp = st.playlist.(i) in
+          move_pos st i len;  (* temp position *)
           for j = i - 1 downto i + d do
-            st.playlist.(j + 1) <- st.playlist.(j)
+            st.playlist.(j + 1) <- st.playlist.(j);
+            move_pos st j (j + 1)
           done;
+          move_pos st len (i + d);
           st.playlist.(i + d) <- temp;
-          move_select st i (i + d);
-          let adjust pos =
-            if pos = i then i + d else
-            if i + d <= pos && pos < i then pos + 1 else
-            pos
-          in
-          st.playpos <- adjust st.playpos;
-          st.playrange <- adjust (fst st.playrange), adjust (snd st.playrange);
         )
       done
     else
@@ -493,18 +507,13 @@ let move_selected st d =
         if is_selected st i then
         (
           let temp = st.playlist.(i) in
+          move_pos st i len;  (* temp position *)
           for j = i + 1 to i + d do
-            st.playlist.(j - 1) <- st.playlist.(j)
+            st.playlist.(j - 1) <- st.playlist.(j);
+            move_pos st j (j - 1)
           done;
+          move_pos st len (i + d);
           st.playlist.(i + d) <- temp;
-          move_select st i (i + d);
-          let adjust pos =
-            if pos = i then i + d else
-            if i < pos && pos <= i + d then pos - 1 else
-            pos
-          in
-          st.playpos <- adjust st.playpos;
-          st.playrange <- adjust (fst st.playrange), adjust (snd st.playrange);
         )
       done
   )
