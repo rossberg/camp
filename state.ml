@@ -67,6 +67,8 @@ type t =
   mutable playlist_sum_selected : time * int;
   mutable undo : (int * track array * int * (time * int)) list ref;
   mutable redo : (int * track array * int * (time * int)) list ref;
+  mutable exec_tag : string;
+  mutable exec_tag_max_len : int;
 }
 
 let no_range = min_int, 0
@@ -93,6 +95,8 @@ let make win audio =
     playlist_sum_selected = 0.0, 0;
     undo = ref [];
     redo = ref [];
+    exec_tag = "";
+    exec_tag_max_len = 0;
   }
 
 let ok st =

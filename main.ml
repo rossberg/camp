@@ -108,6 +108,7 @@ let clean_button = Ui.button (200, -16, 25, 16) "CLEAN" ([`Command], `Delete)
 let undo_button = Ui.button (225, -16, 25, 16) "UNDO" ([`Command], `Char 'Z')
 let redo_button = Ui.button (250, -16, 25, 16) "REDO" ([`Shift; `Command], `Char 'Z')
 let save_button = Ui.button (275, -16, 25, 16) "SAVE" ([`Command], `Char 'S')
+let tag_button = Ui.button (275, -16, 25, 16) "TAG" ([`Command], `Char 'T')
 
 let cut_key = Ui.key ([`Command], `Char 'X')
 let copy_key = Ui.key ([`Command], `Char 'C')
@@ -144,6 +145,13 @@ let fmt_time3 t =
     fmt_time t
   else
     fmt "%d:%02d:%02d" (t' / 3600) (t' / 60 mod 60) (t' mod  60)
+
+
+let exec prog args =
+  let cmd = Filename.quote_command prog args in
+  let cmd' = if not Sys.win32 then cmd else
+    "\"start /b ^\"^\" " ^ String.sub cmd 1 (String.length cmd - 1) in
+  ignore (Sys.command cmd')
 
 
 (* Control Section *)
@@ -592,6 +600,41 @@ let run_playlist (st : State.t) =
 
   if save_button st.win false then
     ();  (* TODO *)
+
+  if tag_button st.win false && State.num_selected st > 0 && st.exec_tag <> "" then
+  (
+    let tracks = Array.to_list (State.copy_selected st) in
+    Domain.spawn (fun () ->
+      let tracks' = List.filter (fun tr -> not (State.is_separator tr)) tracks in
+      let paths = List.map (fun tr -> tr.State.path) tracks' in
+      if st.exec_tag_max_len = 0 then
+        exec st.exec_tag paths
+      else
+      (
+        (* Work around Windows command line limits *)
+        let args = ref paths in
+        let rec pick len max =
+          match !args with
+          | [] -> []
+          | arg1::args' ->
+            let len' = len + String.length arg1 + 5 in
+            if len <> 0 && len' > max then [] else
+            (
+              args := args';
+              arg1 :: pick len' max
+            )
+        in
+        (* Mp3tag immediately resorts the tracks by current column, unless added
+         * with /add. However, /add only works with individual tracks and exec's,
+         * which is very slow, so only use that when (a) we have less then a
+         * certain number of tracks, or (b) when the command line gets too long
+         * for a single call anyways. *)
+        let max = if List.length tracks < 20 then 1 else st.exec_tag_max_len in
+        exec st.exec_tag (pick 0 max);
+        List.iter (fun arg -> exec st.exec_tag ["/add"; arg]) !args;
+      )
+    ) |> ignore;
+  );
 
   if cut_key st.win then
   (

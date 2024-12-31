@@ -79,6 +79,8 @@ let save_state st =
     output "shuffle = %d\n" (Bool.to_int st.shuffle);
     output "timemode = %d\n" (Bool.to_int (st.timemode = `Remain));
     output "mute = %d\n" (Bool.to_int st.mute);
+    output "exec_tag = %s\n" st.exec_tag;
+    output "exec_tag_max_len = %d\n" st.exec_tag_max_len;
   );
   save_playlist st.playlist
 
@@ -127,6 +129,8 @@ let load_state st =
     st.timemode <-
       if input " timemode = %d " value = 0 then `Elapse else `Remain;
     st.mute <- (0 <> input " mute = %d " value);
+    st.exec_tag <- String.trim (input " exec_tag = %[\x20-\xff]" value);
+    st.exec_tag_max_len <- max 0 (input " exec_tag_max_len = %d " value);
   );
   State.update_summary st;
   ok st
