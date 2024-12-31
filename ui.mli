@@ -20,7 +20,7 @@ val indicator : rect -> window -> bool -> unit
 val lcd : rect -> window -> char -> unit
 
 val resizer : rect -> window -> size -> size -> size
-val button : rect -> string -> modifier list * key -> window -> bool -> bool
+val button : rect -> ?protrude: bool -> string -> modifier list * key -> window -> bool -> bool
 val progress_bar : rect -> window -> float -> float
 val volume_bar : rect -> window -> float -> float
 val scroll_bar : rect -> window -> float -> float -> float

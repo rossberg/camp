@@ -73,6 +73,9 @@ let window win =
     done
   done;
 
+  Draw.line win 1 0 1 wh (`Gray 0x40);
+  Draw.line win 0 0 ww 0 (`Gray 0x70);
+
   Mouse.set_cursor win `Default;
   let m = Mouse.pos win in
   let mouse' = add m (Window.pos win) in
@@ -107,7 +110,9 @@ let fill = function
   | false -> `Trans (`Green, unlit)
 
 let border = function
+(*
   | `Pressed -> `Orange
+*)
   | `Focused -> `Blue
   | _ -> `Black
 
@@ -311,13 +316,18 @@ let button_text win x y w h c = function
   | s ->
     label (x, y, w, h) `Center s win
 
-let button r txt modkey win active =
+let button r ?(protrude=true) txt modkey win active =
   let (x, y, w, h), status = element r modkey win in
   let img = get_img win button_img in
   let sx, sy, dy = if status = `Pressed then 800, 400, 1 else 0, 200, 0 in
   Draw.clip win x y w h;
   Draw.image win (x - sx) (y - sy) 1 img;
   Draw.unclip win;
+  if status <> `Pressed then
+  (
+    Draw.line win (x + 2) (y + 1) (x + 2) (y + h - 2) (`Gray 0x50);
+    if protrude then Draw.line win (x + 1) (y + 1) (x + w - 2) (y + 1) (`Gray 0x50);
+  );
   Draw.rect win x y w h (border status);
   let wsym = h/3 in
   let c = if active then `RGB 0x40ff40 else `Gray 0xc0 in

@@ -35,7 +35,7 @@ let lcd_button = Ui.mouse (15, 15, 90, 20) `Left
 
 let volume_bar = Ui.volume_bar (-87, 15, 27, 50)
 let volume_wheel = Ui.wheel (0, 0, control_w, control_h)
-let mute_button = Ui.button (-72, 70, 12, 12) "" ([], `Char '0')
+let mute_button = Ui.button (-72, 70, 12, 12) ~protrude: false "" ([], `Char '0')
 let volup_key = Ui.key ([], `Char '+')
 let voldown_key = Ui.key ([], `Char '-')
 
@@ -45,12 +45,12 @@ let seek_bar = Ui.progress_bar (12, 90, -80, 14)
 let rw_key = Ui.key ([], `Arrow `Left)
 let ff_key = Ui.key ([], `Arrow `Right)
 
-let bwd_button = Ui.button (10, 122, 40, 30) "<<" ([], `Char 'Z')
-let play_button = Ui.button (50, 122, 40, 30) ">" ([], `Char 'X')
-let pause_button = Ui.button (90, 122, 40, 30) "||" ([], `Char 'C')
-let stop_button = Ui.button (130, 122, 40, 30) "[]" ([], `Char 'V')
-let fwd_button = Ui.button (170, 122, 40, 30) ">>" ([], `Char 'B')
-let eject_button = Ui.button (210, 122, 40, 30) "^" ([], `Char 'N')
+let bwd_button = Ui.button (10, 122, 40, 30) ~protrude: false "<<" ([], `Char 'Z')
+let play_button = Ui.button (50, 122, 40, 30) ~protrude: false ">" ([], `Char 'X')
+let pause_button = Ui.button (90, 122, 40, 30) ~protrude: false "||" ([], `Char 'C')
+let stop_button = Ui.button (130, 122, 40, 30) ~protrude: false "[]" ([], `Char 'V')
+let fwd_button = Ui.button (170, 122, 40, 30) ~protrude: false ">>" ([], `Char 'B')
+let eject_button = Ui.button (210, 122, 40, 30) ~protrude: false "^" ([], `Char 'N')
 
 let shuffle_indicator = Ui.indicator (270, 122, 7, 7)
 let shuffle_button = Ui.button (259, 131, 25, 11) "" ([], `Char 'T')
