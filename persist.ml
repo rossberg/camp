@@ -107,8 +107,9 @@ let load_state st =
 
     let len = Array.length st.playlist - 1 in
     st.playlist_pos <- clamp 0 (len - 1) (input " play_pos = %d " value);
-    let current = make_track (String.trim (input " play = %[\x20-\xff]" value)) in
-    State.switch_track st current false;
+    let current = String.trim (input " play = %[\x20-\xff]" value) in
+    st.current <- if current = "" then None else Some (make_track current);
+    if st.current <> None then State.switch_track st (Option.get st.current) false;
     State.seek_track st (clamp 0.0 1.0 (input " seek_pos = %f " value));
     st.playlist_scroll <- clamp 0 (len - 1) (input " play_scroll = %d " value);
     st.playlist_open <- (0 <> input " play_open = %d " value);
