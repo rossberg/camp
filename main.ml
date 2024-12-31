@@ -171,6 +171,97 @@ let run_control (st : State.t) =
   let stopped = not playing && not paused in
   let silence = st.sound = Api.Audio.silence st.audio in
 
+  (* LCD *)
+  info_box st.win;
+  let sign, d1, d2, d3, d4 =
+    if paused && Api.Draw.frame st.win / 40 mod 2 = 0 then
+      '+', ' ', ' ', ' ', ' ' else
+    let sign, time =
+      match st.timemode with
+      | `Elapse -> '+', elapsed
+      | `Remain -> '-', remaining
+    in
+    lcd_colon st.win ':';
+    let seconds = int_of_float (Float.round time) in
+    sign,
+    (Char.chr (Char.code '0' + seconds mod 6000 / 600)),
+    (Char.chr (Char.code '0' + seconds mod 600 / 60)),
+    (Char.chr (Char.code '0' + seconds mod 60 / 10)),
+    (Char.chr (Char.code '0' + seconds mod 10))
+  in
+  lcd_minus st.win sign;
+  lcd1 st.win d1;
+  lcd2 st.win d2;
+  lcd3 st.win d3;
+  lcd4 st.win d4;
+
+  if lcd_button st.win then
+  (
+    st.timemode <-
+      match st.timemode with
+      | `Elapse -> `Remain
+      | `Remain -> `Elapse
+  );
+
+  (* Audio properties *)
+  if not silence then
+  (
+    let track = Option.get st.current in
+    let ext = Filename.extension track.path in
+    let format = if ext = "" || ext.[0] <> '.' then "???" else
+      String.uppercase_ascii (String.sub ext 1 (String.length ext - 1)) in
+    let bitrate = Api.Audio.bitrate st.audio st.sound in
+    let rate = Api.Audio.rate st.audio st.sound in
+    let channels = Api.Audio.channels st.audio st.sound in
+    let depth = bitrate /. float rate /. float channels in
+    prop_ticker st.win
+      (fmt "%s    %.0f KBPS    %.1f KHZ    %s BIT    %s"
+        format (bitrate /. 1000.0) (float rate /. 1000.0)
+        (fmt (if depth = Float.round depth then "%.0f" else "%.1f") depth)
+        (match channels with
+        | 1 -> "MONO"
+        | 2 -> "STEREO"
+        | n -> fmt "%d CHAN" n
+        )
+      );
+  );
+
+  (* Title info *)
+  let name =
+    match st.current with
+    | Some track when not (State.is_separator track) ->
+      track.name ^ " - " ^ fmt_time track.time
+    | _ -> App.(name ^ " " ^ version)
+  in
+  title_ticker st.win name;
+
+  (* Volume control *)
+  let volume' = volume_bar st.win st.volume +. 0.05 *. volume_wheel st.win +.
+    0.05 *. (float_of_bool (volup_key st.win) -. float_of_bool (voldown_key st.win)) in
+  let mute' = mute_button st.win st.mute in
+  if volume' <> st.volume || mute' <> st.mute then
+  (
+    st.mute <- mute';
+    st.volume <- clamp 0.0 1.0 volume';
+    Api.Audio.volume st.audio st.sound (if st.mute then 0.0 else st.volume);
+  );
+
+  (* Seek bar *)
+  let progress =
+    if length > 0.0 && not silence then elapsed /. length else 0.0 in
+  let progress' = seek_bar st.win progress +.
+    0.05 *. (float_of_bool (ff_key st.win) -. float_of_bool (rw_key st.win)) in
+  if progress' <> progress && not silence then
+    State.seek_track st (clamp 0.0 1.0 progress');
+
+(*
+  let s1 = fmt_time2 elapsed in
+  let s2 = "-" ^ fmt_time2 remaining in
+  let w2 = Api.Draw.text_width st.win 11 (Ui.font st.win 11) s2 in
+  Api.Draw.text st.win 14 91 11 `White (Ui.font st.win 11) s1;
+  Api.Draw.text st.win (278 - w2) 91 11 `White (Ui.font st.win 11) s2;
+*)
+
   (* Looping *)
   (match st.loop with
   | `AB (t1, t2) when playing && t2 < elapsed ->
@@ -277,97 +368,6 @@ let run_control (st : State.t) =
     | `A t1, false -> `AB (t1, elapsed)
     | `AB (t1, t2), true -> `AB (t1, t2)
     );
-
-  (* LCD *)
-  info_box st.win;
-  let sign, d1, d2, d3, d4 =
-    if paused && Api.Draw.frame st.win / 40 mod 2 = 0 then
-      '+', ' ', ' ', ' ', ' ' else
-    let sign, time =
-      match st.timemode with
-      | `Elapse -> '+', elapsed
-      | `Remain -> '-', remaining
-    in
-    lcd_colon st.win ':';
-    let seconds = int_of_float (Float.round time) in
-    sign,
-    (Char.chr (Char.code '0' + seconds mod 6000 / 600)),
-    (Char.chr (Char.code '0' + seconds mod 600 / 60)),
-    (Char.chr (Char.code '0' + seconds mod 60 / 10)),
-    (Char.chr (Char.code '0' + seconds mod 10))
-  in
-  lcd_minus st.win sign;
-  lcd1 st.win d1;
-  lcd2 st.win d2;
-  lcd3 st.win d3;
-  lcd4 st.win d4;
-
-  if lcd_button st.win then
-  (
-    st.timemode <-
-      match st.timemode with
-      | `Elapse -> `Remain
-      | `Remain -> `Elapse
-  );
-
-  (* Volume control *)
-  let volume' = volume_bar st.win st.volume +. 0.05 *. volume_wheel st.win +.
-    0.05 *. (float_of_bool (volup_key st.win) -. float_of_bool (voldown_key st.win)) in
-  let mute' = mute_button st.win st.mute in
-  if volume' <> st.volume || mute' <> st.mute then
-  (
-    st.mute <- mute';
-    st.volume <- clamp 0.0 1.0 volume';
-    Api.Audio.volume st.audio st.sound (if st.mute then 0.0 else st.volume);
-  );
-
-  (* Audio properties *)
-  if not silence then
-  (
-    let track = Option.get st.current in
-    let ext = Filename.extension track.path in
-    let format = if ext = "" || ext.[0] <> '.' then "???" else
-      String.uppercase_ascii (String.sub ext 1 (String.length ext - 1)) in
-    let bitrate = Api.Audio.bitrate st.audio st.sound in
-    let rate = Api.Audio.rate st.audio st.sound in
-    let channels = Api.Audio.channels st.audio st.sound in
-    let depth = bitrate /. float rate /. float channels in
-    prop_ticker st.win
-      (fmt "%s    %.0f KBPS    %.1f KHZ    %s BIT    %s"
-        format (bitrate /. 1000.0) (float rate /. 1000.0)
-        (fmt (if depth = Float.round depth then "%.0f" else "%.1f") depth)
-        (match channels with
-        | 1 -> "MONO"
-        | 2 -> "STEREO"
-        | n -> fmt "%d CHAN" n
-        )
-      );
-  );
-
-  (* Title info *)
-  let name =
-    match st.current with
-    | Some track when not (State.is_separator track) ->
-      track.name ^ " - " ^ fmt_time track.time
-    | _ -> App.(name ^ " " ^ version)
-  in
-  title_ticker st.win name;
-
-  (* Seek bar *)
-  let progress =
-    if length > 0.0 && not silence then elapsed /. length else 0.0 in
-  let progress' = seek_bar st.win progress +.
-    0.05 *. (float_of_bool (ff_key st.win) -. float_of_bool (rw_key st.win)) in
-  if progress' <> progress && not silence then
-    State.seek_track st (clamp 0.0 1.0 progress');
-
-(*
-  let s1 = fmt_time2 elapsed in
-  let s2 = "-" ^ fmt_time2 remaining in
-  let w2 = Api.Draw.text_width st.win 11 (Ui.font st.win 11) s2 in
-  Api.Draw.text st.win 14 91 11 `White (Ui.font st.win 11) s1;
-  Api.Draw.text st.win (278 - w2) 91 11 `White (Ui.font st.win 11) s2;
-*)
 
   (* Window modes *)
   playlist_label st.win;
