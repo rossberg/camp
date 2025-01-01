@@ -625,34 +625,40 @@ let move_selected st d =
   (
     push_undo st;
     let len = Array.length st.playlist in
+    let js = Array.init len Fun.id in
     if d < 0 then
       for i = 0 to len - 1 do
-        if i < -d then assert (not (is_selected st i)) else
         if is_selected st i then
         (
+          assert (i >= -d);
           let temp = st.playlist.(i) in
           move_pos st i (-1) len;  (* temp position *)
           for j = i - 1 downto i + d do
             st.playlist.(j + 1) <- st.playlist.(j);
-            move_pos st j (j + 1) len
+            move_pos st j (j + 1) len;
+            js.(j) <- j + 1;
           done;
           move_pos st (-1) (i + d) len;
+          js.(i) <- i + d;
           st.playlist.(i + d) <- temp;
         )
       done
     else
       for i = len - 1 downto 0 do
-        if i >= len - d then assert (not (is_selected st i)) else
         if is_selected st i then
         (
+          assert (i < len - d);
           let temp = st.playlist.(i) in
           move_pos st i (-1) len;  (* temp position *)
           for j = i + 1 to i + d do
             st.playlist.(j - 1) <- st.playlist.(j);
-            move_pos st j (j - 1) len
+            move_pos st j (j - 1) len;
+            js.(j) <- j - 1;
           done;
           move_pos st (-1) (i + d) len;
+          js.(i) <- i + d;
           st.playlist.(i + d) <- temp;
         )
-      done
+      done;
+    Array.map_inplace (fun i -> js.(i)) st.shuffle;
   )
