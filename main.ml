@@ -477,8 +477,16 @@ let run_playlist (st : State.t) =
           State.switch_track st st.playlist.(i) true;
           if st.shuffled then
           (
-            st.shuffle_pos <- Option.get (Array.find_index ((=) i) st.shuffle);
-            st.shuffle_unobserved <- max st.shuffle_unobserved (st.shuffle_pos + 1);
+            let pos = Option.get (Array.find_index ((=) i) st.shuffle) in
+            if pos < st.shuffle_unobserved then
+              st.shuffle_pos <- pos
+            else
+            (
+              (* Minimise new observation to one *)
+              State.swap st.shuffle pos st.shuffle_unobserved;
+              st.shuffle_pos <- st.shuffle_unobserved;
+              st.shuffle_unobserved <- st.shuffle_pos + 1;
+            )
           )
         )
         else
