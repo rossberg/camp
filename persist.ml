@@ -53,34 +53,41 @@ let min_h = 160
 
 let state_file = "state.conf"
 
+let to_string st =
+  let buf = Buffer.create 1024 in
+  let output fmt  = Printf.bprintf buf fmt in
+  output "[%s]\n" App.name;
+  let x, y = Api.Window.pos st.win in
+  output "win_pos = %d, %d\n" x y;
+  let w, h = Api.Window.size st.win in
+  output "win_size = %d, %d\n" w h;
+  output "volume = %.2f\n" st.volume;
+  output "play_pos = %d\n" st.playlist_pos;
+  output "play = %s\n" (match st.current with Some s -> s.path | None -> "");
+  let length = Api.Audio.length st.audio st.sound in
+  let played = Api.Audio.played st.audio st.sound in
+  output "seek_pos = %.4f\n" (if length > 0.0 then played /. length else 0.0);
+  output "play_scroll = %d\n" st.playlist_scroll;
+  output "play_open = %d\n" (Bool.to_int st.playlist_open);
+  output "play_height = %d\n" st.playlist_height;
+  output "repeat = %d\n"
+    (match st.repeat with `None -> 0 | `One -> 1 | `All -> 2);
+  let a, b =
+    match st.loop with `None -> -1.0, -1.0 | `A t1 -> t1, -1.0 | `AB tt -> tt
+  in
+  output "loop = %.4f, %.4f\n" a b;
+  output "shuffle = %d\n" (Bool.to_int st.shuffled);
+  output "timemode = %d\n" (Bool.to_int (st.timemode = `Remain));
+  output "mute = %d\n" (Bool.to_int st.mute);
+  output "exec_tag = %s\n" st.exec_tag;
+  output "exec_tag_max_len = %d\n" st.exec_tag_max_len;
+  Buffer.contents buf
+
+let _ = State.to_string := to_string
+
 let save_state st =
   Storage.save state_file (fun file ->
-    let output fmt  = Printf.fprintf file fmt in
-    output "[%s]\n" App.name;
-    let x, y = Api.Window.pos st.win in
-    output "win_pos = %d, %d\n" x y;
-    let w, h = Api.Window.size st.win in
-    output "win_size = %d, %d\n" w h;
-    output "volume = %.2f\n" st.volume;
-    output "play_pos = %d\n" st.playlist_pos;
-    output "play = %s\n" (match st.current with Some s -> s.path | None -> "");
-    let length = Api.Audio.length st.audio st.sound in
-    let played = Api.Audio.played st.audio st.sound in
-    output "seek_pos = %.4f\n" (if length > 0.0 then played /. length else 0.0);
-    output "play_scroll = %d\n" st.playlist_scroll;
-    output "play_open = %d\n" (Bool.to_int st.playlist_open);
-    output "play_height = %d\n" st.playlist_height;
-    output "repeat = %d\n"
-      (match st.repeat with `None -> 0 | `One -> 1 | `All -> 2);
-    let a, b =
-      match st.loop with `None -> -1.0, -1.0 | `A t1 -> t1, -1.0 | `AB tt -> tt
-    in
-    output "loop = %.4f, %.4f\n" a b;
-    output "shuffle = %d\n" (Bool.to_int st.shuffle);
-    output "timemode = %d\n" (Bool.to_int (st.timemode = `Remain));
-    output "mute = %d\n" (Bool.to_int st.mute);
-    output "exec_tag = %s\n" st.exec_tag;
-    output "exec_tag_max_len = %d\n" st.exec_tag_max_len;
+    Out_channel.output_string file (to_string st)
   );
   save_playlist st.playlist
 
@@ -125,7 +132,8 @@ let load_state st =
       | t1, t2 when t2 < 0.0 -> `A t1
       | t1, t2 -> `AB (t1, max t1 t2)
       );
-    st.shuffle <- (0 <> input " shuffle = %d " value);
+    st.shuffled <- (0 <> input " shuffle = %d " value);
+    if st.shuffled then State.shuffle st (Some st.playlist_pos);
     st.timemode <-
       if input " timemode = %d " value = 0 then `Elapse else `Remain;
     st.mute <- (0 <> input " mute = %d " value);

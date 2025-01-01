@@ -53,7 +53,7 @@ type t =
   mutable sound : Api.sound;
   mutable current : track option;
   mutable timemode : [`Elapse | `Remain];
-  mutable shuffle : bool;
+  mutable shuffled : bool;
   mutable repeat : [`None | `One | `All];
   mutable loop : [`None | `A of time | `AB of time * time];
   mutable playlist_open : bool;
@@ -65,6 +65,9 @@ type t =
   mutable playlist_selected : IntSet.t;
   mutable playlist_sum : time * int;
   mutable playlist_sum_selected : time * int;
+  mutable shuffle : int array;
+  mutable shuffle_pos : int;
+  mutable shuffle_unobserved : int;
   mutable undo : (int * track array * int * (time * int)) list ref;
   mutable redo : (int * track array * int * (time * int)) list ref;
   mutable exec_tag : string;
@@ -81,7 +84,7 @@ let make win audio =
     volume = 0.5;
     current = None;
     timemode = `Elapse;
-    shuffle = false;
+    shuffled = false;
     repeat = `None;
     loop = `None;
     playlist_open = false;
@@ -93,41 +96,105 @@ let make win audio =
     playlist_selected = IntSet.empty;
     playlist_sum = 0.0, 0;
     playlist_sum_selected = 0.0, 0;
+    shuffle = [||];
+    shuffle_pos = 0;
+    shuffle_unobserved = 0;
     undo = ref [];
     redo = ref [];
     exec_tag = "";
     exec_tag_max_len = 0;
   }
 
+let to_string = ref (fun _ -> assert false)
+let dumped_before = ref false
+
+let check st s b =
+  if not (b || !dumped_before) then
+  (
+    let pr fmt = Printf.fprintf stderr fmt in
+    pr "Invariant violated: %s\n%s" s (!to_string st);
+    pr "play_length = %d\n" (Array.length st.playlist);
+    pr "play_selected = %d" (IntSet.cardinal st.playlist_selected);
+    if st.playlist_selected <> IntSet.empty then
+      pr " (%d-%d)"
+        (IntSet.min_elt st.playlist_selected)
+        (IntSet.max_elt st.playlist_selected);
+    pr "\n";
+    pr "play_range = %d, %d\n" (fst st.playlist_range) (snd st.playlist_range);
+    pr "play_sum = %.2f, %d\n" (fst st.playlist_sum) (snd st.playlist_sum);
+    pr "play_sum_selected = %.2f, %d\n"
+      (fst st.playlist_sum_selected) (snd st.playlist_sum_selected);
+    pr "shuffle_length = %d\n" (Array.length st.shuffle);
+    pr "shuffle_pos = %d\n" st.shuffle_pos;
+    pr "shuffle_unobserved = %d\n" st.shuffle_unobserved;
+    pr "undo_length = %d\n" (List.length !(st.undo));
+    pr "redo_length = %d\n" (List.length !(st.redo));
+    pr "%!";
+    dumped_before := true;
+  )
+
 let ok st =
+  let length = Api.Audio.length st.audio st.sound in
   let played = Api.Audio.played st.audio st.sound in
   let playing = Api.Audio.is_playing st.audio st.sound in
   let paused = not playing && played > 0.0 in
   let stopped = not playing && not paused in
   let silence = st.sound = Api.Audio.silence st.audio in
   let len = Array.length st.playlist in
-  assert (st.current <> None || silence);
-  assert (st.current <> None || stopped);
-  assert (st.current <> None || st.playlist = [||]);
-  assert (
+  check st "volume in range" (st.volume >= 0.0 && st.volume <= 1.0);
+  check st "silence when no current track" (st.current <> None || silence);
+  check st "stopped when no current track" (st.current <> None || stopped);
+  check st "playlist empty when no current track"
+    (st.current <> None || st.playlist = [||]);
+  check st "playlist position in range" (
     st.playlist_pos = 0 && len = 0 ||
     st.playlist_pos >= 0 && st.playlist_pos < len
   );
-  assert (
+  check st "playlist scroll in range" (
     st.playlist_scroll = 0 && len = 0 ||
     st.playlist_scroll >= 0 && st.playlist_scroll < len
   );
-  assert (IntSet.max_elt_opt st.playlist_selected <= Some (len - 1));
-  assert (
+  check st "playlist window height positive" (st.playlist_height > 0);
+  check st "selections in range"
+    (IntSet.max_elt_opt st.playlist_selected <= Some (len - 1));
+  check st "primary selection range position in range" (
     fst st.playlist_range = min_int ||
     fst st.playlist_range = max_int ||
     fst st.playlist_range >= 0 && fst st.playlist_range < len
   );
-  assert (
+  check st "secondary selection range position in range" (
     snd st.playlist_range = 0 ||
     snd st.playlist_range >= 0 && snd st.playlist_range < len
   );
-  assert (match st.loop with `AB (t1, t2) -> t1 <= t2 | _ -> true);
+  check st "playlist summary in range"
+    (fst st.playlist_sum >= 0.0 && snd st.playlist_sum <= len);
+  check st "playlist selection summary in range" (
+    fst st.playlist_sum_selected >= 0.0 &&
+    fst st.playlist_sum_selected <= fst st.playlist_sum &&
+    snd st.playlist_sum_selected <= snd st.playlist_sum
+  );
+  check st "no loop when no current track"
+    (st.current <> None || st.loop = `None);
+  check st "lower loop boundary in range"
+    (match st.loop with `A t1 | `AB (t1, _) -> t1 >= 0.0 && t1 <= length | _ -> true);
+  check st "upper loop boundary in range"
+    (match st.loop with `AB (t1, t2) -> t1 <= t2 && t2 <= length | _ -> true);
+  check st "no shuffle list when not shuffled"
+    (st.shuffled || st.shuffle = [||]);
+  check st "no shuffle position when not shuffled"
+    (st.shuffled || st.shuffle_pos = 0);
+  check st "no shuffle observation when not shuffled"
+    (st.shuffled || st.shuffle_unobserved = 0);
+  check st "shuffle list has consistent length"
+    (not st.shuffled || Array.length st.shuffle = len);
+  check st "shuffle position in range" (
+    st.shuffle_pos = 0 && st.shuffle = [||] ||
+    st.shuffle_pos >= 0 && st.shuffle_pos < len
+  );
+  check st "shuffle observation in range" (
+    st.shuffle_unobserved = 0 && st.shuffle = [||] ||
+    st.shuffle_unobserved > st.shuffle_pos && st.shuffle_unobserved <= len
+  );
   ()
 
 
@@ -246,6 +313,35 @@ let seek_track st percent =
   )
 
 
+(* Shuffle *)
+
+let unshuffle st =
+  st.shuffled <- false;
+  st.shuffle <- [||];
+  st.shuffle_pos <- 0;
+  st.shuffle_unobserved <- 0
+
+let swap a i j =
+  let temp = a.(i) in a.(i) <- a.(j); a.(j) <- temp
+
+let reshuffle st =
+  let len = Array.length st.shuffle in
+  for i = st.shuffle_unobserved to len - 2 do
+    swap st.shuffle i (i + Random.int (len - i))
+  done
+
+let shuffle st i_opt =
+  st.shuffled <- true;
+  st.shuffle <- Array.init (Array.length st.playlist) Fun.id;
+  st.shuffle_pos <- 0;
+  st.shuffle_unobserved <-
+    (match i_opt with
+    | None -> 0
+    | Some i -> swap st.shuffle 0 i; 1
+    );
+  reshuffle st
+
+
 (* Playlist Selection *)
 
 let num_selected st = IntSet.cardinal st.playlist_selected
@@ -332,15 +428,25 @@ let pop_redo st = pop_unredo st st.redo st.undo
 
 (* Playlist Manipulation *)
 
-let move_pos st i j =
+let move_pos st i j len =
+  let j' = min j (len - 1) in
+  if i <> j' then
+  (
+    if i = st.playlist_pos then
+      st.playlist_pos <- j';
+    if i = fst st.playlist_range then
+      st.playlist_range <- j', snd st.playlist_range;
+    if i = snd st.playlist_range then
+      st.playlist_range <- fst st.playlist_range, j';
+  );
   if i <> j then
   (
-    if i = st.playlist_pos then st.playlist_pos <- j;
-    if i = fst st.playlist_range then st.playlist_range <- j, snd st.playlist_range;
-    if i = snd st.playlist_range then st.playlist_range <- fst st.playlist_range, j;
     assert (not (IntSet.mem j st.playlist_selected));
     if IntSet.mem i st.playlist_selected then
-      st.playlist_selected <- IntSet.add j (IntSet.remove i st.playlist_selected)
+      st.playlist_selected <-
+        IntSet.add j (IntSet.remove i st.playlist_selected)
+    (* Do not update shuffle list individually, since that would result in
+     * quadratic complexity. *)
   )
 
 let copy_selected st =
@@ -355,16 +461,17 @@ let insert st pos tracks =
   if tracks <> [||] then
   (
     push_undo st;
-    if st.playlist = [||] then
+    let len = Array.length st.playlist in
+    let len' = Array.length tracks in
+    if len = 0 then
     (
       st.playlist <- tracks;
+      if st.shuffled then st.shuffle <- Array.init len' Fun.id;
       if st.current = None then
         switch_track st st.playlist.(0) false;
     )
     else
     (
-      let len = Array.length st.playlist in
-      let len' = Array.length tracks in
       st.playlist <-
         Array.init (len + len') (fun i ->
           if i < pos then st.playlist.(i) else
@@ -372,13 +479,21 @@ let insert st pos tracks =
           st.playlist.(i - len')
         );
       for i = len - 1 downto pos do
-        move_pos st i (i + len')
+        move_pos st i (i + len') (len + len')
       done;
+      if st.shuffled then
+        st.shuffle <-
+          Array.init (len + len') (fun i ->
+            if i >= len then i - len + pos else
+            let j = st.shuffle.(i) in
+            if j < pos then j else j + len'
+          )
     );
     for i = 0 to Array.length tracks - 1 do
       let sum = track_summary tracks.(i) in
       st.playlist_sum <- add_summary st.playlist_sum sum
-    done
+    done;
+    if st.shuffled then reshuffle st;
   )
 
 let insert_paths st pos paths =
@@ -422,7 +537,11 @@ let remove_all st =
     st.playlist_range <- no_range;
     st.playlist_sum <- 0.0, 0;
     st.playlist_sum_selected <- 0.0, 0;
-    if st.current <> None && st.sound = Api.Audio.silence st.audio then eject_track st;
+    st.shuffle <- [||];
+    st.shuffle_pos <- 0;
+    st.shuffle_unobserved <- 0;
+    if st.current <> None && st.sound = Api.Audio.silence st.audio then
+      eject_track st;
   )
 
 let remove_if p st n =
@@ -432,19 +551,26 @@ let remove_if p st n =
     let len = Array.length st.playlist in
     let len' = len - n in
     let d = ref 0 in
+    let js = Array.make len (-2) in
     let rec skip i =
       let j = i + !d in
       if j < len then
       (
+        assert (js.(j) = -2);
         let b = p j in
-        move_pos st j i;  (* could affect (p j)! *)
+        move_pos st j i len';  (* could affect (p j)! *)
         if b then
         (
           st.playlist_sum <-
             sub_summary st.playlist_sum (track_summary st.playlist.(j));
           deselect st i i;
           incr d;
-          skip i
+          js.(j) <- -1;
+          skip i;
+        )
+        else
+        (
+          js.(j) <- i;
         )
       )
     in
@@ -453,6 +579,15 @@ let remove_if p st n =
     assert (len' + !d = len);
     st.playlist <- playlist';
     st.playlist_scroll <- max 0 (min (len' - 1) st.playlist_scroll);
+    if st.shuffled then
+    (
+      let d = ref 0 in
+      let rec skip i =
+        let j = js.(st.shuffle.(i + !d)) in
+        if j = -1 then (incr d; skip i) else j
+      in
+      st.shuffle <- Array.init len' skip;
+    );
     if st.current <> None && st.sound = Api.Audio.silence st.audio then
       if len' = 0 then
         eject_track st
@@ -467,7 +602,7 @@ let remove_selected st =
 let remove_unselected st =
   remove_if (fun i -> not (is_selected st i)) st
     (Array.length st.playlist - num_selected st);
-  st.playlist_range <- 0, Array.length st.playlist
+  st.playlist_range <- 0, Array.length st.playlist - 1
 
 
 let is_invalid track =
@@ -496,12 +631,12 @@ let move_selected st d =
         if is_selected st i then
         (
           let temp = st.playlist.(i) in
-          move_pos st i len;  (* temp position *)
+          move_pos st i (-1) len;  (* temp position *)
           for j = i - 1 downto i + d do
             st.playlist.(j + 1) <- st.playlist.(j);
-            move_pos st j (j + 1)
+            move_pos st j (j + 1) len
           done;
-          move_pos st len (i + d);
+          move_pos st (-1) (i + d) len;
           st.playlist.(i + d) <- temp;
         )
       done
@@ -511,12 +646,12 @@ let move_selected st d =
         if is_selected st i then
         (
           let temp = st.playlist.(i) in
-          move_pos st i len;  (* temp position *)
+          move_pos st i (-1) len;  (* temp position *)
           for j = i + 1 to i + d do
             st.playlist.(j - 1) <- st.playlist.(j);
-            move_pos st j (j - 1)
+            move_pos st j (j - 1) len
           done;
-          move_pos st len (i + d);
+          move_pos st (-1) (i + d) len;
           st.playlist.(i + d) <- temp;
         )
       done

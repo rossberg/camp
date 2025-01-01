@@ -276,11 +276,21 @@ let run_control (st : State.t) =
     let len = Array.length st.playlist in
     let next_pos, play_on =
       match st.repeat with
-      | `None when st.shuffle -> Random.int (max 1 len), true
-      | `None when pos >= len - 1 -> pos, false
-      | `None -> pos + 1, true
-      | `One -> pos, true
-      | `All -> 0, true
+      | `One ->
+        pos, true
+      | _ when not st.shuffled && pos < len - 1 ->
+        pos + 1, true
+      | _ when st.shuffled && st.shuffle_pos < len - 1 ->
+        st.shuffle_pos <- st.shuffle_pos + 1;
+        st.shuffle_unobserved <- max st.shuffle_unobserved (st.shuffle_pos + 1);
+        st.shuffle.(st.shuffle_pos), true
+      | `None ->
+        pos, false
+      | `All when not st.shuffled ->
+        0, true
+      | `All ->
+        st.shuffle_pos <- 0;
+        st.shuffle.(0), true
     in
     st.playlist_pos <- next_pos;
     let next_track =
@@ -292,28 +302,33 @@ let run_control (st : State.t) =
   );
 
   (* Play controls *)
-  if bwd_button st.win false && st.playlist <> [||] then
+  let off =
+    (if bwd_button st.win false && st.playlist <> [||] then -1 else 0) +
+    (if fwd_button st.win false && st.playlist <> [||] then +1 else 0)
+  in
+  if off <> 0 then
   (
-    st.playlist_pos <- modulo (st.playlist_pos - 1) (Array.length st.playlist);
-    State.switch_track st st.playlist.(st.playlist_pos) playing
-  );
-  if fwd_button st.win false && st.playlist <> [||] then
-  (
+    let len = Array.length st.playlist in
     st.playlist_pos <-
-      if st.shuffle
-      then Random.int (max 1 (Array.length st.playlist))
-      else modulo (st.playlist_pos + 1) (Array.length st.playlist);
+      if not st.shuffled then
+        modulo (st.playlist_pos + off) len
+      else
+      (
+        st.shuffle_pos <- modulo (st.shuffle_pos + off) len;
+        st.shuffle_unobserved <- max st.shuffle_unobserved (st.shuffle_pos + 1);
+        st.shuffle.(st.shuffle_pos)
+      );
     State.switch_track st st.playlist.(st.playlist_pos) playing
   );
 
   let playing' = play_button st.win playing in
-  if not playing && playing' && st.playlist <> [||] then
+  if stopped && playing' && st.playlist <> [||] then
     State.switch_track st st.playlist.(st.playlist_pos) true;
 
   let paused' = pause_button st.win paused in
-  if playing && paused' then
+  if playing' && paused' then
     Api.Audio.pause st.audio st.sound
-  else if not stopped && not paused' && not silence then
+  else if (not stopped && not paused' || stopped && paused') && not silence then
     Api.Audio.resume st.audio st.sound;
 
   if stop_button st.win false && not stopped then
@@ -340,9 +355,28 @@ let run_control (st : State.t) =
 
   (* Play modes *)
   shuffle_label st.win;
-  shuffle_indicator st.win st.shuffle;
-  let shuffle' = shuffle_button st.win st.shuffle in
-  st.shuffle <- shuffle';
+  shuffle_indicator st.win st.shuffled;
+  let shuffled' = shuffle_button st.win st.shuffled in
+  if shuffled' <> st.shuffled then
+  (
+    if shuffled' then
+    (
+      if not stopped then
+        State.shuffle st (Some st.playlist_pos)
+      else
+      (
+        State.shuffle st None;
+        if Array.length st.playlist > 0 then
+        (
+          st.playlist_pos <- st.shuffle.(0);
+          st.shuffle_unobserved <- 1;
+          State.switch_track st st.playlist.(st.playlist_pos) false;
+        )
+      )
+    )
+    else
+      State.unshuffle st
+  );
 
   repeat_label st.win;
   repeat_indicator1 st.win (st.repeat <> `None);
@@ -441,6 +475,11 @@ let run_playlist (st : State.t) =
         (
           st.playlist_pos <- i;
           State.switch_track st st.playlist.(i) true;
+          if st.shuffled then
+          (
+            st.shuffle_pos <- Option.get (Array.find_index ((=) i) st.shuffle);
+            st.shuffle_unobserved <- max st.shuffle_unobserved (st.shuffle_pos + 1);
+          )
         )
         else
         (
