@@ -11,7 +11,7 @@ val window : window -> unit
 
 val key : modifier list * key -> window -> bool
 val mouse : rect -> side -> window -> bool
-val drag : rect -> window -> int * int -> (int * int) option
+val drag : rect -> window -> int * int -> [`Drag of int * int | `Click | `None]
 val wheel : rect -> window -> float
 
 val box : rect -> color -> window -> unit

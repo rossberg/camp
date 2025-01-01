@@ -37,12 +37,13 @@ type drag_extra += No_drag
 
 let no_drag = (min_int, min_int)
 
-let inner = ref []           (* list of inner elements *)
-let mouse_pos = ref (0, 0)   (* absolute mouse position *)
-let mouse_delta = ref (0, 0) (* absolute delta *)
-let drag_pos = ref no_drag   (* starting point of mouse drag *)
-let drag_extra = ref No_drag (* associated data for drag operation *)
-let win_pos = ref (0, 0)     (* logical position ignoring snap *)
+let inner = ref []            (* list of inner elements *)
+let mouse_pos = ref (0, 0)    (* absolute mouse position *)
+let mouse_delta = ref (0, 0)  (* absolute delta *)
+let drag_pos = ref no_drag    (* starting point of mouse drag *)
+let drag_extra = ref No_drag  (* associated data for drag operation *)
+let drag_happened = ref false (* Dragging happened before last release *)
+let win_pos = ref (0, 0)      (* logical position ignoring snap *)
 let fonts = Array.make 64 None
 let symfonts = Array.make 64 None
 
@@ -152,17 +153,24 @@ let mouse_status win r side =
 type drag_extra += Drag_gen of point
 
 let drag_status win r (stepx, stepy) =
+  if not (Mouse.is_down `Left) then
+    let happened = !drag_happened in
+    drag_happened := false;
+    if happened then `None else `Click
+  else
   let r' = dim win r in
   let (mx, my) as m = Mouse.pos win in
-  if not (inside !drag_pos r') then None else
+  if not (inside !drag_pos r') then `None else
   match !drag_extra with
-  | No_drag -> drag_extra := Drag_gen m; None
+  | No_drag -> drag_extra := Drag_gen m; `None
   | Drag_gen m' ->
     let dx, dy = sub m m' in
     let dx' = dx / stepx in
     let dy' = dy / stepy in
+    let happened = dx' <> 0 || dy' <> 0 in
     drag_extra := Drag_gen (mx - dx mod stepx, my - dy mod stepy);
-    if dx' = 0 && dy' = 0 then None else Some (dx', dy')
+    drag_happened := !drag_happened || happened;
+    if not happened then `None else `Drag (dx', dy')
   | _ -> assert false
 
 let wheel_status win r =

@@ -431,7 +431,7 @@ let run_playlist (st : State.t) =
     let i = st.playlist_scroll + i in
     let i' = max 0 (min i (len - 1)) in
     let fst' = if i >= len then max_int else i in
-    if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left && dragging = None then
+    if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left && dragging = `None then
     (
       st.playlist_range <- fst', i';
       if i >= len || not (State.is_selected st i) then State.deselect_all st;
@@ -447,6 +447,11 @@ let run_playlist (st : State.t) =
           State.select st i i;
         )
       )
+    )
+    else if Api.Key.are_modifiers_down [] && not (Api.Mouse.is_pressed `Left) && dragging = `Click then
+    (
+      State.deselect_all st;
+      if i < len then State.select st i i;
     )
     else if Api.Key.are_modifiers_down [`Command] && Api.Mouse.is_pressed `Left then
     (
@@ -540,7 +545,7 @@ let run_playlist (st : State.t) =
   (* Playlist reordering *)
   let d0 =
     match dragging with
-    | Some (_, dy) when Api.Key.are_modifiers_down [] -> dy
+    | `Drag (_, dy) when Api.Key.are_modifiers_down [] -> dy
     | _ -> 0
   in
   let d = d0 +
@@ -560,7 +565,7 @@ let run_playlist (st : State.t) =
       else min d (len - Option.value (State.last_selected st) ~default: 0 - 1)
     in
     State.move_selected st d';
-    if dragging = None then
+    if d0 = 0 then
       st.playlist_scroll <- clamp 0 (max 0 (len - vlen)) (st.playlist_scroll + d);
   );
 
