@@ -73,13 +73,13 @@ let loop_label = Ui.label (325, 143, 25, label_h) `Center "LOOP"
 
 let playlist_row_h = 13
 let playlist_min = 31 + 4 * playlist_row_h
-let playlist_rect = (10, 170, -21, -18)
+let playlist_rect = (10, 170, -21, -20)
 let playlist = Ui.table playlist_rect playlist_row_h
-let playlist_scroll = Ui.scroll_bar (-20, 170, 10, -18)
-let playlist_wheel = Ui.wheel (10, 170, -10, -18)
-let playlist_drag = Ui.drag (10, 170, -20, -18)
-let playlist_summary = Ui.ticker (10, -14, 80, 10)
-let playlist_resizer = Ui.resizer (-14, -14, 14, 14)
+let playlist_scroll = Ui.scroll_bar (-20, 170, 10, -20)
+let playlist_wheel = Ui.wheel (10, 170, -10, -20)
+let playlist_drag = Ui.drag (10, 170, -20, -20)
+let playlist_summary = Ui.ticker (10, -15, 100, 10)
+let playlist_resizer = Ui.resizer (-16, -16, 16, 16)
 
 let up_key = Ui.key ([], `Arrow `Up)
 let down_key = Ui.key ([], `Arrow `Down)
@@ -106,14 +106,14 @@ let movepagedown_key = Ui.key ([`Command], `Page `Down)
 let movebegin_key = Ui.key ([`Command], `End `Up)
 let moveend_key = Ui.key ([`Command], `End `Down)
 
-let sep_button = Ui.button (125, -16, 25, 16) "SEP" ([`Command], `Char ' ')
-let del_button = Ui.button (150, -16, 25, 16) "DEL" ([], `Delete)
-let crop_button = Ui.button (175, -16, 25, 16) "CROP" ([`Shift], `Delete)
-let clean_button = Ui.button (200, -16, 25, 16) "CLEAN" ([`Command], `Delete)
-let undo_button = Ui.button (225, -16, 25, 16) "UNDO" ([`Command], `Char 'Z')
-let redo_button = Ui.button (250, -16, 25, 16) "REDO" ([`Shift; `Command], `Char 'Z')
-let save_button = Ui.button (275, -16, 25, 16) "SAVE" ([`Command], `Char 'S')
-let tag_button = Ui.button (275, -16, 25, 16) "TAG" ([`Command], `Char 'T')
+let sep_button = Ui.button (117, -18, 25, 17) "SEP" ([`Command], `Char ' ')
+let del_button = Ui.button (147, -18, 25, 17) "DEL" ([], `Delete)
+let crop_button = Ui.button (172, -18, 25, 17) "CROP" ([`Shift], `Delete)
+let clean_button = Ui.button (197, -18, 25, 17) "CLEAN" ([`Command], `Delete)
+let undo_button = Ui.button (227, -18, 25, 17) "UNDO" ([`Command], `Char 'Z')
+let redo_button = Ui.button (252, -18, 25, 17) "REDO" ([`Shift; `Command], `Char 'Z')
+let save_button = Ui.button (282, -18, 25, 17) "SAVE" ([`Command], `Char 'S')
+let tag_button = Ui.button (312, -18, 25, 17) "TAG" ([`Command], `Char 'T')
 
 let cut_key = Ui.key ([`Command], `Char 'X')
 let copy_key = Ui.key ([`Command], `Char 'C')
