@@ -56,7 +56,7 @@ type undo =
 
 type t =
 {
-  win : Api.window;
+  ui : Ui.t;
   audio : Api.audio;
   mutable mute : bool;
   mutable volume : float;
@@ -87,10 +87,10 @@ type t =
 
 let no_range = min_int, 0
 
-let make win audio =
+let make ui audio =
   let sound = Api.Audio.silence audio in
   {
-    win; audio; sound;
+    ui; audio; sound;
     mute = false;
     volume = 0.5;
     current = None;

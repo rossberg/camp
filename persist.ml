@@ -61,11 +61,11 @@ let to_string st =
   let buf = Buffer.create 1024 in
   let output fmt  = Printf.bprintf buf fmt in
   output "[%s]\n" state_header;
-  let x, y = Api.Window.pos st.win in
+  let x, y = Api.Window.pos (Ui.window st.ui) in
   output "win_pos = %d, %d\n" x y;
-  let w, h = Api.Window.size st.win in
+  let w, h = Api.Window.size (Ui.window st.ui) in
   output "win_size = %d, %d\n" w h;
-  output "color_scheme = %d\n" (Ui.get_color_scheme ());
+  output "color_scheme = %d\n" (Ui.get_color_scheme st.ui);
   output "volume = %.2f\n" st.volume;
   output "mute = %d\n" (Bool.to_int st.mute);
   output "play = %s\n" (match st.current with Some s -> s.path | None -> "");
@@ -103,21 +103,22 @@ let fscanf file =
 
 let load_state st =
   Storage.load state_file (fun file ->
+    let win = Ui.window st.ui in
     let input fmt = fscanf file fmt in
     if input " [%s@]" value <> state_header then failwith "load_state";
-    let sw, sh = Api.Window.screen_size st.win in
+    let sw, sh = Api.Window.screen_size win in
     let x, y = clamp_pair 0 0 (sw - 20) (sh - 20)
       (input " win_pos = %d , %d " pair) in
-    Api.Window.set_pos st.win x y;
+    Api.Window.set_pos win x y;
     let w, h = clamp_pair min_w min_h min_w sh
       (input " win_size = %d , %d " pair) in
-    Api.Window.set_size st.win w h;
-    Api.Draw.start st.win `Black;
-    Api.Draw.finish st.win;
+    Api.Window.set_size win w h;
+    Api.Draw.start win `Black;
+    Api.Draw.finish win;
 
     st.playlist <- load_playlist ();
 
-    Ui.set_color_scheme (clamp 0 (Array.length Ui.color_schemes - 1)
+    Ui.set_color_scheme st.ui (clamp 0 (Array.length Ui.color_schemes - 1)
       (input " color_scheme = %d " value));
     st.volume <- clamp 0.0 1.0 (input " volume = %f " value);
     st.mute <- (0 <> input " mute = %d " value);
