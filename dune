@@ -3,10 +3,16 @@
   (name main)
   (modules safe_queue app state storage persist api ui main)
   (libraries unix directories raylib audio_file)
+  (link_deps (include link_deps.sexp))
   (link_flags (:include link_flags.sexp))
 )
 
 (rule
-  (targets link_flags.sexp)
+  (targets link_deps.sexp link_flags.sexp)
   (action (run ./config/config.exe))
+)
+
+(rule
+  (targets icon.res)
+  (action (run x86_64-w64-mingw32-windres ../../platform/win/icon.rc -O coff -o icon.res))
 )

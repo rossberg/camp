@@ -35,7 +35,12 @@ type t =
 
 let no_drag = (min_int, min_int)
 
+let (//) = Filename.concat
+let assets = Filename.dirname Sys.argv.(0) // "assets"
+
 let make win =
+  let icon = Image.load_raw (assets // "icon.png") in
+  Window.set_icon win icon;
   { win;
     color_scheme = 0;
     inner = [];
@@ -55,9 +60,6 @@ let window ui = ui.win
 
 
 (* Images *)
-
-let (//) = Filename.concat
-let assets = Filename.dirname Sys.argv.(0) // "assets"
 
 let get_img ui rimg =
   match !rimg with

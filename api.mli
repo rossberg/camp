@@ -28,6 +28,7 @@ val inside : point -> rect -> bool
 (* Window *)
 
 type window
+type icon
 
 module Window :
 sig
@@ -39,6 +40,7 @@ sig
   val size : window -> size
   val set_pos : window -> int -> int -> unit
   val set_size : window -> int -> int -> unit
+  val set_icon : window -> icon -> unit
 
   val minimize : window -> unit
   val restore : window -> unit
@@ -76,7 +78,7 @@ type image
 
 module Image :
 sig
-  type raw
+  type raw = icon
   type prepared = image
 
   val load : window -> path -> image
