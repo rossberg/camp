@@ -58,6 +58,8 @@ type t =
 {
   ui : Ui.t;
   audio : Api.audio;
+  mutable win_pos : Api.point;  (* mirror to be available on exit *)
+  mutable win_size : Api.size;
   mutable mute : bool;
   mutable volume : float;
   mutable sound : Api.sound;
@@ -91,6 +93,8 @@ let make ui audio =
   let sound = Api.Audio.silence audio in
   {
     ui; audio; sound;
+    win_pos = 0, 0;
+    win_size = 0, 0;
     mute = false;
     volume = 0.5;
     current = None;

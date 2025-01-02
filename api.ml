@@ -57,14 +57,20 @@ struct
     Raylib.(set_trace_log_level TraceLogLevel.Warning);
     Raylib.(set_exit_key Key.Null);
     Raylib.(set_config_flags
-      ConfigFlags.[Window_undecorated; (*Window_transparent;*) Vsync_hint]);
+      ConfigFlags.[Window_undecorated; Window_always_run; (*Window_transparent;*) Vsync_hint]);
     Raylib.init_window w h s;
     Raylib.set_window_position x y
+
+  let closed () = Raylib.window_should_close ()
 
   let pos () = point_of_vec2 (Raylib.get_window_position ())
   let size () = Raylib.get_screen_width (), Raylib.get_screen_height ()
   let set_pos () x y = Raylib.set_window_position x y
   let set_size () w h = Raylib.set_window_size w h
+
+  let minimize () = Raylib.minimize_window ()
+  let restore () = Raylib.restore_window ()
+  let is_minimized () = Raylib.is_window_minimized ()
 
   let screen_size () =
     let mon = Raylib.get_current_monitor () in

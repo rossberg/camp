@@ -33,10 +33,16 @@ module Window :
 sig
   val init : int -> int -> int -> int -> string -> window
 
+  val closed : window -> bool
+
   val pos : window -> point
   val size : window -> size
   val set_pos : window -> int -> int -> unit
   val set_size : window -> int -> int -> unit
+
+  val minimize : window -> unit
+  val restore : window -> unit
+  val is_minimized : window -> bool
 
   val screen_size : window -> size
 end

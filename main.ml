@@ -15,6 +15,8 @@ let label_h = 8
 let power_button = Ui.button (-45, 10, 35, 22) "" ([`Command], `Char 'Q')
 let power_label = Ui.label (-45, 33, 35, label_h) `Center "POWER"
 
+let minimize_button = Ui.mouse (-45, 10, 35, 22) `Right
+
 let playlist_indicator = Ui.indicator (-30, 48, 7, 7)
 let playlist_button = Ui.button (-45, 56, 35, 12) "" ([], `Char 'P')
 let playlist_label = Ui.label (-45, 69, 35, label_h) `Center "PLAYLIST"
@@ -427,14 +429,17 @@ let run_control (st : State.t) =
   library_label st.ui;
   library_indicator st.ui false;
   let _libopen' = library_button st.ui false in
-  ()
+
+  (* Minimize button *)
+  if minimize_button st.ui then
+    Api.Window.minimize (Ui.window st.ui)
 
 
 (* Playlist Section *)
 
 let update_playlist_rows (st : State.t) =
   let _, _, _, h = Ui.dim st.ui playlist_rect in
-  st.playlist_rows <- max 0 (int_of_float (Float.floor (float h /. float playlist_row_h)))
+  st.playlist_rows <- max 4 (int_of_float (Float.floor (float h /. float playlist_row_h)))
 
 let run_playlist (st : State.t) =
   let now = Unix.time () in
@@ -756,12 +761,22 @@ let run_playlist (st : State.t) =
 (* Runner *)
 
 let rec run (st : State.t) =
-  Api.Draw.start (Ui.window st.ui) (`Trans (`Black, 0x40));
+  let win = Ui.window st.ui in
+  if Api.Window.closed win then exit 0;
+  if not (Api.Window.is_minimized win) then
+  (
+    st.win_pos <- Api.Window.pos win;
+    st.win_size <- Api.Window.size win;
+  );
+  Api.Draw.start win (`Trans (`Black, 0x40));
   Ui.background st.ui;
   let playlist_open = st.playlist_open in
   run_control st;
-  if playlist_open then run_playlist st;
-  Api.Draw.finish (Ui.window st.ui);
+  if not (Api.Window.is_minimized win) then
+  (
+    if playlist_open then run_playlist st;
+  );
+  Api.Draw.finish win;
 
   let dh = if st.playlist_open then st.playlist_height else 0 in
   Api.Window.set_size (Ui.window st.ui) control_w (control_h + dh);

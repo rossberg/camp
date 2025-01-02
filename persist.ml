@@ -61,10 +61,8 @@ let to_string st =
   let buf = Buffer.create 1024 in
   let output fmt  = Printf.bprintf buf fmt in
   output "[%s]\n" state_header;
-  let x, y = Api.Window.pos (Ui.window st.ui) in
-  output "win_pos = %d, %d\n" x y;
-  let w, h = Api.Window.size (Ui.window st.ui) in
-  output "win_size = %d, %d\n" w h;
+  output "win_pos = %d, %d\n" (fst st.win_pos) (snd st.win_pos);
+  output "win_size = %d, %d\n"(fst st.win_size) (snd st.win_size);
   output "color_scheme = %d\n" (Ui.get_color_scheme st.ui);
   output "volume = %.2f\n" st.volume;
   output "mute = %d\n" (Bool.to_int st.mute);
