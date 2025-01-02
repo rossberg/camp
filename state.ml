@@ -44,6 +44,16 @@ let is_separator track = M3u.is_separator track.path
 
 (* State *)
 
+type undo =
+{
+  undo_playlist_pos : int;
+  undo_playlist_scroll : int;
+  undo_playlist : track array;
+  undo_playlist_selected : IntSet.t;
+  undo_playlist_sum : time * int;
+  undo_playlist_sum_selected : time * int;
+}
+
 type t =
 {
   win : Api.window;
@@ -69,8 +79,8 @@ type t =
   mutable shuffle : int array;
   mutable shuffle_pos : int;
   mutable shuffle_unobserved : int;
-  mutable undo : (int * track array * int * (time * int)) list ref;
-  mutable redo : (int * track array * int * (time * int)) list ref;
+  mutable undos : undo list ref;
+  mutable redos : undo list ref;
   mutable exec_tag : string;
   mutable exec_tag_max_len : int;
 }
@@ -101,8 +111,8 @@ let make win audio =
     shuffle = [||];
     shuffle_pos = 0;
     shuffle_unobserved = 0;
-    undo = ref [];
-    redo = ref [];
+    undos = ref [];
+    redos = ref [];
     exec_tag = "";
     exec_tag_max_len = 0;
   }
@@ -130,8 +140,8 @@ let dump st =
   pr "shuffle_length = %d\n" (Array.length st.shuffle);
   pr "shuffle_pos = %d\n" st.shuffle_pos;
   pr "shuffle_unobserved = %d\n" st.shuffle_unobserved;
-  pr "undo_length = %d\n" (List.length !(st.undo));
-  pr "redo_length = %d\n" (List.length !(st.redo));
+  pr "undo_length = %d\n" (List.length !(st.undos));
+  pr "redo_length = %d\n" (List.length !(st.redos));
   pr "%!";
   Buffer.contents buf
 
@@ -428,32 +438,40 @@ let deselect st i j =
 
 let undo_depth = 100
 
+let make_undo st =
+  { undo_playlist_pos = st.playlist_pos;
+    undo_playlist_scroll = st.playlist_scroll;
+    undo_playlist = st.playlist;
+    undo_playlist_selected = st.playlist_selected;
+    undo_playlist_sum = st.playlist_sum;
+    undo_playlist_sum_selected = st.playlist_sum_selected;
+  }
+
 let push_undo st =
-  if List.length !(st.undo) >= undo_depth then
-    st.undo := List.filteri (fun i _ -> i < undo_depth - 1) !(st.undo);
-  st.undo :=
-    (st.playlist_pos, st.playlist, st.playlist_scroll, st.playlist_sum)
-      :: !(st.undo);
-  st.redo := []
+  if List.length !(st.undos) >= undo_depth then
+    st.undos := List.filteri (fun i _ -> i < undo_depth - 1) !(st.undos);
+  st.undos := make_undo st :: !(st.undos);
+  st.redos := []
 
-let pop_unredo st undo redo =
-  match !undo with
+let pop_unredo st undos redos =
+  match !undos with
   | [] -> ()
-  | (pos, list, scroll, sum) :: undo' ->
-    redo :=
-      (st.playlist_pos, st.playlist, st.playlist_scroll, st.playlist_sum)
-        :: !redo;
-    undo := undo';
+  | undo :: undos' ->
+    redos := make_undo st :: !redos;
+    undos := undos';
     deselect_all st;
-    st.playlist_pos <- pos;
-    st.playlist_scroll <- scroll;
+    st.playlist_pos <- undo.undo_playlist_pos;
+    st.playlist_scroll <- undo.undo_playlist_scroll;
+    st.playlist <- undo.undo_playlist;
+    st.playlist_selected <- undo.undo_playlist_selected;
+    st.playlist_sum <- undo.undo_playlist_sum;
+    st.playlist_sum_selected <- undo.undo_playlist_sum_selected;
     st.playlist_range <- no_range;
-    st.playlist <- list;
-    st.playlist_sum <- sum;
-    if st.current = None && list <> [||] then st.current <- Some list.(pos)
+    if st.current = None && st.playlist <> [||] then
+      st.current <- Some st.playlist.(st.playlist_pos)
 
-let pop_undo st = pop_unredo st st.undo st.redo
-let pop_redo st = pop_unredo st st.redo st.undo
+let pop_undo st = pop_unredo st st.undos st.redos
+let pop_redo st = pop_unredo st st.redos st.undos
 
 
 (* Playlist Manipulation *)
