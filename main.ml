@@ -16,11 +16,11 @@ let power_button = Ui.button (-45, 10, 35, 22) "" ([`Command], `Char 'Q')
 let power_label = Ui.label (-45, 33, 35, label_h) `Center "POWER"
 
 let playlist_indicator = Ui.indicator (-30, 48, 7, 7)
-let playlist_button = Ui.button (-45, 57, 35, 11) "" ([], `Char 'P')
+let playlist_button = Ui.button (-45, 56, 35, 12) "" ([], `Char 'P')
 let playlist_label = Ui.label (-45, 69, 35, label_h) `Center "PLAYLIST"
 
 let library_indicator = Ui.indicator (-30, 85, 7, 7)
-let library_button = Ui.button (-45, 94, 35, 11) "" ([], `Char 'L')
+let library_button = Ui.button (-45, 93, 35, 12) "" ([], `Char 'L')
 let library_label = Ui.label (-45, 106, 35, label_h) `Center "LIBRARY"
 
 let info_box = Ui.box (10, 10, -55, 98) `Black
@@ -35,7 +35,9 @@ let lcd_button = Ui.mouse (15, 15, 90, 20) `Left
 
 let volume_bar = Ui.volume_bar (-87, 15, 27, 50)
 let volume_wheel = Ui.wheel (0, 0, control_w, control_h)
-let mute_button = Ui.button (-72, 70, 12, 12) ~protrude: false "" ([], `Char '0')
+let mute_text = Ui.ticker (-80, 70, 20, 8)
+let mute_button = Ui.mouse (-87, 70, 27, 18) `Left
+let mute_key = Ui.key ([], `Char '0')
 let volup_key = Ui.key ([], `Char '+')
 let voldown_key = Ui.key ([], `Char '-')
 
@@ -44,7 +46,7 @@ let color_button_bwd = Ui.mouse (10, 35, -80, 50) `Right
 
 let prop_ticker = Ui.ticker (15, 38, -80, 12)
 let title_ticker = Ui.ticker (12, 70, -80, 16)
-let seek_bar = Ui.progress_bar (12, 90, -80, 14)
+let seek_bar = Ui.progress_bar (12, 90, -60, 14)
 let rw_key = Ui.key ([], `Arrow `Left)
 let ff_key = Ui.key ([], `Arrow `Right)
 
@@ -56,17 +58,17 @@ let fwd_button = Ui.button (170, 122, 40, 30) ~protrude: false ">>" ([], `Char '
 let eject_button = Ui.button (210, 122, 40, 30) ~protrude: false "^" ([], `Char 'N')
 
 let shuffle_indicator = Ui.indicator (270, 122, 7, 7)
-let shuffle_button = Ui.button (259, 131, 25, 11) "" ([], `Char 'T')
+let shuffle_button = Ui.button (259, 130, 25, 12) "" ([], `Char 'T')
 let shuffle_label = Ui.label (259, 143, 25, label_h) `Center "SHUFFLE"
 
 let repeat_indicator1 = Ui.indicator (296, 122, 7, 7)
 let repeat_indicator2 = Ui.indicator (307, 122, 7, 7)
-let repeat_button = Ui.button (292, 131, 25, 11) "" ([], `Char 'R')
+let repeat_button = Ui.button (292, 130, 25, 12) "" ([], `Char 'R')
 let repeat_label = Ui.label (292, 143, 25, label_h) `Center "REPEAT"
 
 let loop_indicator1 = Ui.indicator (329, 122, 7, 7)
 let loop_indicator2 = Ui.indicator (340, 122, 7, 7)
-let loop_button = Ui.button (325, 131, 25, 11) "" ([], `Char 'J')
+let loop_button = Ui.button (325, 130, 25, 12) "" ([], `Char 'J')
 let loop_label = Ui.label (325, 143, 25, label_h) `Center "LOOP"
 
 let playlist_row_h = 13
@@ -249,7 +251,8 @@ let run_control (st : State.t) =
   (* Volume control *)
   let volume' = volume_bar st.win st.volume +. 0.05 *. volume_wheel st.win +.
     0.05 *. (float_of_bool (volup_key st.win) -. float_of_bool (voldown_key st.win)) in
-  let mute' = mute_button st.win st.mute in
+  mute_text st.win "MUTE" ~unlit: (not st.mute);
+  let mute' = if mute_button st.win || mute_key st.win then not st.mute else st.mute in
   if volume' <> st.volume || mute' <> st.mute then
   (
     st.mute <- mute';

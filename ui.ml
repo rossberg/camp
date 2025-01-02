@@ -452,13 +452,13 @@ let scroll_bar r win v len =
   in clamp 0.0 (1.0 -. len) v'
 
 
-let ticker r win s =
+let ticker r win ?(unlit = false) s =
   let (x, y, w, h), _status = element r no_modkey win in
   Draw.fill win x y w h `Black;
   let tw = Draw.text_width win h (font win h) s in
   Draw.clip win x y w h;
   let dx = if tw <= w then (w - tw)/2 else w - Draw.frame win mod (w + tw) in
-  Draw.text win (x + dx) y h (text_color ()) (font win h) s;
+  Draw.text win (x + dx) y h (fill (not unlit)) (font win h) s;
   Draw.unclip win
 
 

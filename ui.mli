@@ -29,7 +29,7 @@ val button : rect -> ?protrude: bool -> string -> modifier list * key -> window 
 val progress_bar : rect -> window -> float -> float
 val volume_bar : rect -> window -> float -> float
 val scroll_bar : rect -> window -> float -> float -> float
-val ticker : rect -> window -> string -> unit
+val ticker : rect -> window -> ?unlit: bool -> string -> unit
 
 type column = int * align
 type row = color * color * string array
