@@ -81,6 +81,7 @@ let to_string st =
   output "mute = %d\n" (Bool.to_int st.mute);
   output "exec_tag = %s\n" st.exec_tag;
   output "exec_tag_max_len = %d\n" st.exec_tag_max_len;
+  output "color_scheme = %d\n" (Ui.get_color_scheme ());
   Buffer.contents buf
 
 let _ = State.to_string := to_string
@@ -139,6 +140,8 @@ let load_state st =
     st.mute <- (0 <> input " mute = %d " value);
     st.exec_tag <- String.trim (input " exec_tag = %[\x20-\xff]" value);
     st.exec_tag_max_len <- max 0 (input " exec_tag_max_len = %d " value);
+    Ui.set_color_scheme (clamp 0 (Array.length Ui.color_schemes - 1)
+      (input " color_scheme = %d " value));
   );
   State.update_summary st;
   ok st

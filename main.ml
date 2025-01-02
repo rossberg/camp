@@ -39,6 +39,9 @@ let mute_button = Ui.button (-72, 70, 12, 12) ~protrude: false "" ([], `Char '0'
 let volup_key = Ui.key ([], `Char '+')
 let voldown_key = Ui.key ([], `Char '-')
 
+let color_button_fwd = Ui.mouse (10, 35, -80, 50) `Left
+let color_button_bwd = Ui.mouse (10, 35, -80, 50) `Right
+
 let prop_ticker = Ui.ticker (15, 38, -80, 12)
 let title_ticker = Ui.ticker (12, 70, -80, 16)
 let seek_bar = Ui.progress_bar (12, 90, -80, 14)
@@ -157,6 +160,7 @@ let exec prog args =
 (* Control Section *)
 
 let run_control (st : State.t) =
+  (* Exit button *)
   (* This has to come first, otherwise Raylib crashes? *)
   if not (power_button st.win true) then exit 0;
   power_label st.win;
@@ -202,6 +206,13 @@ let run_control (st : State.t) =
       | `Elapse -> `Remain
       | `Remain -> `Elapse
   );
+
+  let ncol = Array.length Ui.color_schemes in
+  let dcol =
+    (if color_button_fwd st.win then +1 else 0) +
+    (if color_button_bwd st.win then -1 else 0)
+  in
+  Ui.set_color_scheme ((Ui.get_color_scheme () + dcol + ncol) mod ncol);
 
   (* Audio properties *)
   if not silence then
@@ -441,15 +452,16 @@ let run_playlist (st : State.t) =
       if now -. track.last_update > playlist_file_check_freq then
         State.update_track st track;
       let bg = if i mod 2 = 0 then `Black else `Gray 0x10 in
+      let c = Ui.color_schemes.(Ui.get_color_scheme ()) in
       let fg =
         match track.status with
         | _ when i = st.playlist_pos ->
           if track.path = (Option.get st.current).path then `White else `Gray 0xc0
         | _ when State.is_separator track -> `Green
-        | `Absent -> `Red
-        | `Invalid -> `Yellow
-        | `Undet -> `Blue
-        | `Predet | `Det -> `Green
+        | `Absent -> c.error
+        | `Invalid -> c.warn
+        | `Undet -> c.focus
+        | `Predet | `Det -> c.text
       in
       let fg, bg = if State.is_selected st i then bg, fg else fg, bg in
       let time = if track.time = 0.0 then "" else fmt_time track.time in

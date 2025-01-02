@@ -3,6 +3,11 @@
 open Api
 
 type align = [`Left | `Center | `Right]
+type color_scheme = {text : color; warn : color; error : color; focus : color}
+
+val color_schemes : color_scheme array
+val get_color_scheme : unit -> int
+val set_color_scheme : int -> unit
 
 val font : window -> int -> Api.font
 val dim : window -> rect -> rect

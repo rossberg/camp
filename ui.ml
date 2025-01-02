@@ -30,7 +30,7 @@ let clamp min max v =
   v
 
 
-(* Window *)
+(* State *)
 
 type drag_extra = ..
 type drag_extra += No_drag
@@ -44,6 +44,7 @@ let drag_pos = ref no_drag    (* starting point of mouse drag *)
 let drag_extra = ref No_drag  (* associated data for drag operation *)
 let drag_happened = ref false (* Dragging happened before last release *)
 let win_pos = ref (0, 0)      (* logical position ignoring snap *)
+let color_scheme = ref 0
 let fonts = Array.make 64 None
 let symfonts = Array.make 64 None
 
@@ -61,6 +62,49 @@ let get_img win rimg =
     rimg := `Loaded img;
     img
 
+
+(* Colors *)
+
+type color_scheme = {text : color; warn : color; error : color; focus : color}
+
+let color_schemes =
+[|
+  {text = `Green; warn = `Yellow; error = `Red; focus = `Blue};
+  {text = `RGB 0x78cfeb; warn = `RGB 0xfef46d; error = `RGB 0xd35c6d; focus = `RGB 0x5186bb};
+  {text = `RGB 0x51a6fb; warn = `RGB 0xfef46d; error = `RGB 0xd35c6d; focus = `RGB 0x78cfeb};
+  {text = `RGB 0xddac4d; warn = `RGB 0xffff6d; error = `RGB 0xf14138; focus = `RGB 0xd5b482};
+|]
+
+let get_color_scheme () = !color_scheme
+let set_color_scheme i = color_scheme := i
+
+
+let unlit = 0x28
+
+let text_color () = color_schemes.(!color_scheme).text
+let focus_color () = color_schemes.(!color_scheme).focus
+
+let fill = function
+  | true -> text_color ()
+  | false -> `Trans (text_color (), unlit)
+
+let border = function
+  | `Focused -> focus_color ()
+(*
+  | `Pressed -> `Orange
+*)
+  | _ -> `Black
+
+let font' win h file min max fonts =
+  match fonts.(h) with
+  | Some f -> f
+  | None ->
+    let f = Api.Font.load win file min max h in
+    fonts.(h) <- Some f;
+    f
+
+
+(* Window *)
 
 let window win =
   let bg = get_img win background_img in
@@ -104,27 +148,6 @@ let window win =
 
 (* GUI elements *)
 
-let unlit = 0x28
-
-let fill = function
-  | true -> `Green
-  | false -> `Trans (`Green, unlit)
-
-let border = function
-(*
-  | `Pressed -> `Orange
-*)
-  | `Focused -> `Blue
-  | _ -> `Black
-
-let font' win h file min max fonts =
-  match fonts.(h) with
-  | Some f -> f
-  | None ->
-    let f = Api.Font.load win file min max h in
-    fonts.(h) <- Some f;
-    f
-
 let font win h = font' win h "tahoma.ttf" 0x0020 0x0600 fonts
 let _symfont win h = font' win h "webdings.ttf" 0x23c0 0x2400 symfonts
 
@@ -145,7 +168,7 @@ let mouse_status win r side =
     `Pressed
   else if not (inside (Mouse.pos win) r) then
     `Untouched
-  else if Mouse.is_released `Left then
+  else if Mouse.is_released side then
     `Released
   else
     `Focused
@@ -178,9 +201,9 @@ let wheel_status win r =
   if inside (Mouse.pos win) r' then snd (Mouse.wheel win) else 0.0
 
 let key modkey win = (key_status win modkey = `Pressed)
-let mouse r side win = (mouse_status win r side = `Released)
-let wheel r win = wheel_status win r
-let drag r win eps = drag_status win r eps
+let mouse r side win = (mouse_status win (dim win r) side = `Released)
+let wheel r win = wheel_status win (dim win r)
+let drag r win eps = drag_status win (dim win r) eps
 
 
 let box r c win =
@@ -234,12 +257,13 @@ let lcd' win r' c elem =
     rect win x (y + 3 * h / 4) 2 2 c
 
 let lcd r win d =
+  let c = text_color () in
   if d = '-' || d = '+' then
-    lcd' win (dim win r) `Green `C
+    lcd' win (dim win r) c `C
   else if d = ':' then
-    lcd' win (dim win r) `Green `Dots
+    lcd' win (dim win r) c `Dots
   else
-    List.iter (lcd' win (dim win r) `Green) [`N; `S; `C; `NW; `SW; `NE; `SE];
+    List.iter (lcd' win (dim win r) c) [`N; `S; `C; `NW; `SW; `NE; `SE];
   List.iter (lcd' win (dim win r) (`Trans (`Black, 0x100 - unlit)))
     (match d with
     | ' ' -> [`N; `S; `C; `NW; `SW; `NE; `SE]
@@ -433,7 +457,7 @@ let ticker r win s =
   let tw = Draw.text_width win h (font win h) s in
   Draw.clip win x y w h;
   let dx = if tw <= w then (w - tw)/2 else w - Draw.frame win mod (w + tw) in
-  Draw.text win (x + dx) y h `Green (font win h) s;
+  Draw.text win (x + dx) y h (text_color ()) (font win h) s;
   Draw.unclip win
 
 
