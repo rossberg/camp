@@ -432,7 +432,9 @@ struct
     match !silent with
     | Some sound -> sound
     | None ->
-      let music = Raylib.load_music_stream "silence.mp3" in
+      let (//) = Filename.concat in
+      let assets = Filename.dirname Sys.argv.(0) // "assets" in
+      let music = Raylib.load_music_stream (assets // "silence.mp3") in  (* TODO *)
       let sound = {music; format = Format.unknown; temp = None} in
       silent := Some sound;
       sound
