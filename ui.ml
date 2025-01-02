@@ -70,6 +70,7 @@ type color_scheme = {text : color; warn : color; error : color; focus : color}
 let color_schemes =
 [|
   {text = `Green; warn = `Yellow; error = `Red; focus = `Blue};
+  {text = `RGB 0x92f2d6; warn = `RGB 0xc8bd4a; error = `RGB 0xec635b; focus = `RGB 0x5f7eb8};
   {text = `RGB 0x78cfeb; warn = `RGB 0xfef46d; error = `RGB 0xd35c6d; focus = `RGB 0x5186bb};
   {text = `RGB 0x51a6fb; warn = `RGB 0xfef46d; error = `RGB 0xd35c6d; focus = `RGB 0x78cfeb};
   {text = `RGB 0xddac4d; warn = `RGB 0xffff6d; error = `RGB 0xf14138; focus = `RGB 0xd5b482};
