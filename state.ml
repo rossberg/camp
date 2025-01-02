@@ -108,32 +108,47 @@ let make win audio =
   }
 
 let to_string = ref (fun _ -> assert false)
-let dumped_before = ref false
+let log_file = "error.log"
+let dumped_before = ref None
 
-let check st s b =
-  if not (b || !dumped_before) then
+let dump st =
+  let buf = Buffer.create 1024 in
+  let pr fmt = Printf.bprintf buf fmt in
+  pr "%s" (!to_string st);
+  pr "play_rows = %d\n" st.playlist_rows;
+  pr "play_length = %d\n" (Array.length st.playlist);
+  pr "play_selected = %d" (IntSet.cardinal st.playlist_selected);
+  if st.playlist_selected <> IntSet.empty then
+    pr " (%d-%d)"
+      (IntSet.min_elt st.playlist_selected)
+      (IntSet.max_elt st.playlist_selected);
+  pr "\n";
+  pr "play_range = %d, %d\n" (fst st.playlist_range) (snd st.playlist_range);
+  pr "play_sum = %.2f, %d\n" (fst st.playlist_sum) (snd st.playlist_sum);
+  pr "play_sum_selected = %.2f, %d\n"
+    (fst st.playlist_sum_selected) (snd st.playlist_sum_selected);
+  pr "shuffle_length = %d\n" (Array.length st.shuffle);
+  pr "shuffle_pos = %d\n" st.shuffle_pos;
+  pr "shuffle_unobserved = %d\n" st.shuffle_unobserved;
+  pr "undo_length = %d\n" (List.length !(st.undo));
+  pr "redo_length = %d\n" (List.length !(st.redo));
+  pr "%!";
+  Buffer.contents buf
+
+let check st msg b =
+  if not (b || !dumped_before = Some st) then
   (
-    let pr fmt = Printf.fprintf stderr fmt in
-    pr "Invariant violated: %s\n%s" s (!to_string st);
-    pr "play_rows = %d\n" st.playlist_rows;
-    pr "play_length = %d\n" (Array.length st.playlist);
-    pr "play_selected = %d" (IntSet.cardinal st.playlist_selected);
-    if st.playlist_selected <> IntSet.empty then
-      pr " (%d-%d)"
-        (IntSet.min_elt st.playlist_selected)
-        (IntSet.max_elt st.playlist_selected);
-    pr "\n";
-    pr "play_range = %d, %d\n" (fst st.playlist_range) (snd st.playlist_range);
-    pr "play_sum = %.2f, %d\n" (fst st.playlist_sum) (snd st.playlist_sum);
-    pr "play_sum_selected = %.2f, %d\n"
-      (fst st.playlist_sum_selected) (snd st.playlist_sum_selected);
-    pr "shuffle_length = %d\n" (Array.length st.shuffle);
-    pr "shuffle_pos = %d\n" st.shuffle_pos;
-    pr "shuffle_unobserved = %d\n" st.shuffle_unobserved;
-    pr "undo_length = %d\n" (List.length !(st.undo));
-    pr "redo_length = %d\n" (List.length !(st.redo));
-    pr "%!";
-    dumped_before := true;
+    let tm = Unix.(localtime (time ())) in
+    let s = Printf.sprintf
+      "%04d-%02d-%02d %02d:%02d:%02d Invariant violated: %s\n%s"
+      tm.tm_year (tm.tm_mon + 1) tm.tm_mday tm.tm_hour tm.tm_min tm.tm_sec
+      msg (dump st)
+    in
+    Out_channel.output_string stderr s;
+    if !dumped_before = None then Storage.save log_file ignore;  (* clear log *)
+    Storage.append log_file (fun file -> Out_channel.output_string file s);
+    Out_channel.flush_all ();
+    dumped_before := Some st;
   )
 
 let ok st =

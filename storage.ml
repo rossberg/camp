@@ -46,13 +46,20 @@ let clear_temp () =
 
 (* Loading & Saving *)
 
+let load filename f =
+  try
+    In_channel.with_open_bin (Filename.concat dir filename) f
+  with Sys_error _ | End_of_file | Scanf.Scan_failure _ | Failure _ -> ()
+
 let save filename f =
   try
     if not (Sys.file_exists dir) then Sys.mkdir dir 0o770;
     Out_channel.with_open_bin (Filename.concat dir filename) f
   with Sys_error _ -> ()
 
-let load filename f =
+let append filename f =
   try
-    In_channel.with_open_bin (Filename.concat dir filename) f
-  with Sys_error _ | End_of_file | Scanf.Scan_failure _ | Failure _ -> ()
+    if not (Sys.file_exists dir) then Sys.mkdir dir 0o770;
+    Out_channel.(with_open_gen [Open_binary; Open_creat; Open_append; Open_nonblock])
+      0o660 (Filename.concat dir filename) f
+  with Sys_error _ -> ()

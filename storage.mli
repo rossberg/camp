@@ -10,5 +10,6 @@ val clear_temp : unit -> unit
 
 (* Loading & Saving *)
 
-val save : string -> (out_channel -> unit) -> unit
 val load : string -> (in_channel -> unit) -> unit
+val save : string -> (out_channel -> unit) -> unit
+val append : string -> (out_channel -> unit) -> unit
