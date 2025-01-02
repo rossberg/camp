@@ -58,6 +58,7 @@ type t =
   mutable loop : [`None | `A of time | `AB of time * time];
   mutable playlist_open : bool;
   mutable playlist_height : int;
+  mutable playlist_rows : int;
   mutable playlist_scroll : int;
   mutable playlist_pos : int;
   mutable playlist_range : int * int;
@@ -89,6 +90,7 @@ let make win audio =
     loop = `None;
     playlist_open = false;
     playlist_height = 200;
+    playlist_rows = 4;
     playlist_scroll = 0;
     playlist_pos = 0;
     playlist_range = no_range;
@@ -113,6 +115,7 @@ let check st s b =
   (
     let pr fmt = Printf.fprintf stderr fmt in
     pr "Invariant violated: %s\n%s" s (!to_string st);
+    pr "play_rows = %d\n" st.playlist_rows;
     pr "play_length = %d\n" (Array.length st.playlist);
     pr "play_selected = %d" (IntSet.cardinal st.playlist_selected);
     if st.playlist_selected <> IntSet.empty then
@@ -150,6 +153,7 @@ let ok st =
     st.playlist_pos = 0 && len = 0 ||
     st.playlist_pos >= 0 && st.playlist_pos < len
   );
+  check st "playlist row number in range" (st.playlist_rows >= 3);
   check st "playlist scroll in range" (
     st.playlist_scroll = 0 && len = 0 ||
     st.playlist_scroll >= 0 && st.playlist_scroll < len
@@ -196,6 +200,15 @@ let ok st =
     st.shuffle_unobserved > st.shuffle_pos && st.shuffle_unobserved <= len
   );
   ()
+
+
+(* Scrolling *)
+
+let scroll_to_view st pos =
+  if pos < st.playlist_scroll
+  || pos >= st.playlist_scroll + st.playlist_rows then
+    st.playlist_scroll <- max 0 (min (Array.length st.playlist - st.playlist_rows)
+      (pos - (st.playlist_rows - 2)/2))
 
 
 (* Playlist Summary *)
@@ -303,7 +316,8 @@ let switch_track st track play =
   update_track st track;
   Api.Audio.volume st.audio st.sound (if st.mute then 0.0 else st.volume);
   Api.Audio.play st.audio st.sound;
-  if not play then Api.Audio.pause st.audio st.sound
+  if not play then Api.Audio.pause st.audio st.sound;
+  scroll_to_view st st.playlist_pos
 
 let seek_track st percent =
   if st.sound <> Api.Audio.silence st.audio then

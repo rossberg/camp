@@ -754,7 +754,9 @@ let startup () =
   let win = Api.Window.init 0 0 control_w control_h App.name in
   let audio = Api.Audio.init () in
   let st = State.make win audio in
+  st.playlist_rows <- st.playlist_height / playlist_row_h;
   Persist.load_state st;
+  State.scroll_to_view st st.playlist_pos;
   at_exit (fun () -> Persist.save_state st; Storage.clear_temp ());
   st
 
