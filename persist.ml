@@ -52,36 +52,40 @@ let min_w = 360  (* TODO: avoid duplication *)
 let min_h = 160
 
 let state_file = "state.conf"
+let config_file = "config.conf"
+
+let state_header = App.name ^ " state"
+let config_header = App.name ^ " config"
 
 let to_string st =
   let buf = Buffer.create 1024 in
   let output fmt  = Printf.bprintf buf fmt in
-  output "[%s]\n" App.name;
+  output "[%s]\n" state_header;
   let x, y = Api.Window.pos st.win in
   output "win_pos = %d, %d\n" x y;
   let w, h = Api.Window.size st.win in
   output "win_size = %d, %d\n" w h;
+  output "color_scheme = %d\n" (Ui.get_color_scheme ());
   output "volume = %.2f\n" st.volume;
-  output "play_pos = %d\n" st.playlist_pos;
+  output "mute = %d\n" (Bool.to_int st.mute);
   output "play = %s\n" (match st.current with Some s -> s.path | None -> "");
   let length = Api.Audio.length st.audio st.sound in
   let played = Api.Audio.played st.audio st.sound in
-  output "seek_pos = %.4f\n" (if length > 0.0 then played /. length else 0.0);
-  output "play_scroll = %d\n" st.playlist_scroll;
-  output "play_open = %d\n" (Bool.to_int st.playlist_open);
-  output "play_height = %d\n" st.playlist_height;
+  output "seek = %.4f\n" (if length > 0.0 then played /. length else 0.0);
+  output "timemode = %d\n" (Bool.to_int (st.timemode = `Remain));
+  output "shuffle = %d\n" (Bool.to_int st.shuffled);
   output "repeat = %d\n"
     (match st.repeat with `None -> 0 | `One -> 1 | `All -> 2);
   let a, b =
     match st.loop with `None -> -1.0, -1.0 | `A t1 -> t1, -1.0 | `AB tt -> tt
   in
   output "loop = %.4f, %.4f\n" a b;
-  output "shuffle = %d\n" (Bool.to_int st.shuffled);
-  output "timemode = %d\n" (Bool.to_int (st.timemode = `Remain));
-  output "mute = %d\n" (Bool.to_int st.mute);
+  output "play_pos = %d\n" st.playlist_pos;
+  output "play_scroll = %d\n" st.playlist_scroll;
+  output "play_open = %d\n" (Bool.to_int st.playlist_open);
+  output "play_height = %d\n" st.playlist_height;
   output "exec_tag = %s\n" st.exec_tag;
   output "exec_tag_max_len = %d\n" st.exec_tag_max_len;
-  output "color_scheme = %d\n" (Ui.get_color_scheme ());
   Buffer.contents buf
 
 let _ = State.to_string := to_string
@@ -100,7 +104,7 @@ let fscanf file =
 let load_state st =
   Storage.load state_file (fun file ->
     let input fmt = fscanf file fmt in
-    if input " [%s@]" value <> App.name then failwith "load_state";
+    if input " [%s@]" value <> state_header then failwith "load_state";
     let sw, sh = Api.Window.screen_size st.win in
     let x, y = clamp_pair 0 0 (sw - 20) (sh - 20)
       (input " win_pos = %d , %d " pair) in
@@ -111,20 +115,19 @@ let load_state st =
     Api.Draw.start st.win `Black;
     Api.Draw.finish st.win;
 
-    st.volume <- clamp 0.0 1.0 (input " volume = %f " value);
-
     st.playlist <- load_playlist ();
 
-    let len = Array.length st.playlist - 1 in
-    st.playlist_pos <- clamp 0 (len - 1) (input " play_pos = %d " value);
+    Ui.set_color_scheme (clamp 0 (Array.length Ui.color_schemes - 1)
+      (input " color_scheme = %d " value));
+    st.volume <- clamp 0.0 1.0 (input " volume = %f " value);
+    st.mute <- (0 <> input " mute = %d " value);
     let current = String.trim (input " play = %[\x20-\xff]" value) in
     st.current <- if current = "" then None else Some (make_track current);
-    if st.current <> None then State.switch_track st (Option.get st.current) false;
-    State.seek_track st (clamp 0.0 1.0 (input " seek_pos = %f " value));
-    st.playlist_scroll <- clamp 0 (len - 1) (input " play_scroll = %d " value);
-    st.playlist_open <- (0 <> input " play_open = %d " value);
-    (* TODO: 73 = playlist_min; use constant *)
-    st.playlist_height <- max 83 (input " play_height = %d " value);
+    let seek = clamp 0.0 1.0 (input " seek = %f " value) in
+    st.timemode <-
+      if input " timemode = %d " value = 0 then `Elapse else `Remain;
+    st.shuffled <- (0 <> input " shuffle = %d " value);
+    if st.shuffled then State.shuffle st (Some st.playlist_pos);
     st.repeat <-
       (match input " repeat = %d " value with 1 -> `One | 2 -> `All | _ -> `None);
     st.loop <-
@@ -133,15 +136,25 @@ let load_state st =
       | t1, t2 when t2 < 0.0 -> `A t1
       | t1, t2 -> `AB (t1, max t1 t2)
       );
-    st.shuffled <- (0 <> input " shuffle = %d " value);
-    if st.shuffled then State.shuffle st (Some st.playlist_pos);
-    st.timemode <-
-      if input " timemode = %d " value = 0 then `Elapse else `Remain;
-    st.mute <- (0 <> input " mute = %d " value);
-    st.exec_tag <- String.trim (input " exec_tag = %[\x20-\xff]" value);
-    st.exec_tag_max_len <- max 0 (input " exec_tag_max_len = %d " value);
-    Ui.set_color_scheme (clamp 0 (Array.length Ui.color_schemes - 1)
-      (input " color_scheme = %d " value));
+
+    let len = Array.length st.playlist - 1 in
+    st.playlist_pos <- clamp 0 (len - 1) (input " play_pos = %d " value);
+    if st.current = None && len > 0 then
+      st.current <- Some st.playlist.(st.playlist_pos);
+    if st.current <> None then
+      State.switch_track st (Option.get st.current) false;
+    State.seek_track st seek;
+
+    st.playlist_scroll <- clamp 0 (len - 1) (input " play_scroll = %d " value);
+    st.playlist_open <- (0 <> input " play_open = %d " value);
+    (* TODO: 83 = playlist_min; use constant *)
+    st.playlist_height <- max 83 (input " play_height = %d " value);
   );
   State.update_summary st;
+  Storage.load config_file (fun file ->
+    let input fmt = fscanf file fmt in
+    if input " [%s@]" value <> config_header then failwith "load_config";
+    st.exec_tag <- String.trim (input " exec_tag = %[\x20-\xff]" value);
+    st.exec_tag_max_len <- max 0 (input " exec_tag_max_len = %d " value);
+  );
   ok st
