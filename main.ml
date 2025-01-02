@@ -429,6 +429,10 @@ let run_control (st : State.t) =
 
 (* Playlist Section *)
 
+let update_playlist_rows (st : State.t) =
+  let _, _, _, h = Ui.dim st.win playlist_rect in
+  st.playlist_rows <- max 0 (int_of_float (Float.floor (float h /. float playlist_row_h)))
+
 let run_playlist (st : State.t) =
   let now = Unix.time () in
   let len = Array.length st.playlist in
@@ -439,25 +443,25 @@ let run_playlist (st : State.t) =
   let smax1 = String.make digits '0' ^ ". " in
   let cw1 = Api.Draw.text_width st.win playlist_row_h font smax1 + 1 in
   let cw3 = ref 16 in
-  let (_, y, w, h) as r = Ui.dim st.win playlist_rect in
-  let vlen = max 0 (int_of_float (Float.floor (float h /. float playlist_row_h))) in
+  let (_, y, w, _) as r = Ui.dim st.win playlist_rect in
+  let vlen = st.playlist_rows in
   let h' = vlen * playlist_row_h in
   (* Correct scrolling position for possible resize *)
   st.playlist_scroll <- clamp 0 (max 0 (len - vlen)) st.playlist_scroll;
+  let c = Ui.color_schemes.(Ui.get_color_scheme ()) in
   let rows =
     Array.init vlen (fun i ->
       let i = i + st.playlist_scroll in
-      if i >= len then `Green, `Black, [|""; ""; ""|] else
+      if i >= len then c.text, `Black, [|""; ""; ""|] else
       let track = st.playlist.(i) in
       if now -. track.last_update > playlist_file_check_freq then
         State.update_track st track;
       let bg = if i mod 2 = 0 then `Black else `Gray 0x10 in
-      let c = Ui.color_schemes.(Ui.get_color_scheme ()) in
       let fg =
         match track.status with
         | _ when i = st.playlist_pos ->
           if track.path = (Option.get st.current).path then `White else `Gray 0xc0
-        | _ when State.is_separator track -> `Green
+        | _ when State.is_separator track -> c.text
         | `Absent -> c.error
         | `Invalid -> c.warn
         | `Undet -> c.focus
@@ -540,10 +544,10 @@ let run_playlist (st : State.t) =
 
   (* Playlist selection *)
   let d =
-    if begin_key st.win then -len else
-    if end_key st.win then +len else
-    if pageup_key st.win then -vlen else
-    if pagedown_key st.win then +vlen else
+    if begin_key st.win then - Array.length st.playlist else
+    if end_key st.win then + Array.length st.playlist else
+    if pageup_key st.win then -st.playlist_rows else
+    if pagedown_key st.win then +st.playlist_rows else
     if up_key st.win then -1 else
     if down_key st.win then +1 else
     0
@@ -558,13 +562,14 @@ let run_playlist (st : State.t) =
     st.playlist_range <- i, i;
     State.deselect_all st;
     State.select st i i;
+    State.scroll_to_view st i;
   );
 
   let d =
-    if selbegin_key st.win then -len else
-    if selend_key st.win then +len else
-    if selpageup_key st.win then -vlen else
-    if selpagedown_key st.win then +vlen else
+    if selbegin_key st.win then - Array.length st.playlist else
+    if selend_key st.win then + Array.length st.playlist else
+    if selpageup_key st.win then - st.playlist_rows else
+    if selpagedown_key st.win then + st.playlist_rows else
     if selup_key st.win then -1 else
     if seldown_key st.win then +1 else
     0
@@ -583,7 +588,8 @@ let run_playlist (st : State.t) =
     (
       State.select st snd i;
       State.deselect st (max 0 fst) i
-    )
+    );
+    State.scroll_to_view st i;
   );
 
   if selall_key st.win then
@@ -740,7 +746,8 @@ let run_playlist (st : State.t) =
   (* Playlist resizing *)
   let _, h' =
     playlist_resizer st.win (control_w, control_h + playlist_min) (control_w, -1) in
-  st.playlist_height <- h' - control_h
+  st.playlist_height <- h' - control_h;
+  update_playlist_rows st
 
 
 (* Runner *)
@@ -766,8 +773,8 @@ let startup () =
   let win = Api.Window.init 0 0 control_w control_h App.name in
   let audio = Api.Audio.init () in
   let st = State.make win audio in
-  st.playlist_rows <- st.playlist_height / playlist_row_h;
   Persist.load_state st;
+  update_playlist_rows st;
   State.scroll_to_view st st.playlist_pos;
   at_exit (fun () -> Persist.save_state st; Storage.clear_temp ());
   st
