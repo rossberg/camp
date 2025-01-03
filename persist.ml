@@ -63,8 +63,6 @@ let to_string st =
   output "[%s]\n" state_header;
   let x, y = Ui.window_pos st.ui in
   output "win_pos = %d, %d\n" x y;
-  let w, h = Ui.window_size st.ui in
-  output "win_size = %d, %d\n" w h;
   output "color_scheme = %d\n" (Ui.get_color_scheme st.ui);
   output "volume = %.2f\n" st.volume;
   output "mute = %d\n" (Bool.to_int st.mute);
@@ -84,8 +82,9 @@ let to_string st =
   output "play_scroll = %d\n" st.playlist_scroll;
   output "play_open = %d\n" (Bool.to_int st.playlist_open);
   output "play_height = %d\n" st.playlist_height;
-  output "exec_tag = %s\n" st.exec_tag;
-  output "exec_tag_max_len = %d\n" st.exec_tag_max_len;
+  output "lib_open = %d\n" (Bool.to_int st.library_open);
+  output "lib_width = %d\n" st.library_width;
+  output "lib_side = %d\n" (Bool.to_int (st.library_side = `Right));
   Buffer.contents buf
 
 let _ = State.to_string := to_string
@@ -110,15 +109,10 @@ let load_state st =
     let x, y = clamp_pair 0 0 (sw - 20) (sh - 20)
       (input " win_pos = %d , %d " pair) in
     Api.Window.set_pos win x y;
-    let w, h = clamp_pair min_w min_h min_w sh
-      (input " win_size = %d , %d " pair) in
-    Api.Window.set_size win w h;
-    Api.Draw.start win `Black;
-    Api.Draw.finish win;
 
     st.playlist <- load_playlist ();
 
-    Ui.set_color_scheme st.ui (clamp 0 (Array.length Ui.color_schemes - 1)
+    Ui.set_color_scheme st.ui (clamp 0 (Ui.num_color_scheme st.ui - 1)
       (input " color_scheme = %d " value));
     st.volume <- clamp 0.0 1.0 (input " volume = %f " value);
     st.mute <- (0 <> input " mute = %d " value);
@@ -149,7 +143,12 @@ let load_state st =
     st.playlist_scroll <- clamp 0 (len - 1) (input " play_scroll = %d " value);
     st.playlist_open <- (0 <> input " play_open = %d " value);
     (* TODO: 83 = playlist_min; use constant *)
-    st.playlist_height <- max 83 (input " play_height = %d " value);
+    st.playlist_height <- clamp 83 sh (input " play_height = %d " value);
+    st.library_open <- (0 <> input " lib_open = %d " value);
+    (* TODO: 400 = library_min; use constant *)
+    st.library_width <- clamp 400 sw (input " lib_width = %d " value);
+    st.library_side <-
+      (if (input " lib_side = %d " value) = 0 then `Left else `Right);
   );
   State.update_summary st;
   Storage.load config_file (fun file ->

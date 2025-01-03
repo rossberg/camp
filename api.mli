@@ -21,6 +21,7 @@ type corner = [`NW | `NE | `SW | `SE]
 
 val add : point -> point -> point
 val sub : point -> point -> point
+val mul : point -> point -> point
 
 val inside : point -> rect -> bool
 
@@ -34,6 +35,7 @@ module Window :
 sig
   val init : int -> int -> int -> int -> string -> window
 
+  val pump : window -> unit
   val closed : window -> bool
 
   val pos : window -> point

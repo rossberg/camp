@@ -8,80 +8,90 @@ let playlist_file_check_freq = 5.0
 
 (* Layout *)
 
+let control_subwindow = Ui.subwindow 0
+
 let control_w = 360
 let control_h = 160
 let label_h = 8
 
-let power_button = Ui.button (-45, 10, 35, 22) "" ([`Command], `Char 'Q')
-let power_label = Ui.label (-45, 33, 35, label_h) `Center "POWER"
+let power_button = Ui.button (0, -45, 10, 35, 22) ([`Command], `Char 'Q')
+let power_label = Ui.label (0, -45, 33, 35, label_h) `Center "POWER"
 
-let minimize_button = Ui.mouse (-45, 10, 35, 22) `Right
+let minimize_button = Ui.mouse (0, -45, 10, 35, 22) `Right
 
-let playlist_indicator = Ui.indicator (-30, 48, 7, 7)
-let playlist_button = Ui.button (-45, 56, 35, 12) "" ([], `Char 'P')
-let playlist_label = Ui.label (-45, 69, 35, label_h) `Center "PLAYLIST"
+let playlist_indicator = Ui.indicator (0, -30, 48, 7, 7)
+let playlist_button = Ui.button (0, -45, 56, 35, 12) ([], `Char 'P')
+let playlist_label = Ui.label (0, -45, 69, 35, label_h) `Center "PLAYLIST"
 
-let library_indicator = Ui.indicator (-30, 85, 7, 7)
-let library_button = Ui.button (-45, 93, 35, 12) "" ([], `Char 'L')
-let library_label = Ui.label (-45, 106, 35, label_h) `Center "LIBRARY"
+let library_indicator = Ui.indicator (0, -30, 85, 7, 7)
+let library_button = Ui.button (0, -45, 93, 35, 12) ([], `Char 'L')
+let library_button2 = Ui.mouse (0, -45, 93, 35, 12) `Right
+let library_key = Ui.key ([`Shift], `Char 'L')
+let library_label = Ui.label (0, -45, 106, 35, label_h) `Center "LIBRARY"
 
-let info_box = Ui.box (10, 10, -55, 98) `Black
+let info_box = Ui.box (0, 10, 10, -55, 98) `Black
 
-let lcd_minus = Ui.lcd (15, 15, 14, 20)
-let lcd1 = Ui.lcd (32, 15, 14, 20)
-let lcd2 = Ui.lcd (49, 15, 14, 20)
-let lcd_colon = Ui.lcd (66, 15, 4, 20)
-let lcd3 = Ui.lcd (73, 15, 14, 20)
-let lcd4 = Ui.lcd (90, 15, 14, 20)
-let lcd_button = Ui.mouse (15, 15, 90, 20) `Left
+let lcd_minus = Ui.lcd (0, 15, 15, 14, 20)
+let lcd1 = Ui.lcd (0, 32, 15, 14, 20)
+let lcd2 = Ui.lcd (0, 49, 15, 14, 20)
+let lcd_colon = Ui.lcd (0, 66, 15, 4, 20)
+let lcd3 = Ui.lcd (0, 73, 15, 14, 20)
+let lcd4 = Ui.lcd (0, 90, 15, 14, 20)
+let lcd_button = Ui.mouse (0, 15, 15, 90, 20) `Left
 
-let volume_bar = Ui.volume_bar (-87, 15, 27, 50)
-let volume_wheel = Ui.wheel (0, 0, control_w, control_h)
-let mute_text = Ui.ticker (-80, 70, 20, 8)
-let mute_button = Ui.mouse (-87, 70, 27, 18) `Left
+let volume_bar = Ui.volume_bar (0, -87, 15, 27, 50)
+let volume_wheel = Ui.wheel (0, 0, 0, control_w, control_h)
+let mute_text = Ui.text (0, -87, 57, 20, 8) `Left
+let mute_button = Ui.mouse (0, -87, 55, 20, 15) `Left
+let mute_drag = Ui.drag (0, -87, 55, 20, 15)
 let mute_key = Ui.key ([], `Char '0')
 let volup_key = Ui.key ([], `Char '+')
 let voldown_key = Ui.key ([], `Char '-')
 
-let color_button_fwd = Ui.mouse (10, 35, -80, 50) `Left
-let color_button_bwd = Ui.mouse (10, 35, -80, 50) `Right
+let color_button_fwd = Ui.mouse (0, 10, 35, -90, 50) `Left
+let color_button_bwd = Ui.mouse (0, 10, 35, -90, 50) `Right
 
-let prop_ticker = Ui.ticker (15, 38, -80, 12)
-let title_ticker = Ui.ticker (12, 70, -80, 16)
-let seek_bar = Ui.progress_bar (12, 90, -60, 14)
+let prop_text = Ui.text (0, 15, 38, -80, 12) `Left
+let title_ticker = Ui.ticker (0, 12, 70, -60, 16)
+let seek_bar = Ui.progress_bar (0, 12, 90, -60, 14)
 let rw_key = Ui.key ([], `Arrow `Left)
 let ff_key = Ui.key ([], `Arrow `Right)
 
-let bwd_button = Ui.button (10, 122, 40, 30) ~protrude: false "<<" ([], `Char 'Z')
-let play_button = Ui.button (50, 122, 40, 30) ~protrude: false ">" ([], `Char 'X')
-let pause_button = Ui.button (90, 122, 40, 30) ~protrude: false "||" ([], `Char 'C')
-let stop_button = Ui.button (130, 122, 40, 30) ~protrude: false "[]" ([], `Char 'V')
-let fwd_button = Ui.button (170, 122, 40, 30) ~protrude: false ">>" ([], `Char 'B')
-let eject_button = Ui.button (210, 122, 40, 30) ~protrude: false "^" ([], `Char 'N')
+let bwd_button = Ui.labeled_button (0, 10, 122, 40, 30) ~protrude: false 10 "<<" ([], `Char 'Z')
+let play_button = Ui.labeled_button (0, 50, 122, 40, 30) ~protrude: false 10 ">" ([], `Char 'X')
+let pause_button = Ui.labeled_button (0, 90, 122, 40, 30) ~protrude: false 10 "||" ([], `Char 'C')
+let stop_button = Ui.labeled_button (0, 130, 122, 40, 30) ~protrude: false 10 "[]" ([], `Char 'V')
+let fwd_button = Ui.labeled_button (0, 170, 122, 40, 30) ~protrude: false 10 ">>" ([], `Char 'B')
+let eject_button = Ui.labeled_button (0, 210, 122, 40, 30) ~protrude: false 10 "^" ([], `Char 'N')
 
-let shuffle_indicator = Ui.indicator (270, 122, 7, 7)
-let shuffle_button = Ui.button (259, 130, 25, 12) "" ([], `Char 'T')
-let shuffle_label = Ui.label (259, 143, 25, label_h) `Center "SHUFFLE"
+let shuffle_indicator = Ui.indicator (0, 270, 122, 7, 7)
+let shuffle_button = Ui.button (0, 259, 130, 25, 12) ([], `Char 'T')
+let shuffle_label = Ui.label (0, 259, 143, 25, label_h) `Center "SHUFFLE"
 
-let repeat_indicator1 = Ui.indicator (296, 122, 7, 7)
-let repeat_indicator2 = Ui.indicator (307, 122, 7, 7)
-let repeat_button = Ui.button (292, 130, 25, 12) "" ([], `Char 'R')
-let repeat_label = Ui.label (292, 143, 25, label_h) `Center "REPEAT"
+let repeat_indicator1 = Ui.indicator (0, 296, 122, 7, 7)
+let repeat_indicator2 = Ui.indicator (0, 307, 122, 7, 7)
+let repeat_button = Ui.button (0, 292, 130, 25, 12) ([], `Char 'R')
+let repeat_label = Ui.label (0, 292, 143, 25, label_h) `Center "REPEAT"
 
-let loop_indicator1 = Ui.indicator (329, 122, 7, 7)
-let loop_indicator2 = Ui.indicator (340, 122, 7, 7)
-let loop_button = Ui.button (325, 130, 25, 12) "" ([], `Char 'J')
-let loop_label = Ui.label (325, 143, 25, label_h) `Center "LOOP"
+let loop_indicator1 = Ui.indicator (0, 329, 122, 7, 7)
+let loop_indicator2 = Ui.indicator (0, 340, 122, 7, 7)
+let loop_button = Ui.button (0, 325, 130, 25, 12) ([], `Char 'J')
+let loop_label = Ui.label (0, 325, 143, 25, label_h) `Center "LOOP"
+
+
+let playlist_subwindow = Ui.subwindow 1
 
 let playlist_row_h = 13
 let playlist_min = 31 + 4 * playlist_row_h
-let playlist_rect = (10, 170, -21, -20)
-let playlist = Ui.table playlist_rect playlist_row_h
-let playlist_scroll = Ui.scroll_bar (-20, 170, 10, -20)
-let playlist_wheel = Ui.wheel (10, 170, -10, -20)
-let playlist_drag = Ui.drag (10, 170, -20, -20)
-let playlist_summary = Ui.ticker (10, -15, 100, 10)
-let playlist_resizer = Ui.resizer (-16, -16, 16, 16)
+let playlist_area = (1, 10, 10, -21, -24)
+
+let playlist_table = Ui.table playlist_area playlist_row_h
+let playlist_scroll = Ui.scroll_bar (1, -20, 10, 10, -24)
+let playlist_wheel = Ui.wheel (1, 10, 10, -10, -24)
+let playlist_drag = Ui.drag (1, 10, 10, -20, -24)
+let playlist_summary_box = Ui.box (1, -120, -18, -21, playlist_row_h) `Black
+let playlist_summary_text = Ui.text (1, -120, -18, -23, playlist_row_h) `Right
+let playlist_resizer = Ui.resizer (1, -16, -16, 16, 16) `N_S
 
 let up_key = Ui.key ([], `Arrow `Up)
 let down_key = Ui.key ([], `Arrow `Down)
@@ -108,18 +118,32 @@ let movepagedown_key = Ui.key ([`Command], `Page `Down)
 let movebegin_key = Ui.key ([`Command], `End `Up)
 let moveend_key = Ui.key ([`Command], `End `Down)
 
-let sep_button = Ui.button (117, -18, 25, 17) "SEP" ([`Command], `Char ' ')
-let del_button = Ui.button (147, -18, 25, 17) "DEL" ([], `Delete)
-let crop_button = Ui.button (172, -18, 25, 17) "CROP" ([`Shift], `Delete)
-let clean_button = Ui.button (197, -18, 25, 17) "CLEAN" ([`Command], `Delete)
-let undo_button = Ui.button (227, -18, 25, 17) "UNDO" ([`Command], `Char 'Z')
-let redo_button = Ui.button (252, -18, 25, 17) "REDO" ([`Shift; `Command], `Char 'Z')
-let save_button = Ui.button (282, -18, 25, 17) "SAVE" ([`Command], `Char 'S')
-let tag_button = Ui.button (312, -18, 25, 17) "TAG" ([`Command], `Char 'T')
+let save_button = Ui.labeled_button (1, 10, -20, 25, 20) label_h "SAVE" ([`Command], `Char 'S')
+let tag_button = Ui.labeled_button (1, 40, -20, 25, 20) label_h "TAG" ([`Command], `Char 'T')
+let del_button = Ui.labeled_button (1, 70, -20, 25, 20) label_h "DEL" ([], `Delete)
+let crop_button = Ui.labeled_button (1, 95, -20, 25, 20) label_h "CROP" ([`Shift], `Delete)
+let clean_button = Ui.labeled_button (1, 120, -20, 25, 20) label_h "CLEAN" ([`Command], `Delete)
+let undo_button = Ui.labeled_button (1, 150, -20, 25, 20) label_h "UNDO" ([`Command], `Char 'Z')
+let redo_button = Ui.labeled_button (1, 175, -20, 25, 20) label_h "REDO" ([`Shift; `Command], `Char 'Z')
+let sep_button = Ui.labeled_button (1, 205, -20, 25, 20) label_h "SEP" ([`Command], `Char ' ')
 
 let cut_key = Ui.key ([`Command], `Char 'X')
 let copy_key = Ui.key ([`Command], `Char 'C')
 let paste_key = Ui.key ([`Command], `Char 'V')
+
+
+let library_subwindow = Ui.subwindow 2
+
+let library_row_h = playlist_row_h
+let library_min = 400
+let library_area = (2, 10, 10, -21, -24)
+
+let library_table = Ui.table library_area library_row_h
+let library_scroll = Ui.scroll_bar (2, -20, 10, 10, -24)
+let library_wheel = Ui.wheel (2, 10, 10, -10, -24)
+
+let library_resizer_l = Ui.resizer (2, 1, -16, 16, 16)
+let library_resizer_r = Ui.resizer (2, -16, -16, 16, 16)
 
 
 (* Helpers *)
@@ -169,6 +193,11 @@ let exec prog args =
 (* Control Section *)
 
 let run_control (st : State.t) =
+  let x =
+    if st.library_open && st.library_side = `Left then st.library_width else 0
+  in
+  control_subwindow st.ui (x, 0, control_w, control_h);
+
   (* Exit button *)
   (* This has to come first, otherwise Raylib crashes? *)
   if not (power_button st.ui true) then exit 0;
@@ -216,7 +245,7 @@ let run_control (st : State.t) =
       | `Remain -> `Elapse
   );
 
-  let ncol = Array.length Ui.color_schemes in
+  let ncol = Ui.num_color_scheme st.ui in
   let dcol =
     (if color_button_fwd st.ui then +1 else 0) +
     (if color_button_bwd st.ui then -1 else 0)
@@ -234,7 +263,7 @@ let run_control (st : State.t) =
     let rate = Api.Audio.rate st.audio st.sound in
     let channels = Api.Audio.channels st.audio st.sound in
     let depth = bitrate /. float rate /. float channels in
-    prop_ticker st.ui
+    prop_text st.ui true
       (fmt "%s    %.0f KBPS    %.1f KHZ    %s BIT    %s"
         format (bitrate /. 1000.0) (float rate /. 1000.0)
         (fmt (if depth = Float.round depth then "%.0f" else "%.1f") depth)
@@ -258,12 +287,13 @@ let run_control (st : State.t) =
   (* Volume control *)
   let volume' = volume_bar st.ui st.volume +. 0.05 *. volume_wheel st.ui +.
     0.05 *. (float_of_bool (volup_key st.ui) -. float_of_bool (voldown_key st.ui)) in
-  mute_text st.ui "MUTE" ~unlit: (not st.mute);
+  mute_text st.ui st.mute "MUTE";
   let mute' = if mute_button st.ui || mute_key st.ui then not st.mute else st.mute in
   if volume' <> st.volume || mute' <> st.mute then
   (
+    (* Hack to overlap volume bar with mute button. *)
+    if mute_drag st.ui (0, 0) = `None then st.volume <- clamp 0.0 1.0 volume';
     st.mute <- mute';
-    st.volume <- clamp 0.0 1.0 volume';
     Api.Audio.volume st.audio st.sound (if st.mute then 0.0 else st.volume);
   );
 
@@ -424,16 +454,33 @@ let run_control (st : State.t) =
     | `AB (t1, t2), true -> `AB (t1, t2)
     );
 
-  (* Window modes *)
+  (* Subwindow Activation *)
   playlist_label st.ui;
   playlist_indicator st.ui st.playlist_open;
   let playlist_open' = playlist_button st.ui st.playlist_open in
   st.playlist_open <- playlist_open';
 
-  (* TODO *)
   library_label st.ui;
-  library_indicator st.ui false;
-  let _libopen' = library_button st.ui false in
+  library_indicator st.ui st.library_open;
+  let library_open' = library_button st.ui st.library_open in
+  let wx, _ = Ui.window_pos st.ui in
+  let sw, _ = Api.Window.screen_size (Ui.window st.ui) in
+  if not st.library_open && library_open' && not (Api.Key.is_modifier_down `Shift) then
+  (
+    if st.library_side = `Left && wx <= 0 then st.library_side <- `Right;
+    if st.library_side = `Right && wx + control_w >= sw then st.library_side <- `Left;
+    st.library_open <- library_open';
+  )
+  else if
+    st.library_open <> library_open' && Api.Key.is_modifier_down `Shift ||
+    library_button2 st.ui || library_key st.ui
+  then
+  (
+    (* Instead of closing, switch sides. *)
+    st.library_side <- if st.library_side = `Left then `Right else `Left
+  )
+  else
+    st.library_open <- library_open';
 
   (* Minimize button *)
   if minimize_button st.ui then
@@ -443,12 +490,17 @@ let run_control (st : State.t) =
 (* Playlist Section *)
 
 let update_playlist_rows (st : State.t) =
-  let _, _, _, h = Ui.dim st.ui playlist_rect in
+  let _, _, _, h = Ui.dim st.ui playlist_area in
   st.playlist_rows <- max 4 (int_of_float (Float.floor (float h /. float playlist_row_h)))
 
 let run_playlist (st : State.t) =
   let now = Unix.time () in
   let len = Array.length st.playlist in
+
+  let x =
+    if st.library_open && st.library_side = `Left then st.library_width else 0
+  in
+  playlist_subwindow st.ui (x, control_h, control_w, st.playlist_height);
 
   (* Playlist table *)
   let digits = log10 (len + 1) + 1 in
@@ -456,16 +508,15 @@ let run_playlist (st : State.t) =
   let smax1 = String.make digits '0' ^ ". " in
   let cw1 = Api.Draw.text_width (Ui.window st.ui) playlist_row_h font smax1 + 1 in
   let cw3 = ref 16 in
-  let (_, y, w, _) as r = Ui.dim st.ui playlist_rect in
+  let (_, y, w, _) as r = Ui.dim st.ui playlist_area in
   let vlen = st.playlist_rows in
   let h' = vlen * playlist_row_h in
   (* Correct scrolling position for possible resize *)
   st.playlist_scroll <- clamp 0 (max 0 (len - vlen)) st.playlist_scroll;
-  let c = Ui.color_schemes.(Ui.get_color_scheme st.ui) in
   let rows =
     Array.init vlen (fun i ->
       let i = i + st.playlist_scroll in
-      if i >= len then c.text, `Black, [|""; ""; ""|] else
+      if i >= len then Ui.text_color st.ui, `Black, [|""; ""; ""|] else
       let track = st.playlist.(i) in
       if now -. track.last_update > playlist_file_check_freq then
         State.update_track st track;
@@ -474,11 +525,11 @@ let run_playlist (st : State.t) =
         match track.status with
         | _ when i = st.playlist_pos ->
           if track.path = (Option.get st.current).path then `White else `Gray 0xc0
-        | _ when State.is_separator track -> c.text
-        | `Absent -> c.error
-        | `Invalid -> c.warn
-        | `Undet -> c.focus
-        | `Predet | `Det -> c.text
+        | _ when State.is_separator track -> Ui.text_color st.ui
+        | `Absent -> Ui.error_color st.ui
+        | `Invalid -> Ui.warn_color st.ui
+        | `Undet -> Ui.unlit_color (Ui.text_color st.ui)
+        | `Predet | `Det -> Ui.text_color st.ui
       in
       let fg, bg = if State.is_selected st i then bg, fg else fg, bg in
       let time = if track.time = 0.0 then "" else fmt_time track.time in
@@ -488,7 +539,7 @@ let run_playlist (st : State.t) =
   in
   let cols = [|cw1, `Right; w - cw1 - !cw3 - 2, `Left; !cw3, `Right|] in
   let dragging = playlist_drag st.ui (max_int, playlist_row_h) in
-  (match playlist st.ui cols rows with
+  (match playlist_table st.ui cols rows with
   | None -> ()
   | Some i ->
     let i = st.playlist_scroll + i in
@@ -753,14 +804,55 @@ let run_playlist (st : State.t) =
   (* Playlist summary *)
   if int_of_float (time ()) mod 10 = 0 then State.update_summary st;
   let fmt_sum (t, n) = fmt_time3 t ^ if n > 0 then "+" else "" in
-  playlist_summary st.ui
-    (fmt_sum st.playlist_sum_selected ^ " / " ^ fmt_sum st.playlist_sum);
+  playlist_summary_box st.ui;
+  playlist_summary_text st.ui true
+    ( if st.playlist_sum_selected = (0.0, 0) then fmt_sum st.playlist_sum else
+      fmt_sum st.playlist_sum_selected ^ "/" ^ fmt_sum st.playlist_sum );
 
   (* Playlist resizing *)
-  let _, h' =
-    playlist_resizer st.ui (control_w, control_h + playlist_min) (control_w, -1) in
-  st.playlist_height <- h' - control_h;
+  let w = control_w + (if st.library_open then st.library_width else 0) in
+  let _, dh =
+    playlist_resizer st.ui (w, control_h + playlist_min) (w, -1) in
+  st.playlist_height <- st.playlist_height + dh;
   update_playlist_rows st
+
+
+(* Library *)
+
+let run_library (st : State.t) =
+  let x = if st.library_side = `Left then 0 else control_w - 5 in
+  let dh = if st.playlist_open then st.playlist_height else 0 in
+  library_subwindow st.ui (x, 0, st.library_width + 5, control_h + dh);
+
+  (* Main view *)
+  let cols = [||] in
+  let rows = [||] in
+  ignore (library_table st.ui cols rows);
+
+  let pos = 0.0 in
+  let ext = 1.0 in
+  let _pos' = library_scroll st.ui pos ext -. 0.05 *. library_wheel st.ui in
+
+  (* Library resizing *)
+  let left = st.library_side = `Left in
+  if st.playlist_open && snd (Ui.window_size st.ui) > control_h then
+  (
+    let dw, dh =
+      (if left then library_resizer_l `NE_SW else library_resizer_r `NW_SE)
+        st.ui (control_w + library_min, control_h + playlist_min) (-1, -1)
+    in
+    st.library_width <- st.library_width + dw;
+    st.playlist_height <- st.playlist_height + dh;
+  )
+  else
+  (
+    let h = control_h + (if st.playlist_open then st.playlist_height else 0) in
+    let dw, _ =
+      (if left then library_resizer_l else library_resizer_r) `E_W
+        st.ui (control_w + library_min, h) (-1, h)
+    in
+    st.library_width <- st.library_width + dw;
+  )
 
 
 (* Runner *)
@@ -768,18 +860,39 @@ let run_playlist (st : State.t) =
 let rec run (st : State.t) =
   let win = Ui.window st.ui in
   if Api.Window.closed win then exit 0;
+
+  let dw = if st.library_open then st.library_width else 0 in
+  let dh = if st.playlist_open then st.playlist_height else 0 in
+  Api.Window.set_size win (control_w + dw) (control_h + dh);
+  Api.Window.pump win;
+
   Api.Draw.start win (`Trans (`Black, 0x40));
   Ui.background st.ui;
+
   let playlist_open = st.playlist_open in
+  let library_open = st.library_open in
+  let library_side = st.library_side in
+  let library_width = st.library_width in
   run_control st;
   if not (Api.Window.is_minimized win) then
   (
     if playlist_open then run_playlist st;
+    if library_open then run_library st;
   );
+
   Api.Draw.finish win;
 
-  let dh = if st.playlist_open then st.playlist_height else 0 in
-  Api.Window.set_size (Ui.window st.ui) control_w (control_h + dh);
+  let dx =
+    match library_open, st.library_open, library_side, st.library_side with
+    | false, true, _, `Left
+    | true, true, `Right, `Left -> -st.library_width  (* opened on the left *)
+    | true, false, `Left, _
+    | true, true, `Left, `Right -> +library_width (* closed on the left *)
+    | true, true, `Left, `Left -> library_width - st.library_width (* resized *)
+    | _ -> 0
+  in
+  let x, y = Api.Window.pos win in
+  Api.Window.set_pos win (x + dx) y;
 
   run st
 

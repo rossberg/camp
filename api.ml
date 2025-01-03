@@ -23,6 +23,7 @@ type corner = [`NW | `NE | `SW | `SE]
 
 let add (x1, y1) (x2, y2) = (x1 + x2, y1 + y2)
 let sub (x1, y1) (x2, y2) = (x1 - x2, y1 - y2)
+let mul (x1, y1) (x2, y2) = (x1 * x2, y1 * y2)
 
 let inside (x, y) (x', y', w, h) =
   x' <= x && x <= x' + w && y' <= y && y <= y' + h
@@ -62,6 +63,7 @@ struct
     Raylib.init_window w h s;
     Raylib.set_window_position x y
 
+  let pump () = Raylib.poll_input_events ()
   let closed () = Raylib.window_should_close ()
 
   let pos () = point_of_vec2 (Raylib.get_window_position ())

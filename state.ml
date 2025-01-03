@@ -24,22 +24,23 @@ let exts = [".mp3"; ".flac"; ".wav"; ".ogg"; ".mod"]
 let known_ext path =
   List.mem (String.lowercase_ascii (Filename.extension path)) exts
 
-let separator = String.make 80 '-'
-
+let name_separator = String.make 80 '-'
 let name_of_path path =
-  if M3u.is_separator path then separator else
   let file = Filename.basename path in
   if known_ext file then Filename.remove_extension file else file
+
+let is_separator track = M3u.is_separator track.path
 
 let make_track' path name time status =
   {path; name; time; status; last_update = 0.0}
 
-let make_track path = make_track' path (name_of_path path) 0.0 `Undet
+let make_separator () = make_track' "separator://" name_separator 0.0 `Det
+
 let make_track_predet path name time = make_track' path name time `Predet
 
-let make_separator () = make_track' "separator://" separator 0.0 `Det
-
-let is_separator track = M3u.is_separator track.path
+let make_track path =
+  if M3u.is_separator path then make_separator () else
+  make_track' path (name_of_path path) 0.0 `Undet
 
 
 (* State *)
@@ -79,6 +80,9 @@ type t =
   mutable shuffle : int array;
   mutable shuffle_pos : int;
   mutable shuffle_unobserved : int;
+  mutable library_open : bool;
+  mutable library_width : int;
+  mutable library_side : Api.side;
   mutable undos : undo list ref;
   mutable redos : undo list ref;
   mutable exec_tag : string;
@@ -111,6 +115,9 @@ let make ui audio =
     shuffle = [||];
     shuffle_pos = 0;
     shuffle_unobserved = 0;
+    library_open = false;
+    library_width = 600;
+    library_side = `Right;
     undos = ref [];
     redos = ref [];
     exec_tag = "";
@@ -275,7 +282,7 @@ let rec updater () =
   (
     track.status <- `Det;
     track.time <- 0.0;
-    track.name <- separator;
+    track.name <- name_separator;
   )
   else if not (Sys.file_exists track.path) then
   (
@@ -546,9 +553,11 @@ let insert st pos tracks =
 
 let insert_paths st pos paths =
   let tracks = ref [] in
-  let add_track path =
-    tracks := make_track path :: !tracks
+  let add_track track =
+    tracks := track :: !tracks;
+    if track.status = `Undet then update_track st track
   in
+  let add_song path = add_track (make_track path) in
   let add_playlist path =
     let s = In_channel.(with_open_bin path input_all) in
     List.iter (fun M3u.{path; info} ->
@@ -556,7 +565,7 @@ let insert_paths st pos paths =
         match info with
         | None -> make_track path
         | Some {title; time} -> make_track_predet path title (float time)
-      in tracks := track :: !tracks
+      in add_track track
     ) (M3u.parse_ext s)
   in
   let rec add_path path =
@@ -567,8 +576,8 @@ let insert_paths st pos paths =
           add_path (Filename.concat path file)
         ) (Sys.readdir path)
       | ".m3u" | ".m3u8" -> add_playlist path
-      | _ -> add_track path
-    with Sys_error _ -> add_track path
+      | _ -> add_song path
+    with Sys_error _ -> add_song path
   in
   List.iter add_path paths;
   insert st pos (Array.of_list (List.rev !tracks))

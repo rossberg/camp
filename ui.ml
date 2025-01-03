@@ -16,16 +16,20 @@ type drag_extra += No_drag
 
 type image_load = [`Unloaded of string | `Loaded of image] ref
 
+type subwindow = int
+type area = subwindow * int * int * int * int
+
 type t =
 {
   win : window;
   mutable color_scheme : int;
+  mutable sub : rect array;         (* sub-windows *)
   mutable inner : rect list;        (* list of inner elements *)
   mutable win_pos : point;          (* logical position ignoring snap *)
   mutable win_size : point;         (* size ignoring minimization *)
   mutable mouse_pos : point;        (* absolute mouse position on screen *)
   mutable mouse_delta : size;       (* absolute delta *)
-  mutable drag_pos : point;         (* starting point of mouse drag *)
+  mutable drag_pos : point;         (* relative starting position of mouse drag *)
   mutable drag_extra : drag_extra;  (* associated data for drag operation *)
   mutable drag_happened : bool;     (* Dragging happened before last release *)
   img_background : image_load;
@@ -44,6 +48,7 @@ let make win =
   Window.set_icon win icon;
   { win;
     color_scheme = 0;
+    sub = Array.make 4 (0, 0, 0, 0);
     inner = [];
     win_pos = (0, 0);
     win_size = (0, 0);
@@ -76,10 +81,13 @@ let get_img ui rimg =
 
 (* Helpers *)
 
-let dim ui (x, y, w, h) =
-  let ww, wh = Window.size ui.win in
-  (if x < 0 then ww + x else x), (if y < 0 then wh + y else y),
-  (if w < 0 then ww - x + w else w), (if h < 0 then wh - y + h else h)
+let dim ui (i, x, y, w, h) =
+  let wx, wy, ww, wh = ui.sub.(i) in
+  let x' = x + (if x >= 0 then 0 else ww) in
+  let y' = y + (if y >= 0 then 0 else wh) in
+  let w' = w + (if w >= 0 then 0 else ww - x') in
+  let h' = h + (if h >= 0 then 0 else wh - y') in
+  wx + x', wy + y', w', h'
 
 let snap_dist = 12
 
@@ -108,18 +116,21 @@ let color_schemes =
   {text = `RGB 0xddac4d; warn = `RGB 0xffff6d; error = `RGB 0xf14138; focus = `RGB 0xd5b482};
 |]
 
+let num_color_scheme _ui = Array.length color_schemes
 let get_color_scheme ui = ui.color_scheme
 let set_color_scheme ui i = ui.color_scheme <- i
 
 
-let unlit = 0x28
-
+let unlit_alpha = 0x28
+let unlit_color c = `Trans (c, unlit_alpha)
 let text_color ui = color_schemes.(ui.color_scheme).text
+let warn_color ui = color_schemes.(ui.color_scheme).warn
+let error_color ui = color_schemes.(ui.color_scheme).error
 let focus_color ui = color_schemes.(ui.color_scheme).focus
 
 let fill ui = function
   | true -> text_color ui
-  | false -> `Trans (text_color ui, unlit)
+  | false -> unlit_color (text_color ui)
 
 let border ui = function
   | `Focused -> focus_color ui
@@ -156,9 +167,9 @@ let background ui =
 
   Mouse.set_cursor ui.win `Default;
   let m = Mouse.pos ui.win in
-  let mouse' = add m (Window.pos ui.win) in
-  ui.mouse_delta <- sub mouse' ui.mouse_pos;
-  ui.mouse_pos <- mouse';
+  let m' = add m (Window.pos ui.win) in
+  ui.mouse_delta <- sub m' ui.mouse_pos;
+  ui.mouse_pos <- m';
   if Mouse.is_down `Left then
   (
     if ui.drag_pos = no_drag then ui.drag_pos <- m;
@@ -182,6 +193,16 @@ let background ui =
     )
   );
   ui.inner <- []
+
+
+(* Sub Windows *)
+
+let subwindow i ui r =
+  let n = Array.length ui.sub in
+  if i >= n then
+    ui.sub <-
+      Array.init (2*n) (fun i -> if i < n then ui.sub.(i) else (0, 0, 0, 0));
+  ui.sub.(i) <- r
 
 
 (* GUI elements *)
@@ -219,24 +240,24 @@ let drag_status ui r (stepx, stepy) =
     ui.drag_happened <- false;
     if happened then `None else `Click
   else
-  let r' = dim ui r in
   let (mx, my) as m = Mouse.pos ui.win in
-  if not (inside ui.drag_pos r') then `None else
+  if not (inside ui.drag_pos r) then `None else
   match ui.drag_extra with
-  | No_drag -> ui.drag_extra <- Drag_gen m; `None
+  | No_drag ->
+    ui.drag_extra <- Drag_gen m;
+    if stepx * stepy = 0 then `Drag (0, 0) else `None
   | Drag_gen m' ->
     let dx, dy = sub m m' in
-    let dx' = dx / stepx in
-    let dy' = dy / stepy in
-    let happened = dx' <> 0 || dy' <> 0 in
-    ui.drag_extra <- Drag_gen (mx - dx mod stepx, my - dy mod stepy);
+    let dx' = if stepx = 0 then dx else dx / stepx in
+    let dy' = if stepy = 0 then dy else dy / stepy in
+    let happened = dx' <> 0 || dy' <> 0 || stepx * stepy = 0 in
+    ui.drag_extra <- Drag_gen (mx - dx mod max 1 stepx, my - dy mod max 1 stepy);
     ui.drag_happened <- ui.drag_happened || happened;
     if not happened then `None else `Drag (dx', dy')
   | _ -> assert false
 
 let wheel_status ui r =
-  let r' = dim ui r in
-  if inside (Mouse.pos ui.win) r' then snd (Mouse.wheel ui.win) else 0.0
+  if inside (Mouse.pos ui.win) r then snd (Mouse.wheel ui.win) else 0.0
 
 let key modkey ui = (key_status ui modkey = `Pressed)
 let mouse r side ui = (mouse_status ui (dim ui r) side = `Released)
@@ -302,7 +323,7 @@ let lcd r ui d =
     lcd' ui (dim ui r) c `Dots
   else
     List.iter (lcd' ui (dim ui r) c) [`N; `S; `C; `NW; `SW; `NE; `SE];
-  List.iter (lcd' ui (dim ui r) (`Trans (`Black, 0x100 - unlit)))
+  List.iter (lcd' ui (dim ui r) (`Trans (`Black, 0x100 - unlit_alpha)))
     (match d with
     | ' ' -> [`N; `S; `C; `NW; `SW; `NE; `SE]
     | '+' -> [`C]
@@ -342,54 +363,43 @@ let element r modkey ui =
   | `Focused, _ | _, `Focused -> `Focused
   | _, _ -> `Untouched
 
-let resizer r ui (minw, minh) (maxw, maxh) =
+
+type drag_extra += Resize of size (* clamped delta *)
+
+let resizer r cursor ui (minw, minh) (maxw, maxh) =
   let (x, y, w, h), status = element r no_modkey ui in
-  if status <> `Untouched then Api.Mouse.set_cursor ui.win (`Resize `N_S);
+  if status <> `Untouched then Api.Mouse.set_cursor ui.win (`Resize cursor);
   Draw.fill ui.win x y w h (fill ui false);
   Draw.rect ui.win x y w h (border ui status);
   let sz = Window.size ui.win in
-  if status <> `Pressed then sz else
-  (
-    let ww, wh = add sz ui.mouse_delta in
-    let sw, sh = Window.screen_size ui.win in
-    let maxw = if maxw < 0 then sw else maxw in
-    let maxh = if maxh < 0 then sh else maxh in
-    let ww', wh' = clamp minw maxw ww, clamp minh maxh wh in
-    (*Window.set_size ui.win ww' wh';*)
-    (* Adjust owned drag_pos for size-relative position *)
-    let x0, y0, _, _ = r in
-    let dw = if x0 >= 0 then 0 else ww' - fst sz in
-    let dh = if y0 >= 0 then 0 else wh' - snd sz in
-    ui.drag_pos <- add ui.drag_pos (dw, dh);
-    assert (inside ui.drag_pos (x + dw, y + dh, w, h));
-    ui.inner <- (x + dw, y + dh, w, h) :: ui.inner;
-    ww', wh'
-  )
+  if status <> `Pressed then 0, 0 else
+  let _, x0, y0, _, _ = r in
+  let sign = (if x0 >= 0 then -1 else +1), (if y0 >= 0 then -1 else +1) in
+  let over =
+    match ui.drag_extra with
+    | No_drag -> 0, 0
+    | Resize over -> over
+    | _ -> assert false
+  in
+  let ww, wh = add (add sz (mul sign ui.mouse_delta)) over in
+  let sw, sh = Window.screen_size ui.win in
+  let maxw = if maxw < 0 then sw else maxw in
+  let maxh = if maxh < 0 then sh else maxh in
+  let ww', wh' = clamp minw maxw ww, clamp minh maxh wh in
+  ui.drag_extra <- Resize (ww - ww', wh - wh');
+  (* HACK: Adjust owned drag_pos for size-relative position *)
+  (* This assumes that the caller actually resizes the window! *)
+  let dw = if x0 >= 0 then 0 else ww' - fst sz in
+  let dh = if y0 >= 0 then 0 else wh' - snd sz in
+  ui.drag_pos <- add ui.drag_pos (dw, dh);
+  assert (inside ui.drag_pos (x + dw, y + dh, w, h));
+  ui.inner <- (x + dw, y + dh, w, h) :: ui.inner;
+  sub (ww', wh') sz
 
-let button_text ui x y w h c = function
-  | "[]" ->
-    Draw.fill ui.win x y w w c
-  | "||" ->
-    Draw.fill ui.win x y (w/3) w c;
-    Draw.fill ui.win (x + w - w/3) y (w/3) w c;
-  | ">" ->
-    Draw.arrow ui.win x y w w c `Right
-  | ">>" ->
-    Draw.arrow ui.win x y (w/2 + 1) w c `Right;
-    Draw.arrow ui.win (x + w/2) y (w/2 + 1) w c `Right;
-  | "<<" ->
-    Draw.arrow ui.win x y (w/2) w c `Left;
-    Draw.arrow ui.win (x + w/2) y (w/2) w c `Left;
-  | "^" ->
-    Draw.arrow ui.win x y w (w/2) c `Up;
-    Draw.fill ui.win x (y + w - w/3) w (w/3) c;
-  | s ->
-    label (x, y, w, h) `Center s ui
-
-let button r ?(protrude=true) txt modkey ui active =
+let button r ?(protrude=true) modkey ui active =
   let (x, y, w, h), status = element r modkey ui in
   let img = get_img ui ui.img_button in
-  let sx, sy, dy = if status = `Pressed then 800, 400, 1 else 0, 200, 0 in
+  let sx, sy = if status = `Pressed then 800, 400 else 0, 200 in
   Draw.clip ui.win x y w h;
   Draw.image ui.win (x - sx) (y - sy) 1 img;
   Draw.unclip ui.win;
@@ -399,19 +409,37 @@ let button r ?(protrude=true) txt modkey ui active =
     if protrude then Draw.line ui.win (x + 1) (y + 1) (x + w - 2) (y + 1) (`Gray 0x50);
   );
   Draw.rect ui.win x y w h (border ui status);
-  let wsym = h/3 in
-  let c = if active then `RGB 0x40ff40 else `Gray 0xc0 in
-  button_text ui (x + (w - wsym)/2) (y + (h - wsym)/2 + dy) wsym (h/2) c txt;
-(*
-  Draw.fill ui.win x y w h (fill ui active);
-  Draw.rect ui.win x y w h (border ui status);
-  let hsym = h/2 in
-  let font = font ui hsym in  (* TODO *)
-  let wsym = Draw.text_width ui.win hsym font sym in
-  let c = if active then `Green else `White in
-  Draw.text ui.win (x + (w - wsym)/2) (y + (h - hsym)/2) hsym c font sym;
-*)
   if status = `Released then not active else active
+
+let labeled_button r ?(protrude=true) hsym txt modkey ui active =
+  let (x, y, w, h), status = element r modkey ui in
+  let result = button r ~protrude modkey ui active in
+  let c = if active then `RGB 0x40ff40 else `Gray 0xc0 in
+  let xsym = (x + (w - hsym)/2) in
+  let ysym = (y + (h - hsym)/2) + Bool.to_int (status = `Pressed) in
+  (match txt with
+  | "" -> ()
+  | "[]" ->
+    Draw.fill ui.win xsym ysym hsym hsym c
+  | "||" ->
+    Draw.fill ui.win xsym ysym (hsym/3) hsym c;
+    Draw.fill ui.win (xsym + hsym - hsym/3) ysym (hsym/3) hsym c;
+  | ">" ->
+    Draw.arrow ui.win xsym ysym hsym hsym c `Right
+  | ">>" ->
+    Draw.arrow ui.win xsym ysym (hsym/2 + 1) hsym c `Right;
+    Draw.arrow ui.win (xsym + hsym/2) ysym (hsym/2 + 1) hsym c `Right;
+  | "<<" ->
+    Draw.arrow ui.win xsym ysym (hsym/2) hsym c `Left;
+    Draw.arrow ui.win (xsym + hsym/2) ysym (hsym/2) hsym c `Left;
+  | "^" ->
+    Draw.arrow ui.win xsym ysym hsym (hsym/2) c `Up;
+    Draw.fill ui.win xsym (ysym + hsym - hsym/3) hsym (hsym/3) c;
+  | s ->
+    let (i, x', y', w', _) = r in
+    label (i, x', y' + (h - hsym)/2, w', hsym) `Center s ui
+  );
+  result
 
 let progress_bar r ui v =
   let (x, y, w, h), status = element r no_modkey ui in
@@ -430,7 +458,7 @@ let volume_bar r ui v =
   let h' = int_of_float ((1.0 -. v) *. float h) in
   Draw.fill ui.win (x + w - 2) y 2 h (fill ui true);
   Draw.tri ui.win x y (w - 2) h (fill ui true) `NE;
-  Draw.fill ui.win x y w h' (`Trans (`Black, 0x100 - unlit));
+  Draw.fill ui.win x y w h' (`Trans (`Black, 0x100 - unlit_alpha));
   for j = 0 to h / 2 - 1 do
     Draw.line ui.win x (y + 2*j + 1) (x + w + 1) (y + 2*j + 1) `Black
   done;
@@ -457,7 +485,7 @@ let scroll_bar r ui v len =
   Draw.fill ui.win x y w h (fill ui false);
   let y' = y + int_of_float (v *. float (h - 2)) + 1 in
   let h' = int_of_float (Float.ceil (len *. float (h - 2))) in
-  Draw.fill ui.win x y' w h' (fill ui true);
+  if len < 1.0 then Draw.fill ui.win x y' w h' (fill ui true);
   for j = 0 to h / 2 - 1 do
     Draw.line ui.win x (y + 2*j + 1) (x + w) (y + 2*j + 1) `Black
   done;
@@ -489,13 +517,25 @@ let scroll_bar r ui v len =
   in clamp 0.0 (1.0 -. len) v'
 
 
-let ticker r ui ?(unlit = false) s =
+let text r align ui active s =
+  let (x, y, w, h), _status = element r no_modkey ui in
+  Draw.fill ui.win x y w h `Black;
+  let tw = Draw.text_width ui.win h (font ui h) s in
+  let dx =
+    match align with
+    | `Left -> 0
+    | `Center -> (w - tw) / 2
+    | `Right -> w - tw
+  in
+  Draw.text ui.win (x + dx) y h (fill ui active) (font ui h) s
+
+let ticker r ui s =
   let (x, y, w, h), _status = element r no_modkey ui in
   Draw.fill ui.win x y w h `Black;
   let tw = Draw.text_width ui.win h (font ui h) s in
   Draw.clip ui.win x y w h;
   let dx = if tw <= w then (w - tw)/2 else w - Draw.frame ui.win mod (w + tw) in
-  Draw.text ui.win (x + dx) y h (fill ui (not unlit)) (font ui h) s;
+  Draw.text ui.win (x + dx) y h (fill ui true) (font ui h) s;
   Draw.unclip ui.win
 
 
