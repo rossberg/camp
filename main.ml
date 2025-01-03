@@ -136,6 +136,11 @@ let clamp min max v =
 let float_of_bool b = float (Bool.to_int b)
 
 
+let start_time = Unix.gettimeofday ()
+
+let time () = Unix.gettimeofday () -. start_time
+
+
 let fmt = Printf.sprintf
 
 let fmt_time t =
@@ -182,7 +187,7 @@ let run_control (st : State.t) =
   (* LCD *)
   info_box st.ui;
   let sign, d1, d2, d3, d4 =
-    if paused && Api.Draw.frame (Ui.window st.ui) / 40 mod 2 = 0 then
+    if paused && int_of_float (time ()) mod 2 = 0 then
       '+', ' ', ' ', ' ', ' ' else
     let sign, time =
       match st.timemode with
@@ -746,7 +751,7 @@ let run_playlist (st : State.t) =
   State.insert_paths st pos dropped;
 
   (* Playlist summary *)
-  if Api.Draw.frame (Ui.window st.ui) mod (10 * 60) = 0 then State.update_summary st;
+  if int_of_float (time ()) mod 10 = 0 then State.update_summary st;
   let fmt_sum (t, n) = fmt_time3 t ^ if n > 0 then "+" else "" in
   playlist_summary st.ui
     (fmt_sum st.playlist_sum_selected ^ " / " ^ fmt_sum st.playlist_sum);
@@ -763,11 +768,6 @@ let run_playlist (st : State.t) =
 let rec run (st : State.t) =
   let win = Ui.window st.ui in
   if Api.Window.closed win then exit 0;
-  if not (Api.Window.is_minimized win) then
-  (
-    st.win_pos <- Api.Window.pos win;
-    st.win_size <- Api.Window.size win;
-  );
   Api.Draw.start win (`Trans (`Black, 0x40));
   Ui.background st.ui;
   let playlist_open = st.playlist_open in

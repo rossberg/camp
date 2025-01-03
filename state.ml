@@ -58,8 +58,6 @@ type t =
 {
   ui : Ui.t;
   audio : Api.audio;
-  mutable win_pos : Api.point;  (* mirror to be available on exit *)
-  mutable win_size : Api.size;
   mutable mute : bool;
   mutable volume : float;
   mutable sound : Api.sound;
@@ -68,13 +66,13 @@ type t =
   mutable shuffled : bool;
   mutable repeat : [`None | `One | `All];
   mutable loop : [`None | `A of time | `AB of time * time];
+  mutable playlist : track array;
   mutable playlist_open : bool;
   mutable playlist_height : int;
   mutable playlist_rows : int;
   mutable playlist_scroll : int;
   mutable playlist_pos : int;
   mutable playlist_range : int * int;
-  mutable playlist : track array;
   mutable playlist_selected : IntSet.t;
   mutable playlist_sum : time * int;
   mutable playlist_sum_selected : time * int;
@@ -93,8 +91,6 @@ let make ui audio =
   let sound = Api.Audio.silence audio in
   {
     ui; audio; sound;
-    win_pos = 0, 0;
-    win_size = 0, 0;
     mute = false;
     volume = 0.5;
     current = None;
@@ -102,13 +98,13 @@ let make ui audio =
     shuffled = false;
     repeat = `None;
     loop = `None;
+    playlist = [||];
     playlist_open = false;
     playlist_height = 200;
     playlist_rows = 4;
     playlist_scroll = 0;
     playlist_pos = 0;
     playlist_range = no_range;
-    playlist = [||];
     playlist_selected = IntSet.empty;
     playlist_sum = 0.0, 0;
     playlist_sum_selected = 0.0, 0;

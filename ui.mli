@@ -8,7 +8,10 @@ type align = [`Left | `Center | `Right]
 type color_scheme = {text : color; warn : color; error : color; focus : color}
 
 val make : window -> t
+
 val window : t -> window
+val window_pos : t -> point
+val window_size : t -> size
 
 val color_schemes : color_scheme array
 val get_color_scheme : t -> int

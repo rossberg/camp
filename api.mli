@@ -97,9 +97,11 @@ module Draw :
 sig
   val start : window -> color -> unit
   val finish : window -> unit
-  val frame : window -> int
+
   val clip : window -> int -> int -> int -> int -> unit
   val unclip : window -> unit
+
+  val frame : window -> int
 
   val line : window -> int -> int -> int -> int -> color -> unit
   val fill : window -> int -> int -> int -> int -> color -> unit

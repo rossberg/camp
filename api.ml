@@ -190,10 +190,10 @@ struct
     incr frame;
     Raylib.end_drawing ()
 
-  let frame () = !frame
-
   let clip () x y w h = Raylib.begin_scissor_mode x y w h
   let unclip () = Raylib.end_scissor_mode ()
+
+  let frame () = !frame
 
   let line () x y x' y' c =
     Raylib.draw_line x y x' y' (color c)

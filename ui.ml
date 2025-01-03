@@ -22,6 +22,7 @@ type t =
   mutable color_scheme : int;
   mutable inner : rect list;        (* list of inner elements *)
   mutable win_pos : point;          (* logical position ignoring snap *)
+  mutable win_size : point;         (* size ignoring minimization *)
   mutable mouse_pos : point;        (* absolute mouse position on screen *)
   mutable mouse_delta : size;       (* absolute delta *)
   mutable drag_pos : point;         (* starting point of mouse drag *)
@@ -45,6 +46,7 @@ let make win =
     color_scheme = 0;
     inner = [];
     win_pos = (0, 0);
+    win_size = (0, 0);
     mouse_pos = (0, 0);
     mouse_delta = (0, 0);
     drag_pos = no_drag;
@@ -57,6 +59,8 @@ let make win =
   }
 
 let window ui = ui.win
+let window_pos ui = ui.win_pos
+let window_size ui = ui.win_size
 
 
 (* Images *)
@@ -163,14 +167,19 @@ let background ui =
       let wx, wy = add ui.win_pos ui.mouse_delta in
       let mw, mh = sub (Window.screen_size ui.win) (Window.size ui.win) in
       Window.set_pos ui.win (snap 0 mw wx) (snap 0 mh wy);
-      ui.win_pos <- wx, wy
+      ui.win_pos <- wx, wy;
+      ui.win_size <- Window.size ui.win;
     )
   )
   else
   (
     ui.drag_pos <- no_drag;
     ui.drag_extra <- No_drag;
-    ui.win_pos <- Window.pos ui.win
+    if not (Window.is_minimized ui.win) then
+    (
+      ui.win_pos <- Window.pos ui.win;
+      ui.win_size <- Window.size ui.win;
+    )
   );
   ui.inner <- []
 
