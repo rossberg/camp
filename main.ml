@@ -284,7 +284,7 @@ let run_control (st : State.t) =
   (* Title info *)
   let name =
     match st.control.current with
-    | Some track when not (State.is_separator track) ->
+    | Some track when not (Track.is_separator track) ->
       track.name ^ " - " ^ fmt_time track.time
     | _ -> App.(name ^ " " ^ version)
   in
@@ -311,7 +311,7 @@ let run_control (st : State.t) =
   let progress' = seek_bar st.ui progress +.
     0.05 *. (float_of_bool (ff_key st.ui) -. float_of_bool (rw_key st.ui)) in
   if progress' <> progress && not silence then
-    State.seek_track st.control (clamp 0.0 1.0 progress');
+    Control.seek st.control (clamp 0.0 1.0 progress');
 
 (*
   let s1 = fmt_time2 elapsed in
@@ -324,7 +324,7 @@ let run_control (st : State.t) =
   (* Looping *)
   (match st.control.loop with
   | `AB (t1, t2) when playing && t2 < elapsed ->
-    State.seek_track st.control (t1 /. length);
+    Control.seek st.control (t1 /. length);
   | _ -> ()
   );
 
@@ -334,16 +334,16 @@ let run_control (st : State.t) =
     let more =
       match st.control.repeat with
       | `One -> true
-      | `All -> State.skip st.playlist (+1) true
-      | `None -> State.skip st.playlist (+1) false
+      | `All -> Playlist.skip st.playlist (+1) true
+      | `None -> Playlist.skip st.playlist (+1) false
     in
     let next_track =
       if st.playlist.tracks = [||]
       then Option.get st.control.current
       else st.playlist.tracks.(st.playlist.pos)
     in
-    State.switch_track st.control next_track more;
-    State.adjust_scroll st.playlist st.playlist.pos;
+    Control.switch st.control next_track more;
+    Playlist.adjust_scroll st.playlist st.playlist.pos;
   );
 
   (* Play controls *)
@@ -353,16 +353,16 @@ let run_control (st : State.t) =
   in
   if off <> 0 && st.playlist.tracks <> [||] then
   (
-    let more = State.skip st.playlist off (st.control.repeat <> `None) in
-    State.switch_track st.control (State.current st.playlist) more;
-    State.adjust_scroll st.playlist st.playlist.pos;
+    let more = Playlist.skip st.playlist off (st.control.repeat <> `None) in
+    Control.switch st.control (Playlist.current st.playlist) more;
+    Playlist.adjust_scroll st.playlist st.playlist.pos;
   );
 
   let playing' = play_button st.ui playing in
   if stopped && playing' && st.playlist.tracks <> [||] then
   (
-    State.switch_track st.control (State.current st.playlist) true;
-    State.adjust_scroll st.playlist st.playlist.pos;
+    Control.switch st.control (Playlist.current st.playlist) true;
+    Playlist.adjust_scroll st.playlist st.playlist.pos;
   );
 
   let paused' = pause_button st.ui paused in
@@ -374,14 +374,14 @@ let run_control (st : State.t) =
   if stop_button st.ui false && not stopped then
   (
     Api.Audio.pause st.control.audio st.control.sound;
-    State.switch_track st.control (State.current st.playlist) false;
-    State.adjust_scroll st.playlist st.playlist.pos;
+    Control.switch st.control (Playlist.current st.playlist) false;
+    Playlist.adjust_scroll st.playlist st.playlist.pos;
   );
 
   if eject_button st.ui false then
   (
-    State.eject_track st.control;
-    State.remove_all st.playlist;
+    Control.eject st.control;
+    Playlist.remove_all st.playlist;
   );
 
   if Api.Key.is_released (`Char ' ') then
@@ -391,8 +391,8 @@ let run_control (st : State.t) =
     else if paused then
       Api.Audio.resume st.control.audio st.control.sound
     else if stopped && st.playlist.tracks <> [||] then
-      State.switch_track st.control (State.current st.playlist) true;
-    State.adjust_scroll st.playlist st.playlist.pos;
+      Control.switch st.control (Playlist.current st.playlist) true;
+    Playlist.adjust_scroll st.playlist st.playlist.pos;
   );
 
   (* Play modes *)
@@ -404,17 +404,17 @@ let run_control (st : State.t) =
     if shuffle' then
     (
       if not stopped then
-        State.shuffle st.playlist (Some st.playlist.pos)
+        Playlist.shuffle st.playlist (Some st.playlist.pos)
       else
       (
-        State.shuffle st.playlist None;
+        Playlist.shuffle st.playlist None;
         if st.playlist.tracks <> [||] then
-          State.switch_track st.control (State.current st.playlist) false;
+          Control.switch st.control (Playlist.current st.playlist) false;
       );
-      State.adjust_scroll st.playlist st.playlist.pos;
+      Playlist.adjust_scroll st.playlist st.playlist.pos;
     )
     else
-      State.unshuffle st.playlist
+      Playlist.unshuffle st.playlist
   );
 
   repeat_label st.ui;
@@ -507,19 +507,19 @@ let run_playlist (st : State.t) =
       if i >= len then Ui.text_color st.ui, `Black, [|""; ""; ""|] else
       let track = st.playlist.tracks.(i) in
       if now -. track.last_update > playlist_file_check_freq then
-        State.update_track st.control.audio track;
+        Track.update st.control.audio track;
       let bg = if i mod 2 = 0 then `Black else `Gray 0x10 in
       let fg =
         match track.status with
         | _ when i = st.playlist.pos ->
           if track.path = (Option.get st.control.current).path then `White else `Gray 0xc0
-        | _ when State.is_separator track -> Ui.text_color st.ui
+        | _ when Track.is_separator track -> Ui.text_color st.ui
         | `Absent -> Ui.error_color st.ui
         | `Invalid -> Ui.warn_color st.ui
         | `Undet -> Ui.unlit_color (Ui.text_color st.ui)
         | `Predet | `Det -> Ui.text_color st.ui
       in
-      let fg, bg = if State.is_selected st.playlist i then bg, fg else fg, bg in
+      let fg, bg = if Playlist.is_selected st.playlist i then bg, fg else fg, bg in
       let time = if track.time = 0.0 then "" else fmt_time track.time in
       cw3 := max !cw3 (Api.Draw.text_width (Ui.window st.ui) playlist_row_h font time + 1);
       fg, bg, [|fmt "%0*d. " digits (i + 1); track.name; time|]
@@ -536,13 +536,14 @@ let run_playlist (st : State.t) =
     if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left && dragging = `None then
     (
       st.playlist.range <- fst', i';
-      if i >= len || not (State.is_selected st.playlist i) then State.deselect_all st.playlist;
+      if i >= len || not (Playlist.is_selected st.playlist i) then
+        Playlist.deselect_all st.playlist;
       if i < len then
       (
         if Api.Mouse.is_doubleclick `Left then
         (
           st.playlist.pos <- i;
-          State.switch_track st.control st.playlist.tracks.(i) true;
+          Control.switch st.control st.playlist.tracks.(i) true;
           if st.playlist.shuffle_on then
           (
             let pos = Option.get (Array.find_index ((=) i) st.playlist.shuffle_tracks) in
@@ -551,7 +552,7 @@ let run_playlist (st : State.t) =
             else
             (
               (* Minimise new observation to one *)
-              State.swap st.playlist.shuffle_tracks pos st.playlist.shuffle_unobserved;
+              Playlist.swap st.playlist.shuffle_tracks pos st.playlist.shuffle_unobserved;
               st.playlist.shuffle_pos <- st.playlist.shuffle_unobserved;
               st.playlist.shuffle_unobserved <- st.playlist.shuffle_pos + 1;
             )
@@ -559,37 +560,37 @@ let run_playlist (st : State.t) =
         )
         else
         (
-          State.select st.playlist i i;
+          Playlist.select st.playlist i i;
         )
       )
     )
     else if Api.Key.are_modifiers_down [] && not (Api.Mouse.is_pressed `Left) && dragging = `Click then
     (
-      State.deselect_all st.playlist;
-      if i < len then State.select st.playlist i i;
+      Playlist.deselect_all st.playlist;
+      if i < len then Playlist.select st.playlist i i;
     )
     else if Api.Key.are_modifiers_down [`Command] && Api.Mouse.is_pressed `Left then
     (
       st.playlist.range <- fst', i';
       if i < len then
-        if State.is_selected st.playlist i then
-          State.deselect st.playlist i i
+        if Playlist.is_selected st.playlist i then
+          Playlist.deselect st.playlist i i
         else
-          State.select st.playlist i i
+          Playlist.select st.playlist i i
     )
     else if Api.Key.are_modifiers_down [`Shift] && Api.Mouse.is_down `Left then
     (
       let fst, snd = st.playlist.range in
       st.playlist.range <- fst, i';
-      if fst < 0 || fst >= len || State.is_selected st.playlist fst then
+      if fst < 0 || fst >= len || Playlist.is_selected st.playlist fst then
       (
-        State.deselect st.playlist snd i';
-        State.select st.playlist (max 0 fst) i'
+        Playlist.deselect st.playlist snd i';
+        Playlist.select st.playlist (max 0 fst) i'
       )
       else
       (
-        State.select st.playlist snd i';
-        State.deselect st.playlist (max 0 fst) i'
+        Playlist.select st.playlist snd i';
+        Playlist.deselect st.playlist (max 0 fst) i'
       )
     )
   );
@@ -608,13 +609,13 @@ let run_playlist (st : State.t) =
   (
     let i =
       if d < 0
-      then max 0 (Option.value (State.first_selected st.playlist) ~default: (len - 1) + d)
-      else min (len - 1) (Option.value (State.last_selected st.playlist) ~default: 0 + d)
+      then max 0 (Option.value (Playlist.first_selected st.playlist) ~default: (len - 1) + d)
+      else min (len - 1) (Option.value (Playlist.last_selected st.playlist) ~default: 0 + d)
     in
     st.playlist.range <- i, i;
-    State.deselect_all st.playlist;
-    State.select st.playlist i i;
-    State.adjust_scroll st.playlist i;
+    Playlist.deselect_all st.playlist;
+    Playlist.select st.playlist i i;
+    Playlist.adjust_scroll st.playlist i;
   );
 
   let d =
@@ -631,32 +632,32 @@ let run_playlist (st : State.t) =
     let fst, snd = st.playlist.range in
     let i = max 0 (min (len - 1) (snd + d)) in
     st.playlist.range <- fst, i;
-    if fst < 0 || fst >= len || State.is_selected st.playlist fst then
+    if fst < 0 || fst >= len || Playlist.is_selected st.playlist fst then
     (
-      State.deselect st.playlist snd i;
-      State.select st.playlist (max 0 fst) i
+      Playlist.deselect st.playlist snd i;
+      Playlist.select st.playlist (max 0 fst) i
     )
     else
     (
-      State.select st.playlist snd i;
-      State.deselect st.playlist (max 0 fst) i
+      Playlist.select st.playlist snd i;
+      Playlist.deselect st.playlist (max 0 fst) i
     );
-    State.adjust_scroll st.playlist i;
+    Playlist.adjust_scroll st.playlist i;
   );
 
   if selall_key st.ui then
   (
     st.playlist.range <- 0, len - 1;
-    State.select_all st.playlist;
+    Playlist.select_all st.playlist;
   )
   else if selnone_key st.ui then
   (
-    st.playlist.range <- State.no_range;
-    State.deselect_all st.playlist;
+    st.playlist.range <- Playlist.no_range;
+    Playlist.deselect_all st.playlist;
   )
   else if selinv_key st.ui then
   (
-    State.select_inv st.playlist;
+    Playlist.select_invert st.playlist;
   );
 
   (* Playlist reordering *)
@@ -678,10 +679,10 @@ let run_playlist (st : State.t) =
   (
     let d' =
       if d < 0
-      then max d (- Option.value (State.first_selected st.playlist) ~default: (len - 1))
-      else min d (len - Option.value (State.last_selected st.playlist) ~default: 0 - 1)
+      then max d (- Option.value (Playlist.first_selected st.playlist) ~default: (len - 1))
+      else min d (len - Option.value (Playlist.last_selected st.playlist) ~default: 0 - 1)
     in
-    State.move_selected st.playlist d';
+    Playlist.move_selected st.playlist d';
     if d0 = 0 then
       st.playlist.scroll <- clamp 0 (max 0 (len - vlen)) (st.playlist.scroll + d);
   );
@@ -697,12 +698,12 @@ let run_playlist (st : State.t) =
   if save_button st.ui false then
     ();  (* TODO *)
 
-  if tag_button st.ui false && State.num_selected st.playlist > 0 && st.config.exec_tag <> "" then
+  if tag_button st.ui false && Playlist.num_selected st.playlist > 0 && st.config.exec_tag <> "" then
   (
-    let tracks = Array.to_list (State.copy_selected st.playlist) in
+    let tracks = Array.to_list (Playlist.copy_selected st.playlist) in
     Domain.spawn (fun () ->
-      let tracks' = List.filter (fun tr -> not (State.is_separator tr)) tracks in
-      let paths = List.map (fun tr -> tr.State.path) tracks' in
+      let tracks' = List.filter (fun tr -> not (Track.is_separator tr)) tracks in
+      let paths = List.map (fun (track : Track.t) -> track.path) tracks' in
       if st.config.exec_tag_max_len = 0 then
         exec st.config.exec_tag paths
       else
@@ -734,47 +735,47 @@ let run_playlist (st : State.t) =
 
   if sep_button st.ui false then
   (
-    let pos = Option.value (State.first_selected st.playlist) ~default: 0 in
-    State.insert st.playlist pos [|State.make_separator ()|];
-    State.adjust_track st.control (State.current_opt st.playlist);
-    if State.num_selected st.playlist = 1 then
+    let pos = Option.value (Playlist.first_selected st.playlist) ~default: 0 in
+    Playlist.insert st.playlist pos [|Track.make_separator ()|];
+    Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
+    if Playlist.num_selected st.playlist = 1 then
     (
-      State.deselect_all st.playlist;
-      State.select st.playlist pos pos;
+      Playlist.deselect_all st.playlist;
+      Playlist.select st.playlist pos pos;
     )
   );
 
   if del_button st.ui false then
-    State.remove_selected st.playlist;
+    Playlist.remove_selected st.playlist;
 
   if crop_button st.ui false then
-    State.remove_unselected st.playlist;
+    Playlist.remove_unselected st.playlist;
 
   if clean_button st.ui false then
-    State.remove_invalid st.playlist;
+    Playlist.remove_invalid st.playlist;
 
   if undo_button st.ui false then
   (
-    State.pop_undo st.playlist;
-    State.adjust_track st.control (State.current_opt st.playlist);
+    Playlist.pop_undo st.playlist;
+    Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
   );
 
   if redo_button st.ui false then
   (
-    State.pop_redo st.playlist;
-    State.adjust_track st.control (State.current_opt st.playlist);
+    Playlist.pop_redo st.playlist;
+    Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
   );
 
   if cut_key st.ui then
   (
-    let s = State.string_of_playlist (State.copy_selected st.playlist) in
+    let s = State.string_of_playlist (Playlist.copy_selected st.playlist) in
     Api.Clipboard.write (Ui.window st.ui) s;
-    State.remove_selected st.playlist;
+    Playlist.remove_selected st.playlist;
   );
 
   if copy_key st.ui then
   (
-    let s = State.string_of_playlist (State.copy_selected st.playlist) in
+    let s = State.string_of_playlist (Playlist.copy_selected st.playlist) in
     Api.Clipboard.write (Ui.window st.ui) s;
   );
 
@@ -784,10 +785,10 @@ let run_playlist (st : State.t) =
     | None -> ()
     | Some s ->
       let tracks = State.playlist_of_string s in
-      let pos = Option.value (State.first_selected st.playlist) ~default: 0 in
-      State.remove_selected st.playlist;
-      State.insert st.playlist pos tracks;
-      State.adjust_track st.control (State.current_opt st.playlist);
+      let pos = Option.value (Playlist.first_selected st.playlist) ~default: 0 in
+      Playlist.remove_selected st.playlist;
+      Playlist.insert st.playlist pos tracks;
+      Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
   );
 
   (* Playlist drag & drop *)
@@ -795,11 +796,11 @@ let run_playlist (st : State.t) =
   let _, my as m = Api.Mouse.pos (Ui.window st.ui) in
   let pos = if Api.inside m r then
     min len ((my - y) / playlist_row_h + st.playlist.scroll) else len in
-  State.insert_paths st.playlist pos dropped st.control.audio;
-  State.adjust_track st.control (State.current_opt st.playlist);
+  Playlist.insert_paths st.playlist pos dropped st.control.audio;
+  Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
 
   (* Playlist total *)
-  if int_of_float (time ()) mod 10 = 0 then State.update_total st.playlist;
+  if int_of_float (time ()) mod 10 = 0 then Playlist.update_total st.playlist;
   let fmt_total (t, n) = fmt_time3 t ^ if n > 0 then "+" else "" in
   let s1 =
     if st.playlist.total_selected = (0.0, 0) then "" else
@@ -905,10 +906,10 @@ let startup () =
   let ui = Ui.make win in
   let audio = Api.Audio.init () in
   let st = State.make ui audio in
-  State.load_state st;
+  State.load st;
   update_playlist_rows st;
-  State.adjust_scroll st.playlist st.playlist.pos;
-  at_exit (fun () -> State.save_state st; Storage.clear_temp ());
+  Playlist.adjust_scroll st.playlist st.playlist.pos;
+  at_exit (fun () -> State.save st; Storage.clear_temp ());
   st
 
 let _main =
