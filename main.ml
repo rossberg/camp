@@ -780,14 +780,14 @@ let run_playlist (st : State.t) =
 
   if cut_key st.ui then
   (
-    let s = Persist.string_of_playlist (State.copy_selected st) in
+    let s = State.string_of_playlist (State.copy_selected st) in
     Api.Clipboard.write (Ui.window st.ui) s;
     State.remove_selected st;
   );
 
   if copy_key st.ui then
   (
-    let s = Persist.string_of_playlist (State.copy_selected st) in
+    let s = State.string_of_playlist (State.copy_selected st) in
     Api.Clipboard.write (Ui.window st.ui) s;
   );
 
@@ -796,7 +796,7 @@ let run_playlist (st : State.t) =
     match Api.Clipboard.read (Ui.window st.ui) with
     | None -> ()
     | Some s ->
-      let tracks = Persist.playlist_of_string s in
+      let tracks = State.playlist_of_string s in
       let pos = Option.value (State.first_selected st) ~default: 0 in
       State.remove_selected st;
       State.insert st pos tracks;
@@ -913,10 +913,10 @@ let startup () =
   let ui = Ui.make win in
   let audio = Api.Audio.init () in
   let st = State.make ui audio in
-  Persist.load_state st;
+  State.load_state st;
   update_playlist_rows st;
   State.scroll_to_view st st.playlist_pos;
-  at_exit (fun () -> Persist.save_state st; Storage.clear_temp ());
+  at_exit (fun () -> State.save_state st; Storage.clear_temp ());
   st
 
 let _main =

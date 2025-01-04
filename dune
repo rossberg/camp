@@ -1,7 +1,7 @@
 (executable
   (public_name kamp)
   (name main)
-  (modules safe_queue app state storage persist api ui main)
+  (modules safe_queue app state storage api ui main)
   (libraries unix directories raylib audio_file)
   (link_deps (include link_deps.sexp))
   (link_flags (:include link_flags.sexp))
