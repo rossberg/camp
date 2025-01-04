@@ -531,11 +531,8 @@ let run_playlist (st : State.t) =
   | None -> ()
   | Some i ->
     let i = st.playlist.scroll + i in
-    let i' = max 0 (min i (len - 1)) in
-    let fst' = if i >= len then max_int else i in
     if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left && dragging = `None then
     (
-      st.playlist.range <- fst', i';
       if i >= len || not (Playlist.is_selected st.playlist i) then
         Playlist.deselect_all st.playlist;
       if i < len then
@@ -571,26 +568,28 @@ let run_playlist (st : State.t) =
     )
     else if Api.Key.are_modifiers_down [`Command] && Api.Mouse.is_pressed `Left then
     (
-      st.playlist.range <- fst', i';
       if i < len then
+      (
         if Playlist.is_selected st.playlist i then
           Playlist.deselect st.playlist i i
         else
           Playlist.select st.playlist i i
+      )
     )
     else if Api.Key.are_modifiers_down [`Shift] && Api.Mouse.is_down `Left then
     (
-      let fst, snd = st.playlist.range in
-      st.playlist.range <- fst, i';
-      if fst < 0 || fst >= len || Playlist.is_selected st.playlist fst then
+      let pos1 = st.playlist.sel_pos1 in
+      let pos2 = st.playlist.sel_pos2 in
+      let i' = max 0 (min i (len - 1)) in
+      if pos1 = -1 || Playlist.is_selected st.playlist pos1 then
       (
-        Playlist.deselect st.playlist snd i';
-        Playlist.select st.playlist (max 0 fst) i'
+        Playlist.deselect st.playlist (max 0 pos2) i';
+        Playlist.select st.playlist (max 0 pos1) i'
       )
       else
       (
-        Playlist.select st.playlist snd i';
-        Playlist.deselect st.playlist (max 0 fst) i'
+        Playlist.select st.playlist (max 0 pos2) i';
+        Playlist.deselect st.playlist (max 0 pos1) i'
       )
     )
   );
@@ -607,12 +606,12 @@ let run_playlist (st : State.t) =
   in
   if min len (abs d) > 0 then
   (
+    let pos2 = st.playlist.sel_pos2 in
     let i =
       if d < 0
-      then max 0 (Option.value (Playlist.first_selected st.playlist) ~default: (len - 1) + d)
-      else min (len - 1) (Option.value (Playlist.last_selected st.playlist) ~default: 0 + d)
+      then max 0 ((if pos2 = -1 then len else pos2) + d)
+      else min (len - 1) (pos2 + d)
     in
-    st.playlist.range <- i, i;
     Playlist.deselect_all st.playlist;
     Playlist.select st.playlist i i;
     Playlist.adjust_scroll st.playlist i;
@@ -629,30 +628,36 @@ let run_playlist (st : State.t) =
   in
   if min len (abs d) > 0 then
   (
-    let fst, snd = st.playlist.range in
-    let i = max 0 (min (len - 1) (snd + d)) in
-    st.playlist.range <- fst, i;
-    if fst < 0 || fst >= len || Playlist.is_selected st.playlist fst then
+    let pos1 = st.playlist.sel_pos1 in
+    let pos2 = st.playlist.sel_pos2 in
+    let i =
+      if d < 0
+      then max 0 ((if pos2 = -1 then len else pos2) + d)
+      else min (len - 1) (pos2 + d)
+    in
+    if pos1 = -1 then
     (
-      Playlist.deselect st.playlist snd i;
-      Playlist.select st.playlist (max 0 fst) i
+      Playlist.select st.playlist (len - 1) i
+    )
+    else if Playlist.is_selected st.playlist pos1 then
+    (
+      Playlist.deselect st.playlist (max 0 pos2) i;
+      Playlist.select st.playlist (max 0 pos1) i
     )
     else
     (
-      Playlist.select st.playlist snd i;
-      Playlist.deselect st.playlist (max 0 fst) i
+      Playlist.select st.playlist (max 0 pos2) i;
+      Playlist.deselect st.playlist (max 0 pos1) i
     );
     Playlist.adjust_scroll st.playlist i;
   );
 
   if selall_key st.ui then
   (
-    st.playlist.range <- 0, len - 1;
     Playlist.select_all st.playlist;
   )
   else if selnone_key st.ui then
   (
-    st.playlist.range <- Playlist.no_range;
     Playlist.deselect_all st.playlist;
   )
   else if selinv_key st.ui then

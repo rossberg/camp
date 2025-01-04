@@ -145,7 +145,8 @@ let _ = dump := fun st ->
       (Playlist.IntSet.min_elt st.playlist.selected)
       (Playlist.IntSet.max_elt st.playlist.selected);
   pr "\n";
-  pr "play_range = %d, %d\n" (fst st.playlist.range) (snd st.playlist.range);
+  pr "play_pos1 = %d\n" st.playlist.sel_pos1;
+  pr "play_pos2 = %d\n" st.playlist.sel_pos2;
   pr "play_total = %.2f, %d\n" (fst st.playlist.total) (snd st.playlist.total);
   pr "play_total_selected = %.2f, %d\n"
     (fst st.playlist.total_selected) (snd st.playlist.total_selected);

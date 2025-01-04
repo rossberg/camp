@@ -25,11 +25,12 @@ type t =
   mutable rows : int;  (* external *)
   mutable scroll : int;  (* external *)
   mutable pos : int;  (* external *)
-  mutable range : int * int;  (* external *)
-  mutable selected : IntSet.t;
+  mutable sel_pos1 : int;  (* external *)
+  mutable sel_pos2 : int;  (* external *)
+  mutable selected : IntSet.t;  (* r external *)
   mutable total : time * int;  (* r external *)
   mutable total_selected : time * int;  (* r external *)
-  mutable shuffle_on : bool;
+  mutable shuffle_on : bool;  (* external *)
   mutable shuffle_tracks : int array;
   mutable shuffle_pos : int;
   mutable shuffle_unobserved : int;
@@ -40,8 +41,6 @@ type t =
 
 (* Constructor *)
 
-let no_range = min_int, 0
-
 let make () =
   {
     tracks = [||];
@@ -50,7 +49,8 @@ let make () =
     rows = 4;
     scroll = 0;
     pos = 0;
-    range = no_range;
+    sel_pos1 = -1;
+    sel_pos2 = -1;
     selected = IntSet.empty;
     total = 0.0, 0;
     total_selected = 0.0, 0;
@@ -84,14 +84,19 @@ let ok pl =
   check "playlist window height positive" (pl.height > 0) @
   check "selections in range"
     (IntSet.max_elt_opt pl.selected <= Some (len - 1)) @
+  check "primary selection when selection" (
+    pl.sel_pos1 <> -1 || IntSet.cardinal pl.selected = 0
+  ) @
+  check "secondary selection when primary" (
+    pl.sel_pos2 <> -1 || pl.sel_pos1 = -1
+  ) @
   check "primary selection range position in range" (
-    fst pl.range = min_int ||
-    fst pl.range = max_int ||
-    fst pl.range >= 0 && fst pl.range < len
+    pl.sel_pos1 = -1 ||
+    pl.sel_pos1 >= 0 && pl.sel_pos1 < len
   ) @
   check "secondary selection range position in range" (
-    snd pl.range = 0 ||
-    snd pl.range >= 0 && snd pl.range < len
+    pl.sel_pos2 = -1 ||
+    pl.sel_pos2 >= 0 && pl.sel_pos2 < len
   ) @
   check "playlist total in range"
     (fst pl.total >= 0.0 && snd pl.total <= len) @
@@ -210,11 +215,15 @@ let select_all pl =
   for i = 0 to Array.length pl.tracks - 1 do
     pl.selected <- IntSet.add i pl.selected
   done;
-  pl.total_selected <- pl.total
+  pl.total_selected <- pl.total;
+  pl.sel_pos1 <- 0;
+  pl.sel_pos2 <- max 0 (Array.length pl.tracks - 1)
 
 let deselect_all pl =
   pl.selected <- IntSet.empty;
-  pl.total_selected <- 0.0, 0
+  pl.total_selected <- 0.0, 0;
+  pl.sel_pos1 <- -1;
+  pl.sel_pos2 <- -1
 
 let select_invert pl =
   let selected = pl.selected in
@@ -226,10 +235,12 @@ let select_invert pl =
       pl.total_selected <-
         add_total pl.total_selected (track_total pl.tracks.(i));
     )
-  done
+  done;
+  pl.sel_pos1 <- Option.value (first_selected pl) ~default: (-1);
+  pl.sel_pos2 <- Option.value (last_selected pl) ~default: (-1)
 
-let select pl i j =
-  let i, j = min i j, max i j in
+let select pl i0 j0 =
+  let i, j = min i0 j0, max i0 j0 in
   for k = i to j do
     if not (IntSet.mem k pl.selected) then
     (
@@ -237,10 +248,12 @@ let select pl i j =
       pl.total_selected <-
         add_total pl.total_selected (track_total pl.tracks.(k))
     )
-  done
+  done;
+  pl.sel_pos1 <- i0;
+  pl.sel_pos2 <- j0
 
-let deselect pl i j =
-  let i, j = min i j, max i j in
+let deselect pl i0 j0 =
+  let i, j = min i0 j0, max i0 j0 in
   for k = i to j do
     if IntSet.mem k pl.selected then
     (
@@ -248,7 +261,9 @@ let deselect pl i j =
       pl.total_selected <-
         sub_total pl.total_selected (track_total pl.tracks.(k))
     )
-  done
+  done;
+  pl.sel_pos1 <- i0;
+  pl.sel_pos2 <- j0
 
 
 (* Undo *)
@@ -282,8 +297,7 @@ let pop_unredo pl undos redos =
     pl.tracks <- undo.undo_tracks;
     pl.selected <- undo.undo_selected;
     pl.total <- undo.undo_total;
-    pl.total_selected <- undo.undo_total_selected;
-    pl.range <- no_range
+    pl.total_selected <- undo.undo_total_selected
 
 let pop_undo pl = pop_unredo pl pl.undos pl.redos
 let pop_redo pl = pop_unredo pl pl.redos pl.undos
@@ -295,19 +309,15 @@ let move_pos pl i j len =
   let j' = min j (len - 1) in
   if i <> j' then
   (
-    if i = pl.pos then
-      pl.pos <- j';
-    if i = fst pl.range then
-      pl.range <- j', snd pl.range;
-    if i = snd pl.range then
-      pl.range <- fst pl.range, j';
+    if i = pl.pos then pl.pos <- j';
+    if i = pl.sel_pos1 then pl.sel_pos1 <- j';
+    if i = pl.sel_pos2 then pl.sel_pos2 <- j';
   );
   if i <> j then
   (
     assert (not (IntSet.mem j pl.selected));
-    if IntSet.mem i pl.selected then
-      pl.selected <-
-        IntSet.add j (IntSet.remove i pl.selected)
+    if IntSet.mem i pl.selected then  (* don't change total *)
+      pl.selected <- IntSet.add j (IntSet.remove i pl.selected)
     (* Do not update shuffle list individually, since that would result in
      * quadratic complexity. *)
   )
@@ -396,9 +406,7 @@ let remove_all pl =
     pl.tracks <- [||];
     pl.pos <- 0;
     pl.scroll <- 0;
-    pl.range <- no_range;
     pl.total <- 0.0, 0;
-    pl.total_selected <- 0.0, 0;
     pl.shuffle_tracks <- [||];
     pl.shuffle_pos <- 0;
     pl.shuffle_unobserved <- 0;
@@ -459,12 +467,14 @@ let remove_if p pl n =
 
 let remove_selected pl =
   remove_if (is_selected pl) pl (num_selected pl);
-  pl.range <- no_range
+  pl.sel_pos1 <- -1;
+  pl.sel_pos2 <- -1
 
 let remove_unselected pl =
   remove_if (fun i -> not (is_selected pl i)) pl
     (Array.length pl.tracks - num_selected pl);
-  pl.range <- 0, Array.length pl.tracks - 1
+  pl.sel_pos1 <- 0;
+  pl.sel_pos2 <- Array.length pl.tracks - 1
 
 
 let num_invalid pl =
@@ -474,9 +484,8 @@ let num_invalid pl =
 
 let remove_invalid pl =
   remove_if (fun i -> Track.is_invalid pl.tracks.(i)) pl (num_invalid pl);
-  pl.range <-
-    Option.value (first_selected pl) ~default: (fst no_range),
-    Option.value (last_selected pl) ~default: (snd no_range)
+  pl.sel_pos1 <- Option.value (first_selected pl) ~default: (-1);
+  pl.sel_pos2 <- Option.value (last_selected pl) ~default: (-1)
 
 
 let move_selected pl d =

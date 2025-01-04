@@ -14,11 +14,12 @@ type t =
   mutable rows : int;  (* external *)
   mutable scroll : int;  (* external *)
   mutable pos : int;  (* external *)
-  mutable range : int * int;  (* external *)
-  mutable selected : IntSet.t;
+  mutable sel_pos1 : int;  (* external *)
+  mutable sel_pos2 : int;  (* external *)
+  mutable selected : IntSet.t;  (* r external *)
   mutable total : time * int;  (* r external *)
   mutable total_selected : time * int;  (* r external *)
-  mutable shuffle_on : bool;
+  mutable shuffle_on : bool;  (* external *)
   mutable shuffle_tracks : int array;
   mutable shuffle_pos : int;
   mutable shuffle_unobserved : int;
@@ -28,8 +29,6 @@ type t =
 
 
 (* Constructor *)
-
-val no_range : int * int
 
 val make : unit -> t
 
