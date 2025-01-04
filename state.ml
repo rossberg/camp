@@ -110,7 +110,7 @@ let to_string st =
   let played = Api.Audio.played st.control.audio st.control.sound in
   output "seek = %.4f\n" (if length > 0.0 then played /. length else 0.0);
   output "timemode = %d\n" (Bool.to_int (st.control.timemode = `Remain));
-  output "shuffle = %d\n" (Bool.to_int st.playlist.shuffle_on);
+  output "shuffle = %d\n" (Bool.to_int (st.playlist.shuffle <> None));
   output "repeat = %d\n"
     (match st.control.repeat with
     | `None -> 0
@@ -124,7 +124,7 @@ let to_string st =
     | `AB tt -> tt
   in
   output "loop = %.4f, %.4f\n" a b;
-  output "play_pos = %d\n" st.playlist.pos;
+  output "play_pos = %d\n" (Option.value st.playlist.pos ~default: (-1));
   output "play_scroll = %d\n" st.playlist.scroll;
   output "play_open = %d\n" (Bool.to_int st.playlist.shown);
   output "play_height = %d\n" st.playlist.height;
@@ -132,6 +132,13 @@ let to_string st =
   output "lib_width = %d\n" st.library.width;
   output "lib_side = %d\n" (Bool.to_int (st.library.side = `Right));
   Buffer.contents buf
+
+let opt f = function
+  | None -> ""
+  | Some i -> f i
+
+let opt_int = opt string_of_int
+let opt_int_pair = opt (fun (i, j) -> string_of_int i ^ ", " ^ string_of_int j)
 
 let _ = dump := fun st ->
   let buf = Buffer.create 1024 in
@@ -145,14 +152,11 @@ let _ = dump := fun st ->
       (Playlist.IntSet.min_elt st.playlist.selected)
       (Playlist.IntSet.max_elt st.playlist.selected);
   pr "\n";
-  pr "play_pos1 = %d\n" st.playlist.sel_pos1;
-  pr "play_pos2 = %d\n" st.playlist.sel_pos2;
+  
+  pr "play_sel_range = %s\n" (opt_int_pair st.playlist.sel_range);
   pr "play_total = %.2f, %d\n" (fst st.playlist.total) (snd st.playlist.total);
   pr "play_total_selected = %.2f, %d\n"
     (fst st.playlist.total_selected) (snd st.playlist.total_selected);
-  pr "play_shuffle_length = %d\n" (Array.length st.playlist.shuffle_tracks);
-  pr "play_shuffle_pos = %d\n" st.playlist.shuffle_pos;
-  pr "play_shuffle_unobserved = %d\n" st.playlist.shuffle_unobserved;
   pr "play_undo_length = %d\n" (List.length !(st.playlist.undos));
   pr "play_redo_length = %d\n" (List.length !(st.playlist.redos));
   pr "%!";
@@ -171,6 +175,7 @@ let bool x = x <> 0
 let num l h x = max l (min h x)
 let pair x y = x, y
 let num_pair lx ly hx hy x y = num lx hx x, num ly hy y
+let num_opt l h x = if x < 0 then None else Some (num l h x)
 
 let fscanf file =
   match In_channel.input_line file with
@@ -199,7 +204,7 @@ let load st =
     let seek = input " seek = %f " (num 0.0 1.0) in
     st.control.timemode <-
       if input " timemode = %d " bool then `Remain else `Elapse;
-    st.playlist.shuffle_on <- input " shuffle = %d " bool;
+    let shuffle = input " shuffle = %d " bool in
     st.control.repeat <-
       (match input " repeat = %d " value with
       | 1 -> `One
@@ -213,15 +218,14 @@ let load st =
       | t1, t2 -> `AB (t1, max t1 t2)
       );
 
-    st.playlist.pos <- input " play_pos = %d " (num (min 0 (len - 1)) (len - 1));
+    st.playlist.pos <- input " play_pos = %d " (num_opt 0 (len - 1));
     if st.control.current = None && len > 0 then
-      st.control.current <- Some st.playlist.tracks.(st.playlist.pos);
+      st.control.current <- Playlist.current_opt st.playlist;
     if st.control.current <> None then
       Control.switch st.control (Option.get st.control.current) false;
     Control.seek st.control seek;
 
-    if st.playlist.shuffle_on && len > 0 then
-      Playlist.shuffle st.playlist (Some st.playlist.pos);
+    if shuffle then Playlist.shuffle st.playlist st.playlist.pos;
 
     st.playlist.scroll <- input " play_scroll = %d " (num 0 (len - 1));
     st.playlist.shown <- input " play_open = %d " bool;

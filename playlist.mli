@@ -4,7 +4,9 @@ module IntSet : module type of Set.Make(Int)
 
 type time = Track.time
 type track = Track.t
+
 type undo
+type shuffle
 
 type t =
 {
@@ -13,16 +15,12 @@ type t =
   mutable height : int;  (* external *)
   mutable rows : int;  (* external *)
   mutable scroll : int;  (* external *)
-  mutable pos : int;  (* external *)
-  mutable sel_pos1 : int;  (* external *)
-  mutable sel_pos2 : int;  (* external *)
+  mutable pos : int option;  (* external *)
+  mutable sel_range : (int * int) option;  (* external *)
   mutable selected : IntSet.t;  (* r external *)
   mutable total : time * int;  (* r external *)
   mutable total_selected : time * int;  (* r external *)
-  mutable shuffle_on : bool;  (* external *)
-  mutable shuffle_tracks : int array;
-  mutable shuffle_pos : int;
-  mutable shuffle_unobserved : int;
+  mutable shuffle : shuffle option;  (* r external *)
   mutable undos : undo list ref;
   mutable redos : undo list ref;
 }
@@ -52,7 +50,7 @@ val current_opt : t -> track option
 
 val skip : t -> int (* delta *) -> bool (* repeat *) -> bool
 
-val adjust_scroll : t -> int -> unit
+val adjust_scroll : t -> int option -> unit
 
 val swap : 'a array -> int -> int -> unit
 
@@ -61,6 +59,8 @@ val swap : 'a array -> int -> int -> unit
 
 val shuffle : t -> int option (* first track *) -> unit
 val unshuffle : t -> unit
+
+val shuffle_next : t -> int -> unit
 
 
 (* Selection *)

@@ -9,14 +9,20 @@ type track = Track.t
 
 type undo =
 {
-  undo_pos : int;
+  undo_pos : int option;
   undo_scroll : int;
   undo_tracks : track array;
   undo_selected : IntSet.t;
-  undo_sel_pos1 : int;
-  undo_sel_pos2 : int;
+  undo_sel_range : (int * int) option;
   undo_total : time * int;
   undo_total_selected : time * int;
+}
+
+type shuffle =
+{
+  mutable tracks : int array;
+  mutable pos : int option;
+  mutable unobserved : int;
 }
 
 type t =
@@ -26,16 +32,12 @@ type t =
   mutable height : int;  (* external *)
   mutable rows : int;  (* external *)
   mutable scroll : int;  (* external *)
-  mutable pos : int;  (* external *)
-  mutable sel_pos1 : int;  (* external *)
-  mutable sel_pos2 : int;  (* external *)
+  mutable pos : int option;  (* external *)
+  mutable sel_range : (int * int) option;  (* external *)
   mutable selected : IntSet.t;  (* r external *)
   mutable total : time * int;  (* r external *)
   mutable total_selected : time * int;  (* r external *)
-  mutable shuffle_on : bool;  (* external *)
-  mutable shuffle_tracks : int array;
-  mutable shuffle_pos : int;
-  mutable shuffle_unobserved : int;
+  mutable shuffle : shuffle option;  (* r external *)
   mutable undos : undo list ref;
   mutable redos : undo list ref;
 }
@@ -50,16 +52,12 @@ let make () =
     height = 200;
     rows = 4;
     scroll = 0;
-    pos = -1;
-    sel_pos1 = -1;
-    sel_pos2 = -1;
+    pos = None;
+    sel_range = None;
     selected = IntSet.empty;
     total = 0.0, 0;
     total_selected = 0.0, 0;
-    shuffle_on = false;
-    shuffle_tracks = [||];
-    shuffle_pos = -1;
-    shuffle_unobserved = 0;
+    shuffle = None;
     undos = ref [];
     redos = ref [];
   }
@@ -71,12 +69,13 @@ type error = string
 
 let check msg b = if b then [] else [msg]
 
+let opt_forall f o = List.for_all f (Option.to_list o)
+
 let ok pl =
   let len = Array.length pl.tracks in
-  let shuffle_len = Array.length pl.shuffle_tracks in
   check "playlist position in range" (
-    pl.pos = -1 && len = 0 ||
-    pl.pos >= 0 && pl.pos < len
+    pl.pos = None && len = 0 ||
+    Option.get pl.pos >= 0 && Option.get pl.pos < len
   ) @
   check "playlist row number in range" (pl.rows >= 3) @
   check "playlist scroll in range" (
@@ -86,19 +85,14 @@ let ok pl =
   check "playlist window height positive" (pl.height > 0) @
   check "selections in range"
     (IntSet.max_elt_opt pl.selected <= Some (len - 1)) @
-  check "primary selection when selection" (
-    pl.sel_pos1 <> -1 || IntSet.cardinal pl.selected = 0
-  ) @
-  check "secondary selection when primary" (
-    pl.sel_pos2 <> -1 || pl.sel_pos1 = -1
+  check "selection range when selection" (
+    pl.sel_range <> None || IntSet.cardinal pl.selected = 0
   ) @
   check "primary selection range position in range" (
-    pl.sel_pos1 = -1 ||
-    pl.sel_pos1 >= 0 && pl.sel_pos1 < len
+    opt_forall (fun (pos1, _) -> pos1 >= 0 && pos1 < len) pl.sel_range
   ) @
   check "secondary selection range position in range" (
-    pl.sel_pos2 = -1 ||
-    pl.sel_pos2 >= 0 && pl.sel_pos2 < len
+    opt_forall (fun (_, pos2) -> pos2 >= 0 && pos2 < len) pl.sel_range
   ) @
   check "playlist total in range"
     (fst pl.total >= 0.0 && snd pl.total <= len) @
@@ -107,18 +101,20 @@ let ok pl =
     fst pl.total_selected <= fst pl.total &&
     snd pl.total_selected <= snd pl.total
   ) @
-  check "shuffle empty when not shuffled"
-    (pl.shuffle_on || pl.shuffle_tracks = [||]) @
-  check "shuffle list has consistent length"
-    (shuffle_len = len || shuffle_len = 0) @
-  check "shuffle position in range" (
-    pl.shuffle_pos = -1 && shuffle_len = 0 ||
-    pl.shuffle_pos >= 0 && pl.shuffle_pos < shuffle_len
-  ) @
-  check "shuffle observation in range" (
-    pl.shuffle_unobserved = 0 && shuffle_len = 0 ||
-    pl.shuffle_unobserved > pl.shuffle_pos &&
-      pl.shuffle_unobserved <= shuffle_len
+  (match pl.shuffle with
+  | None -> []
+  | Some shuffle ->
+    let shuffle_len = Array.length shuffle.tracks in
+    check "shuffle list has consistent length" (shuffle_len = len) @
+    check "shuffle position in range" (
+      shuffle.pos = None && shuffle_len = 0 ||
+      Option.get shuffle.pos >= 0 && Option.get shuffle.pos < shuffle_len
+    ) @
+    check "shuffle observation in range" (
+      shuffle.unobserved = 0 && shuffle_len = 0 ||
+      shuffle.unobserved > Option.get shuffle.pos &&
+        shuffle.unobserved <= shuffle_len
+    )
   )
 
 
@@ -147,66 +143,83 @@ let update_total pl =
 
 let modulo n m = let k = n mod m in if k < 0 then k + m else k
 
-let current_opt pl = if pl.pos = -1 then None else Some pl.tracks.(pl.pos)
+let current_opt pl = Option.map (fun i -> pl.tracks.(i)) pl.pos
 let current pl = Option.get (current_opt pl)
 
 let skip pl delta repeat =
   let len = Array.length pl.tracks in
+  len > 0 &&
   let up pos = if repeat then modulo (pos + delta) len else pos + delta in
-  if not pl.shuffle_on then
-    let pos = up pl.pos in
+  match pl.shuffle with
+  | None ->
+    let pos = up (Option.get pl.pos) in
     let valid = pos >= 0 && pos < len in
-    if valid then pl.pos <- pos;
+    if valid then pl.pos <- Some pos;
     valid
-  else
-    let pos = up pl.shuffle_pos in
+  | Some shuffle ->
+    let pos = up (Option.get shuffle.pos) in
     let valid = pos >= 0 && pos < len in
     if valid then
     (
-      pl.shuffle_pos <- pos;
-      pl.shuffle_unobserved <- max pl.shuffle_unobserved (pos + 1);
-      pl.pos <- pl.shuffle_tracks.(pos);
+      shuffle.pos <- Some pos;
+      shuffle.unobserved <- max shuffle.unobserved (pos + 1);
+      pl.pos <- Some shuffle.tracks.(pos);
     );
     valid
 
 let adjust_scroll pl pos =
-  if pos < pl.scroll || pos >= pl.scroll + pl.rows then
+  let i = Option.value pos ~default: 0 in
+  if i < pl.scroll || i >= pl.scroll + pl.rows then
     pl.scroll <- max 0 (min (Array.length pl.tracks - pl.rows)
-      (pos - (pl.rows - 2)/2))
+      (i - (pl.rows - 2)/2))
 
 
 (* Shuffle *)
 
-let unshuffle pl =
-  pl.shuffle_on <- false;
-  pl.shuffle_tracks <- [||];
-  pl.shuffle_pos <- -1;
-  pl.shuffle_unobserved <- 0
-
 let swap a i j =
   let temp = a.(i) in a.(i) <- a.(j); a.(j) <- temp
 
+let unshuffle pl =
+  pl.shuffle <- None
+
 let reshuffle pl =
-  let len = Array.length pl.shuffle_tracks in
-  for i = pl.shuffle_unobserved to len - 2 do
-    swap pl.shuffle_tracks i (i + Random.int (len - i))
+  let sh = Option.get pl.shuffle in
+  let len = Array.length sh.tracks in
+  for i = sh.unobserved to len - 2 do
+    swap sh.tracks i (i + Random.int (len - i))
   done
 
 let shuffle pl i_opt =
   let len = Array.length pl.tracks in
-  pl.shuffle_on <- true;
-  pl.shuffle_tracks <- Array.init len Fun.id;
-  pl.shuffle_pos <- if len > 0 then 0 else -1;
-  pl.shuffle_unobserved <-
-    (match i_opt with
-    | Some i -> swap pl.shuffle_tracks 0 i; 1
-    | None -> 0
-    );
+  let tracks = Array.init len Fun.id in
+  let shuffle =
+    { tracks;
+      pos = if len > 0 then Some 0 else None;
+      unobserved =
+        match i_opt with
+        | Some i -> swap tracks 0 i; 1
+        | None -> 0
+    }
+  in
+  pl.shuffle <- Some shuffle;
   reshuffle pl;
   if len > 0 then
   (
-    pl.pos <- pl.shuffle_tracks.(0);
-    pl.shuffle_unobserved <- 1;
+    pl.pos <- Some tracks.(0);
+    shuffle.unobserved <- 1;
+  )
+
+let shuffle_next pl i =
+  let sh = Option.get pl.shuffle in
+  let pos = Option.get (Array.find_index ((=) i) sh.tracks) in
+  if pos < sh.unobserved then
+    sh.pos <- Some pos
+  else
+  (
+    (* Minimise new observation to one *)
+    swap sh.tracks pos sh.unobserved;
+    sh.pos <- Some sh.unobserved;
+    sh.unobserved <- sh.unobserved + 1;
   )
 
 
@@ -217,19 +230,22 @@ let first_selected pl = IntSet.min_elt_opt pl.selected
 let last_selected pl = IntSet.max_elt_opt pl.selected
 let is_selected pl i = IntSet.mem i pl.selected
 
+let max_sel_range pl =
+  if num_selected pl = 0 then None else
+  Some (Option.get (first_selected pl), Option.get (last_selected pl))
+
 let select_all pl =
-  for i = 0 to Array.length pl.tracks - 1 do
+  let len = Array.length pl.tracks in
+  for i = 0 to len - 1 do
     pl.selected <- IntSet.add i pl.selected
   done;
   pl.total_selected <- pl.total;
-  pl.sel_pos1 <- 0;
-  pl.sel_pos2 <- max 0 (Array.length pl.tracks - 1)
+  pl.sel_range <- max_sel_range pl
 
 let deselect_all pl =
   pl.selected <- IntSet.empty;
   pl.total_selected <- 0.0, 0;
-  pl.sel_pos1 <- -1;
-  pl.sel_pos2 <- -1
+  pl.sel_range <- None
 
 let select_invert pl =
   let selected = pl.selected in
@@ -242,8 +258,7 @@ let select_invert pl =
         add_total pl.total_selected (track_total pl.tracks.(i));
     )
   done;
-  pl.sel_pos1 <- Option.value (first_selected pl) ~default: (-1);
-  pl.sel_pos2 <- Option.value (last_selected pl) ~default: (-1)
+  pl.sel_range <- max_sel_range pl
 
 let select pl i0 j0 =
   let i, j = min i0 j0, max i0 j0 in
@@ -255,8 +270,7 @@ let select pl i0 j0 =
         add_total pl.total_selected (track_total pl.tracks.(k))
     )
   done;
-  pl.sel_pos1 <- i0;
-  pl.sel_pos2 <- j0
+  pl.sel_range <- Some (i0, j0)
 
 let deselect pl i0 j0 =
   let i, j = min i0 j0, max i0 j0 in
@@ -268,8 +282,7 @@ let deselect pl i0 j0 =
         sub_total pl.total_selected (track_total pl.tracks.(k))
     )
   done;
-  pl.sel_pos1 <- i0;
-  pl.sel_pos2 <- j0
+  pl.sel_range <- Some (i0, j0)
 
 
 (* Undo *)
@@ -281,8 +294,7 @@ let make_undo pl =
     undo_scroll = pl.scroll;
     undo_tracks = Array.map Fun.id pl.tracks;
     undo_selected = pl.selected;
-    undo_sel_pos1 = pl.sel_pos1;
-    undo_sel_pos2 = pl.sel_pos2;
+    undo_sel_range = pl.sel_range;
     undo_total = pl.total;
     undo_total_selected = pl.total_selected;
   }
@@ -300,16 +312,16 @@ let pop_unredo pl undos redos =
     redos := make_undo pl :: !redos;
     undos := undos';
     deselect_all pl;
-    if pl.shuffle_on then unshuffle pl;
+    let shuffled = pl.shuffle <> None in
+    unshuffle pl;  (* prevent nastiness *)
     pl.pos <- undo.undo_pos;
     pl.scroll <- undo.undo_scroll;
     pl.tracks <- undo.undo_tracks;
     pl.selected <- undo.undo_selected;
-    pl.sel_pos1 <- undo.undo_sel_pos1;
-    pl.sel_pos2 <- undo.undo_sel_pos2;
+    pl.sel_range <- undo.undo_sel_range;
     pl.total <- undo.undo_total;
     pl.total_selected <- undo.undo_total_selected;
-    if pl.shuffle_on then shuffle pl (if pl.pos = -1 then None else Some pl.pos)
+    if shuffled then shuffle pl pl.pos
 
 let pop_undo pl = pop_unredo pl pl.undos pl.redos
 let pop_redo pl = pop_unredo pl pl.redos pl.undos
@@ -321,9 +333,13 @@ let move_pos pl i j len =
   let j' = min j (len - 1) in
   if i <> j' then
   (
-    if i = pl.pos then pl.pos <- j';
-    if i = pl.sel_pos1 then pl.sel_pos1 <- j';
-    if i = pl.sel_pos2 then pl.sel_pos2 <- j';
+    if Some i = pl.pos then pl.pos <- Some j';
+    match pl.sel_range with
+    | None -> ()
+    | Some (pos1, pos2) ->
+      pl.sel_range <- Some
+        ( (if i = pos1 then j' else pos1),
+          (if i = pos2 then j' else pos2) )
   );
   if i <> j then
   (
@@ -353,13 +369,12 @@ let insert pl pos tracks =
       pl.tracks <- tracks;
       if len' > 0 then
       (
-        pl.pos <- 0;
-        if pl.shuffle_on then
-        (
-          pl.shuffle_pos <- 0;
-          pl.shuffle_unobserved <- 1;
-          pl.shuffle_tracks <- Array.init len' Fun.id;
-        )
+        pl.pos <- Some 0;
+        Option.iter (fun shuffle ->
+          shuffle.unobserved <- 0;
+          shuffle.pos <- Some 0;
+          shuffle.tracks <- Array.init len' Fun.id;
+        ) pl.shuffle
       )
     )
     else
@@ -373,18 +388,22 @@ let insert pl pos tracks =
       for i = len - 1 downto pos do
         move_pos pl i (i + len') (len + len')
       done;
-      if pl.shuffle_on then
-        pl.shuffle_tracks <-
+      Option.iter (fun (shuffle : shuffle) ->
+        shuffle.tracks <-
           Array.init (len + len') (fun i ->
             if i >= len then i - len + pos else
-            let j = pl.shuffle_tracks.(i) in
+            let j = shuffle.tracks.(i) in
             if j < pos then j else j + len'
           )
+      ) pl.shuffle
     );
     Array.iter (fun track ->
       pl.total <- add_total pl.total (track_total track)
     ) tracks;
-    if pl.shuffle_on then reshuffle pl;
+    Option.iter (fun shuffle ->
+      reshuffle pl;
+      if len = 0 then shuffle.unobserved <- 1;
+    ) pl.shuffle
   )
 
 let insert_paths pl pos paths audio =
@@ -425,12 +444,14 @@ let remove_all pl =
     push_undo pl;
     deselect_all pl;
     pl.tracks <- [||];
-    pl.pos <- -1;
+    pl.pos <- None;
     pl.scroll <- 0;
     pl.total <- 0.0, 0;
-    pl.shuffle_tracks <- [||];
-    pl.shuffle_pos <- -1;
-    pl.shuffle_unobserved <- 0;
+    Option.iter (fun shuffle ->
+      shuffle.unobserved <- 0;
+      shuffle.pos <- None;
+      shuffle.tracks <- [||];
+    ) pl.shuffle
   )
 
 let remove_if p pl n =
@@ -466,37 +487,35 @@ let remove_if p pl n =
     skip len';
     assert (len' + !d = len);
     pl.tracks <- tracks';
+    if len' = 0 then pl.pos <- None;
+    pl.sel_range <- max_sel_range pl;
     pl.scroll <- max 0 (min (len' - 1) pl.scroll);
-    if pl.shuffle_on then
-    (
+    Option.iter (fun (shuffle : shuffle) ->
       let d = ref 0 in
       let rec skip i =
-        if i + !d = pl.shuffle_pos then pl.shuffle_pos <- min i (len' - 1);
-        if i + !d = pl.shuffle_unobserved then pl.shuffle_unobserved <- max i (pl.shuffle_pos + 1);
+        if Some (i + !d) = shuffle.pos then
+          shuffle.pos <- Some (min i (len' - 1));
+        if i + !d = shuffle.unobserved then
+          shuffle.unobserved <- max i (Option.get shuffle.pos + 1);
         if i + !d < len then
         (
-          let j = js.(pl.shuffle_tracks.(i + !d)) in
+          let j = js.(shuffle.tracks.(i + !d)) in
           if j = -1 then (incr d; skip i) else j
         )
         else 0
       in
       let shuffle_tracks' = Array.init len' skip in
       ignore (skip len');
-      pl.shuffle_tracks <- shuffle_tracks';
-    );
+      shuffle.tracks <- shuffle_tracks';
+    ) pl.shuffle
   )
 
 let remove_selected pl =
-  remove_if (is_selected pl) pl (num_selected pl);
-  pl.sel_pos1 <- -1;
-  pl.sel_pos2 <- -1
+  remove_if (is_selected pl) pl (num_selected pl)
 
 let remove_unselected pl =
   remove_if (fun i -> not (is_selected pl i)) pl
-    (Array.length pl.tracks - num_selected pl);
-  pl.sel_pos2 <- Array.length pl.tracks - 1;
-  pl.sel_pos1 <- min 0 pl.sel_pos2
-
+    (Array.length pl.tracks - num_selected pl)
 
 let num_invalid pl =
   Array.fold_left (fun n track ->
@@ -504,9 +523,7 @@ let num_invalid pl =
   ) 0 pl.tracks
 
 let remove_invalid pl =
-  remove_if (fun i -> Track.is_invalid pl.tracks.(i)) pl (num_invalid pl);
-  pl.sel_pos1 <- Option.value (first_selected pl) ~default: (-1);
-  pl.sel_pos2 <- Option.value (last_selected pl) ~default: (-1)
+  remove_if (fun i -> Track.is_invalid pl.tracks.(i)) pl (num_invalid pl)
 
 
 let move_selected pl d =
@@ -549,5 +566,7 @@ let move_selected pl d =
           pl.tracks.(i + d) <- temp;
         )
       done;
-    Array.map_inplace (fun i -> js.(i)) pl.shuffle_tracks;
+    Option.iter (fun (shuffle : shuffle) ->
+      Array.map_inplace (fun i -> js.(i)) shuffle.tracks
+    ) pl.shuffle
   )

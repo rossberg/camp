@@ -338,9 +338,9 @@ let run_control (st : State.t) =
       | `None -> Playlist.skip st.playlist (+1) false
     in
     let next_track =
-      if st.playlist.pos = -1
+      if st.playlist.pos = None
       then Option.get st.control.current
-      else st.playlist.tracks.(st.playlist.pos)
+      else Playlist.current st.playlist
     in
     Control.switch st.control next_track more;
     Playlist.adjust_scroll st.playlist st.playlist.pos;
@@ -399,21 +399,17 @@ let run_control (st : State.t) =
   );
 
   (* Play modes *)
+  let shuffle = st.playlist.shuffle <> None in
   shuffle_label st.ui;
-  shuffle_indicator st.ui st.playlist.shuffle_on;
-  let shuffle' = shuffle_button st.ui st.playlist.shuffle_on in
-  if shuffle' <> st.playlist.shuffle_on then
+  shuffle_indicator st.ui shuffle;
+  let shuffle' = shuffle_button st.ui shuffle in
+  if shuffle' <> shuffle then
   (
     if shuffle' then
     (
-      if not stopped && st.playlist.pos <> -1 then
-        Playlist.shuffle st.playlist (Some st.playlist.pos)
-      else
-      (
-        Playlist.shuffle st.playlist None;
-        if st.playlist.tracks <> [||] then
-          Control.switch st.control (Playlist.current st.playlist) false;
-      );
+      Playlist.shuffle st.playlist (if stopped then None else st.playlist.pos);
+      if stopped && st.playlist.pos <> None then
+        Control.switch st.control (Playlist.current st.playlist) false;
       Playlist.adjust_scroll st.playlist st.playlist.pos;
     )
     else
@@ -514,7 +510,7 @@ let run_playlist (st : State.t) =
       let bg = if i mod 2 = 0 then `Black else `Gray 0x10 in
       let fg =
         match track.status with
-        | _ when i = st.playlist.pos ->
+        | _ when Some i = st.playlist.pos ->
           if track.path = (Option.get st.control.current).path then `White else `Gray 0xc0
         | _ when Track.is_separator track -> Ui.text_color st.ui
         | `Absent -> Ui.error_color st.ui
@@ -542,21 +538,9 @@ let run_playlist (st : State.t) =
       (
         if Api.Mouse.is_doubleclick `Left then
         (
-          st.playlist.pos <- i;
+          st.playlist.pos <- Some i;
           Control.switch st.control st.playlist.tracks.(i) true;
-          if st.playlist.shuffle_on then
-          (
-            let pos = Option.get (Array.find_index ((=) i) st.playlist.shuffle_tracks) in
-            if pos < st.playlist.shuffle_unobserved then
-              st.playlist.shuffle_pos <- pos
-            else
-            (
-              (* Minimise new observation to one *)
-              Playlist.swap st.playlist.shuffle_tracks pos st.playlist.shuffle_unobserved;
-              st.playlist.shuffle_pos <- st.playlist.shuffle_unobserved;
-              st.playlist.shuffle_unobserved <- st.playlist.shuffle_pos + 1;
-            )
-          )
+          if st.playlist.shuffle <> None then Playlist.shuffle_next st.playlist i;
         )
         else
         (
@@ -581,18 +565,18 @@ let run_playlist (st : State.t) =
     )
     else if Api.Key.are_modifiers_down [`Shift] && Api.Mouse.is_down `Left then
     (
-      let pos1 = st.playlist.sel_pos1 in
-      let pos2 = st.playlist.sel_pos2 in
+      let pos1, pos2 = Option.value st.playlist.sel_range ~default: (0, 0) in
       let i' = max 0 (min i (len - 1)) in
-      if pos1 = -1 || Playlist.is_selected st.playlist pos1 then
+      if st.playlist.sel_range = None
+      || Playlist.is_selected st.playlist pos1 then
       (
-        Playlist.deselect st.playlist (max 0 pos2) i';
-        Playlist.select st.playlist (max 0 pos1) i'
+        Playlist.deselect st.playlist pos2 i';
+        Playlist.select st.playlist pos1 i'
       )
       else
       (
-        Playlist.select st.playlist (max 0 pos2) i';
-        Playlist.deselect st.playlist (max 0 pos1) i'
+        Playlist.select st.playlist pos2 i';
+        Playlist.deselect st.playlist pos1 i'
       )
     )
   );
@@ -609,15 +593,12 @@ let run_playlist (st : State.t) =
   in
   if min len (abs d) > 0 then
   (
-    let pos2 = st.playlist.sel_pos2 in
-    let i =
-      if d < 0
-      then max 0 ((if pos2 = -1 then len else pos2) + d)
-      else min (len - 1) (pos2 + d)
-    in
+    let default = 0, if d < 0 then len else -1 in
+    let _, pos2 = Option.value st.playlist.sel_range ~default in
+    let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
     Playlist.deselect_all st.playlist;
     Playlist.select st.playlist i i;
-    Playlist.adjust_scroll st.playlist i;
+    Playlist.adjust_scroll st.playlist (Some i);
   );
 
   let d =
@@ -631,28 +612,24 @@ let run_playlist (st : State.t) =
   in
   if min len (abs d) > 0 then
   (
-    let pos1 = st.playlist.sel_pos1 in
-    let pos2 = st.playlist.sel_pos2 in
-    let i =
-      if d < 0
-      then max 0 ((if pos2 = -1 then len else pos2) + d)
-      else min (len - 1) (pos2 + d)
-    in
-    if pos1 = -1 then
+    let default = 0, if d < 0 then len else -1 in
+    let pos1, pos2 = Option.value st.playlist.sel_range ~default in
+    let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
+    if st.playlist.sel_range = None then
     (
       Playlist.select st.playlist (len - 1) i
     )
     else if Playlist.is_selected st.playlist pos1 then
     (
       Playlist.deselect st.playlist (max 0 pos2) i;
-      Playlist.select st.playlist (max 0 pos1) i
+      Playlist.select st.playlist pos1 i
     )
     else
     (
       Playlist.select st.playlist (max 0 pos2) i;
-      Playlist.deselect st.playlist (max 0 pos1) i
+      Playlist.deselect st.playlist pos1 i
     );
-    Playlist.adjust_scroll st.playlist i;
+    Playlist.adjust_scroll st.playlist (Some i);
   );
 
   if selall_key st.ui then
@@ -794,9 +771,13 @@ let run_playlist (st : State.t) =
     | Some s ->
       let tracks = State.playlist_of_string s in
       let pos = Option.value (Playlist.first_selected st.playlist) ~default: 0 in
-      Playlist.remove_selected st.playlist;
       Playlist.insert st.playlist pos tracks;
       Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
+      if Playlist.num_selected st.playlist = 1 && tracks <> [||] then
+      (
+        Playlist.deselect_all st.playlist;
+        Playlist.select st.playlist pos (pos + Array.length tracks - 1);
+      )
   );
 
   (* Playlist drag & drop *)
