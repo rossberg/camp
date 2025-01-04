@@ -808,10 +808,10 @@ let save_state st =
 
 
 let value = Fun.id
+let bool x = x <> 0
+let num l h x = max l (min h x)
 let pair x y = x, y
-
-let clamp l h x = max l (min h x)
-let clamp_pair lx ly hx hy (x, y) = clamp lx hx x, clamp ly hy y
+let num_pair lx ly hx hy x y = num lx hx x, num ly hy y
 
 let fscanf file =
   match In_channel.input_line file with
@@ -824,22 +824,20 @@ let load_state st =
     let input fmt = fscanf file fmt in
     if input " [%s@]" value <> state_header then failwith "load_state";
     let sw, sh = Api.Window.screen_size win in
-    let x, y = clamp_pair 0 0 (sw - 20) (sh - 20)
-      (input " win_pos = %d , %d " pair) in
+    let x, y = input " win_pos = %d , %d " (num_pair 0 0 (sw - 20) (sh - 20)) in
     Api.Window.set_pos win x y;
 
     st.playlist <- load_playlist ();
 
-    Ui.set_color_scheme st.ui (clamp 0 (Ui.num_color_scheme st.ui - 1)
-      (input " color_scheme = %d " value));
-    st.volume <- clamp 0.0 1.0 (input " volume = %f " value);
-    st.mute <- (0 <> input " mute = %d " value);
-    let current = String.trim (input " play = %[\x20-\xff]" value) in
+    Ui.set_color_scheme st.ui
+      (input " color_scheme = %d " (num 0 (Ui.num_color_scheme st.ui - 1)));
+    st.volume <- input " volume = %f " (num 0.0 1.0);
+    st.mute <- input " mute = %d " bool;
+    let current = input " play = %[\x20-\xff]" String.trim in
     st.current <- if current = "" then None else Some (make_track current);
-    let seek = clamp 0.0 1.0 (input " seek = %f " value) in
-    st.timemode <-
-      if input " timemode = %d " value = 0 then `Elapse else `Remain;
-    st.shuffled <- (0 <> input " shuffle = %d " value);
+    let seek = input " seek = %f " (num 0.0 1.0) in
+    st.timemode <- if input " timemode = %d " bool then `Remain else `Elapse;
+    st.shuffled <- input " shuffle = %d " bool;
     if st.shuffled then shuffle st (Some st.playlist_pos);
     st.repeat <-
       (match input " repeat = %d " value with 1 -> `One | 2 -> `All | _ -> `None);
@@ -851,28 +849,27 @@ let load_state st =
       );
 
     let len = Array.length st.playlist - 1 in
-    st.playlist_pos <- clamp 0 (len - 1) (input " play_pos = %d " value);
+    st.playlist_pos <- input " play_pos = %d " (num 0 (len - 1));
     if st.current = None && len > 0 then
       st.current <- Some st.playlist.(st.playlist_pos);
     if st.current <> None then
       switch_track st (Option.get st.current) false;
     seek_track st seek;
 
-    st.playlist_scroll <- clamp 0 (len - 1) (input " play_scroll = %d " value);
-    st.playlist_open <- (0 <> input " play_open = %d " value);
+    st.playlist_scroll <- input " play_scroll = %d " (num 0 (len - 1));
+    st.playlist_open <- input " play_open = %d " bool;
     (* TODO: 83 = playlist_min; use constant *)
-    st.playlist_height <- clamp 83 sh (input " play_height = %d " value);
-    st.library_open <- (0 <> input " lib_open = %d " value);
+    st.playlist_height <- input " play_height = %d " (num 83 sh);
+    st.library_open <- input " lib_open = %d " bool;
     (* TODO: 400 = library_min; use constant *)
-    st.library_width <- clamp 400 sw (input " lib_width = %d " value);
-    st.library_side <-
-      (if (input " lib_side = %d " value) = 0 then `Left else `Right);
+    st.library_width <- input " lib_width = %d " (num 400 sw);
+    st.library_side <- if input " lib_side = %d " bool then `Right else `Left;
   );
   update_summary st;
   Storage.load config_file (fun file ->
     let input fmt = fscanf file fmt in
     if input " [%s@]" value <> config_header then failwith "load_config";
-    st.exec_tag <- String.trim (input " exec_tag = %[\x20-\xff]" value);
-    st.exec_tag_max_len <- max 0 (input " exec_tag_max_len = %d " value);
+    st.exec_tag <- input " exec_tag = %[\x20-\xff]" String.trim;
+    st.exec_tag_max_len <- input " exec_tag_max_len = %d " (num 0 max_int);
   );
   ok st
