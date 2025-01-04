@@ -92,8 +92,8 @@ let playlist_table = Ui.table playlist_area playlist_row_h
 let playlist_scroll = Ui.scroll_bar (1, -20, 10, 10, -24)
 let playlist_wheel = Ui.wheel (1, 10, 10, -10, -24)
 let playlist_drag = Ui.drag (1, 10, 10, -20, -24)
-let playlist_summary_box = Ui.box (1, -120, -18, -21, playlist_row_h) `Black
-let playlist_summary_text = Ui.text (1, -120, -18, -23, playlist_row_h) `Right
+let playlist_total_box = Ui.box (1, -120, -18, -21, playlist_row_h) `Black
+let playlist_total_text = Ui.text (1, -120, -18, -23, playlist_row_h) `Right
 let playlist_resizer = Ui.resizer (1, -16, -16, 16, 16) `N_S
 
 let up_key = Ui.key ([], `Arrow `Up)
@@ -151,8 +151,6 @@ let library_resizer_r = Ui.resizer (2, -16, -16, 16, 16)
 
 (* Helpers *)
 
-let modulo n m = let k = n mod m in if k < 0 then k + m else k
-
 let rec log10 n = if n < 10 then 0 else 1 + log10 (n / 10)
 
 let clamp min max v =
@@ -197,7 +195,7 @@ let exec prog args =
 
 let run_control (st : State.t) =
   let x =
-    if st.library_open && st.library_side = `Left then st.library_width else 0
+    if st.library.shown && st.library.side = `Left then st.library.width else 0
   in
   control_subwindow st.ui (x, 0, control_w, control_h);
 
@@ -208,13 +206,13 @@ let run_control (st : State.t) =
 
   (* Current status *)
   State.ok st;
-  let length = Api.Audio.length st.audio st.sound in
-  let elapsed = Api.Audio.played st.audio st.sound in
+  let length = Api.Audio.length st.control.audio st.control.sound in
+  let elapsed = Api.Audio.played st.control.audio st.control.sound in
   let remaining = length -. elapsed in
-  let playing = Api.Audio.is_playing st.audio st.sound in
+  let playing = Api.Audio.is_playing st.control.audio st.control.sound in
   let paused = not playing && elapsed > 0.0 in
   let stopped = not playing && not paused in
-  let silence = st.sound = Api.Audio.silence st.audio in
+  let silence = st.control.sound = Api.Audio.silence st.control.audio in
 
   (* LCD *)
   info_box st.ui;
@@ -222,7 +220,7 @@ let run_control (st : State.t) =
     if paused && int_of_float (time ()) mod 2 = 0 then
       '+', ' ', ' ', ' ', ' ' else
     let sign, time =
-      match st.timemode with
+      match st.control.timemode with
       | `Elapse -> '+', elapsed
       | `Remain -> '-', remaining
     in
@@ -242,8 +240,8 @@ let run_control (st : State.t) =
 
   if lcd_button st.ui then
   (
-    st.timemode <-
-      match st.timemode with
+    st.control.timemode <-
+      match st.control.timemode with
       | `Elapse -> `Remain
       | `Remain -> `Elapse
   );
@@ -256,20 +254,20 @@ let run_control (st : State.t) =
   Ui.set_color_scheme st.ui ((Ui.get_color_scheme st.ui + dcol + ncol) mod ncol);
 
   (* FPS *)
-  if st.fps then
+  if st.control.fps then
     fps_text st.ui true (fmt "%d FPS" (Api.Window.fps (Ui.window st.ui)));
-  if fps_key st.ui then st.fps <- not st.fps;
+  if fps_key st.ui then st.control.fps <- not st.control.fps;
 
   (* Audio properties *)
   if not silence then
   (
-    let track = Option.get st.current in
+    let track = Option.get st.control.current in
     let ext = Filename.extension track.path in
     let format = if ext = "" || ext.[0] <> '.' then "???" else
       String.uppercase_ascii (String.sub ext 1 (String.length ext - 1)) in
-    let bitrate = Api.Audio.bitrate st.audio st.sound in
-    let rate = Api.Audio.rate st.audio st.sound in
-    let channels = Api.Audio.channels st.audio st.sound in
+    let bitrate = Api.Audio.bitrate st.control.audio st.control.sound in
+    let rate = Api.Audio.rate st.control.audio st.control.sound in
+    let channels = Api.Audio.channels st.control.audio st.control.sound in
     let depth = bitrate /. float rate /. float channels in
     prop_text st.ui true
       (fmt "%s    %.0f KBPS    %.1f KHZ    %s BIT    %s"
@@ -285,7 +283,7 @@ let run_control (st : State.t) =
 
   (* Title info *)
   let name =
-    match st.current with
+    match st.control.current with
     | Some track when not (State.is_separator track) ->
       track.name ^ " - " ^ fmt_time track.time
     | _ -> App.(name ^ " " ^ version)
@@ -293,16 +291,18 @@ let run_control (st : State.t) =
   title_ticker st.ui name;
 
   (* Volume control *)
-  let volume' = volume_bar st.ui st.volume +. 0.05 *. volume_wheel st.ui +.
+  let volume' = volume_bar st.ui st.control.volume +. 0.05 *. volume_wheel st.ui +.
     0.05 *. (float_of_bool (volup_key st.ui) -. float_of_bool (voldown_key st.ui)) in
-  mute_text st.ui st.mute "MUTE";
-  let mute' = if mute_button st.ui || mute_key st.ui then not st.mute else st.mute in
-  if volume' <> st.volume || mute' <> st.mute then
+  mute_text st.ui st.control.mute "MUTE";
+  let mute' =
+    if mute_button st.ui || mute_key st.ui then not st.control.mute else st.control.mute in
+  if volume' <> st.control.volume || mute' <> st.control.mute then
   (
     (* Hack to overlap volume bar with mute button. *)
-    if mute_drag st.ui (0, 0) = `None then st.volume <- clamp 0.0 1.0 volume';
-    st.mute <- mute';
-    Api.Audio.volume st.audio st.sound (if st.mute then 0.0 else st.volume);
+    if mute_drag st.ui (0, 0) = `None then st.control.volume <- clamp 0.0 1.0 volume';
+    st.control.mute <- mute';
+    Api.Audio.volume st.control.audio st.control.sound
+      (if st.control.mute then 0.0 else st.control.volume);
   );
 
   (* Seek bar *)
@@ -311,7 +311,7 @@ let run_control (st : State.t) =
   let progress' = seek_bar st.ui progress +.
     0.05 *. (float_of_bool (ff_key st.ui) -. float_of_bool (rw_key st.ui)) in
   if progress' <> progress && not silence then
-    State.seek_track st (clamp 0.0 1.0 progress');
+    State.seek_track st.control (clamp 0.0 1.0 progress');
 
 (*
   let s1 = fmt_time2 elapsed in
@@ -322,138 +322,118 @@ let run_control (st : State.t) =
 *)
 
   (* Looping *)
-  (match st.loop with
+  (match st.control.loop with
   | `AB (t1, t2) when playing && t2 < elapsed ->
-    State.seek_track st (t1 /. length);
+    State.seek_track st.control (t1 /. length);
   | _ -> ()
   );
 
   (* End of track *)
   if playing && (remaining < 0.2 || silence) then
   (
-    let pos = st.playlist_pos in
-    let len = Array.length st.playlist in
-    let next_pos, play_on =
-      match st.repeat with
-      | `One ->
-        pos, true
-      | _ when not st.shuffled && pos < len - 1 ->
-        pos + 1, true
-      | _ when st.shuffled && st.shuffle_pos < len - 1 ->
-        st.shuffle_pos <- st.shuffle_pos + 1;
-        st.shuffle_unobserved <- max st.shuffle_unobserved (st.shuffle_pos + 1);
-        st.shuffle.(st.shuffle_pos), true
-      | `None ->
-        pos, false
-      | `All when not st.shuffled ->
-        0, true
-      | `All ->
-        st.shuffle_pos <- 0;
-        st.shuffle.(0), true
+    let more =
+      match st.control.repeat with
+      | `One -> true
+      | `All -> State.skip st.playlist (+1) true
+      | `None -> State.skip st.playlist (+1) false
     in
-    st.playlist_pos <- next_pos;
     let next_track =
-      if st.playlist = [||]
-      then Option.get st.current
-      else st.playlist.(st.playlist_pos)
+      if st.playlist.tracks = [||]
+      then Option.get st.control.current
+      else st.playlist.tracks.(st.playlist.pos)
     in
-    State.switch_track st next_track play_on;
+    State.switch_track st.control next_track more;
+    State.adjust_scroll st.playlist st.playlist.pos;
   );
 
   (* Play controls *)
   let off =
-    (if bwd_button st.ui false && st.playlist <> [||] then -1 else 0) +
-    (if fwd_button st.ui false && st.playlist <> [||] then +1 else 0)
+    (if bwd_button st.ui false && st.playlist.tracks <> [||] then -1 else 0) +
+    (if fwd_button st.ui false && st.playlist.tracks <> [||] then +1 else 0)
   in
-  if off <> 0 then
+  if off <> 0 && st.playlist.tracks <> [||] then
   (
-    let len = Array.length st.playlist in
-    st.playlist_pos <-
-      if not st.shuffled then
-        modulo (st.playlist_pos + off) len
-      else
-      (
-        st.shuffle_pos <- modulo (st.shuffle_pos + off) len;
-        st.shuffle_unobserved <- max st.shuffle_unobserved (st.shuffle_pos + 1);
-        st.shuffle.(st.shuffle_pos)
-      );
-    State.switch_track st st.playlist.(st.playlist_pos) playing
+    let more = State.skip st.playlist off (st.control.repeat <> `None) in
+    State.switch_track st.control (State.current st.playlist) more;
+    State.adjust_scroll st.playlist st.playlist.pos;
   );
 
   let playing' = play_button st.ui playing in
-  if stopped && playing' && st.playlist <> [||] then
-    State.switch_track st st.playlist.(st.playlist_pos) true;
+  if stopped && playing' && st.playlist.tracks <> [||] then
+  (
+    State.switch_track st.control (State.current st.playlist) true;
+    State.adjust_scroll st.playlist st.playlist.pos;
+  );
 
   let paused' = pause_button st.ui paused in
   if playing' && paused' then
-    Api.Audio.pause st.audio st.sound
+    Api.Audio.pause st.control.audio st.control.sound
   else if (not stopped && not paused' || stopped && paused') && not silence then
-    Api.Audio.resume st.audio st.sound;
+    Api.Audio.resume st.control.audio st.control.sound;
 
   if stop_button st.ui false && not stopped then
   (
-    Api.Audio.pause st.audio st.sound;
-    State.switch_track st st.playlist.(st.playlist_pos) false;
+    Api.Audio.pause st.control.audio st.control.sound;
+    State.switch_track st.control (State.current st.playlist) false;
+    State.adjust_scroll st.playlist st.playlist.pos;
   );
 
   if eject_button st.ui false then
   (
-    State.eject_track st;
-    State.remove_all st;
+    State.eject_track st.control;
+    State.remove_all st.playlist;
   );
 
   if Api.Key.is_released (`Char ' ') then
   (
     if playing then
-      Api.Audio.pause st.audio st.sound
+      Api.Audio.pause st.control.audio st.control.sound
     else if paused then
-      Api.Audio.resume st.audio st.sound
-    else if stopped && st.playlist <> [||] then
-      State.switch_track st st.playlist.(st.playlist_pos) true
+      Api.Audio.resume st.control.audio st.control.sound
+    else if stopped && st.playlist.tracks <> [||] then
+      State.switch_track st.control (State.current st.playlist) true;
+    State.adjust_scroll st.playlist st.playlist.pos;
   );
 
   (* Play modes *)
   shuffle_label st.ui;
-  shuffle_indicator st.ui st.shuffled;
-  let shuffled' = shuffle_button st.ui st.shuffled in
-  if shuffled' <> st.shuffled then
+  shuffle_indicator st.ui st.playlist.shuffle_on;
+  let shuffle' = shuffle_button st.ui st.playlist.shuffle_on in
+  if shuffle' <> st.playlist.shuffle_on then
   (
-    if shuffled' then
+    if shuffle' then
     (
       if not stopped then
-        State.shuffle st (Some st.playlist_pos)
+        State.shuffle st.playlist (Some st.playlist.pos)
       else
       (
-        State.shuffle st None;
-        if Array.length st.playlist > 0 then
-        (
-          st.playlist_pos <- st.shuffle.(0);
-          st.shuffle_unobserved <- 1;
-          State.switch_track st st.playlist.(st.playlist_pos) false;
-        )
-      )
+        State.shuffle st.playlist None;
+        if st.playlist.tracks <> [||] then
+          State.switch_track st.control (State.current st.playlist) false;
+      );
+      State.adjust_scroll st.playlist st.playlist.pos;
     )
     else
-      State.unshuffle st
+      State.unshuffle st.playlist
   );
 
   repeat_label st.ui;
-  repeat_indicator1 st.ui (st.repeat <> `None);
-  repeat_indicator2 st.ui (st.repeat = `All);
-  let repeat' = repeat_button st.ui (st.repeat <> `None) in
-  st.repeat <-
-    (match st.repeat, repeat' with
+  repeat_indicator1 st.ui (st.control.repeat <> `None);
+  repeat_indicator2 st.ui (st.control.repeat = `All);
+  let repeat' = repeat_button st.ui (st.control.repeat <> `None) in
+  st.control.repeat <-
+    (match st.control.repeat, repeat' with
     | `None, false | `All, false -> `None
     | `None, true | `One, true -> `One
     | `One, false | `All, true -> `All
     );
 
   loop_label st.ui;
-  loop_indicator1 st.ui (st.loop <> `None);
-  loop_indicator2 st.ui (match st.loop with `AB _ -> true | _ -> false);
-  let loop' = loop_button st.ui (st.loop <> `None) in
-  st.loop <-
-    (match st.loop, loop' with
+  loop_indicator1 st.ui (st.control.loop <> `None);
+  loop_indicator2 st.ui (match st.control.loop with `AB _ -> true | _ -> false);
+  let loop' = loop_button st.ui (st.control.loop <> `None) in
+  st.control.loop <-
+    (match st.control.loop, loop' with
     | `None, false | `AB _, false -> `None
     | `None, true -> `A elapsed
     | `A t1, true -> `A t1
@@ -464,31 +444,31 @@ let run_control (st : State.t) =
 
   (* Subwindow Activation *)
   playlist_label st.ui;
-  playlist_indicator st.ui st.playlist_open;
-  let playlist_open' = playlist_button st.ui st.playlist_open in
-  st.playlist_open <- playlist_open';
+  playlist_indicator st.ui st.playlist.shown;
+  let playlist_shown' = playlist_button st.ui st.playlist.shown in
+  st.playlist.shown <- playlist_shown';
 
   library_label st.ui;
-  library_indicator st.ui st.library_open;
-  let library_open' = library_button st.ui st.library_open in
+  library_indicator st.ui st.library.shown;
+  let library_shown' = library_button st.ui st.library.shown in
   let wx, _ = Ui.window_pos st.ui in
   let sw, _ = Api.Window.screen_size (Ui.window st.ui) in
-  if not st.library_open && library_open' && not (Api.Key.is_modifier_down `Shift) then
+  if not st.library.shown && library_shown' && not (Api.Key.is_modifier_down `Shift) then
   (
-    if st.library_side = `Left && wx <= 0 then st.library_side <- `Right;
-    if st.library_side = `Right && wx + control_w >= sw then st.library_side <- `Left;
-    st.library_open <- library_open';
+    if st.library.side = `Left && wx <= 0 then st.library.side <- `Right;
+    if st.library.side = `Right && wx + control_w >= sw then st.library.side <- `Left;
+    st.library.shown <- library_shown';
   )
   else if
-    st.library_open <> library_open' && Api.Key.is_modifier_down `Shift ||
+    st.library.shown <> library_shown' && Api.Key.is_modifier_down `Shift ||
     library_button2 st.ui || library_key st.ui
   then
   (
     (* Instead of closing, switch sides. *)
-    st.library_side <- if st.library_side = `Left then `Right else `Left
+    st.library.side <- if st.library.side = `Left then `Right else `Left
   )
   else
-    st.library_open <- library_open';
+    st.library.shown <- library_shown';
 
   (* Minimize button *)
   if minimize_button st.ui then
@@ -499,16 +479,16 @@ let run_control (st : State.t) =
 
 let update_playlist_rows (st : State.t) =
   let _, _, _, h = Ui.dim st.ui playlist_area in
-  st.playlist_rows <- max 4 (int_of_float (Float.floor (float h /. float playlist_row_h)))
+  st.playlist.rows <- max 4 (int_of_float (Float.floor (float h /. float playlist_row_h)))
 
 let run_playlist (st : State.t) =
   let now = Unix.time () in
-  let len = Array.length st.playlist in
+  let len = Array.length st.playlist.tracks in
 
   let x =
-    if st.library_open && st.library_side = `Left then st.library_width else 0
+    if st.library.shown && st.library.side = `Left then st.library.width else 0
   in
-  playlist_subwindow st.ui (x, control_h, control_w, st.playlist_height);
+  playlist_subwindow st.ui (x, control_h, control_w, st.playlist.height);
 
   (* Playlist table *)
   let digits = log10 (len + 1) + 1 in
@@ -517,29 +497,29 @@ let run_playlist (st : State.t) =
   let cw1 = Api.Draw.text_width (Ui.window st.ui) playlist_row_h font smax1 + 1 in
   let cw3 = ref 16 in
   let (_, y, w, _) as r = Ui.dim st.ui playlist_area in
-  let vlen = st.playlist_rows in
+  let vlen = st.playlist.rows in
   let h' = vlen * playlist_row_h in
   (* Correct scrolling position for possible resize *)
-  st.playlist_scroll <- clamp 0 (max 0 (len - vlen)) st.playlist_scroll;
+  st.playlist.scroll <- clamp 0 (max 0 (len - vlen)) st.playlist.scroll;
   let rows =
     Array.init vlen (fun i ->
-      let i = i + st.playlist_scroll in
+      let i = i + st.playlist.scroll in
       if i >= len then Ui.text_color st.ui, `Black, [|""; ""; ""|] else
-      let track = st.playlist.(i) in
+      let track = st.playlist.tracks.(i) in
       if now -. track.last_update > playlist_file_check_freq then
-        State.update_track st track;
+        State.update_track st.control.audio track;
       let bg = if i mod 2 = 0 then `Black else `Gray 0x10 in
       let fg =
         match track.status with
-        | _ when i = st.playlist_pos ->
-          if track.path = (Option.get st.current).path then `White else `Gray 0xc0
+        | _ when i = st.playlist.pos ->
+          if track.path = (Option.get st.control.current).path then `White else `Gray 0xc0
         | _ when State.is_separator track -> Ui.text_color st.ui
         | `Absent -> Ui.error_color st.ui
         | `Invalid -> Ui.warn_color st.ui
         | `Undet -> Ui.unlit_color (Ui.text_color st.ui)
         | `Predet | `Det -> Ui.text_color st.ui
       in
-      let fg, bg = if State.is_selected st i then bg, fg else fg, bg in
+      let fg, bg = if State.is_selected st.playlist i then bg, fg else fg, bg in
       let time = if track.time = 0.0 then "" else fmt_time track.time in
       cw3 := max !cw3 (Api.Draw.text_width (Ui.window st.ui) playlist_row_h font time + 1);
       fg, bg, [|fmt "%0*d. " digits (i + 1); track.name; time|]
@@ -550,76 +530,76 @@ let run_playlist (st : State.t) =
   (match playlist_table st.ui cols rows with
   | None -> ()
   | Some i ->
-    let i = st.playlist_scroll + i in
+    let i = st.playlist.scroll + i in
     let i' = max 0 (min i (len - 1)) in
     let fst' = if i >= len then max_int else i in
     if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left && dragging = `None then
     (
-      st.playlist_range <- fst', i';
-      if i >= len || not (State.is_selected st i) then State.deselect_all st;
+      st.playlist.range <- fst', i';
+      if i >= len || not (State.is_selected st.playlist i) then State.deselect_all st.playlist;
       if i < len then
       (
         if Api.Mouse.is_doubleclick `Left then
         (
-          st.playlist_pos <- i;
-          State.switch_track st st.playlist.(i) true;
-          if st.shuffled then
+          st.playlist.pos <- i;
+          State.switch_track st.control st.playlist.tracks.(i) true;
+          if st.playlist.shuffle_on then
           (
-            let pos = Option.get (Array.find_index ((=) i) st.shuffle) in
-            if pos < st.shuffle_unobserved then
-              st.shuffle_pos <- pos
+            let pos = Option.get (Array.find_index ((=) i) st.playlist.shuffle_tracks) in
+            if pos < st.playlist.shuffle_unobserved then
+              st.playlist.shuffle_pos <- pos
             else
             (
               (* Minimise new observation to one *)
-              State.swap st.shuffle pos st.shuffle_unobserved;
-              st.shuffle_pos <- st.shuffle_unobserved;
-              st.shuffle_unobserved <- st.shuffle_pos + 1;
+              State.swap st.playlist.shuffle_tracks pos st.playlist.shuffle_unobserved;
+              st.playlist.shuffle_pos <- st.playlist.shuffle_unobserved;
+              st.playlist.shuffle_unobserved <- st.playlist.shuffle_pos + 1;
             )
           )
         )
         else
         (
-          State.select st i i;
+          State.select st.playlist i i;
         )
       )
     )
     else if Api.Key.are_modifiers_down [] && not (Api.Mouse.is_pressed `Left) && dragging = `Click then
     (
-      State.deselect_all st;
-      if i < len then State.select st i i;
+      State.deselect_all st.playlist;
+      if i < len then State.select st.playlist i i;
     )
     else if Api.Key.are_modifiers_down [`Command] && Api.Mouse.is_pressed `Left then
     (
-      st.playlist_range <- fst', i';
+      st.playlist.range <- fst', i';
       if i < len then
-        if State.is_selected st i then
-          State.deselect st i i
+        if State.is_selected st.playlist i then
+          State.deselect st.playlist i i
         else
-          State.select st i i
+          State.select st.playlist i i
     )
     else if Api.Key.are_modifiers_down [`Shift] && Api.Mouse.is_down `Left then
     (
-      let fst, snd = st.playlist_range in
-      st.playlist_range <- fst, i';
-      if fst < 0 || fst >= len || State.is_selected st fst then
+      let fst, snd = st.playlist.range in
+      st.playlist.range <- fst, i';
+      if fst < 0 || fst >= len || State.is_selected st.playlist fst then
       (
-        State.deselect st snd i';
-        State.select st (max 0 fst) i'
+        State.deselect st.playlist snd i';
+        State.select st.playlist (max 0 fst) i'
       )
       else
       (
-        State.select st snd i';
-        State.deselect st (max 0 fst) i'
+        State.select st.playlist snd i';
+        State.deselect st.playlist (max 0 fst) i'
       )
     )
   );
 
   (* Playlist selection *)
   let d =
-    if begin_key st.ui then - Array.length st.playlist else
-    if end_key st.ui then + Array.length st.playlist else
-    if pageup_key st.ui then -st.playlist_rows else
-    if pagedown_key st.ui then +st.playlist_rows else
+    if begin_key st.ui then - Array.length st.playlist.tracks else
+    if end_key st.ui then + Array.length st.playlist.tracks else
+    if pageup_key st.ui then - st.playlist.rows else
+    if pagedown_key st.ui then + st.playlist.rows else
     if up_key st.ui then -1 else
     if down_key st.ui then +1 else
     0
@@ -628,55 +608,55 @@ let run_playlist (st : State.t) =
   (
     let i =
       if d < 0
-      then max 0 (Option.value (State.first_selected st) ~default: (len - 1) + d)
-      else min (len - 1) (Option.value (State.last_selected st) ~default: 0 + d)
+      then max 0 (Option.value (State.first_selected st.playlist) ~default: (len - 1) + d)
+      else min (len - 1) (Option.value (State.last_selected st.playlist) ~default: 0 + d)
     in
-    st.playlist_range <- i, i;
-    State.deselect_all st;
-    State.select st i i;
-    State.scroll_to_view st i;
+    st.playlist.range <- i, i;
+    State.deselect_all st.playlist;
+    State.select st.playlist i i;
+    State.adjust_scroll st.playlist i;
   );
 
   let d =
-    if selbegin_key st.ui then - Array.length st.playlist else
-    if selend_key st.ui then + Array.length st.playlist else
-    if selpageup_key st.ui then - st.playlist_rows else
-    if selpagedown_key st.ui then + st.playlist_rows else
+    if selbegin_key st.ui then - Array.length st.playlist.tracks else
+    if selend_key st.ui then + Array.length st.playlist.tracks else
+    if selpageup_key st.ui then - st.playlist.rows else
+    if selpagedown_key st.ui then + st.playlist.rows else
     if selup_key st.ui then -1 else
     if seldown_key st.ui then +1 else
     0
   in
   if min len (abs d) > 0 then
   (
-    let fst, snd = st.playlist_range in
+    let fst, snd = st.playlist.range in
     let i = max 0 (min (len - 1) (snd + d)) in
-    st.playlist_range <- fst, i;
-    if fst < 0 || fst >= len || State.is_selected st fst then
+    st.playlist.range <- fst, i;
+    if fst < 0 || fst >= len || State.is_selected st.playlist fst then
     (
-      State.deselect st snd i;
-      State.select st (max 0 fst) i
+      State.deselect st.playlist snd i;
+      State.select st.playlist (max 0 fst) i
     )
     else
     (
-      State.select st snd i;
-      State.deselect st (max 0 fst) i
+      State.select st.playlist snd i;
+      State.deselect st.playlist (max 0 fst) i
     );
-    State.scroll_to_view st i;
+    State.adjust_scroll st.playlist i;
   );
 
   if selall_key st.ui then
   (
-    st.playlist_range <- 0, len - 1;
-    State.select_all st;
+    st.playlist.range <- 0, len - 1;
+    State.select_all st.playlist;
   )
   else if selnone_key st.ui then
   (
-    st.playlist_range <- State.no_range;
-    State.deselect_all st;
+    st.playlist.range <- State.no_range;
+    State.deselect_all st.playlist;
   )
   else if selinv_key st.ui then
   (
-    State.select_inv st;
+    State.select_inv st.playlist;
   );
 
   (* Playlist reordering *)
@@ -698,59 +678,33 @@ let run_playlist (st : State.t) =
   (
     let d' =
       if d < 0
-      then max d (- Option.value (State.first_selected st) ~default: (len - 1))
-      else min d (len - Option.value (State.last_selected st) ~default: 0 - 1)
+      then max d (- Option.value (State.first_selected st.playlist) ~default: (len - 1))
+      else min d (len - Option.value (State.last_selected st.playlist) ~default: 0 - 1)
     in
-    State.move_selected st d';
+    State.move_selected st.playlist d';
     if d0 = 0 then
-      st.playlist_scroll <- clamp 0 (max 0 (len - vlen)) (st.playlist_scroll + d);
+      st.playlist.scroll <- clamp 0 (max 0 (len - vlen)) (st.playlist.scroll + d);
   );
 
   (* Playlist scrolling *)
   let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * playlist_row_h)) in
-  let pos = if len = 0 then 0.0 else float st.playlist_scroll /. float len in
+  let pos = if len = 0 then 0.0 else float st.playlist.scroll /. float len in
   let pos' = playlist_scroll st.ui pos ext -. 0.05 *. playlist_wheel st.ui in
-  st.playlist_scroll <- clamp 0 (max 0 (len - vlen))
+  st.playlist.scroll <- clamp 0 (max 0 (len - vlen))
     (int_of_float (Float.round (pos' *. float len)));
 
   (* Playlist buttons *)
-  if sep_button st.ui false then
-  (
-    let pos = Option.value (State.first_selected st) ~default: 0 in
-    State.insert st pos [|State.make_separator ()|];
-    if State.num_selected st = 1 then
-    (
-      State.deselect_all st;
-      State.select st pos pos;
-    )
-  );
-
-  if del_button st.ui false then
-    State.remove_selected st;
-
-  if crop_button st.ui false then
-    State.remove_unselected st;
-
-  if clean_button st.ui false then
-    State.remove_invalid st;
-
-  if undo_button st.ui false then
-    State.pop_undo st;
-
-  if redo_button st.ui false then
-    State.pop_redo st;
-
   if save_button st.ui false then
     ();  (* TODO *)
 
-  if tag_button st.ui false && State.num_selected st > 0 && st.exec_tag <> "" then
+  if tag_button st.ui false && State.num_selected st.playlist > 0 && st.config.exec_tag <> "" then
   (
-    let tracks = Array.to_list (State.copy_selected st) in
+    let tracks = Array.to_list (State.copy_selected st.playlist) in
     Domain.spawn (fun () ->
       let tracks' = List.filter (fun tr -> not (State.is_separator tr)) tracks in
       let paths = List.map (fun tr -> tr.State.path) tracks' in
-      if st.exec_tag_max_len = 0 then
-        exec st.exec_tag paths
+      if st.config.exec_tag_max_len = 0 then
+        exec st.config.exec_tag paths
       else
       (
         (* Work around Windows command line limits *)
@@ -771,23 +725,56 @@ let run_playlist (st : State.t) =
          * which is very slow, so only use that when (a) we have less then a
          * certain number of tracks, or (b) when the command line gets too long
          * for a single call anyways. *)
-        let max = if List.length tracks < 20 then 1 else st.exec_tag_max_len in
-        exec st.exec_tag (pick 0 max);
-        List.iter (fun arg -> exec st.exec_tag ["/add"; arg]) !args;
+        let max = if List.length tracks < 20 then 1 else st.config.exec_tag_max_len in
+        exec st.config.exec_tag (pick 0 max);
+        List.iter (fun arg -> exec st.config.exec_tag ["/add"; arg]) !args;
       )
     ) |> ignore;
   );
 
+  if sep_button st.ui false then
+  (
+    let pos = Option.value (State.first_selected st.playlist) ~default: 0 in
+    State.insert st.playlist pos [|State.make_separator ()|];
+    State.adjust_track st.control (State.current_opt st.playlist);
+    if State.num_selected st.playlist = 1 then
+    (
+      State.deselect_all st.playlist;
+      State.select st.playlist pos pos;
+    )
+  );
+
+  if del_button st.ui false then
+    State.remove_selected st.playlist;
+
+  if crop_button st.ui false then
+    State.remove_unselected st.playlist;
+
+  if clean_button st.ui false then
+    State.remove_invalid st.playlist;
+
+  if undo_button st.ui false then
+  (
+    State.pop_undo st.playlist;
+    State.adjust_track st.control (State.current_opt st.playlist);
+  );
+
+  if redo_button st.ui false then
+  (
+    State.pop_redo st.playlist;
+    State.adjust_track st.control (State.current_opt st.playlist);
+  );
+
   if cut_key st.ui then
   (
-    let s = State.string_of_playlist (State.copy_selected st) in
+    let s = State.string_of_playlist (State.copy_selected st.playlist) in
     Api.Clipboard.write (Ui.window st.ui) s;
-    State.remove_selected st;
+    State.remove_selected st.playlist;
   );
 
   if copy_key st.ui then
   (
-    let s = State.string_of_playlist (State.copy_selected st) in
+    let s = State.string_of_playlist (State.copy_selected st.playlist) in
     Api.Clipboard.write (Ui.window st.ui) s;
   );
 
@@ -797,40 +784,45 @@ let run_playlist (st : State.t) =
     | None -> ()
     | Some s ->
       let tracks = State.playlist_of_string s in
-      let pos = Option.value (State.first_selected st) ~default: 0 in
-      State.remove_selected st;
-      State.insert st pos tracks;
+      let pos = Option.value (State.first_selected st.playlist) ~default: 0 in
+      State.remove_selected st.playlist;
+      State.insert st.playlist pos tracks;
+      State.adjust_track st.control (State.current_opt st.playlist);
   );
 
   (* Playlist drag & drop *)
   let dropped = Api.File.dropped (Ui.window st.ui) in
   let _, my as m = Api.Mouse.pos (Ui.window st.ui) in
   let pos = if Api.inside m r then
-    min len ((my - y) / playlist_row_h + st.playlist_scroll) else len in
-  State.insert_paths st pos dropped;
+    min len ((my - y) / playlist_row_h + st.playlist.scroll) else len in
+  State.insert_paths st.playlist pos dropped st.control.audio;
+  State.adjust_track st.control (State.current_opt st.playlist);
 
-  (* Playlist summary *)
-  if int_of_float (time ()) mod 10 = 0 then State.update_summary st;
-  let fmt_sum (t, n) = fmt_time3 t ^ if n > 0 then "+" else "" in
-  playlist_summary_box st.ui;
-  playlist_summary_text st.ui true
-    ( if st.playlist_sum_selected = (0.0, 0) then fmt_sum st.playlist_sum else
-      fmt_sum st.playlist_sum_selected ^ "/" ^ fmt_sum st.playlist_sum );
+  (* Playlist total *)
+  if int_of_float (time ()) mod 10 = 0 then State.update_total st.playlist;
+  let fmt_total (t, n) = fmt_time3 t ^ if n > 0 then "+" else "" in
+  let s1 =
+    if st.playlist.total_selected = (0.0, 0) then "" else
+    fmt_total st.playlist.total_selected ^ "/"
+  in
+  let s2 = fmt_total st.playlist.total in
+  playlist_total_box st.ui;
+  playlist_total_text st.ui true (s1 ^ s2);
 
   (* Playlist resizing *)
-  let w = control_w + (if st.library_open then st.library_width else 0) in
+  let w = control_w + (if st.library.shown then st.library.width else 0) in
   let _, dh =
     playlist_resizer st.ui (w, control_h + playlist_min) (w, -1) in
-  st.playlist_height <- st.playlist_height + dh;
+  st.playlist.height <- st.playlist.height + dh;
   update_playlist_rows st
 
 
 (* Library *)
 
 let run_library (st : State.t) =
-  let x = if st.library_side = `Left then 0 else control_w - 5 in
-  let dh = if st.playlist_open then st.playlist_height else 0 in
-  library_subwindow st.ui (x, 0, st.library_width + 5, control_h + dh);
+  let x = if st.library.side = `Left then 0 else control_w - 5 in
+  let dh = if st.playlist.shown then st.playlist.height else 0 in
+  library_subwindow st.ui (x, 0, st.library.width + 5, control_h + dh);
 
   (* Main view *)
   let cols = [||] in
@@ -842,24 +834,24 @@ let run_library (st : State.t) =
   let _pos' = library_scroll st.ui pos ext -. 0.05 *. library_wheel st.ui in
 
   (* Library resizing *)
-  let left = st.library_side = `Left in
-  if st.playlist_open && snd (Ui.window_size st.ui) > control_h then
+  let left = st.library.side = `Left in
+  if st.playlist.shown && snd (Ui.window_size st.ui) > control_h then
   (
     let dw, dh =
       (if left then library_resizer_l `NE_SW else library_resizer_r `NW_SE)
         st.ui (control_w + library_min, control_h + playlist_min) (-1, -1)
     in
-    st.library_width <- st.library_width + dw;
-    st.playlist_height <- st.playlist_height + dh;
+    st.library.width <- st.library.width + dw;
+    st.playlist.height <- st.playlist.height + dh;
   )
   else
   (
-    let h = control_h + (if st.playlist_open then st.playlist_height else 0) in
+    let h = control_h + (if st.playlist.shown then st.playlist.height else 0) in
     let dw, _ =
       (if left then library_resizer_l else library_resizer_r) `E_W
         st.ui (control_w + library_min, h) (-1, h)
     in
-    st.library_width <- st.library_width + dw;
+    st.library.width <- st.library.width + dw;
   )
 
 
@@ -869,34 +861,34 @@ let rec run (st : State.t) =
   let win = Ui.window st.ui in
   if Api.Window.closed win then exit 0;
 
-  let dw = if st.library_open then st.library_width else 0 in
-  let dh = if st.playlist_open then st.playlist_height else 0 in
+  let dw = if st.library.shown then st.library.width else 0 in
+  let dh = if st.playlist.shown then st.playlist.height else 0 in
   Api.Window.set_size win (control_w + dw) (control_h + dh);
   Api.Window.pump win;
 
   Api.Draw.start win (`Trans (`Black, 0x40));
   Ui.background st.ui;
 
-  let playlist_open = st.playlist_open in
-  let library_open = st.library_open in
-  let library_side = st.library_side in
-  let library_width = st.library_width in
+  let playlist_shown = st.playlist.shown in
+  let library_shown = st.library.shown in
+  let library_side = st.library.side in
+  let library_width = st.library.width in
   run_control st;
   if not (Api.Window.is_minimized win) then
   (
-    if playlist_open then run_playlist st;
-    if library_open then run_library st;
+    if playlist_shown then run_playlist st;
+    if library_shown then run_library st;
   );
 
   Api.Draw.finish win;
 
   let dx =
-    match library_open, st.library_open, library_side, st.library_side with
+    match library_shown, st.library.shown, library_side, st.library.side with
     | false, true, _, `Left
-    | true, true, `Right, `Left -> -st.library_width  (* opened on the left *)
+    | true, true, `Right, `Left -> -st.library.width  (* opened on the left *)
     | true, false, `Left, _
-    | true, true, `Left, `Right -> +library_width (* closed on the left *)
-    | true, true, `Left, `Left -> library_width - st.library_width (* resized *)
+    | true, true, `Left, `Right -> +library_width     (* closed on the left *)
+    | true, true, `Left, `Left -> library_width - st.library.width (* resized *)
     | _ -> 0
   in
   let x, y = Api.Window.pos win in
@@ -915,7 +907,7 @@ let startup () =
   let st = State.make ui audio in
   State.load_state st;
   update_playlist_rows st;
-  State.scroll_to_view st st.playlist_pos;
+  State.adjust_scroll st.playlist st.playlist.pos;
   at_exit (fun () -> State.save_state st; Storage.clear_temp ());
   st
 
