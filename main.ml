@@ -206,13 +206,13 @@ let run_control (st : State.t) =
 
   (* Current status *)
   State.ok st;
+  let silence = st.control.sound = Api.Audio.silence st.control.audio in
   let length = Api.Audio.length st.control.audio st.control.sound in
   let elapsed = Api.Audio.played st.control.audio st.control.sound in
   let remaining = length -. elapsed in
   let playing = Api.Audio.is_playing st.control.audio st.control.sound in
   let paused = not playing && elapsed > 0.0 in
   let stopped = not playing && not paused in
-  let silence = st.control.sound = Api.Audio.silence st.control.audio in
 
   (* LCD *)
   info_box st.ui;
@@ -225,7 +225,7 @@ let run_control (st : State.t) =
       | `Remain -> '-', remaining
     in
     lcd_colon st.ui ':';
-    let seconds = int_of_float (Float.round time) in
+    let seconds = int_of_float (Float.round (if silence then 0.0 else time)) in
     sign,
     (Char.chr (Char.code '0' + seconds mod 6000 / 600)),
     (Char.chr (Char.code '0' + seconds mod 600 / 60)),
@@ -338,7 +338,7 @@ let run_control (st : State.t) =
       | `None -> Playlist.skip st.playlist (+1) false
     in
     let next_track =
-      if st.playlist.tracks = [||]
+      if st.playlist.pos = -1
       then Option.get st.control.current
       else st.playlist.tracks.(st.playlist.pos)
     in
@@ -374,7 +374,10 @@ let run_control (st : State.t) =
   if stop_button st.ui false && not stopped then
   (
     Api.Audio.pause st.control.audio st.control.sound;
-    Control.switch st.control (Playlist.current st.playlist) false;
+    (match Playlist.current_opt st.playlist with
+    | None -> Control.eject st.control
+    | Some track -> Control.switch st.control track false
+    );
     Playlist.adjust_scroll st.playlist st.playlist.pos;
   );
 
@@ -403,7 +406,7 @@ let run_control (st : State.t) =
   (
     if shuffle' then
     (
-      if not stopped then
+      if not stopped && st.playlist.pos <> -1 then
         Playlist.shuffle st.playlist (Some st.playlist.pos)
       else
       (

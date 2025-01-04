@@ -13,6 +13,8 @@ type undo =
   undo_scroll : int;
   undo_tracks : track array;
   undo_selected : IntSet.t;
+  undo_sel_pos1 : int;
+  undo_sel_pos2 : int;
   undo_total : time * int;
   undo_total_selected : time * int;
 }
@@ -48,7 +50,7 @@ let make () =
     height = 200;
     rows = 4;
     scroll = 0;
-    pos = 0;
+    pos = -1;
     sel_pos1 = -1;
     sel_pos2 = -1;
     selected = IntSet.empty;
@@ -56,7 +58,7 @@ let make () =
     total_selected = 0.0, 0;
     shuffle_on = false;
     shuffle_tracks = [||];
-    shuffle_pos = 0;
+    shuffle_pos = -1;
     shuffle_unobserved = 0;
     undos = ref [];
     redos = ref [];
@@ -73,7 +75,7 @@ let ok pl =
   let len = Array.length pl.tracks in
   let shuffle_len = Array.length pl.shuffle_tracks in
   check "playlist position in range" (
-    pl.pos = 0 ||
+    pl.pos = -1 && len = 0 ||
     pl.pos >= 0 && pl.pos < len
   ) @
   check "playlist row number in range" (pl.rows >= 3) @
@@ -110,7 +112,7 @@ let ok pl =
   check "shuffle list has consistent length"
     (shuffle_len = len || shuffle_len = 0) @
   check "shuffle position in range" (
-    pl.shuffle_pos = 0 ||
+    pl.shuffle_pos = -1 && shuffle_len = 0 ||
     pl.shuffle_pos >= 0 && pl.shuffle_pos < shuffle_len
   ) @
   check "shuffle observation in range" (
@@ -145,7 +147,7 @@ let update_total pl =
 
 let modulo n m = let k = n mod m in if k < 0 then k + m else k
 
-let current_opt pl = if pl.tracks = [||] then None else Some pl.tracks.(pl.pos)
+let current_opt pl = if pl.pos = -1 then None else Some pl.tracks.(pl.pos)
 let current pl = Option.get (current_opt pl)
 
 let skip pl delta repeat =
@@ -178,7 +180,7 @@ let adjust_scroll pl pos =
 let unshuffle pl =
   pl.shuffle_on <- false;
   pl.shuffle_tracks <- [||];
-  pl.shuffle_pos <- 0;
+  pl.shuffle_pos <- -1;
   pl.shuffle_unobserved <- 0
 
 let swap a i j =
@@ -194,14 +196,18 @@ let shuffle pl i_opt =
   let len = Array.length pl.tracks in
   pl.shuffle_on <- true;
   pl.shuffle_tracks <- Array.init len Fun.id;
-  pl.shuffle_pos <- 0;
+  pl.shuffle_pos <- if len > 0 then 0 else -1;
   pl.shuffle_unobserved <-
     (match i_opt with
     | Some i -> swap pl.shuffle_tracks 0 i; 1
-    | None -> Bool.to_int (len > 0)
+    | None -> 0
     );
   reshuffle pl;
-  if len > 0 then pl.pos <- pl.shuffle_tracks.(0)
+  if len > 0 then
+  (
+    pl.pos <- pl.shuffle_tracks.(0);
+    pl.shuffle_unobserved <- 1;
+  )
 
 
 (* Selection *)
@@ -273,8 +279,10 @@ let undo_depth = 100
 let make_undo pl =
   { undo_pos = pl.pos;
     undo_scroll = pl.scroll;
-    undo_tracks = pl.tracks;
+    undo_tracks = Array.map Fun.id pl.tracks;
     undo_selected = pl.selected;
+    undo_sel_pos1 = pl.sel_pos1;
+    undo_sel_pos2 = pl.sel_pos2;
     undo_total = pl.total;
     undo_total_selected = pl.total_selected;
   }
@@ -292,12 +300,16 @@ let pop_unredo pl undos redos =
     redos := make_undo pl :: !redos;
     undos := undos';
     deselect_all pl;
+    if pl.shuffle_on then unshuffle pl;
     pl.pos <- undo.undo_pos;
     pl.scroll <- undo.undo_scroll;
     pl.tracks <- undo.undo_tracks;
     pl.selected <- undo.undo_selected;
+    pl.sel_pos1 <- undo.undo_sel_pos1;
+    pl.sel_pos2 <- undo.undo_sel_pos2;
     pl.total <- undo.undo_total;
-    pl.total_selected <- undo.undo_total_selected
+    pl.total_selected <- undo.undo_total_selected;
+    if pl.shuffle_on then shuffle pl (if pl.pos = -1 then None else Some pl.pos)
 
 let pop_undo pl = pop_unredo pl pl.undos pl.redos
 let pop_redo pl = pop_unredo pl pl.redos pl.undos
@@ -339,7 +351,16 @@ let insert pl pos tracks =
     if len = 0 then
     (
       pl.tracks <- tracks;
-      if pl.shuffle_on then pl.shuffle_tracks <- Array.init len' Fun.id;
+      if len' > 0 then
+      (
+        pl.pos <- 0;
+        if pl.shuffle_on then
+        (
+          pl.shuffle_pos <- 0;
+          pl.shuffle_unobserved <- 1;
+          pl.shuffle_tracks <- Array.init len' Fun.id;
+        )
+      )
     )
     else
     (
@@ -404,11 +425,11 @@ let remove_all pl =
     push_undo pl;
     deselect_all pl;
     pl.tracks <- [||];
-    pl.pos <- 0;
+    pl.pos <- -1;
     pl.scroll <- 0;
     pl.total <- 0.0, 0;
     pl.shuffle_tracks <- [||];
-    pl.shuffle_pos <- 0;
+    pl.shuffle_pos <- -1;
     pl.shuffle_unobserved <- 0;
   )
 
@@ -430,7 +451,7 @@ let remove_if p pl n =
         if b then
         (
           pl.total <- sub_total pl.total (track_total pl.tracks.(j));
-          deselect pl i i;
+          deselect pl j j;
           incr d;
           js.(j) <- -1;
           skip i;
@@ -473,8 +494,8 @@ let remove_selected pl =
 let remove_unselected pl =
   remove_if (fun i -> not (is_selected pl i)) pl
     (Array.length pl.tracks - num_selected pl);
-  pl.sel_pos1 <- 0;
-  pl.sel_pos2 <- Array.length pl.tracks - 1
+  pl.sel_pos2 <- Array.length pl.tracks - 1;
+  pl.sel_pos1 <- min 0 pl.sel_pos2
 
 
 let num_invalid pl =

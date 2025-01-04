@@ -187,6 +187,7 @@ let load st =
     Api.Window.set_pos win x y;
 
     st.playlist.tracks <- load_playlist ();
+    let len = Array.length st.playlist.tracks in
 
     Ui.set_color_scheme st.ui
       (input " color_scheme = %d " (num 0 (Ui.num_color_scheme st.ui - 1)));
@@ -199,8 +200,6 @@ let load st =
     st.control.timemode <-
       if input " timemode = %d " bool then `Remain else `Elapse;
     st.playlist.shuffle_on <- input " shuffle = %d " bool;
-    if st.playlist.shuffle_on then
-      Playlist.shuffle st.playlist (Some st.playlist.pos);
     st.control.repeat <-
       (match input " repeat = %d " value with
       | 1 -> `One
@@ -214,13 +213,15 @@ let load st =
       | t1, t2 -> `AB (t1, max t1 t2)
       );
 
-    let len = Array.length st.playlist.tracks - 1 in
-    st.playlist.pos <- input " play_pos = %d " (num 0 (len - 1));
+    st.playlist.pos <- input " play_pos = %d " (num (min 0 (len - 1)) (len - 1));
     if st.control.current = None && len > 0 then
       st.control.current <- Some st.playlist.tracks.(st.playlist.pos);
     if st.control.current <> None then
       Control.switch st.control (Option.get st.control.current) false;
     Control.seek st.control seek;
+
+    if st.playlist.shuffle_on && len > 0 then
+      Playlist.shuffle st.playlist (Some st.playlist.pos);
 
     st.playlist.scroll <- input " play_scroll = %d " (num 0 (len - 1));
     st.playlist.shown <- input " play_open = %d " bool;
