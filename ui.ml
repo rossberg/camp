@@ -1,12 +1,6 @@
-(* Direct-style GUI abstractions *)
+(* Immediate-style GUI abstractions *)
 
 open Api
-
-
-(* Keyboard *)
-
-let is_shift_down () =
-  Key.is_down (`Shift `Left) || Key.is_down (`Shift `Right)
 
 
 (* State *)
@@ -15,9 +9,6 @@ type drag_extra = ..
 type drag_extra += No_drag
 
 type image_load = [`Unloaded of string | `Loaded of image] ref
-
-type subwindow = int
-type area = subwindow * int * int * int * int
 
 type t =
 {
@@ -35,7 +26,6 @@ type t =
   img_background : image_load;
   img_button : image_load;
   fonts : font option array;
-  symfonts : font option array;
 }
 
 let no_drag = (min_int, min_int)
@@ -60,7 +50,6 @@ let make win =
     img_background = ref (`Unloaded "bg.jpg");
     img_button = ref (`Unloaded "but.jpg");
     fonts = Array.make 64 None;
-    symfonts = Array.make 64 None;
   }
 
 let window ui = ui.win
@@ -68,18 +57,21 @@ let window_pos ui = ui.win_pos
 let window_size ui = ui.win_size
 
 
-(* Images *)
+(* Sub Windows *)
 
-let get_img ui rimg =
-  match !rimg with
-  | `Loaded img -> img
-  | `Unloaded file ->
-    let img = Image.load ui.win (assets // file) in
-    rimg := `Loaded img;
-    img
+type subwindow = int
+
+let subwindow i ui r =
+  let n = Array.length ui.sub in
+  if i >= n then
+    ui.sub <-
+      Array.init (2*n) (fun i -> if i < n then ui.sub.(i) else (0, 0, 0, 0));
+  ui.sub.(i) <- r
 
 
-(* Helpers *)
+(* Areas *)
+
+type area = subwindow * int * int * int * int
 
 let dim ui (i, x, y, w, h) =
   let wx, wy, ww, wh = ui.sub.(i) in
@@ -89,7 +81,13 @@ let dim ui (i, x, y, w, h) =
   let h' = h + (if h >= 0 then 0 else wh - y') in
   wx + x', wy + y', w', h'
 
+
+(* Geometry helpers *)
+
 let snap_dist = 12
+
+let is_shift_down () =
+  Key.is_down (`Shift `Left) || Key.is_down (`Shift `Right)
 
 let snap min max v =
   if is_shift_down () then v else
@@ -139,6 +137,9 @@ let border ui = function
 *)
   | _ -> `Black
 
+
+(* Fonts *)
+
 let font' ui h file min max fonts =
   match fonts.(h) with
   | Some f -> f
@@ -146,6 +147,20 @@ let font' ui h file min max fonts =
     let f = Api.Font.load ui.win file min max h in
     fonts.(h) <- Some f;
     f
+
+let font ui h =
+  font' ui h "tahoma.ttf" 0x0020 0x0600 ui.fonts
+
+
+(* Images *)
+
+let get_img ui rimg =
+  match !rimg with
+  | `Loaded img -> img
+  | `Unloaded file ->
+    let img = Image.load ui.win (assets // file) in
+    rimg := `Loaded img;
+    img
 
 
 (* Window Background *)
@@ -195,21 +210,7 @@ let background ui =
   ui.inner <- []
 
 
-(* Sub Windows *)
-
-let subwindow i ui r =
-  let n = Array.length ui.sub in
-  if i >= n then
-    ui.sub <-
-      Array.init (2*n) (fun i -> if i < n then ui.sub.(i) else (0, 0, 0, 0));
-  ui.sub.(i) <- r
-
-
-(* GUI elements *)
-
-let font ui h = font' ui h "tahoma.ttf" 0x0020 0x0600 ui.fonts
-let _symfont ui h = font' ui h "webdings.ttf" 0x23c0 0x2400 ui.symfonts
-
+(* Input elements *)
 
 let no_modkey = ([], `None)
 
@@ -265,9 +266,7 @@ let wheel r ui = wheel_status ui (dim ui r)
 let drag r ui eps = drag_status ui (dim ui r) eps
 
 
-let box r c ui =
-  let x, y, w, h = dim ui r in
-  Draw.fill ui.win x y w h c
+(* Auxiliary UI elements *)
 
 let label r align s ui =
   let x, y, w, h = dim ui r in
@@ -353,6 +352,8 @@ let lcd r ui d =
     )
 
 
+(* Passive UI Elements *)
+
 let element r modkey ui =
   let r' = dim ui r in
   ui.inner <- r' :: ui.inner;
@@ -364,37 +365,33 @@ let element r modkey ui =
   | _, _ -> `Untouched
 
 
-type drag_extra += Resize of size (* clamped delta *)
+let box r c ui =
+  let (x, y, w, h), _ = element r no_modkey ui in
+  Draw.fill ui.win x y w h c
 
-let resizer r cursor ui (minw, minh) (maxw, maxh) =
-  let (x, y, w, h), status = element r no_modkey ui in
-  if status <> `Untouched then Api.Mouse.set_cursor ui.win (`Resize cursor);
-  Draw.fill ui.win x y w h (fill ui false);
-  Draw.rect ui.win x y w h (border ui status);
-  let sz = Window.size ui.win in
-  if status <> `Pressed then 0, 0 else
-  let _, x0, y0, _, _ = r in
-  let sign = (if x0 >= 0 then -1 else +1), (if y0 >= 0 then -1 else +1) in
-  let over =
-    match ui.drag_extra with
-    | No_drag -> 0, 0
-    | Resize over -> over
-    | _ -> assert false
+let text r align ui active s =
+  let (x, y, w, h), _status = element r no_modkey ui in
+  Draw.fill ui.win x y w h `Black;
+  let tw = Draw.text_width ui.win h (font ui h) s in
+  let dx =
+    match align with
+    | `Left -> 0
+    | `Center -> (w - tw) / 2
+    | `Right -> w - tw
   in
-  let ww, wh = add (add sz (mul sign ui.mouse_delta)) over in
-  let sw, sh = Window.screen_size ui.win in
-  let maxw = if maxw < 0 then sw else maxw in
-  let maxh = if maxh < 0 then sh else maxh in
-  let ww', wh' = clamp minw maxw ww, clamp minh maxh wh in
-  ui.drag_extra <- Resize (ww - ww', wh - wh');
-  (* HACK: Adjust owned drag_pos for size-relative position *)
-  (* This assumes that the caller actually resizes the window! *)
-  let dw = if x0 >= 0 then 0 else ww' - fst sz in
-  let dh = if y0 >= 0 then 0 else wh' - snd sz in
-  ui.drag_pos <- add ui.drag_pos (dw, dh);
-  assert (inside ui.drag_pos (x + dw, y + dh, w, h));
-  ui.inner <- (x + dw, y + dh, w, h) :: ui.inner;
-  sub (ww', wh') sz
+  Draw.text ui.win (x + dx) y h (fill ui active) (font ui h) s
+
+let ticker r ui s =
+  let (x, y, w, h), _status = element r no_modkey ui in
+  Draw.fill ui.win x y w h `Black;
+  let tw = Draw.text_width ui.win h (font ui h) s in
+  Draw.clip ui.win x y w h;
+  let dx = if tw <= w then (w - tw)/2 else w - Draw.frame ui.win mod (w + tw) in
+  Draw.text ui.win (x + dx) y h (fill ui true) (font ui h) s;
+  Draw.unclip ui.win
+
+
+(* Buttons *)
 
 let button r ?(protrude=true) modkey ui active =
   let (x, y, w, h), status = element r modkey ui in
@@ -410,6 +407,7 @@ let button r ?(protrude=true) modkey ui active =
   );
   Draw.rect ui.win x y w h (border ui status);
   if status = `Released then not active else active
+
 
 let labeled_button r ?(protrude=true) hsym txt modkey ui active =
   let (x, y, w, h), status = element r modkey ui in
@@ -441,6 +439,9 @@ let labeled_button r ?(protrude=true) hsym txt modkey ui active =
   );
   result
 
+
+(* Bars *)
+
 let progress_bar r ui v =
   let (x, y, w, h), status = element r no_modkey ui in
   Draw.fill ui.win x y w h (fill ui false);
@@ -452,6 +453,7 @@ let progress_bar r ui v =
   if status <> `Pressed then v else
   let mx, _ = Mouse.pos ui.win in
   clamp 0.0 1.0 (float (mx - x) /. float w)
+
 
 let volume_bar r ui v =
   let (x, y, w, h), status = element r no_modkey ui in
@@ -475,6 +477,7 @@ let volume_bar r ui v =
   let _, my = Mouse.pos ui.win in
   clamp 0.0 1.0 (float (y + h - my) /. float h)
 *)
+
 
 type drag_extra += Scroll_bar_page of time
 type drag_extra += Scroll_bar_drag of float * int
@@ -517,27 +520,7 @@ let scroll_bar r ui v len =
   in clamp 0.0 (1.0 -. len) v'
 
 
-let text r align ui active s =
-  let (x, y, w, h), _status = element r no_modkey ui in
-  Draw.fill ui.win x y w h `Black;
-  let tw = Draw.text_width ui.win h (font ui h) s in
-  let dx =
-    match align with
-    | `Left -> 0
-    | `Center -> (w - tw) / 2
-    | `Right -> w - tw
-  in
-  Draw.text ui.win (x + dx) y h (fill ui active) (font ui h) s
-
-let ticker r ui s =
-  let (x, y, w, h), _status = element r no_modkey ui in
-  Draw.fill ui.win x y w h `Black;
-  let tw = Draw.text_width ui.win h (font ui h) s in
-  Draw.clip ui.win x y w h;
-  let dx = if tw <= w then (w - tw)/2 else w - Draw.frame ui.win mod (w + tw) in
-  Draw.text ui.win (x + dx) y h (fill ui true) (font ui h) s;
-  Draw.unclip ui.win
-
+(* Tables *)
 
 type align = [`Left | `Center | `Right]
 type column = int * align
@@ -576,3 +559,44 @@ let table r ch ui cols rows =
     Some ((my - y) / ch)
   else
     None
+
+
+(* Resizers *)
+
+type drag_extra += Resize of size (* clamped delta *)
+
+(* Assumes that the caller actually resizes the window according to response.
+ * Dragging will misbehave otherwise.
+ * Also assumes that positive x/y imply resizing to left/upward,
+ * while negative x/y imply resizing to right/downward.
+ * Negative max values are treated as screen size.
+ *)
+let resizer r cursor ui (minw, minh) (maxw, maxh) =
+  let (x, y, w, h), status = element r no_modkey ui in
+  if status <> `Untouched then Api.Mouse.set_cursor ui.win (`Resize cursor);
+  Draw.fill ui.win x y w h (fill ui false);
+  Draw.rect ui.win x y w h (border ui status);
+  let sz = Window.size ui.win in
+  if status <> `Pressed then 0, 0 else
+  let _, x0, y0, _, _ = r in
+  let sign = (if x0 >= 0 then -1 else +1), (if y0 >= 0 then -1 else +1) in
+  let over =
+    match ui.drag_extra with
+    | No_drag -> 0, 0
+    | Resize over -> over
+    | _ -> assert false
+  in
+  let ww, wh = add (add sz (mul sign ui.mouse_delta)) over in
+  let sw, sh = Window.screen_size ui.win in
+  let maxw = if maxw < 0 then sw else maxw in
+  let maxh = if maxh < 0 then sh else maxh in
+  let ww', wh' = clamp minw maxw ww, clamp minh maxh wh in
+  ui.drag_extra <- Resize (ww - ww', wh - wh');
+  (* HACK: Adjust owned drag_pos for size-relative position *)
+  (* This assumes that the caller actually resizes the window! *)
+  let dw = if x0 >= 0 then 0 else ww' - fst sz in
+  let dh = if y0 >= 0 then 0 else wh' - snd sz in
+  ui.drag_pos <- add ui.drag_pos (dw, dh);
+  assert (inside ui.drag_pos (x + dw, y + dh, w, h));
+  ui.inner <- (x + dw, y + dh, w, h) :: ui.inner;
+  sub (ww', wh') sz

@@ -39,6 +39,9 @@ let lcd3 = Ui.lcd (0, 73, 15, 14, 20)
 let lcd4 = Ui.lcd (0, 90, 15, 14, 20)
 let lcd_button = Ui.mouse (0, 15, 15, 90, 20) `Left
 
+let fps_text = Ui.text (0, 130, 15, 40, 12) `Left
+let fps_key = Ui.key ([`Command], `Char 'U')
+
 let volume_bar = Ui.volume_bar (0, -87, 15, 27, 50)
 let volume_wheel = Ui.wheel (0, 0, 0, control_w, control_h)
 let mute_text = Ui.text (0, -87, 57, 20, 8) `Left
@@ -251,6 +254,11 @@ let run_control (st : State.t) =
     (if color_button_bwd st.ui then -1 else 0)
   in
   Ui.set_color_scheme st.ui ((Ui.get_color_scheme st.ui + dcol + ncol) mod ncol);
+
+  (* FPS *)
+  if st.fps then
+    fps_text st.ui true (fmt "%d FPS" (Api.Window.fps (Ui.window st.ui)));
+  if fps_key st.ui then st.fps <- not st.fps;
 
   (* Audio properties *)
   if not silence then

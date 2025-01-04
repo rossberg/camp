@@ -79,6 +79,8 @@ struct
   let screen_size () =
     let mon = Raylib.get_current_monitor () in
     Raylib.get_monitor_width mon, Raylib.get_monitor_height mon
+
+  let fps () = Raylib.get_fps ()
 end
 
 

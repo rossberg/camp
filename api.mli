@@ -49,6 +49,7 @@ sig
   val is_minimized : window -> bool
 
   val screen_size : window -> size
+  val fps : window -> int
 end
 
 

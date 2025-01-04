@@ -59,6 +59,7 @@ type t =
 {
   ui : Ui.t;
   audio : Api.audio;
+  mutable fps : bool;
   mutable mute : bool;
   mutable volume : float;
   mutable sound : Api.sound;
@@ -95,6 +96,7 @@ let make ui audio =
   let sound = Api.Audio.silence audio in
   {
     ui; audio; sound;
+    fps = false;
     mute = false;
     volume = 0.5;
     current = None;
