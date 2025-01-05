@@ -70,7 +70,7 @@ struct
   let size () = Raylib.get_screen_width (), Raylib.get_screen_height ()
   let set_pos () x y = Raylib.set_window_position x y
   let set_size () w h = Raylib.set_window_size w h
-  let set_icon () img = Raylib.set_window_icon img
+  let set_icon () img = if not is_mac then Raylib.set_window_icon img
 
   let minimize () = Raylib.minimize_window ()
   let restore () = Raylib.restore_window ()
