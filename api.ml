@@ -294,11 +294,29 @@ type cursor =
 
 module Mouse =
 struct
+  (* Raylib.is_mouse_button_pressed/released isn't working on Mac,
+   * so implement our own version. *)
+  let last_update = ref (-1)
+  let current_down = ref (false, false)
+  let prev_down = ref (false, false)
+
   let last_press_pos = ref (min_int, min_int)
   let last_press_left = ref 0.0
   let last_press_right = ref 0.0
   let is_double_left = ref false
   let is_double_right = ref false
+
+  let update_mouse () =
+    if !last_update < Draw.frame () then
+    (
+      last_update := Draw.frame ();
+      prev_down := !current_down;
+      current_down :=
+        Raylib.(
+          is_mouse_button_down MouseButton.Left,
+          is_mouse_button_down MouseButton.Right
+        );
+    )
 
   let pos () = point_of_vec2 (Raylib.get_mouse_position ())
   let delta () = point_of_vec2 (Raylib.get_mouse_delta ())
@@ -308,9 +326,19 @@ struct
     | `Left -> Raylib.MouseButton.Left
     | `Right -> Raylib.MouseButton.Right
 
+  let button_proj = function
+    | `Left -> fst
+    | `Right -> snd
+
   let is_down but = Raylib.is_mouse_button_down (button but)
-  let is_pressed but = Raylib.is_mouse_button_pressed (button but)
-  let is_released but = Raylib.is_mouse_button_released (button but)
+
+  let is_pressed but = (*Raylib.is_mouse_button_pressed (button but)*)
+    update_mouse ();
+    let proj = button_proj but in not (proj !prev_down) && proj !current_down
+
+  let is_released but = (*Raylib.is_mouse_button_released (button but)*)
+    update_mouse ();
+    let proj = button_proj but in proj !prev_down && not (proj !current_down)
 
   let is_doubleclick = function
     | `Left -> !is_double_left
