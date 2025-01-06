@@ -283,7 +283,7 @@ let label = label' `White
 
 let indicator r ui on =
   let x, y, w, h = dim ui r in
-  Draw.fill_circ ui.win x y w h (fill ui on);
+  Draw.fill_circ ui.win x y w h (if on then `Green else unlit_color `Green);
   Draw.circ ui.win x y w h (border ui `Untouched)
 
 let lcd' ui r' c elem =

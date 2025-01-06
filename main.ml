@@ -159,7 +159,7 @@ let total_y = -total_h-(bottom_h-total_h)/2
 let playlist_total_box = Ui.box (1, total_x, total_y, total_w, playlist_row_h) `Black
 let playlist_total_text = Ui.text (1, total_x, total_y, total_w-2, playlist_row_h) `Right `Regular
 
-let playlist_resizer = Ui.resizer (1, -resizer_w, -resizer_w, resizer_w, resizer_w) `N_S
+let playlist_resizer = Ui.resizer (1, 1-resizer_w, 1-resizer_w, resizer_w, resizer_w) `N_S
 
 let up_key = Ui.key ([], `Arrow `Up)
 let down_key = Ui.key ([], `Arrow `Down)
@@ -227,8 +227,8 @@ let library_divider_min = margin+browser_min
 let library_divider_max pw = margin+browser_max pw
 let library_divider bw = Ui.divider (2, margin+bw, margin, divider_w, -bottom_h) `Horizontal
 
-let library_resizer_l = Ui.resizer (2, 1, -resizer_w, resizer_w, resizer_w)
-let library_resizer_r = Ui.resizer (2, -resizer_w, -resizer_w, resizer_w, resizer_w)
+let library_resizer_l = Ui.resizer (2, 1, 1-resizer_w, resizer_w, resizer_w)
+let library_resizer_r = Ui.resizer (2, 1-resizer_w, 1-resizer_w, resizer_w, resizer_w)
 
 
 (* Helpers *)
