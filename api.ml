@@ -330,7 +330,7 @@ struct
     | `Left -> fst
     | `Right -> snd
 
-  let is_down but = Raylib.is_mouse_button_down (button but)
+  let is_down but = update_mouse (); Raylib.is_mouse_button_down (button but)
 
   let is_pressed but = (*Raylib.is_mouse_button_pressed (button but)*)
     update_mouse ();
