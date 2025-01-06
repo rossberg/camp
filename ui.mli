@@ -34,7 +34,7 @@ val set_color_scheme : t -> int -> unit
 val text_color : t -> color
 val warn_color : t -> color
 val error_color : t -> color
-val focus_color : t -> color
+val hover_color : t -> color
 val unlit_color : color -> color
 
 (* Fonts *)

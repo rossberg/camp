@@ -103,15 +103,15 @@ let clamp min max v =
 
 (* Colors *)
 
-type color_scheme = {text : color; warn : color; error : color; focus : color}
+type color_scheme = {text : color; warn : color; error : color; hover : color}
 
 let color_schemes =
 [|
-  {text = `Green; warn = `Yellow; error = `Red; focus = `Blue};
-  {text = `RGB 0x92f2d6; warn = `RGB 0xc8bd4a; error = `RGB 0xec635b; focus = `RGB 0x5f7eb8};
-  {text = `RGB 0x78cfeb; warn = `RGB 0xfef46d; error = `RGB 0xd35c6d; focus = `RGB 0x5186bb};
-  {text = `RGB 0x51a6fb; warn = `RGB 0xfef46d; error = `RGB 0xd35c6d; focus = `RGB 0x78cfeb};
-  {text = `RGB 0xddac4d; warn = `RGB 0xffff6d; error = `RGB 0xf14138; focus = `RGB 0xd5b482};
+  {text = `Green; warn = `Yellow; error = `Red; hover = `Blue};
+  {text = `RGB 0x92f2d6; warn = `RGB 0xc8bd4a; error = `RGB 0xec635b; hover = `RGB 0x5f7eb8};
+  {text = `RGB 0x78cfeb; warn = `RGB 0xfef46d; error = `RGB 0xd35c6d; hover = `RGB 0x5186bb};
+  {text = `RGB 0x51a6fb; warn = `RGB 0xfef46d; error = `RGB 0xd35c6d; hover = `RGB 0x78cfeb};
+  {text = `RGB 0xddac4d; warn = `RGB 0xffff6d; error = `RGB 0xf14138; hover = `RGB 0xd5b482};
 |]
 
 let num_color_scheme _ui = Array.length color_schemes
@@ -124,14 +124,14 @@ let unlit_color c = `Trans (c, unlit_alpha)
 let text_color ui = color_schemes.(ui.color_scheme).text
 let warn_color ui = color_schemes.(ui.color_scheme).warn
 let error_color ui = color_schemes.(ui.color_scheme).error
-let focus_color ui = color_schemes.(ui.color_scheme).focus
+let hover_color ui = color_schemes.(ui.color_scheme).hover
 
 let fill ui = function
   | true -> text_color ui
   | false -> unlit_color (text_color ui)
 
 let border ui = function
-  | `Focused -> focus_color ui
+  | `Hovered -> hover_color ui
 (*
   | `Pressed -> `Orange
 *)
@@ -231,7 +231,7 @@ let mouse_status ui r side =
   else if Mouse.is_released side then
     `Released
   else
-    `Focused
+    `Hovered
 
 type drag_extra += Drag_gen of point
 
@@ -363,7 +363,7 @@ let element r modkey ui =
   match mouse_status ui r' `Left, key_status ui modkey with
   | `Released, _ | _, `Released -> `Released
   | `Pressed, _ | _, `Pressed -> `Pressed
-  | `Focused, _ | _, `Focused -> `Focused
+  | `Hovered, _ | _, `Hovered -> `Hovered
   | _, _ -> `Untouched
 
 
