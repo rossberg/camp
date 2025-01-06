@@ -14,7 +14,7 @@ type t =
 {
   win : window;
   mutable color_scheme : int;
-  mutable sub : rect array;         (* sub-windows *)
+  mutable panes : rect array;
   mutable inner : rect list;        (* list of inner elements *)
   mutable win_pos : point;          (* logical position ignoring snap *)
   mutable win_size : point;         (* size ignoring minimization *)
@@ -38,7 +38,7 @@ let make win =
   Window.set_icon win icon;
   { win;
     color_scheme = 0;
-    sub = Array.make 4 (0, 0, 0, 0);
+    panes = Array.make 4 (0, 0, 0, 0);
     inner = [];
     win_pos = (0, 0);
     win_size = (0, 0);
@@ -59,22 +59,22 @@ let window_size ui = ui.win_size
 
 (* Sub Windows *)
 
-type subwindow = int
+type pane = int
 
-let subwindow i ui r =
-  let n = Array.length ui.sub in
+let pane i ui r =
+  let n = Array.length ui.panes in
   if i >= n then
-    ui.sub <-
-      Array.init (2*n) (fun i -> if i < n then ui.sub.(i) else (0, 0, 0, 0));
-  ui.sub.(i) <- r
+    ui.panes <-
+      Array.init (2*n) (fun i -> if i < n then ui.panes.(i) else (0, 0, 0, 0));
+  ui.panes.(i) <- r
 
 
 (* Areas *)
 
-type area = subwindow * int * int * int * int
+type area = pane * int * int * int * int
 
 let dim ui (i, x, y, w, h) =
-  let wx, wy, ww, wh = ui.sub.(i) in
+  let wx, wy, ww, wh = ui.panes.(i) in
   let x' = x + (if x >= 0 then 0 else ww) in
   let y' = y + (if y >= 0 then 0 else wh) in
   let w' = w + (if w >= 0 then 0 else ww - x') in

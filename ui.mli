@@ -13,15 +13,15 @@ val window : t -> window
 val window_pos : t -> point
 val window_size : t -> size
 
-(* Sub Windows *)
+(* Panes *)
 
-type subwindow = int
+type pane = int
 
-val subwindow : subwindow -> t -> rect -> unit
+val pane : pane -> t -> rect -> unit
 
 (* Areas *)
 
-type area = subwindow * int * int * int * int
+type area = pane * int * int * int * int
 
 val dim : t -> area -> rect
 

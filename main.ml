@@ -8,7 +8,7 @@ let playlist_file_check_freq = 5.0
 
 (* Layout *)
 
-let control_subwindow = Ui.subwindow 0
+let control_pane = Ui.pane 0
 
 let control_w = 360
 let control_h = 160
@@ -82,7 +82,7 @@ let loop_button = Ui.button (0, 325, 130, 25, 12) ([], `Char 'J')
 let loop_label = Ui.label (0, 325, 143, 25, label_h) `Center "LOOP"
 
 
-let playlist_subwindow = Ui.subwindow 1
+let playlist_pane = Ui.pane 1
 
 let playlist_row_h = 13
 let playlist_min = 31 + 4 * playlist_row_h
@@ -135,7 +135,7 @@ let copy_key = Ui.key ([`Command], `Char 'C')
 let paste_key = Ui.key ([`Command], `Char 'V')
 
 
-let library_subwindow = Ui.subwindow 2
+let library_pane = Ui.pane 2
 
 let library_row_h = playlist_row_h
 let library_min = 400
@@ -197,7 +197,7 @@ let run_control (st : State.t) =
   let x =
     if st.library.shown && st.library.side = `Left then st.library.width else 0
   in
-  control_subwindow st.ui (x, 0, control_w, control_h);
+  control_pane st.ui (x, 0, control_w, control_h);
 
   (* Exit button *)
   (* This has to come first, otherwise Raylib crashes? *)
@@ -487,7 +487,7 @@ let run_playlist (st : State.t) =
   let x =
     if st.library.shown && st.library.side = `Left then st.library.width else 0
   in
-  playlist_subwindow st.ui (x, control_h, control_w, st.playlist.height);
+  playlist_pane st.ui (x, control_h, control_w, st.playlist.height);
 
   (* Playlist table *)
   let digits = log10 (len + 1) + 1 in
@@ -814,7 +814,7 @@ let run_playlist (st : State.t) =
 let run_library (st : State.t) =
   let x = if st.library.side = `Left then 0 else control_w - 5 in
   let dh = if st.playlist.shown then st.playlist.height else 0 in
-  library_subwindow st.ui (x, 0, st.library.width + 5, control_h + dh);
+  library_pane st.ui (x, 0, st.library.width + 5, control_h + dh);
 
   (* Main view *)
   let cols = [||] in
