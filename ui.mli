@@ -73,4 +73,4 @@ val resizer : area -> Api.resize -> t -> size -> size -> size
 
 type column = int * align
 type row = color * color * string array
-val table : area -> int -> t -> column array -> row array -> int option
+val table : area -> int -> int -> t -> column array -> row array -> int option

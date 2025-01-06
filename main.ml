@@ -84,11 +84,12 @@ let loop_label = Ui.label (0, 325, 143, 25, label_h) `Center "LOOP"
 
 let playlist_pane = Ui.pane 1
 
+let playlist_gutter_w = 1
 let playlist_row_h = 13
 let playlist_min = 31 + 4 * playlist_row_h
 let playlist_area = (1, 10, 10, -21, -24)
 
-let playlist_table = Ui.table playlist_area playlist_row_h
+let playlist_table = Ui.table playlist_area playlist_gutter_w playlist_row_h
 let playlist_scroll = Ui.scroll_bar (1, -20, 10, 10, -24)
 let playlist_wheel = Ui.wheel (1, 10, 10, -10, -24)
 let playlist_drag = Ui.drag (1, 10, 10, -20, -24)
@@ -137,11 +138,12 @@ let paste_key = Ui.key ([`Command], `Char 'V')
 
 let library_pane = Ui.pane 2
 
+let library_gutter_w = 1
 let library_row_h = playlist_row_h
 let library_min = 400
 let library_area = (2, 10, 10, -21, -24)
 
-let library_table = Ui.table library_area library_row_h
+let library_table = Ui.table library_area library_gutter_w library_row_h
 let library_scroll = Ui.scroll_bar (2, -20, 10, 10, -24)
 let library_wheel = Ui.wheel (2, 10, 10, -10, -24)
 
@@ -524,7 +526,7 @@ let run_playlist (st : State.t) =
       fg, bg, [|fmt "%0*d. " digits (i + 1); track.name; time|]
     )
   in
-  let cols = [|cw1, `Right; w - cw1 - !cw3 - 2, `Left; !cw3, `Right|] in
+  let cols = [|cw1, `Right; w - cw1 - !cw3 - 2 * playlist_gutter_w, `Left; !cw3, `Right|] in
   let dragging = playlist_drag st.ui (max_int, playlist_row_h) in
   (match playlist_table st.ui cols rows with
   | None -> ()

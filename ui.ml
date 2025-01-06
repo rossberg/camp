@@ -535,7 +535,7 @@ type align = [`Left | `Center | `Right]
 type column = int * align
 type row = color * color * string array
 
-let table r ch ui cols rows =
+let table r gw ch ui cols rows =
   let (x, y, w, h), status = element r no_modkey ui in
   let font = font ui ch in
   Draw.fill ui.win x y w h `Black;
@@ -551,7 +551,7 @@ let table r ch ui cols rows =
         | `Center -> (cw - tw) / 2
         | `Right -> cw - tw
       in
-      if tw >= cw then Draw.clip ui.win !cx y (cw - 1) h;
+      if tw >= cw then Draw.clip ui.win !cx y cw h;
       Draw.text ui.win (!cx + max 0 dx) cy ch fg font texts.(i);
       if tw >= cw then
       (
@@ -560,7 +560,7 @@ let table r ch ui cols rows =
           (`Trans (bg, 0)) `Horizontal bg;
         Draw.unclip ui.win;
       );
-      cx := !cx + cw;
+      cx := !cx + cw + gw;
     ) cols
   ) rows;
   if status = `Pressed || status = `Released then
