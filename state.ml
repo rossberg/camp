@@ -191,8 +191,8 @@ let load st =
     let x, y = input " win_pos = %d , %d " (num_pair 0 0 (sw - 20) (sh - 20)) in
     Api.Window.set_pos win x y;
 
-    st.playlist.tracks <- load_playlist ();
-    let len = Array.length st.playlist.tracks in
+    let playlist = load_playlist () in
+    let len = Array.length playlist in
 
     Ui.set_palette st.ui
       (input " palette = %d " (num 0 (Ui.num_palette st.ui - 1)));
@@ -218,6 +218,7 @@ let load st =
       | t1, t2 -> `AB (t1, max t1 t2)
       );
 
+    st.playlist.tracks <- playlist;
     st.playlist.pos <- input " play_pos = %d " (num_opt 0 (len - 1));
     if st.control.current = None && len > 0 then
       st.control.current <- Playlist.current_opt st.playlist;
