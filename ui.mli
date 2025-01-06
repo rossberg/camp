@@ -51,6 +51,7 @@ val wheel : area -> t -> float
 (* UI elements *)
 
 type align = [`Left | `Center | `Right]
+type inversion = [`Regular | `Inverted]
 
 val background : t -> unit
 
@@ -59,7 +60,7 @@ val indicator : area -> t -> bool -> unit
 val lcd : area -> t -> char -> unit
 
 val box : area -> color -> t -> unit
-val text : area -> align -> t -> bool -> string -> unit
+val text : area -> align -> inversion -> t -> bool -> string -> unit
 val ticker : area -> t -> string -> unit
 
 val button : area -> ?protrude: bool -> modifier list * key -> t -> bool option -> bool
@@ -73,5 +74,5 @@ val divider : area -> Api.orientation -> t -> int -> int -> int
 val resizer : area -> Api.resize -> t -> size -> size -> size
 
 type column = int * align
-type row = color * color * string array
+type row = color * inversion * string array
 val table : area -> int -> int -> t -> column array -> row array -> int option

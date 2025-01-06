@@ -66,22 +66,23 @@ let lcd3 = Ui.lcd (0, 4+lcd_space+lcd_x 3, lcd_y, lcd_w, lcd_h)
 let lcd4 = Ui.lcd (0, 4+lcd_space+lcd_x 4, lcd_y, lcd_w, lcd_h)
 let lcd_button = Ui.mouse (0, lcd_x 0, lcd_y, 4+lcd_x 4, lcd_h) `Left
 
-let fps_text = Ui.text (0, 130, margin+info_margin, 40, 12) `Left
+let fps_text = Ui.text (0, 130, margin+info_margin, 40, 12) `Left `Regular
 let fps_key = Ui.key ([`Command], `Char 'U')
 
 let volume_w = 27
 let volume_h = 50
 let volume_x = info_w-info_margin-volume_w
 let volume_y = margin+info_margin
-let mute_w = 20
+let mute_w = 22
 let mute_h = 15
-let mute_x = volume_x
+let mute_x = volume_x-4
 let mute_y = volume_y+volume_h-8
+let mute_area = (0, mute_x, mute_y, mute_w, mute_h)
 let volume_bar = Ui.volume_bar (0, volume_x, volume_y, volume_w, volume_h)
 let volume_wheel = Ui.wheel (0, 0, 0, control_w, control_h)
-let mute_text = Ui.text (0, mute_x, mute_y+2, mute_w, 8) `Left
-let mute_button = Ui.mouse (0, mute_x, mute_y, mute_w, mute_h) `Left
-let mute_drag = Ui.drag (0, mute_x, mute_y, mute_w, mute_h)
+let mute_text = Ui.text (0, mute_x, mute_y, mute_w, 8) `Center `Inverted
+let mute_button = Ui.mouse mute_area `Left
+let mute_drag = Ui.drag mute_area
 let mute_key = Ui.key ([], `Char '0')
 let volup_key = Ui.key ([], `Char '+')
 let voldown_key = Ui.key ([], `Char '-')
@@ -90,14 +91,14 @@ let seek_h = 14
 let seek_y = margin+info_h-info_margin/2-seek_h
 let title_h = 16
 let title_y = seek_y-title_h-4
-let prop_text = Ui.text (0, margin+info_margin, lcd_y+lcd_h+3, volume_x, 12) `Left
+let prop_text = Ui.text (0, margin+info_margin, lcd_y+lcd_h+3, mute_x, 12) `Left `Regular
 let title_ticker = Ui.ticker (0, margin+info_margin, title_y, info_w-info_margin, title_h)
 let seek_bar = Ui.progress_bar (0, margin+info_margin/2, seek_y, info_w-info_margin, seek_h)
 let rw_key = Ui.key ([], `Arrow `Left)
 let ff_key = Ui.key ([], `Arrow `Right)
 
 let color_y = lcd_y+lcd_h
-let color_button = Ui.mouse (0, margin, color_y, volume_x, title_y-color_y)
+let color_button = Ui.mouse (0, margin, color_y, mute_x, title_y-color_y)
 let color_button_fwd = color_button `Left
 let color_button_bwd = color_button `Right
 
@@ -156,7 +157,7 @@ let total_h = playlist_row_h
 let total_x = total_w-100
 let total_y = -total_h-(bottom_h-total_h)/2
 let playlist_total_box = Ui.box (1, total_x, total_y, total_w, playlist_row_h) `Black
-let playlist_total_text = Ui.text (1, total_x, total_y, total_w-2, playlist_row_h) `Right
+let playlist_total_text = Ui.text (1, total_x, total_y, total_w-2, playlist_row_h) `Right `Regular
 
 let playlist_resizer = Ui.resizer (1, -resizer_w, -resizer_w, resizer_w, resizer_w) `N_S
 
@@ -582,14 +583,12 @@ let run_playlist (st : State.t) =
   (* Correct scrolling position for possible resize *)
   st.playlist.scroll <- clamp 0 (max 0 (len - vlen)) st.playlist.scroll;
   let rows =
-    Array.init vlen (fun i ->
+    Array.init (min vlen len) (fun i ->
       let i = i + st.playlist.scroll in
-      if i >= len then Ui.text_color st.ui, `Black, [|""; ""; ""|] else
       let track = st.playlist.tracks.(i) in
       if now -. track.last_update > playlist_file_check_freq then
         Track.update st.control.audio track;
-      let bg = if i mod 2 = 0 then `Black else `Gray 0x10 in
-      let fg =
+      let c =
         match track.status with
         | _ when Some i = st.playlist.pos ->
           if track.path = (Option.get st.control.current).path then `White else `Gray 0xc0
@@ -599,10 +598,10 @@ let run_playlist (st : State.t) =
         | `Undet -> Ui.unlit_color (Ui.text_color st.ui)
         | `Predet | `Det -> Ui.text_color st.ui
       in
-      let fg, bg = if Playlist.is_selected st.playlist i then bg, fg else fg, bg in
+      let inv = if Playlist.is_selected st.playlist i then `Inverted else `Regular in
       let time = if track.time = 0.0 then "" else fmt_time track.time in
       cw3 := max !cw3 (Api.Draw.text_width (Ui.window st.ui) playlist_row_h font time + 1);
-      fg, bg, [|fmt "%0*d. " digits (i + 1); track.name; time|]
+      c, inv, [|fmt "%0*d. " digits (i + 1); track.name; time|]
     )
   in
   let cols = [|cw1, `Right; w - cw1 - !cw3 - 2 * playlist_gutter_w, `Left; !cw3, `Right|] in
@@ -956,11 +955,9 @@ let rec run (st : State.t) =
   let dw = if st.library.shown then st.library.width else 0 in
   let dh = if st.playlist.shown then st.playlist.height else 0 in
   Api.Window.set_size win (control_w + dw) (control_h + dh);
-(* This swallows all input events on Mac.
-  Api.Window.pump win;
-*)
 
   Api.Draw.start win (`Trans (`Black, 0x40));
+
   Ui.background st.ui;
 
   let playlist_shown = st.playlist.shown in

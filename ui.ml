@@ -74,12 +74,12 @@ let pane i ui r =
 type area = pane * int * int * int * int
 
 let dim ui (i, x, y, w, h) =
-  let wx, wy, ww, wh = ui.panes.(i) in
-  let x' = x + (if x >= 0 then 0 else ww) in
-  let y' = y + (if y >= 0 then 0 else wh) in
-  let w' = w + (if w >= 0 then 0 else ww - x') in
-  let h' = h + (if h >= 0 then 0 else wh - y') in
-  wx + x', wy + y', w', h'
+  let px, py, pw, ph = ui.panes.(i) in
+  let x' = x + (if x >= 0 then 0 else pw) in
+  let y' = y + (if y >= 0 then 0 else ph) in
+  let w' = w + (if w >= 0 then 0 else pw - x') in
+  let h' = h + (if h >= 0 then 0 else ph - y') in
+  px + x', py + y', w', h'
 
 
 (* Geometry helpers *)
@@ -239,7 +239,7 @@ let drag_status ui r (stepx, stepy) =
   if not (Mouse.is_down `Left) then
     let happened = ui.drag_happened in
     ui.drag_happened <- false;
-    if happened then `None else `Click
+    if not happened then `None else `Click
   else
   let (mx, my) as m = Mouse.pos ui.win in
   if not (inside ui.drag_pos r) then `None else
@@ -371,9 +371,12 @@ let box r c ui =
   let (x, y, w, h), _ = element r no_modkey ui in
   Draw.fill ui.win x y w h c
 
-let text r align ui active s =
+let text r align inv ui active s =
   let (x, y, w, h), _status = element r no_modkey ui in
-  Draw.fill ui.win x y w h `Black;
+  let fg = fill ui active in
+  let bg = `Black in
+  let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
+  Draw.fill ui.win x y w (h - 1) bg;  (* assume text has no descender *)
   let tw = Draw.text_width ui.win h (font ui h) s in
   let dx =
     match align with
@@ -381,7 +384,7 @@ let text r align ui active s =
     | `Center -> (w - tw) / 2
     | `Right -> w - tw
   in
-  Draw.text ui.win (x + dx) y h (fill ui active) (font ui h) s
+  Draw.text ui.win (x + dx) y h fg (font ui h) s
 
 let ticker r ui s =
   let (x, y, w, h), _status = element r no_modkey ui in
@@ -532,15 +535,18 @@ let scroll_bar r ui v len =
 (* Tables *)
 
 type align = [`Left | `Center | `Right]
+type inversion = [`Regular | `Inverted]
 type column = int * align
-type row = color * color * string array
+type row = color * inversion * string array
 
 let table r gw ch ui cols rows =
   let (x, y, w, h), status = element r no_modkey ui in
   let font = font ui ch in
   Draw.fill ui.win x y w h `Black;
-  Array.iteri (fun j (fg, bg, texts) ->
+  Array.iteri (fun j (fg, inv, texts) ->
     let cy = y + j * ch in
+    let bg = if j mod 2 = 0 then `Black else `Gray 0x10 in
+    let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
     if bg <> `Black then Draw.fill ui.win x cy w ch bg;
     let cx = ref x in
     Array.iteri (fun i (cw, align) ->
