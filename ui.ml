@@ -268,16 +268,18 @@ let drag r ui eps = drag_status ui (dim ui r) eps
 
 (* Auxiliary UI elements *)
 
-let label r align s ui =
+let label' c r align s ui =
   let x, y, w, h = dim ui r in
   let font = font ui h in
   let tw = Api.Draw.text_width ui.win h font s in
   let dx =
     match align with
     | `Left -> 0
-    | `Center -> (w - tw) / 2
+    | `Center -> (w - tw + 1) / 2
     | `Right -> w - tw
-  in Api.Draw.text ui.win (x + dx) y h `White font s
+  in Api.Draw.text ui.win (x + dx) y h c font s
+
+let label = label' `White
 
 let indicator r ui on =
   let x, y, w, h = dim ui r in
@@ -299,17 +301,17 @@ let lcd' ui r' c elem =
     line ui.win (x + 1) (y + m - 1) (x + w - 3) (y + m - 1) c;
     line ui.win (x + 2) (y + m) (x + w - 4) (y + m) c;
   | `NW ->
-    line ui.win (x + 0) (y + 1) (x + 0) (y + m - 1) c;
-    line ui.win (x + 1) (y + 2) (x + 1) (y + m - 2) c;
+    line ui.win (x + 0) (y + 1) (x + 0) (y + m - 2) c;
+    line ui.win (x + 1) (y + 2) (x + 1) (y + m - 3) c;
   | `NE ->
-    line ui.win (x + w - 1) (y + 1) (x + w - 1) (y + m - 1) c;
-    line ui.win (x + w - 2) (y + 2) (x + w - 2) (y + m - 2) c;
+    line ui.win (x + w - 1) (y + 1) (x + w - 1) (y + m - 2) c;
+    line ui.win (x + w - 2) (y + 2) (x + w - 2) (y + m - 3) c;
   | `SW ->
-    line ui.win (x + 0) (y + m + 1) (x + 0) (y + h - 1) c;
-    line ui.win (x + 1) (y + m + 2) (x + 1) (y + h - 2) c;
+    line ui.win (x + 0) (y + m + 1) (x + 0) (y + h - 2) c;
+    line ui.win (x + 1) (y + m + 2) (x + 1) (y + h - 3) c;
   | `SE ->
-    line ui.win (x + w - 1) (y + m + 1) (x + w - 1) (y + h - 1) c;
-    line ui.win (x + w - 2) (y + m + 2) (x + w - 2) (y + h - 2) c
+    line ui.win (x + w - 1) (y + m + 1) (x + w - 1) (y + h - 2) c;
+    line ui.win (x + w - 2) (y + m + 2) (x + w - 2) (y + h - 3) c
   | `Dots ->
     rect ui.win x (y + h / 4) 2 2 c;
     rect ui.win x (y + 3 * h / 4) 2 2 c
@@ -406,13 +408,20 @@ let button r ?(protrude=true) modkey ui active =
     if protrude then Draw.line ui.win (x + 1) (y + 1) (x + w - 2) (y + 1) (`Gray 0x50);
   );
   Draw.rect ui.win x y w h (border ui status);
-  if status = `Released then not active else active
+  match active with
+  | None -> false
+  | Some active -> if status = `Released then not active else active
 
 
 let labeled_button r ?(protrude=true) hsym txt modkey ui active =
   let (x, y, w, h), status = element r modkey ui in
   let result = button r ~protrude modkey ui active in
-  let c = if active then `RGB 0x40ff40 else `Gray 0xc0 in
+  let c =
+    match active with
+    | None -> `Gray 0x60
+    | Some false -> `Gray 0xc0
+    | Some true -> `RGB 0x40ff40
+  in
   let xsym = (x + (w - hsym)/2) in
   let ysym = (y + (h - hsym)/2) + Bool.to_int (status = `Pressed) in
   (match txt with
@@ -435,7 +444,7 @@ let labeled_button r ?(protrude=true) hsym txt modkey ui active =
     Draw.fill ui.win xsym (ysym + hsym - hsym/3) hsym (hsym/3) c;
   | s ->
     let (i, x', y', w', _) = r in
-    label (i, x', y' + (h - hsym)/2, w', hsym) `Center s ui
+    label' c (i, x' + 1, y' + (h - hsym)/2, w' - 1, hsym) `Center s ui
   );
   result
 

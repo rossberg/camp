@@ -62,8 +62,8 @@ val box : area -> color -> t -> unit
 val text : area -> align -> t -> bool -> string -> unit
 val ticker : area -> t -> string -> unit
 
-val button : area -> ?protrude: bool -> modifier list * key -> t -> bool -> bool
-val labeled_button : area -> ?protrude: bool -> int -> string -> modifier list * key -> t -> bool -> bool
+val button : area -> ?protrude: bool -> modifier list * key -> t -> bool option -> bool
+val labeled_button : area -> ?protrude: bool -> int -> string -> modifier list * key -> t -> bool option -> bool
 
 val progress_bar : area -> t -> float -> float
 val volume_bar : area -> t -> float -> float

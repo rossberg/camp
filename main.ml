@@ -201,7 +201,7 @@ let run_control (st : State.t) =
 
   (* Exit button *)
   (* This has to come first, otherwise Raylib crashes? *)
-  if not (power_button st.ui true) then exit 0;
+  if not (power_button st.ui (Some true)) then exit 0;
   power_label st.ui;
 
   (* Current status *)
@@ -348,8 +348,8 @@ let run_control (st : State.t) =
 
   (* Play controls *)
   let off =
-    (if bwd_button st.ui false && st.playlist.tracks <> [||] then -1 else 0) +
-    (if fwd_button st.ui false && st.playlist.tracks <> [||] then +1 else 0)
+    (if bwd_button st.ui (Some false) && st.playlist.tracks <> [||] then -1 else 0) +
+    (if fwd_button st.ui (Some false) && st.playlist.tracks <> [||] then +1 else 0)
   in
   if off <> 0 && st.playlist.tracks <> [||] then
   (
@@ -358,20 +358,20 @@ let run_control (st : State.t) =
     Playlist.adjust_scroll st.playlist st.playlist.pos;
   );
 
-  let playing' = play_button st.ui playing in
+  let playing' = play_button st.ui (Some playing) in
   if stopped && playing' && st.playlist.tracks <> [||] then
   (
     Control.switch st.control (Playlist.current st.playlist) true;
     Playlist.adjust_scroll st.playlist st.playlist.pos;
   );
 
-  let paused' = pause_button st.ui paused in
+  let paused' = pause_button st.ui (Some paused) in
   if playing' && paused' then
     Api.Audio.pause st.control.audio st.control.sound
   else if (not stopped && not paused' || stopped && paused') && not silence then
     Api.Audio.resume st.control.audio st.control.sound;
 
-  if stop_button st.ui false && not stopped then
+  if stop_button st.ui (Some false) && not stopped then
   (
     Api.Audio.pause st.control.audio st.control.sound;
     (match Playlist.current_opt st.playlist with
@@ -381,7 +381,7 @@ let run_control (st : State.t) =
     Playlist.adjust_scroll st.playlist st.playlist.pos;
   );
 
-  if eject_button st.ui false then
+  if eject_button st.ui (Some false) then
   (
     Control.eject st.control;
     Playlist.remove_all st.playlist;
@@ -402,7 +402,7 @@ let run_control (st : State.t) =
   let shuffle = st.playlist.shuffle <> None in
   shuffle_label st.ui;
   shuffle_indicator st.ui shuffle;
-  let shuffle' = shuffle_button st.ui shuffle in
+  let shuffle' = shuffle_button st.ui (Some shuffle) in
   if shuffle' <> shuffle then
   (
     if shuffle' then
@@ -419,7 +419,7 @@ let run_control (st : State.t) =
   repeat_label st.ui;
   repeat_indicator1 st.ui (st.control.repeat <> `None);
   repeat_indicator2 st.ui (st.control.repeat = `All);
-  let repeat' = repeat_button st.ui (st.control.repeat <> `None) in
+  let repeat' = repeat_button st.ui (Some (st.control.repeat <> `None)) in
   st.control.repeat <-
     (match st.control.repeat, repeat' with
     | `None, false | `All, false -> `None
@@ -430,7 +430,7 @@ let run_control (st : State.t) =
   loop_label st.ui;
   loop_indicator1 st.ui (st.control.loop <> `None);
   loop_indicator2 st.ui (match st.control.loop with `AB _ -> true | _ -> false);
-  let loop' = loop_button st.ui (st.control.loop <> `None) in
+  let loop' = loop_button st.ui (Some (st.control.loop <> `None)) in
   st.control.loop <-
     (match st.control.loop, loop' with
     | `None, false | `AB _, false -> `None
@@ -444,12 +444,12 @@ let run_control (st : State.t) =
   (* Subwindow Activation *)
   playlist_label st.ui;
   playlist_indicator st.ui st.playlist.shown;
-  let playlist_shown' = playlist_button st.ui st.playlist.shown in
+  let playlist_shown' = playlist_button st.ui (Some st.playlist.shown) in
   st.playlist.shown <- playlist_shown';
 
   library_label st.ui;
   library_indicator st.ui st.library.shown;
-  let library_shown' = library_button st.ui st.library.shown in
+  let library_shown' = library_button st.ui (Some st.library.shown) in
   let wx, _ = Ui.window_pos st.ui in
   let sw, _ = Api.Window.screen_size (Ui.window st.ui) in
   if not st.library.shown && library_shown' && not (Api.Key.is_modifier_down `Shift) then
@@ -680,10 +680,11 @@ let run_playlist (st : State.t) =
     (int_of_float (Float.round (pos' *. float len)));
 
   (* Playlist buttons *)
-  if save_button st.ui false then
+  if save_button st.ui (Some false) then
     ();  (* TODO *)
 
-  if tag_button st.ui false && Playlist.num_selected st.playlist > 0 && st.config.exec_tag <> "" then
+  let selected = Playlist.num_selected st.playlist > 0 in
+  if tag_button st.ui (if selected && st.config.exec_tag <> "" then Some false else None) then
   (
     let tracks = Array.to_list (Playlist.copy_selected st.playlist) in
     Domain.spawn (fun () ->
@@ -718,7 +719,7 @@ let run_playlist (st : State.t) =
     ) |> ignore;
   );
 
-  if sep_button st.ui false then
+  if sep_button st.ui (Some false) then
   (
     let pos = Option.value (Playlist.first_selected st.playlist) ~default: 0 in
     Playlist.insert st.playlist pos [|Track.make_separator ()|];
@@ -730,22 +731,23 @@ let run_playlist (st : State.t) =
     )
   );
 
-  if del_button st.ui false then
+  if del_button st.ui (if selected then Some false else None) then
     Playlist.remove_selected st.playlist;
 
-  if crop_button st.ui false then
+  let unselected = Playlist.num_selected st.playlist < Array.length st.playlist.tracks in
+  if crop_button st.ui (if unselected then Some false else None) then
     Playlist.remove_unselected st.playlist;
 
-  if clean_button st.ui false then
+  if clean_button st.ui (if snd st.playlist.total > 0 then Some false else None) then
     Playlist.remove_invalid st.playlist;
 
-  if undo_button st.ui false then
+  if undo_button st.ui (if !(st.playlist.undos) <> [] then Some false else None) then
   (
     Playlist.pop_undo st.playlist;
     Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
   );
 
-  if redo_button st.ui false then
+  if redo_button st.ui (if !(st.playlist.redos) <> [] then Some false else None) then
   (
     Playlist.pop_redo st.playlist;
     Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
