@@ -2,6 +2,10 @@
 
 type path = string
 
+(* Path to local storage *)
+
+val path : string -> path
+
 (* Temporary Files *)
 
 val copy_to_temp : path -> path

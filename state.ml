@@ -14,12 +14,12 @@ type t =
 
 (* Constructor *)
 
-let make ui audio =
+let make ui audio db =
   {
     ui;
     control = Control.make audio;
     playlist = Playlist.make ();
-    library = Library.make ();
+    library = Library.make db;
     config = Config.make ();
   }
 

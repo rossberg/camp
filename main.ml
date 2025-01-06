@@ -891,14 +891,15 @@ let rec run (st : State.t) =
 
 let startup () =
   Storage.clear_temp ();
+  let db = Db.init () in
   let win = Api.Window.init 0 0 control_w control_h App.name in
   let ui = Ui.make win in
   let audio = Api.Audio.init () in
-  let st = State.make ui audio in
+  let st = State.make ui audio db in
   State.load st;
   update_playlist_rows st;
   Playlist.adjust_scroll st.playlist st.playlist.pos;
-  at_exit (fun () -> State.save st; Storage.clear_temp ());
+  at_exit (fun () -> State.save st; Storage.clear_temp (); Db.exit db);
   st
 
 let _main =

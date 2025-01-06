@@ -11,6 +11,9 @@ let dir =
   | Some path -> Filename.concat path App.name
   | None -> "."
 
+let path filename =
+  Filename.concat dir filename
+
 
 (* Temporary Files *)
 
@@ -48,18 +51,18 @@ let clear_temp () =
 
 let load filename f =
   try
-    In_channel.with_open_bin (Filename.concat dir filename) f
+    In_channel.with_open_bin (path filename) f
   with Sys_error _ | End_of_file | Scanf.Scan_failure _ | Failure _ -> ()
 
 let save filename f =
   try
     if not (Sys.file_exists dir) then Sys.mkdir dir 0o770;
-    Out_channel.with_open_bin (Filename.concat dir filename) f
+    Out_channel.with_open_bin (path filename) f
   with Sys_error _ -> ()
 
 let append filename f =
   try
     if not (Sys.file_exists dir) then Sys.mkdir dir 0o770;
     Out_channel.(with_open_gen [Open_binary; Open_creat; Open_append; Open_nonblock])
-      0o660 (Filename.concat dir filename) f
+      0o660 (path filename) f
   with Sys_error _ -> ()
