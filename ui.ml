@@ -454,9 +454,9 @@ let labeled_button r ?(protrude=true) hsym txt modkey ui active =
 let progress_bar r ui v =
   let (x, y, w, h), status = element r no_modkey ui in
   Draw.fill ui.win x y w h (fill ui false);
-  Draw.fill ui.win (x + 1) y (int_of_float (v *. float (w - 2))) h (fill ui true);
+  Draw.fill ui.win x y (int_of_float (v *. float w)) h (fill ui true);
   for i = 0 to w / 2 - 1 do
-    Draw.line ui.win (x + 2*i + 1) y (x + 2*i + 1) (y + h) `Black
+    Draw.fill ui.win (x + 2*i + 1) y 1 h `Black
   done;
   Draw.rect ui.win x y w h (border ui status);
   if status <> `Pressed then v else
@@ -471,7 +471,7 @@ let volume_bar r ui v =
   Draw.tri ui.win x y (w - 2) h (fill ui true) `NE;
   Draw.fill ui.win x y w h' (`Trans (`Black, 0x100 - unlit_alpha));
   for j = 0 to h / 2 - 1 do
-    Draw.line ui.win x (y + 2*j + 1) (x + w + 1) (y + 2*j + 1) `Black
+    Draw.fill ui.win x (y + 2*j + 1) w 1 `Black
   done;
   if status <> `Pressed then v else
   let _, my = Mouse.pos ui.win in
@@ -499,7 +499,7 @@ let scroll_bar r ui v len =
   let h' = int_of_float (Float.ceil (len *. float (h - 2))) in
   if len < 1.0 then Draw.fill ui.win x y' w h' (fill ui true);
   for j = 0 to h / 2 - 1 do
-    Draw.line ui.win x (y + 2*j + 1) (x + w) (y + 2*j + 1) `Black
+    Draw.fill ui.win x (y + 2*j + 1) w 1 `Black
   done;
   Draw.rect ui.win x y w h (border ui status);
   if status <> `Pressed then v else

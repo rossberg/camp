@@ -50,7 +50,7 @@ let library_key = Ui.key ([`Shift], `Char 'L')
 
 let info_w = -55
 let info_h = 98
-let info_margin = 5
+let info_margin = 4
 let info_box = Ui.box (0, margin, margin, info_w, info_h) `Black
 
 let lcd_w = 14
@@ -86,12 +86,12 @@ let volup_key = Ui.key ([], `Char '+')
 let voldown_key = Ui.key ([], `Char '-')
 
 let seek_h = 14
-let seek_y = margin+info_h-info_margin/2+1-seek_h
+let seek_y = margin+info_h-info_margin/2-seek_h
 let title_h = 16
 let title_y = seek_y-title_h-4
-let prop_text = Ui.text (0, margin+info_margin, 38, -80, 12) `Left
+let prop_text = Ui.text (0, margin+info_margin, lcd_y+lcd_h+3, volume_x, 12) `Left
 let title_ticker = Ui.ticker (0, margin+info_margin, title_y, info_w-info_margin, title_h)
-let seek_bar = Ui.progress_bar (0, margin+info_margin-1, seek_y, info_w-info_margin+2, seek_h)
+let seek_bar = Ui.progress_bar (0, margin+info_margin/2, seek_y, info_w-info_margin, seek_h)
 let rw_key = Ui.key ([], `Arrow `Left)
 let ff_key = Ui.key ([], `Arrow `Right)
 
