@@ -45,7 +45,7 @@ val font : t -> int -> Api.font
 
 val key : modifier list * key -> t -> bool
 val mouse : area -> side -> t -> bool
-val drag : area -> t -> int * int -> [`Drag of int * int | `Click | `None]
+val drag : area -> t -> size -> [`Drag of size | `Click | `None]
 val wheel : area -> t -> float
 
 (* UI elements *)
@@ -69,6 +69,7 @@ val progress_bar : area -> t -> float -> float
 val volume_bar : area -> t -> float -> float
 val scroll_bar : area -> t -> float -> float -> float
 
+val divider : area -> Api.orientation -> t -> int -> int -> int
 val resizer : area -> Api.resize -> t -> size -> size -> size
 
 type column = int * align

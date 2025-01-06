@@ -129,8 +129,9 @@ let to_string st =
   output "play_open = %d\n" (Bool.to_int st.playlist.shown);
   output "play_height = %d\n" st.playlist.height;
   output "lib_open = %d\n" (Bool.to_int st.library.shown);
-  output "lib_width = %d\n" st.library.width;
   output "lib_side = %d\n" (Bool.to_int (st.library.side = `Right));
+  output "lib_width = %d\n" st.library.width;
+  output "lib_browser_width = %d\n" st.library.browser_width;
   Buffer.contents buf
 
 let opt f = function
@@ -233,9 +234,11 @@ let load st =
     (* TODO: 83 = playlist_min; use constant *)
     st.playlist.height <- input " play_height = %d " (num 83 sh);
     st.library.shown <- input " lib_open = %d " bool;
+    st.library.side <- if input " lib_side = %d " bool then `Right else `Left;
     (* TODO: 400 = library_min; use constant *)
     st.library.width <- input " lib_width = %d " (num 400 sw);
-    st.library.side <- if input " lib_side = %d " bool then `Right else `Left;
+    (* TODO: 40 = browser_min, 60 = browser_min + 2*margin; use constants *)
+    st.library.browser_width <- input " lib_width = %d " (num 40 (st.library.width - 60));
   );
   Playlist.update_total st.playlist;
   Storage.load config_file (fun file ->

@@ -5,9 +5,10 @@ type db = Db.t
 type t =
 {
   db : db;
-  mutable shown : bool;     (* external *)
-  mutable width : int;      (* external *)
-  mutable side : Api.side;  (* external *)
+  mutable shown : bool;         (* external *)
+  mutable side : Api.side;      (* external *)
+  mutable width : int;          (* external *)
+  mutable browser_width : int;  (* external *)
 }
 
 
@@ -17,8 +18,9 @@ let make db =
   {
     db;
     shown = false;
-    width = 600;
     side = `Right;
+    width = 600;
+    browser_width = 100;
   }
 
 
@@ -26,5 +28,8 @@ let make db =
 
 type error = string
 
-let ok _lib =
+let check msg b = if b then [] else [msg]
+
+let ok lib =
+  check "browser width in range" (lib.browser_width <= lib.width - 40) @
   []

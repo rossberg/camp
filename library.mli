@@ -5,9 +5,10 @@ type db = Db.t
 type t =
 {
   db : db;
-  mutable shown : bool;     (* external *)
-  mutable width : int;      (* external *)
-  mutable side : Api.side;  (* external *)
+  mutable shown : bool;         (* external *)
+  mutable side : Api.side;      (* external *)
+  mutable width : int;          (* external *)
+  mutable browser_width : int;  (* external *)
 }
 
 

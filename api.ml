@@ -296,27 +296,14 @@ module Mouse =
 struct
   (* Raylib.is_mouse_button_pressed/released isn't working on Mac,
    * so implement our own version. *)
-  let last_update = ref (-1)
   let current_down = ref (false, false)
   let prev_down = ref (false, false)
-
   let last_press_pos = ref (min_int, min_int)
   let last_press_left = ref 0.0
   let last_press_right = ref 0.0
   let is_double_left = ref false
   let is_double_right = ref false
-
-  let update_mouse () =
-    if !last_update < Draw.frame () then
-    (
-      last_update := Draw.frame ();
-      prev_down := !current_down;
-      current_down :=
-        Raylib.(
-          is_mouse_button_down MouseButton.Left,
-          is_mouse_button_down MouseButton.Right
-        );
-    )
+  let next_cursor = ref Raylib.MouseCursor.Default
 
   let pos () = point_of_vec2 (Raylib.get_mouse_position ())
   let delta () = point_of_vec2 (Raylib.get_mouse_delta ())
@@ -330,24 +317,45 @@ struct
     | `Left -> fst
     | `Right -> snd
 
-  let is_down but = update_mouse (); Raylib.is_mouse_button_down (button but)
+  let is_down but = Raylib.is_mouse_button_down (button but)
 
   let is_pressed but = (*Raylib.is_mouse_button_pressed (button but)*)
-    update_mouse ();
     let proj = button_proj but in not (proj !prev_down) && proj !current_down
 
   let is_released but = (*Raylib.is_mouse_button_released (button but)*)
-    update_mouse ();
     let proj = button_proj but in proj !prev_down && not (proj !current_down)
 
   let is_doubleclick = function
     | `Left -> !is_double_left
     | `Right -> !is_double_right
 
+  let set_cursor () cursor =
+    next_cursor :=
+      let open Raylib.MouseCursor in
+      match cursor with
+      | `Default -> Default
+      | `Arrow -> Arrow
+      | `Busy -> Arrow  (* not supported by Raylib? *)
+      | `Blocked -> Not_allowed
+      | `Beam -> Ibeam
+      | `Crosshair -> Crosshair
+      | `Resize `N_S -> Resize_ns
+      | `Resize `E_W -> Resize_ew
+      | `Resize `NE_SW -> Resize_nesw
+      | `Resize `NW_SE -> Resize_nwse
+      | `Resize `All -> Resize_all
+      | `Link -> Pointing_hand
+
   let _ = Draw.updates :=
     (fun () ->
-      let left = Raylib.(is_mouse_button_pressed MouseButton.Left) in
-      let right = Raylib.(is_mouse_button_pressed MouseButton.Right) in
+      prev_down := !current_down;
+      current_down :=
+        Raylib.(
+          is_mouse_button_down MouseButton.Left,
+          is_mouse_button_down MouseButton.Right
+        );
+      let left = is_pressed `Left in
+      let right = is_pressed `Right in
       is_double_left := false;
       is_double_right := false;
       if left || right then
@@ -363,26 +371,10 @@ struct
         last_press_left := now;
         last_press_right := now;
         last_press_pos := m';
-      )
+      );
+      Raylib.set_mouse_cursor !next_cursor;
+      next_cursor := Raylib.MouseCursor.Default;
     ) :: !Draw.updates
-
-  let set_cursor () cursor =
-    Raylib.set_mouse_cursor (
-      let open Raylib.MouseCursor in
-      match cursor with
-      | `Default -> Default
-      | `Arrow -> Arrow
-      | `Busy -> Arrow  (* not supported by Raylib? *)
-      | `Blocked -> Not_allowed
-      | `Beam -> Ibeam
-      | `Crosshair -> Crosshair
-      | `Resize `N_S -> Resize_ns
-      | `Resize `E_W -> Resize_ew
-      | `Resize `NE_SW -> Resize_nesw
-      | `Resize `NW_SE -> Resize_nwse
-      | `Resize `All -> Resize_all
-      | `Link -> Pointing_hand
-    )
 end
 
 module Key =

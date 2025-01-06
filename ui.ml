@@ -57,7 +57,7 @@ let window_pos ui = ui.win_pos
 let window_size ui = ui.win_size
 
 
-(* Sub Windows *)
+(* Panes *)
 
 type pane = int
 
@@ -570,6 +570,44 @@ let table r gw ch ui cols rows =
     None
 
 
+(* Dividers *)
+
+type drag_extra += Divide of size (* clamped delta *)
+
+let divider r orient ui minv maxv =
+  let (x, y, w, h), status = element r no_modkey ui in
+  let proj = match orient with `Horizontal -> fst | `Vertical -> snd in
+  let inj v = match orient with `Horizontal -> v, y | `Vertical -> x, v in
+  let cursor = match orient with `Horizontal -> `E_W | `Vertical -> `N_S in
+  if status <> `Untouched then Api.Mouse.set_cursor ui.win (`Resize cursor);
+  Draw.rect ui.win x y w h (border ui status);
+  if status <> `Pressed then 0 else
+  let over =
+    match ui.drag_extra with
+    | No_drag -> 0, 0
+    | Divide over -> over
+    | _ -> assert false
+  in
+  let i, _, _, _, _ = r in
+  let px, _, pw, ph = ui.panes.(i) in
+  let vx, vy = add (add (x, y) ui.mouse_delta) over in
+  let minx, miny = inj minv in
+  let maxx, maxy = inj maxv in
+  let minx = px + minx in
+  let maxx = px + if maxx < 0 then pw else maxx in
+  let maxy = if maxy < 0 then ph else maxy in
+  let vx', vy' = clamp minx maxx vx, clamp miny maxy vy in
+  ui.drag_extra <- Divide (vx - vx', vy - vy');
+  (* HACK: Adjust owned drag_pos for size-relative position *)
+  (* This assumes that the caller actually moves the divider! *)
+  let dx = vx' - x in
+  let dy = vy' - y in
+  ui.drag_pos <- add ui.drag_pos (dx, dy);
+  assert (inside ui.drag_pos (x + dx, y + dy, w, h));
+  ui.inner <- (x + dx, y + dy, w, h) :: ui.inner;
+  proj (dx, dy)
+
+
 (* Resizers *)
 
 type drag_extra += Resize of size (* clamped delta *)
@@ -585,8 +623,8 @@ let resizer r cursor ui (minw, minh) (maxw, maxh) =
   if status <> `Untouched then Api.Mouse.set_cursor ui.win (`Resize cursor);
   Draw.fill ui.win x y w h (fill ui false);
   Draw.rect ui.win x y w h (border ui status);
-  let sz = Window.size ui.win in
   if status <> `Pressed then 0, 0 else
+  let sz = Window.size ui.win in
   let _, x0, y0, _, _ = r in
   let sign = (if x0 >= 0 then -1 else +1), (if y0 >= 0 then -1 else +1) in
   let over =
@@ -603,9 +641,9 @@ let resizer r cursor ui (minw, minh) (maxw, maxh) =
   ui.drag_extra <- Resize (ww - ww', wh - wh');
   (* HACK: Adjust owned drag_pos for size-relative position *)
   (* This assumes that the caller actually resizes the window! *)
-  let dw = if x0 >= 0 then 0 else ww' - fst sz in
-  let dh = if y0 >= 0 then 0 else wh' - snd sz in
-  ui.drag_pos <- add ui.drag_pos (dw, dh);
-  assert (inside ui.drag_pos (x + dw, y + dh, w, h));
-  ui.inner <- (x + dw, y + dh, w, h) :: ui.inner;
+  let dx = if x0 >= 0 then 0 else ww' - fst sz in
+  let dy = if y0 >= 0 then 0 else wh' - snd sz in
+  ui.drag_pos <- add ui.drag_pos (dx, dy);
+  assert (inside ui.drag_pos (x + dx, y + dy, w, h));
+  ui.inner <- (x + dx, y + dy, w, h) :: ui.inner;
   sub (ww', wh') sz
