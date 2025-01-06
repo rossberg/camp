@@ -102,7 +102,7 @@ let to_string st =
   output "[%s]\n" state_header;
   let x, y = Ui.window_pos st.ui in
   output "win_pos = %d, %d\n" x y;
-  output "color_scheme = %d\n" (Ui.get_color_scheme st.ui);
+  output "palette = %d\n" (Ui.get_palette st.ui);
   output "volume = %.2f\n" st.control.volume;
   output "mute = %d\n" (Bool.to_int st.control.mute);
   output "play = %s\n" (match st.control.current with Some s -> s.path | None -> "");
@@ -194,8 +194,8 @@ let load st =
     st.playlist.tracks <- load_playlist ();
     let len = Array.length st.playlist.tracks in
 
-    Ui.set_color_scheme st.ui
-      (input " color_scheme = %d " (num 0 (Ui.num_color_scheme st.ui - 1)));
+    Ui.set_palette st.ui
+      (input " palette = %d " (num 0 (Ui.num_palette st.ui - 1)));
     st.control.volume <- input " volume = %f " (num 0.0 1.0);
     st.control.mute <- input " mute = %d " bool;
     let current = input " play = %[\x20-\xff]" String.trim in

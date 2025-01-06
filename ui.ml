@@ -13,7 +13,7 @@ type image_load = [`Unloaded of string | `Loaded of image] ref
 type t =
 {
   win : window;
-  mutable color_scheme : int;
+  mutable palette : int;
   mutable panes : rect array;
   mutable inner : rect list;        (* list of inner elements *)
   mutable win_pos : point;          (* logical position ignoring snap *)
@@ -37,7 +37,7 @@ let make win =
   let icon = Image.load_raw (assets // "icon.png") in
   Window.set_icon win icon;
   { win;
-    color_scheme = 0;
+    palette = 0;
     panes = Array.make 4 (0, 0, 0, 0);
     inner = [];
     win_pos = (0, 0);
@@ -103,9 +103,9 @@ let clamp min max v =
 
 (* Colors *)
 
-type color_scheme = {text : color; warn : color; error : color; hover : color}
+type palette = {text : color; warn : color; error : color; hover : color}
 
-let color_schemes =
+let palettes =
 [|
   {text = `Green; warn = `Yellow; error = `Red; hover = `Blue};
   {text = `RGB 0x92f2d6; warn = `RGB 0xc8bd4a; error = `RGB 0xec635b; hover = `RGB 0x5f7eb8};
@@ -114,17 +114,17 @@ let color_schemes =
   {text = `RGB 0xddac4d; warn = `RGB 0xffff6d; error = `RGB 0xf14138; hover = `RGB 0xd5b482};
 |]
 
-let num_color_scheme _ui = Array.length color_schemes
-let get_color_scheme ui = ui.color_scheme
-let set_color_scheme ui i = ui.color_scheme <- i
+let num_palette _ui = Array.length palettes
+let get_palette ui = ui.palette
+let set_palette ui i = ui.palette <- i
 
 
 let unlit_alpha = 0x28
 let unlit_color c = `Trans (c, unlit_alpha)
-let text_color ui = color_schemes.(ui.color_scheme).text
-let warn_color ui = color_schemes.(ui.color_scheme).warn
-let error_color ui = color_schemes.(ui.color_scheme).error
-let hover_color ui = color_schemes.(ui.color_scheme).hover
+let text_color ui = palettes.(ui.palette).text
+let warn_color ui = palettes.(ui.palette).warn
+let error_color ui = palettes.(ui.palette).error
+let hover_color ui = palettes.(ui.palette).hover
 
 let fill ui = function
   | true -> text_color ui

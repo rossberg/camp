@@ -246,12 +246,12 @@ let run_control (st : State.t) =
       | `Remain -> `Elapse
   );
 
-  let ncol = Ui.num_color_scheme st.ui in
+  let ncol = Ui.num_palette st.ui in
   let dcol =
     (if color_button_fwd st.ui then +1 else 0) +
     (if color_button_bwd st.ui then -1 else 0)
   in
-  Ui.set_color_scheme st.ui ((Ui.get_color_scheme st.ui + dcol + ncol) mod ncol);
+  Ui.set_palette st.ui ((Ui.get_palette st.ui + dcol + ncol) mod ncol);
 
   (* FPS *)
   if st.control.fps then

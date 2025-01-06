@@ -27,9 +27,9 @@ val dim : t -> area -> rect
 
 (* Colors *)
 
-val num_color_scheme : t -> int
-val get_color_scheme : t -> int
-val set_color_scheme : t -> int -> unit
+val num_palette : t -> int
+val get_palette : t -> int
+val set_palette : t -> int -> unit
 
 val text_color : t -> color
 val warn_color : t -> color
