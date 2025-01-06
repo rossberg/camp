@@ -955,7 +955,9 @@ let rec run (st : State.t) =
   let dw = if st.library.shown then st.library.width else 0 in
   let dh = if st.playlist.shown then st.playlist.height else 0 in
   Api.Window.set_size win (control_w + dw) (control_h + dh);
+(* This swallows all input events on Mac.
   Api.Window.pump win;
+*)
 
   Api.Draw.start win (`Trans (`Black, 0x40));
   Ui.background st.ui;
