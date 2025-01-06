@@ -53,16 +53,17 @@ let info_h = 98
 let info_margin = 4
 let info_box = Ui.box (0, margin, margin, info_w, info_h) `Black
 
+let lcd_space = 3
 let lcd_w = 14
 let lcd_h = 20
-let lcd_x i = margin+info_margin+i*(lcd_w+3)
+let lcd_x i = margin+info_margin+i*(lcd_w+lcd_space)
 let lcd_y = margin+info_margin
 let lcd_minus = Ui.lcd (0, lcd_x 0, lcd_y, lcd_w, lcd_h)
 let lcd1 = Ui.lcd (0, lcd_x 1, lcd_y, lcd_w, lcd_h)
 let lcd2 = Ui.lcd (0, lcd_x 2, lcd_y, lcd_w, lcd_h)
 let lcd_colon = Ui.lcd (0, lcd_x 3, lcd_y, 4, lcd_h)
-let lcd3 = Ui.lcd (0, 4+lcd_x 3, lcd_y, lcd_w, lcd_h)
-let lcd4 = Ui.lcd (0, 4+lcd_x 4, lcd_y, lcd_w, lcd_h)
+let lcd3 = Ui.lcd (0, 4+lcd_space+lcd_x 3, lcd_y, lcd_w, lcd_h)
+let lcd4 = Ui.lcd (0, 4+lcd_space+lcd_x 4, lcd_y, lcd_w, lcd_h)
 let lcd_button = Ui.mouse (0, lcd_x 0, lcd_y, 4+lcd_x 4, lcd_h) `Left
 
 let fps_text = Ui.text (0, 130, margin+info_margin, 40, 12) `Left
