@@ -763,7 +763,7 @@ let run_playlist (st : State.t) =
     (int_of_float (Float.round (pos' *. float len)));
 
   (* Playlist buttons *)
-  if save_button st.ui (Some false) then
+  if save_button st.ui None then
     ();  (* TODO *)
 
   let selected = Playlist.num_selected st.playlist > 0 in
