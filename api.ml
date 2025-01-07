@@ -74,16 +74,18 @@ struct
       current_size := (Raylib.get_screen_width (), Raylib.get_screen_height ());
     )
 
+  (* We have to set the window position before events are processed,
+   * and the window size after. Otherwise we're seeing strange bobbing. *)
   let _ = after_frame_start := update :: !after_frame_start
   let _ = before_frame_finish :=
     (fun () ->
       Option.iter (fun (x, y) -> Raylib.set_window_position x y) !next_pos;
-      if !next_pos <> None then (update (); next_pos := None);
+      next_pos := None;
     ) :: !before_frame_finish
   let _ = after_frame_finish :=
     (fun () ->
       Option.iter (fun (w, h) -> Raylib.set_window_size w h) !next_size;
-      if !next_size <> None then (update (); next_size := None);
+      next_size := None;
     ) :: !after_frame_finish
 
   let init x y w h s =

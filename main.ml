@@ -957,18 +957,18 @@ let rec run (st : State.t) =
   let win = Ui.window st.ui in
   if Api.Window.closed win then exit 0;
 
-  let dw = if st.library.shown then st.library.width else 0 in
-  let dh = if st.playlist.shown then st.playlist.height else 0 in
-  Api.Window.set_size win (control_w + dw) (control_h + dh);
-
   Api.Draw.start win (`Trans (`Black, 0x40));
 
+  (* Handle background and window repositioning *)
   Ui.background st.ui;
 
+  (* Remember current geometry for later *)
   let playlist_shown = st.playlist.shown in
   let library_shown = st.library.shown in
   let library_side = st.library.side in
   let library_width = st.library.width in
+
+  (* Run panes *)
   run_control st;
   if not (Api.Window.is_minimized win) then
   (
@@ -976,6 +976,12 @@ let rec run (st : State.t) =
     if library_shown then run_library st;
   );
 
+  (* Adjust window size after resize *)
+  let dw = if st.library.shown then st.library.width else 0 in
+  let dh = if st.playlist.shown then st.playlist.height else 0 in
+  Api.Window.set_size win (control_w + dw) (control_h + dh);
+
+  (* Adjust window position after opening/closing library *)
   let dx =
     match library_shown, st.library.shown, library_side, st.library.side with
     | false, true, _, `Left

@@ -16,7 +16,7 @@ type t =
   mutable palette : int;
   mutable panes : rect array;
   mutable elems : rect list;        (* list of elements in last frame *)
-  mutable drag_pos : point;         (* starting position of mouse drag *)
+  mutable drag_origin : point;      (* starting position of mouse drag *)
   mutable drag_extra : drag;        (* associated data for drag operation *)
   img_background : image_load;
   img_button : image_load;
@@ -35,7 +35,7 @@ let make win =
     palette = 0;
     panes = Array.make 4 (0, 0, 0, 0);
     elems = [];
-    drag_pos = no_drag;
+    drag_origin = no_drag;
     drag_extra = No_drag;
     img_background = ref (`Unloaded "bg.jpg");
     img_button = ref (`Unloaded "but.jpg");
@@ -173,8 +173,8 @@ let background ui =
   Mouse.set_cursor ui.win `Default;
   if Mouse.is_down `Left then
   (
-    if ui.drag_pos = no_drag then ui.drag_pos <- Mouse.pos ui.win;
-    if not (List.exists (inside ui.drag_pos) ui.elems) then
+    if ui.drag_origin = no_drag then ui.drag_origin <- Mouse.pos ui.win;
+    if not (List.exists (inside ui.drag_origin) ui.elems) then
     (
       let off =
         match ui.drag_extra with
@@ -190,7 +190,7 @@ let background ui =
   )
   else
   (
-    ui.drag_pos <- no_drag;
+    ui.drag_origin <- no_drag;
     ui.drag_extra <- No_drag;
   );
   ui.elems <- []
@@ -210,7 +210,7 @@ let key_status _ui (modifiers, key) =
     `Untouched
 
 let mouse_status ui r side =
-  if Mouse.is_down side && inside ui.drag_pos r then
+  if Mouse.is_down side && inside ui.drag_origin r then
     `Pressed
   else if not (inside (Mouse.pos ui.win) r) then
     `Untouched
@@ -225,7 +225,7 @@ let mouse_status ui r side =
 type drag += Drag of {pos : point}
 
 let drag_status ui r (stepx, stepy) =
-  if not (inside ui.drag_pos r) then
+  if not (inside ui.drag_origin r) then
     if inside (Mouse.pos ui.win) r && Mouse.(is_released `Left && not (is_drag `Left)) then
       `Click
     else
@@ -592,13 +592,13 @@ let divider r orient ui minv maxv =
   let maxy = if maxy < 0 then ph else maxy in
   let vx', vy' = clamp minx maxx vx, clamp miny maxy vy in
   ui.drag_extra <- Divide {overshoot = vx - vx', vy - vy'};
-  (* HACK: Adjust owned drag_pos for size-relative position *)
+  (* HACK: Adjust owned drag_origin for size-relative position *)
   (* This assumes that the caller actually moves the divider! *)
   let dx = vx' - x in
   let dy = vy' - y in
-  ui.drag_pos <- add ui.drag_pos (dx, dy);
-  assert (inside ui.drag_pos (x + dx, y + dy, w, h));
-  ui.elems <- (x + dx, y + dy, w, h) :: ui.elems;
+  ui.drag_origin <- add ui.drag_origin (dx, dy);
+  assert (inside ui.drag_origin (x + dx, y + dy, w, h));
+  ui.elems <- [(x + dx, y + dy, w, h)];
   proj (dx, dy)
 
 
@@ -633,11 +633,11 @@ let resizer r cursor ui (minw, minh) (maxw, maxh) =
   let maxh = if maxh < 0 then sh else maxh in
   let ww', wh' = clamp minw maxw ww, clamp minh maxh wh in
   ui.drag_extra <- Resize {overshoot = ww - ww', wh - wh'};
-  (* HACK: Adjust owned drag_pos for size-relative position *)
+  (* HACK: Adjust owned drag_origin for size-relative position *)
   (* This assumes that the caller actually resizes the window! *)
   let dx = if x0 >= 0 then 0 else ww' - fst sz in
   let dy = if y0 >= 0 then 0 else wh' - snd sz in
-  ui.drag_pos <- add ui.drag_pos (dx, dy);
-  assert (inside ui.drag_pos (x + dx, y + dy, w, h));
-  ui.elems <- (x + dx, y + dy, w, h) :: ui.elems;
+  ui.drag_origin <- add ui.drag_origin (dx, dy);
+  assert (inside ui.drag_origin (x + dx, y + dy, w, h));
+  ui.elems <- [(x + dx, y + dy, w, h)];
   sub (ww', wh') sz
