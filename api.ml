@@ -48,6 +48,13 @@ let is_mac =
   uname = "Darwin"
 
 
+(* Per-frame Actions *)
+
+let after_frame_start = ref []
+let before_frame_finish = ref []
+let after_frame_finish = ref []
+
+
 (* Window *)
 
 type window = unit
@@ -55,21 +62,45 @@ type icon = Raylib.Image.t
 
 module Window =
 struct
+  let current_pos = ref (0, 0)   (* buffered during minimization *)
+  let current_size = ref (0, 0)
+  let next_pos = ref None        (* defer window changes to frame end *)
+  let next_size = ref None
+
+  let update () =
+    if not (Raylib.is_window_minimized ()) then
+    (
+      current_pos := point_of_vec2 (Raylib.get_window_position ());
+      current_size := (Raylib.get_screen_width (), Raylib.get_screen_height ());
+    )
+
+  let _ = after_frame_start := update :: !after_frame_start
+  let _ = before_frame_finish :=
+    (fun () ->
+      Option.iter (fun (x, y) -> Raylib.set_window_position x y) !next_pos;
+      if !next_pos <> None then (update (); next_pos := None);
+    ) :: !before_frame_finish
+  let _ = after_frame_finish :=
+    (fun () ->
+      Option.iter (fun (w, h) -> Raylib.set_window_size w h) !next_size;
+      if !next_size <> None then (update (); next_size := None);
+    ) :: !after_frame_finish
+
   let init x y w h s =
     Raylib.(set_trace_log_level TraceLogLevel.Warning);
     Raylib.(set_exit_key Key.Null);
     Raylib.(set_config_flags
       ConfigFlags.[Window_undecorated; Window_always_run; (*Window_transparent;*) Vsync_hint]);
     Raylib.init_window w h s;
-    Raylib.set_window_position x y
+    Raylib.set_window_position x y;
+    update ()
 
-  let pump () = Raylib.poll_input_events ()
   let closed () = Raylib.window_should_close ()
 
-  let pos () = point_of_vec2 (Raylib.get_window_position ())
-  let size () = Raylib.get_screen_width (), Raylib.get_screen_height ()
-  let set_pos () x y = Raylib.set_window_position x y
-  let set_size () w h = Raylib.set_window_size w h
+  let pos () = !current_pos
+  let size () = !current_size
+  let set_pos () x y = next_pos := Some (x, y)
+  let set_size () w h = next_size := Some (w, h)
   let set_icon () img = if not is_mac then Raylib.set_window_icon img
 
   let minimize () = Raylib.minimize_window ()
@@ -177,7 +208,6 @@ end
 module Draw =
 struct
   let frame = ref 0
-  let updates = ref []
 
   let start () c =
     Raylib.begin_drawing ();
@@ -188,11 +218,13 @@ struct
     let rl_max = 0x8008 in
     Raylib.Rlgl.set_blend_factors_separate 1 1 1 1 rl_func_add rl_max;
 *)
-    List.iter (fun f -> f ()) !updates
+    List.iter (fun f -> f ()) !after_frame_start
 
   let finish () =
+    List.iter (fun f -> f ()) !before_frame_finish;
     incr frame;
-    Raylib.end_drawing ()
+    Raylib.end_drawing ();  (* polls input events *)
+    List.iter (fun f -> f ()) !after_frame_finish
 
   let clip () x y w h = Raylib.begin_scissor_mode x y w h
   let unclip () = Raylib.end_scissor_mode ()
@@ -294,16 +326,25 @@ type cursor =
 
 module Mouse =
 struct
+  let last_win_pos = ref (0, 0) (* store to work around Raylib not updating relative mouse pos on window move *)
+  let current_pos = ref (0, 0)  (* work around Raylib mouse pos bug *)
+  let last_pos = ref (0, 0)     (* implement our own mouse delta, since Raylib's is off as well *)
   let last_press_pos = ref (min_int, min_int)
   let last_press_left = ref 0.0
   let last_press_right = ref 0.0
   let is_double_left = ref false
   let is_double_right = ref false
+  let is_drag_left = ref false
+  let is_drag_right = ref false
   let next_cursor = ref Raylib.MouseCursor.Default
+  let last_screen_pos = ref (0, 0)
 
-  let pos () = point_of_vec2 (Raylib.get_mouse_position ())
-  let delta () = point_of_vec2 (Raylib.get_mouse_delta ())
+  let pos () = !current_pos
+  let delta () = sub !current_pos !last_pos
   let wheel () = floats_of_vec2 (Raylib.get_mouse_wheel_move_v ())
+
+  let screen_pos () = add (pos ()) (Window.pos ())
+  let screen_delta () = sub (screen_pos ()) !last_screen_pos
 
   let button = function
     | `Left -> Raylib.MouseButton.Left
@@ -316,6 +357,10 @@ struct
   let is_doubleclick = function
     | `Left -> !is_double_left
     | `Right -> !is_double_right
+
+  let is_drag = function
+    | `Left -> !is_drag_left
+    | `Right -> !is_drag_right
 
   let set_cursor () cursor =
     next_cursor :=
@@ -334,8 +379,19 @@ struct
       | `Resize `All -> Resize_all
       | `Link -> Pointing_hand
 
-  let _ = Draw.updates :=
+  let _ = after_frame_start :=
     (fun () ->
+      (* Work around Raylib bug: if window was moved but mouse hasn't, then
+       * mouse pos is off; detect and correct by adding window delta. *)
+      current_pos := point_of_vec2 (Raylib.get_mouse_position ());
+      let mouse_delta = point_of_vec2 (Raylib.get_mouse_delta ()) in
+      let win_delta = sub (Window.pos ()) !last_win_pos in
+      if mouse_delta <> (0, 0) then
+        last_win_pos := Window.pos ()  (* caught up *)
+      else if win_delta <> (0, 0) then
+        current_pos := sub !current_pos win_delta;
+
+      (* Detect double click *)
       let left = is_pressed `Left in
       let right = is_pressed `Right in
       is_double_left := false;
@@ -354,9 +410,28 @@ struct
         last_press_right := now;
         last_press_pos := m';
       );
+
+      (* Detect dragging *)
+      let moved = screen_delta () <> (0, 0) in
+      if is_down `Left then
+        is_drag_left := !is_drag_left || moved
+      else if not (is_released `Left) then
+        is_drag_left := false;
+      if is_down `Right then
+        is_drag_right := !is_drag_right || moved
+      else if not (is_released `Right) then
+        is_drag_right := false;
+
+      (* Deferred update of mouse cursor *)
       Raylib.set_mouse_cursor !next_cursor;
       next_cursor := Raylib.MouseCursor.Default;
-    ) :: !Draw.updates
+    ) :: !after_frame_start
+
+  let _ = before_frame_finish :=
+    (fun () ->
+      last_pos := !current_pos;
+      last_screen_pos := screen_pos ();
+    ) :: !before_frame_finish
 end
 
 module Key =

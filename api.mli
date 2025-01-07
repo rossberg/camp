@@ -35,7 +35,6 @@ module Window :
 sig
   val init : int -> int -> int -> int -> string -> window
 
-  val pump : window -> unit
   val closed : window -> bool
 
   val pos : window -> point
@@ -161,11 +160,14 @@ module Mouse :
 sig
   val pos : window -> point
   val delta : window -> point
+  val screen_pos : window -> point
+  val screen_delta : window -> point
   val wheel : window -> float * float
   val is_down : side -> bool
   val is_pressed : side -> bool
   val is_released : side -> bool
   val is_doubleclick : side -> bool
+  val is_drag : side -> bool
 
   val set_cursor : window -> cursor -> unit
 end

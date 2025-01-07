@@ -100,7 +100,7 @@ let to_string st =
   let buf = Buffer.create 1024 in
   let output fmt  = Printf.bprintf buf fmt in
   output "[%s]\n" state_header;
-  let x, y = Ui.window_pos st.ui in
+  let x, y = Api.Window.pos (Ui.window st.ui) in
   output "win_pos = %d, %d\n" x y;
   output "palette = %d\n" (Ui.get_palette st.ui);
   output "volume = %.2f\n" st.control.volume;

@@ -8,10 +8,7 @@ open Api
 type t
 
 val make : window -> t
-
 val window : t -> window
-val window_pos : t -> point
-val window_size : t -> size
 
 (* Panes *)
 

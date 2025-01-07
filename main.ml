@@ -276,6 +276,8 @@ let exec prog args =
 (* Control Section *)
 
 let run_control (st : State.t) =
+  let win = Ui.window st.ui in
+
   let x =
     if st.library.shown && st.library.side = `Left then st.library.width else 0
   in
@@ -337,7 +339,7 @@ let run_control (st : State.t) =
 
   (* FPS *)
   if st.control.fps then
-    fps_text st.ui true (fmt "%d FPS" (Api.Window.fps (Ui.window st.ui)));
+    fps_text st.ui true (fmt "%d FPS" (Api.Window.fps win));
   if fps_key st.ui then st.control.fps <- not st.control.fps;
 
   (* Audio properties *)
@@ -532,8 +534,8 @@ let run_control (st : State.t) =
   library_label st.ui;
   library_indicator st.ui st.library.shown;
   let library_shown' = library_button st.ui (Some st.library.shown) in
-  let wx, _ = Ui.window_pos st.ui in
-  let sw, _ = Api.Window.screen_size (Ui.window st.ui) in
+  let wx, _ = Api.Window.pos win in
+  let sw, _ = Api.Window.screen_size win in
   if not st.library.shown && library_shown' && not (Api.Key.is_modifier_down `Shift) then
   (
     if st.library.side = `Left && wx <= 0 then st.library.side <- `Right;
@@ -553,7 +555,7 @@ let run_control (st : State.t) =
 
   (* Minimize button *)
   if minimize_button st.ui then
-    Api.Window.minimize (Ui.window st.ui)
+    Api.Window.minimize win
 
 
 (* Playlist Pane *)
@@ -564,6 +566,7 @@ let update_playlist_rows (st : State.t) =
 
 let run_playlist (st : State.t) =
   let now = Unix.time () in
+  let win = Ui.window st.ui in
   let len = Array.length st.playlist.tracks in
 
   let x =
@@ -575,7 +578,7 @@ let run_playlist (st : State.t) =
   let digits = log10 (len + 1) + 1 in
   let font = Ui.font st.ui playlist_row_h in
   let smax1 = String.make digits '0' ^ ". " in
-  let cw1 = Api.Draw.text_width (Ui.window st.ui) playlist_row_h font smax1 + 1 in
+  let cw1 = Api.Draw.text_width win playlist_row_h font smax1 + 1 in
   let cw3 = ref 16 in
   let (_, y, w, _) as r = Ui.dim st.ui playlist_area in
   let vlen = st.playlist.rows in
@@ -600,7 +603,7 @@ let run_playlist (st : State.t) =
       in
       let inv = if Playlist.is_selected st.playlist i then `Inverted else `Regular in
       let time = if track.time = 0.0 then "" else fmt_time track.time in
-      cw3 := max !cw3 (Api.Draw.text_width (Ui.window st.ui) playlist_row_h font time + 1);
+      cw3 := max !cw3 (Api.Draw.text_width win playlist_row_h font time + 1);
       c, inv, [|fmt "%0*d. " digits (i + 1); track.name; time|]
     )
   in
@@ -836,19 +839,19 @@ let run_playlist (st : State.t) =
   if cut_key st.ui then
   (
     let s = State.string_of_playlist (Playlist.copy_selected st.playlist) in
-    Api.Clipboard.write (Ui.window st.ui) s;
+    Api.Clipboard.write win s;
     Playlist.remove_selected st.playlist;
   );
 
   if copy_key st.ui then
   (
     let s = State.string_of_playlist (Playlist.copy_selected st.playlist) in
-    Api.Clipboard.write (Ui.window st.ui) s;
+    Api.Clipboard.write win s;
   );
 
   if paste_key st.ui then
   (
-    match Api.Clipboard.read (Ui.window st.ui) with
+    match Api.Clipboard.read win with
     | None -> ()
     | Some s ->
       let tracks = State.playlist_of_string s in
@@ -863,8 +866,8 @@ let run_playlist (st : State.t) =
   );
 
   (* Playlist drag & drop *)
-  let dropped = Api.File.dropped (Ui.window st.ui) in
-  let _, my as m = Api.Mouse.pos (Ui.window st.ui) in
+  let dropped = Api.File.dropped win in
+  let _, my as m = Api.Mouse.pos win in
   let pos = if Api.inside m r then
     min len ((my - y) / playlist_row_h + st.playlist.scroll) else len in
   Playlist.insert_paths st.playlist pos dropped st.control.audio;
@@ -892,9 +895,16 @@ let run_playlist (st : State.t) =
 (* Library Pane *)
 
 let run_library (st : State.t) =
+  let win = Ui.window st.ui in
+
   let x = if st.library.side = `Left then 0 else control_w - 5 in
   let dh = if st.playlist.shown then st.playlist.height else 0 in
   library_pane st.ui (x, 0, st.library.width + 5, control_h + dh);
+
+  (* Pane resizing *)
+  st.library.browser_width <- st.library.browser_width +
+    library_divider st.library.browser_width st.ui
+      library_divider_min (library_divider_max st.library.width);
   let bw = st.library.browser_width in
 
   (* Browser *)
@@ -915,14 +925,9 @@ let run_library (st : State.t) =
   let ext = 1.0 in
   let _pos' = view_scroll bw st.ui pos ext -. 0.05 *. view_wheel bw st.ui in
 
-  (* Pane resizing *)
-  st.library.browser_width <- st.library.browser_width +
-    library_divider bw st.ui
-      library_divider_min (library_divider_max st.library.width);
-
   (* Library resizing *)
   let left = st.library.side = `Left in
-  if st.playlist.shown && snd (Ui.window_size st.ui) > control_h then
+  if st.playlist.shown && snd (Api.Window.size win) > control_h then
   (
     let dw, dh =
       (if left then library_resizer_l `NE_SW else library_resizer_r `NW_SE)
@@ -971,8 +976,6 @@ let rec run (st : State.t) =
     if library_shown then run_library st;
   );
 
-  Api.Draw.finish win;
-
   let dx =
     match library_shown, st.library.shown, library_side, st.library.side with
     | false, true, _, `Left
@@ -983,7 +986,9 @@ let rec run (st : State.t) =
     | _ -> 0
   in
   let x, y = Api.Window.pos win in
-  Api.Window.set_pos win (x + dx) y;
+  if dx <> 0 then Api.Window.set_pos win (x + dx) y;
+
+  Api.Draw.finish win;
 
   run st
 

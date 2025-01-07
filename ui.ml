@@ -5,8 +5,8 @@ open Api
 
 (* State *)
 
-type drag_extra = ..
-type drag_extra += No_drag
+type drag = ..
+type drag += No_drag
 
 type image_load = [`Unloaded of string | `Loaded of image] ref
 
@@ -15,14 +15,9 @@ type t =
   win : window;
   mutable palette : int;
   mutable panes : rect array;
-  mutable inner : rect list;        (* list of inner elements *)
-  mutable win_pos : point;          (* logical position ignoring snap *)
-  mutable win_size : point;         (* size ignoring minimization *)
-  mutable mouse_pos : point;        (* absolute mouse position on screen *)
-  mutable mouse_delta : size;       (* absolute delta *)
-  mutable drag_pos : point;         (* relative starting position of mouse drag *)
-  mutable drag_extra : drag_extra;  (* associated data for drag operation *)
-  mutable drag_happened : bool;     (* Dragging happened before last release *)
+  mutable elems : rect list;        (* list of elements in last frame *)
+  mutable drag_pos : point;         (* starting position of mouse drag *)
+  mutable drag_extra : drag;        (* associated data for drag operation *)
   img_background : image_load;
   img_button : image_load;
   fonts : font option array;
@@ -39,22 +34,15 @@ let make win =
   { win;
     palette = 0;
     panes = Array.make 4 (0, 0, 0, 0);
-    inner = [];
-    win_pos = (0, 0);
-    win_size = (0, 0);
-    mouse_pos = (0, 0);
-    mouse_delta = (0, 0);
+    elems = [];
     drag_pos = no_drag;
     drag_extra = No_drag;
-    drag_happened = false;
     img_background = ref (`Unloaded "bg.jpg");
     img_button = ref (`Unloaded "but.jpg");
     fonts = Array.make 64 None;
   }
 
 let window ui = ui.win
-let window_pos ui = ui.win_pos
-let window_size ui = ui.win_size
 
 
 (* Panes *)
@@ -165,6 +153,8 @@ let get_img ui rimg =
 
 (* Window Background *)
 
+type drag += Window of {target : point}
+
 let background ui =
   let bg = get_img ui ui.img_background in
   let ww, wh = Window.size ui.win in
@@ -181,33 +171,29 @@ let background ui =
   Draw.line ui.win 0 0 ww 0 (`Gray 0x70);
 
   Mouse.set_cursor ui.win `Default;
-  let m = Mouse.pos ui.win in
-  let m' = add m (Window.pos ui.win) in
-  ui.mouse_delta <- sub m' ui.mouse_pos;
-  ui.mouse_pos <- m';
   if Mouse.is_down `Left then
   (
-    if ui.drag_pos = no_drag then ui.drag_pos <- m;
-    if not (List.exists (inside ui.drag_pos) ui.inner) then
+    if ui.drag_pos = no_drag then ui.drag_pos <- Mouse.pos ui.win;
+    if not (List.exists (inside ui.drag_pos) ui.elems) then
     (
-      let wx, wy = add ui.win_pos ui.mouse_delta in
-      let mw, mh = sub (Window.screen_size ui.win) (Window.size ui.win) in
-      Window.set_pos ui.win (snap 0 mw wx) (snap 0 mh wy);
-      ui.win_pos <- wx, wy;
-      ui.win_size <- Window.size ui.win;
+      let off =
+        match ui.drag_extra with
+        | No_drag -> 0, 0
+        | Window {target} -> sub (Window.pos ui.win) target
+        | _ -> assert false
+      in
+      let (wx, wy) as w = sub (add (Window.pos ui.win) (Mouse.screen_delta ui.win)) off in
+      let sw, sh = sub (Window.screen_size ui.win) (Window.size ui.win) in
+      Window.set_pos ui.win (snap 0 sw wx) (snap 0 sh wy);
+      ui.drag_extra <- Window {target = w};
     )
   )
   else
   (
     ui.drag_pos <- no_drag;
     ui.drag_extra <- No_drag;
-    if not (Window.is_minimized ui.win) then
-    (
-      ui.win_pos <- Window.pos ui.win;
-      ui.win_size <- Window.size ui.win;
-    )
   );
-  ui.inner <- []
+  ui.elems <- []
 
 
 (* Input elements *)
@@ -230,31 +216,33 @@ let mouse_status ui r side =
     `Untouched
   else if Mouse.is_released side then
     `Released
-  else
+  else if not (Mouse.is_down side) then
     `Hovered
+  else
+    `Untouched
 
-type drag_extra += Drag_gen of point
+
+type drag += Drag of {pos : point}
 
 let drag_status ui r (stepx, stepy) =
-  if not (Mouse.is_down `Left) then
-    let happened = ui.drag_happened in
-    ui.drag_happened <- false;
-    if not happened then `None else `Click
+  if not (inside ui.drag_pos r) then
+    if inside (Mouse.pos ui.win) r && Mouse.(is_released `Left && not (is_drag `Left)) then
+      `Click
+    else
+      `None
   else
   let (mx, my) as m = Mouse.pos ui.win in
-  if not (inside ui.drag_pos r) then `None else
   match ui.drag_extra with
   | No_drag ->
-    ui.drag_extra <- Drag_gen m;
+    ui.drag_extra <- Drag {pos = m};
     if stepx * stepy = 0 then `Drag (0, 0) else `None
-  | Drag_gen m' ->
-    let dx, dy = sub m m' in
+  | Drag {pos; _} ->
+    let dx, dy = sub m pos in
     let dx' = if stepx = 0 then dx else dx / stepx in
     let dy' = if stepy = 0 then dy else dy / stepy in
-    let happened = dx' <> 0 || dy' <> 0 || stepx * stepy = 0 in
-    ui.drag_extra <- Drag_gen (mx - dx mod max 1 stepx, my - dy mod max 1 stepy);
-    ui.drag_happened <- ui.drag_happened || happened;
-    if not happened then `None else `Drag (dx', dy')
+    ui.drag_extra <-
+      Drag {pos = mx - dx mod max 1 stepx, my - dy mod max 1 stepy};
+    if dx' = 0 && dy' = 0 && stepx * stepy <> 0 then `None else `Drag (dx', dy')
   | _ -> assert false
 
 let wheel_status ui r =
@@ -358,7 +346,7 @@ let lcd r ui d =
 
 let element r modkey ui =
   let r' = dim ui r in
-  ui.inner <- r' :: ui.inner;
+  ui.elems <- r' :: ui.elems;
   r',
   match mouse_status ui r' `Left, key_status ui modkey with
   | `Released, _ | _, `Released -> `Released
@@ -491,8 +479,8 @@ let volume_bar r ui v =
 *)
 
 
-type drag_extra += Scroll_bar_page of time
-type drag_extra += Scroll_bar_drag of float * int
+type drag += Scroll_bar_page of {last_repeat : time}
+type drag += Scroll_bar_drag of {value : float; mouse : int}
 
 let scroll_bar r ui v len =
   assert (v +. len <= 1.0);
@@ -510,20 +498,20 @@ let scroll_bar r ui v len =
   let v0, my0, t, dragging =
     match ui.drag_extra with
     | No_drag -> v, my, 0.0, false
-    | Scroll_bar_page t -> v, my, t, false
-    | Scroll_bar_drag (v0, my0) -> v0, my0, 0.0, true
+    | Scroll_bar_page {last_repeat} -> v, my, last_repeat, false
+    | Scroll_bar_drag {value; mouse} -> value, mouse, 0.0, true
     | _ -> assert false
   in
   let now = Unix.gettimeofday () in
   let v' =
     if dragging || y' <= my && my < y' + h' then
     (
-      ui.drag_extra <- Scroll_bar_drag (v0, my0);
+      ui.drag_extra <- Scroll_bar_drag {value = v0; mouse = my0};
       v0 +. float (my - my0) /. float (h - 2)
     )
     else if now -. t > 0.5 then
     (
-      ui.drag_extra <- Scroll_bar_page now;
+      ui.drag_extra <- Scroll_bar_page {last_repeat = now};
       if my < y' then v -. len else
       if my >= y' + h' then v +. len else
       v
@@ -578,7 +566,7 @@ let table r gw ch ui cols rows =
 
 (* Dividers *)
 
-type drag_extra += Divide of size (* clamped delta *)
+type drag += Divide of {overshoot : size}
 
 let divider r orient ui minv maxv =
   let (x, y, w, h), status = element r no_modkey ui in
@@ -591,32 +579,32 @@ let divider r orient ui minv maxv =
   let over =
     match ui.drag_extra with
     | No_drag -> 0, 0
-    | Divide over -> over
+    | Divide {overshoot} -> overshoot
     | _ -> assert false
   in
+  let vx, vy = add (add (x, y) (Mouse.delta ui.win)) over in
   let i, _, _, _, _ = r in
   let px, _, pw, ph = ui.panes.(i) in
-  let vx, vy = add (add (x, y) ui.mouse_delta) over in
   let minx, miny = inj minv in
   let maxx, maxy = inj maxv in
   let minx = px + minx in
   let maxx = px + if maxx < 0 then pw else maxx in
   let maxy = if maxy < 0 then ph else maxy in
   let vx', vy' = clamp minx maxx vx, clamp miny maxy vy in
-  ui.drag_extra <- Divide (vx - vx', vy - vy');
+  ui.drag_extra <- Divide {overshoot = vx - vx', vy - vy'};
   (* HACK: Adjust owned drag_pos for size-relative position *)
   (* This assumes that the caller actually moves the divider! *)
   let dx = vx' - x in
   let dy = vy' - y in
   ui.drag_pos <- add ui.drag_pos (dx, dy);
   assert (inside ui.drag_pos (x + dx, y + dy, w, h));
-  ui.inner <- (x + dx, y + dy, w, h) :: ui.inner;
+  ui.elems <- (x + dx, y + dy, w, h) :: ui.elems;
   proj (dx, dy)
 
 
 (* Resizers *)
 
-type drag_extra += Resize of size (* clamped delta *)
+type drag += Resize of {overshoot : size}
 
 (* Assumes that the caller actually resizes the window according to response.
  * Dragging will misbehave otherwise.
@@ -636,20 +624,20 @@ let resizer r cursor ui (minw, minh) (maxw, maxh) =
   let over =
     match ui.drag_extra with
     | No_drag -> 0, 0
-    | Resize over -> over
+    | Resize {overshoot} -> overshoot
     | _ -> assert false
   in
-  let ww, wh = add (add sz (mul sign ui.mouse_delta)) over in
+  let ww, wh = add (add sz (mul sign (Mouse.screen_delta ui.win))) over in
   let sw, sh = Window.screen_size ui.win in
   let maxw = if maxw < 0 then sw else maxw in
   let maxh = if maxh < 0 then sh else maxh in
   let ww', wh' = clamp minw maxw ww, clamp minh maxh wh in
-  ui.drag_extra <- Resize (ww - ww', wh - wh');
+  ui.drag_extra <- Resize {overshoot = ww - ww', wh - wh'};
   (* HACK: Adjust owned drag_pos for size-relative position *)
   (* This assumes that the caller actually resizes the window! *)
   let dx = if x0 >= 0 then 0 else ww' - fst sz in
   let dy = if y0 >= 0 then 0 else wh' - snd sz in
   ui.drag_pos <- add ui.drag_pos (dx, dy);
   assert (inside ui.drag_pos (x + dx, y + dy, w, h));
-  ui.inner <- (x + dx, y + dy, w, h) :: ui.inner;
+  ui.elems <- (x + dx, y + dy, w, h) :: ui.elems;
   sub (ww', wh') sz
