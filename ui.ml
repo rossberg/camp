@@ -149,7 +149,7 @@ let font' ui h file min max fonts =
     f
 
 let font ui h =
-  font' ui h "tahoma.ttf" 0x0020 0x0600 ui.fonts
+  font' ui h (assets // "tahoma.ttf") 0x0020 0x0600 ui.fonts
 
 
 (* Images *)

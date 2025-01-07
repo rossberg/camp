@@ -10,7 +10,8 @@ default:
 
 mac: $(NAME).exe
 	mkdir -p $(NAME).app/Contents
-	cp -rf mac/* assets $(NAME).exe $(NAME).app/Contents
+	cp -rf platform/mac/* assets $(NAME).exe $(NAME).app/Contents
+	chmod +x $(NAME).app/Contents/MacOS/run.sh
 
 dir: $(NAME).exe
 	mkdir $(APPNAME)
