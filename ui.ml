@@ -107,8 +107,10 @@ let get_palette ui = ui.palette
 let set_palette ui i = ui.palette <- i
 
 
-let unlit_alpha = 0x28
+let unlit_alpha = 0x30
+let semilit_alpha = 0x60
 let unlit_color c = `Trans (c, unlit_alpha)
+let semilit_color c = `Trans (c, semilit_alpha)
 let text_color ui = palettes.(ui.palette).text
 let warn_color ui = palettes.(ui.palette).warn
 let error_color ui = palettes.(ui.palette).error

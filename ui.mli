@@ -33,6 +33,7 @@ val warn_color : t -> color
 val error_color : t -> color
 val hover_color : t -> color
 val unlit_color : color -> color
+val semilit_color : color -> color
 
 (* Fonts *)
 

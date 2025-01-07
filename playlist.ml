@@ -412,7 +412,10 @@ let insert_paths pl pos paths audio =
     tracks := track :: !tracks;
     if track.status = `Undet then Track.update audio track
   in
-  let add_song path = add_track (Track.make path) in
+  let add_song path =
+    if Track.is_known_ext path then
+      add_track (Track.make path)
+  in
   let add_playlist path =
     let s = In_channel.(with_open_bin path input_all) in
     List.iter (fun M3u.{path; info} ->

@@ -598,7 +598,7 @@ let run_playlist (st : State.t) =
         | _ when Track.is_separator track -> Ui.text_color st.ui
         | `Absent -> Ui.error_color st.ui
         | `Invalid -> Ui.warn_color st.ui
-        | `Undet -> Ui.unlit_color (Ui.text_color st.ui)
+        | `Undet -> Ui.semilit_color (Ui.text_color st.ui)
         | `Predet | `Det -> Ui.text_color st.ui
       in
       let inv = if Playlist.is_selected st.playlist i then `Inverted else `Regular in
