@@ -3,6 +3,9 @@
 type t = Sqlite3.db
 
 
+(* TODO: use STRICT tables once Sqlite 3.37 is available on Cygwin. *)
+
+
 (* Errors *)
 
 exception Db_error = Sqlite3.SqliteError
@@ -53,8 +56,7 @@ let create_roots = create_table
   CREATE TABLE IF NOT EXISTS Roots
   (
   	path TEXT NOT NULL UNIQUE
-  )
-  STRICT;
+  );
 |}
 
 let count_roots = count_table @@ stmt
@@ -90,8 +92,7 @@ let create_dirs = create_table
   (
   	path TEXT NOT NULL UNIQUE,
   	root_id INT NOT NULL
-  )
-  STRICT;
+  );
 |}
 
 let count_dirs = count_table @@ stmt
@@ -136,8 +137,7 @@ let create_albums = create_table
   	label TEXT,
   	country TEXT,
   	cover BLOB
-  )
-  STRICT;
+  );
 |}
 
 let count_albums = count_table @@ stmt
@@ -201,8 +201,7 @@ let create_songs = create_table
   	depth INT,
   	rate INT,
   	bitrate REAL
-  )
-  STRICT;
+  );
 |}
 
 let count_songs = count_table @@ stmt
@@ -260,8 +259,7 @@ let create_playlists = create_table
   (
   	path TEXT NOT NULL UNIQUE,
   	dir_id INT NOT NULL
-  )
-  STRICT;
+  );
 |}
 
 let count_playlists = count_table @@ stmt
@@ -298,8 +296,7 @@ let create_entries = create_table
   (
   	playlist_id INT NOT NULL,
   	song_id TEXT NOT NULL
-  )
-  STRICT;
+  );
 |}
 
 
