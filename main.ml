@@ -159,7 +159,7 @@ let total_y = -total_h-(bottom_h-total_h)/2
 let playlist_total_box = Ui.box (1, total_x, total_y, total_w, playlist_row_h) `Black
 let playlist_total_text = Ui.text (1, total_x, total_y, total_w-2, playlist_row_h) `Right `Regular
 
-let playlist_resizer = Ui.resizer (1, 1-resizer_w, 1-resizer_w, resizer_w, resizer_w) `N_S
+let playlist_resizer = Ui.resizer (1, -resizer_w, -resizer_w, resizer_w, resizer_w) `N_S
 
 let up_key = Ui.key ([], `Arrow `Up)
 let down_key = Ui.key ([], `Arrow `Down)

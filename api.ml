@@ -97,7 +97,7 @@ struct
 
     (* Discover screen geometry by opening a dummy window. *)
     Raylib.(set_config_flags
-      ConfigFlags.[Window_undecorated; Window_transparent; Window_resizable]);
+      ConfigFlags.[Window_undecorated; (*Window_transparent;*) Window_resizable]);
     Raylib.init_window 8000 4000 "";
     Raylib.maximize_window ();
     update ();
