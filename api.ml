@@ -388,9 +388,9 @@ struct
       current_pos := point_of_vec2 (Raylib.get_mouse_position ());
       let mouse_delta = point_of_vec2 (Raylib.get_mouse_delta ()) in
       let win_delta = sub (Window.pos ()) !last_win_pos in
-      if mouse_delta <> (0, 0) then
+      if not is_mac || mouse_delta <> (0, 0) then
         last_win_pos := Window.pos ()  (* caught up *)
-      else if win_delta <> (0, 0) then
+      else if is_mac && win_delta <> (0, 0) then
         current_pos := sub !current_pos win_delta;
 
       (* Detect double click *)
