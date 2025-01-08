@@ -169,8 +169,9 @@ let background ui =
     done
   done;
 
-  Draw.line ui.win 1 0 1 wh (`Gray 0x40);
+  Draw.line ui.win 1 0 1 (wh - 2) (`Gray 0x40);
   Draw.line ui.win 0 0 ww 0 (`Gray 0x70);
+  Draw.fill ui.win 1 (wh - 2) (ww - 1) 2 (`Gray 0x10);
 
   Mouse.set_cursor ui.win `Default;
   if Mouse.is_down `Left then
@@ -275,6 +276,8 @@ let label = label' `White
 let indicator r ui on =
   let x, y, w, h = dim ui r in
   Draw.fill_circ ui.win x y w h (if on then `Green else unlit_color `Green);
+  Draw.fill_circ ui.win (x + w/4) (y + h/4) (min 2 (w/3)) (min 2 (h/3))
+    (`Trans (`White, if on then 0xe0 else 0x30));
   Draw.circ ui.win x y w h (border ui `Untouched)
 
 let lcd' ui r' c elem =
