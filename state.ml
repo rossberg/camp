@@ -188,8 +188,9 @@ let load st =
     let win = Ui.window st.ui in
     let input fmt = fscanf file fmt in
     if input " [%s@]" value <> state_header then failwith "load_state";
-    let sw, sh = Api.Window.screen_size win in
-    let x, y = input " win_pos = %d , %d " (num_pair 0 0 (sw - 20) (sh - 20)) in
+    let sx, sy = Api.Window.min_pos win in
+    let sw, sh = Api.Window.max_size win in
+    let x, y = input " win_pos = %d , %d " (num_pair sx sy (sx + sw - 20) (sy + sh - 20)) in
     Api.Window.set_pos win x y;
 
     let playlist = load_playlist () in
@@ -231,12 +232,12 @@ let load st =
 
     st.playlist.scroll <- input " play_scroll = %d " (num 0 (len - 1));
     st.playlist.shown <- input " play_open = %d " bool;
-    (* TODO: 83 = playlist_min; use constant *)
-    st.playlist.height <- input " play_height = %d " (num 83 sh);
+    (* TODO: 83 = playlist_min, 160 = control_h; use constants *)
+    st.playlist.height <- input " play_height = %d " (num 83 (sh - 160));
     st.library.shown <- input " lib_open = %d " bool;
     st.library.side <- if input " lib_side = %d " bool then `Right else `Left;
-    (* TODO: 400 = library_min; use constant *)
-    st.library.width <- input " lib_width = %d " (num 400 sw);
+    (* TODO: 400 = library_min, 360 = control_w; use constants *)
+    st.library.width <- input " lib_width = %d " (num 400 (sw - 360));
     (* TODO: 40 = browser_min, 60 = browser_min + 2*margin; use constants *)
     st.library.browser_width <- input " lib_width = %d " (num 40 (st.library.width - 60));
   );

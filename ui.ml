@@ -185,8 +185,9 @@ let background ui =
         | _ -> assert false
       in
       let (wx, wy) as w = sub (add (Window.pos ui.win) (Mouse.screen_delta ui.win)) off in
-      let sw, sh = sub (Window.screen_size ui.win) (Window.size ui.win) in
-      Window.set_pos ui.win (snap 0 sw wx) (snap 0 sh wy);
+      let sx, sy = Window.min_pos ui.win in
+      let sw, sh = sub (Window.max_size ui.win) (Window.size ui.win) in
+      Window.set_pos ui.win (snap sx (sx + sw) wx) (snap sy (sy + sh) wy);
       ui.drag_extra <- Window {target = w};
     )
   )
@@ -629,10 +630,13 @@ let resizer r cursor ui (minw, minh) (maxw, maxh) =
     | Resize {overshoot} -> overshoot
     | _ -> assert false
   in
+  let wx, wy = Window.pos ui.win in
   let ww, wh = add (add sz (mul sign (Mouse.screen_delta ui.win))) over in
-  let sw, sh = Window.screen_size ui.win in
-  let maxw = if maxw < 0 then sw else maxw in
-  let maxh = if maxh < 0 then sh else maxh in
+  let sx, sy = Window.min_pos ui.win in
+  let sw, sh = Window.max_size ui.win in
+  let rx, ry = wx - sx, wy - sy in
+  let maxw = if maxw >= 0 then maxw else if x0 < 0 then sw - rx else fst sz + rx in
+  let maxh = if maxh >= 0 then maxh else if y0 < 0 then sh - ry else snd sz + ry in
   let ww', wh' = clamp minw maxw ww, clamp minh maxh wh in
   ui.drag_extra <- Resize {overshoot = ww - ww', wh - wh'};
   (* HACK: Adjust owned drag_origin for size-relative position *)

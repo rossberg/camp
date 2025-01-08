@@ -62,6 +62,9 @@ type icon = Raylib.Image.t
 
 module Window =
 struct
+  let min_pos = ref (0, 0)
+  let max_size = ref (0, 0)
+
   let current_pos = ref (0, 0)   (* buffered during minimization *)
   let current_size = ref (0, 0)
   let next_pos = ref None        (* defer window changes to frame end *)
@@ -91,6 +94,17 @@ struct
   let init x y w h s =
     Raylib.(set_trace_log_level TraceLogLevel.Warning);
     Raylib.(set_exit_key Key.Null);
+
+    (* Discover screen geometry by opening a dummy window. *)
+    Raylib.(set_config_flags
+      ConfigFlags.[Window_undecorated; Window_transparent; Window_resizable]);
+    Raylib.init_window 8000 4000 "";
+    Raylib.maximize_window ();
+    update ();
+    Raylib.close_window ();
+    min_pos := !current_pos;
+    max_size := !current_size;
+
     Raylib.(set_config_flags
       ConfigFlags.[Window_undecorated; Window_always_run; (*Window_transparent;*) Vsync_hint]);
     Raylib.init_window w h s;
@@ -104,6 +118,9 @@ struct
   let set_pos () x y = next_pos := Some (x, y)
   let set_size () w h = next_size := Some (w, h)
   let set_icon () img = if not is_mac then Raylib.set_window_icon img
+
+  let min_pos () = !min_pos
+  let max_size () = !max_size
 
   let minimize () = Raylib.minimize_window ()
   let restore () = Raylib.restore_window ()

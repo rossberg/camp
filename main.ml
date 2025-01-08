@@ -57,7 +57,7 @@ let lcd_space = 3
 let lcd_w = 14
 let lcd_h = 20
 let lcd_x i = margin+info_margin+i*(lcd_w+lcd_space)
-let lcd_y = margin+info_margin
+let lcd_y = margin+info_margin+10
 let lcd_minus = Ui.lcd (0, lcd_x 0, lcd_y, lcd_w, lcd_h)
 let lcd1 = Ui.lcd (0, lcd_x 1, lcd_y, lcd_w, lcd_h)
 let lcd2 = Ui.lcd (0, lcd_x 2, lcd_y, lcd_w, lcd_h)
@@ -525,7 +525,7 @@ let run_control (st : State.t) =
     | `AB (t1, t2), true -> `AB (t1, t2)
     );
 
-  (* Subwindow Activation *)
+  (* Pane Activation *)
   playlist_label st.ui;
   playlist_indicator st.ui st.playlist.shown;
   let playlist_shown' = playlist_button st.ui (Some st.playlist.shown) in
@@ -535,11 +535,13 @@ let run_control (st : State.t) =
   library_indicator st.ui st.library.shown;
   let library_shown' = library_button st.ui (Some st.library.shown) in
   let wx, _ = Api.Window.pos win in
-  let sw, _ = Api.Window.screen_size win in
+  let sx, _ = Api.Window.min_pos win in
+  let sw, _ = Api.Window.max_size win in
   if not st.library.shown && library_shown' && not (Api.Key.is_modifier_down `Shift) then
   (
-    if st.library.side = `Left && wx <= 0 then st.library.side <- `Right;
-    if st.library.side = `Right && wx + control_w >= sw then st.library.side <- `Left;
+    (* Switch library side if window is at the respective border. *)
+    if st.library.side = `Left && wx <= sx then st.library.side <- `Right;
+    if st.library.side = `Right && wx + control_w >= sx + sw then st.library.side <- `Left;
     st.library.shown <- library_shown';
   )
   else if

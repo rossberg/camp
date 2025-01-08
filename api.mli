@@ -43,6 +43,9 @@ sig
   val set_size : window -> int -> int -> unit
   val set_icon : window -> icon -> unit
 
+  val min_pos : window -> point
+  val max_size : window -> size
+
   val minimize : window -> unit
   val restore : window -> unit
   val is_minimized : window -> bool
