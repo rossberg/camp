@@ -148,7 +148,7 @@ let current pl = Option.get (current_opt pl)
 
 let skip pl delta repeat =
   let len = Array.length pl.tracks in
-  len > 0 &&
+  len > 0 &&  (* implies pl.pos <> None *)
   let up pos = if repeat then modulo (pos + delta) len else pos + delta in
   match pl.shuffle with
   | None ->

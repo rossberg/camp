@@ -412,24 +412,6 @@ let run_control (st : State.t) =
   | _ -> ()
   );
 
-  (* End of track *)
-  if playing && (remaining < 0.2 || silence) then
-  (
-    let more =
-      match st.control.repeat with
-      | `One -> true
-      | `All -> Playlist.skip st.playlist (+1) true
-      | `None -> Playlist.skip st.playlist (+1) false
-    in
-    let next_track =
-      if st.playlist.pos = None
-      then Option.get st.control.current
-      else Playlist.current st.playlist
-    in
-    Control.switch st.control next_track more;
-    Playlist.adjust_scroll st.playlist st.playlist.pos;
-  );
-
   (* Play controls *)
   let off =
     (if bwd_button st.ui (Some false) && st.playlist.tracks <> [||] then -1 else 0) +
@@ -479,6 +461,26 @@ let run_control (st : State.t) =
       Api.Audio.resume st.control.audio st.control.sound
     else if stopped && st.playlist.tracks <> [||] then
       Control.switch st.control (Playlist.current st.playlist) true;
+    Playlist.adjust_scroll st.playlist st.playlist.pos;
+  );
+
+  (* End of track *)
+  (* Check must occur after possible Audio.resume abve,
+   * otherwise the last track would be restarted. *)
+  if playing && (remaining < 0.2 || silence) then
+  (
+    let more =
+      match st.control.repeat with
+      | `One -> true
+      | `All -> Playlist.skip st.playlist (+1) true
+      | `None -> Playlist.skip st.playlist (+1) false
+    in
+    let next_track =
+      if st.playlist.pos = None
+      then Option.get st.control.current
+      else Playlist.current st.playlist
+    in
+    Control.switch st.control next_track more;
     Playlist.adjust_scroll st.playlist st.playlist.pos;
   );
 
