@@ -58,7 +58,8 @@ val indicator : area -> t -> bool -> unit
 val lcd : area -> t -> char -> unit
 
 val box : area -> color -> t -> unit
-val text : area -> align -> inversion -> t -> bool -> string -> unit
+val text : area -> align -> t -> inversion -> bool -> string -> unit
+val color_text : area -> align -> t -> color -> inversion -> bool -> string -> unit
 val ticker : area -> t -> string -> unit
 
 val button : area -> ?protrude: bool -> modifier list * key -> t -> bool option -> bool

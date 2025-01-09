@@ -116,9 +116,11 @@ let warn_color ui = palettes.(ui.palette).warn
 let error_color ui = palettes.(ui.palette).error
 let hover_color ui = palettes.(ui.palette).hover
 
-let fill ui = function
-  | true -> text_color ui
-  | false -> unlit_color (text_color ui)
+let modal c = function
+  | true -> c
+  | false -> unlit_color c
+
+let fill ui b = modal (text_color ui) b
 
 let border ui = function
   | `Hovered -> hover_color ui
@@ -365,9 +367,9 @@ let box r c ui =
   let (x, y, w, h), _ = element r no_modkey ui in
   Draw.fill ui.win x y w h c
 
-let text r align inv ui active s =
+let color_text r align ui c inv active s =
   let (x, y, w, h), _status = element r no_modkey ui in
-  let fg = fill ui active in
+  let fg = modal c active in
   let bg = `Black in
   let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
   Draw.fill ui.win x y w (h - 1) bg;  (* assume text has no descender *)
@@ -379,6 +381,8 @@ let text r align inv ui active s =
     | `Right -> w - tw
   in
   Draw.text ui.win (x + dx) y h fg (font ui h) s
+
+let text r align ui = color_text r align ui (text_color ui)
 
 let ticker r ui s =
   let (x, y, w, h), _status = element r no_modkey ui in

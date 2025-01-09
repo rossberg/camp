@@ -9,7 +9,11 @@ let playlist_file_check_freq = 5.0
 (* Layout *)
 
 let margin = 10
+let row_h = 13
+let gutter_w = 1
 let bottom_h = 24
+let footer_h = row_h
+let footer_y = -footer_h-(bottom_h-footer_h)/2
 let scrollbar_w = 10
 let divider_w = margin
 let resizer_w = 16
@@ -66,7 +70,7 @@ let lcd3 = Ui.lcd (0, 4+lcd_space+lcd_x 3, lcd_y, lcd_w, lcd_h)
 let lcd4 = Ui.lcd (0, 4+lcd_space+lcd_x 4, lcd_y, lcd_w, lcd_h)
 let lcd_button = Ui.mouse (0, lcd_x 0, lcd_y, 4+lcd_x 4, lcd_h) `Left
 
-let fps_text = Ui.text (0, 130, margin+info_margin, 40, 12) `Left `Regular
+let fps_text = Ui.text (0, 130, margin+info_margin, 40, 12) `Left
 let fps_key = Ui.key ([`Command], `Char 'U')
 
 let volume_w = 27
@@ -80,7 +84,7 @@ let mute_y = volume_y+volume_h-8
 let mute_area = (0, mute_x, mute_y, mute_w, mute_h)
 let volume_bar = Ui.volume_bar (0, volume_x, volume_y, volume_w, volume_h)
 let volume_wheel = Ui.wheel (0, 0, 0, control_w, control_h)
-let mute_text = Ui.text (0, mute_x, mute_y, mute_w, 8) `Center `Inverted
+let mute_text = Ui.text (0, mute_x, mute_y, mute_w, 8) `Center
 let mute_button = Ui.mouse mute_area `Left
 let mute_drag = Ui.drag mute_area
 let mute_key = Ui.key ([], `Char '0')
@@ -91,7 +95,7 @@ let seek_h = 14
 let seek_y = margin+info_h-info_margin/2-seek_h
 let title_h = 16
 let title_y = seek_y-title_h-4
-let prop_text = Ui.text (0, margin+info_margin, lcd_y+lcd_h+3, mute_x, 12) `Left `Regular
+let prop_text = Ui.text (0, margin+info_margin, lcd_y+lcd_h+3, mute_x, 12) `Left
 let title_ticker = Ui.ticker (0, margin+info_margin, title_y, info_w-info_margin, title_h)
 let seek_bar = Ui.progress_bar (0, margin+info_margin/2, seek_y, info_w-info_margin, seek_h)
 let rw_key = Ui.key ([], `Arrow `Left)
@@ -142,22 +146,18 @@ let loop_label = mode_label 0 "LOOP"
 
 
 let playlist_pane = Ui.pane 1
-let playlist_row_h = 13
-let playlist_min = 31 + 4 * playlist_row_h
+let playlist_min = 31 + 4 * row_h
 
-let playlist_gutter_w = 1
-let playlist_area = (1, margin, margin, -margin-scrollbar_w-1, -bottom_h)
-let playlist_table = Ui.table playlist_area playlist_gutter_w playlist_row_h
+let playlist_area = (1, margin, margin, -margin-scrollbar_w-gutter_w, -bottom_h)
+let playlist_table = Ui.table playlist_area gutter_w row_h
 let playlist_scroll = Ui.scroll_bar (1, -margin-scrollbar_w, margin, scrollbar_w, -bottom_h)
 let playlist_wheel = Ui.wheel (1, margin, margin, -margin, -bottom_h)
 let playlist_drag = Ui.drag (1, margin, margin, -margin-scrollbar_w, -bottom_h)
 
-let total_w = -margin-scrollbar_w-1
-let total_h = playlist_row_h
+let total_w = -margin-scrollbar_w-gutter_w
 let total_x = total_w-100
-let total_y = -total_h-(bottom_h-total_h)/2
-let playlist_total_box = Ui.box (1, total_x, total_y, total_w, playlist_row_h) `Black
-let playlist_total_text = Ui.text (1, total_x, total_y, total_w-2, playlist_row_h) `Right `Regular
+let playlist_total_box = Ui.box (1, total_x, footer_y, total_w, footer_h) `Black
+let playlist_total_text = Ui.text (1, total_x, footer_y, total_w-2, footer_h) `Right
 
 let playlist_resizer = Ui.resizer (1, -resizer_w, -resizer_w, resizer_w, resizer_w) `N_S
 
@@ -207,28 +207,31 @@ let paste_key = Ui.key ([`Command], `Char 'V')
 let library_pane = Ui.pane 2
 let library_min = 400
 
-let browser_row_h = playlist_row_h
 let browser_min = 40
 let view_min = 40
 let browser_max pw = pw-view_min-2*margin-divider_w
 let browser_area bw = (2, margin, margin, bw-margin-1, -bottom_h)
-let browser_table bw = Ui.table (browser_area bw) 0 browser_row_h
+let browser_error_box bw = Ui.box (browser_area bw)
+let browser_table bw = Ui.table (browser_area bw) 0 row_h
 let browser_scroll bw = Ui.scroll_bar (2, margin+bw-scrollbar_w, margin, scrollbar_w, -bottom_h)
 let browser_wheel bw = Ui.wheel (2, margin, margin, bw, -bottom_h)
 
-let view_gutter_w = 1
-let view_row_h = playlist_row_h
 let view_area bw = (2, margin+divider_w+bw, margin, -margin-scrollbar_w-1, -bottom_h)
-let view_table bw = Ui.table (view_area bw) view_gutter_w view_row_h
+let view_table bw = Ui.table (view_area bw) gutter_w row_h
 let view_scroll _bw = Ui.scroll_bar (2, -margin-scrollbar_w, margin, scrollbar_w, -bottom_h)
 let view_wheel bw = Ui.wheel (2, margin+divider_w+bw, margin, -margin, -bottom_h)
+
+let error_w = -margin-scrollbar_w-gutter_w
+let error_x = margin+resizer_w
+let library_error_box = Ui.box (2, error_x, footer_y, error_w, footer_h) `Black
+let library_error_text = Ui.color_text (2, error_x, footer_y, error_w-2, footer_h) `Left
 
 let library_divider_min = margin+browser_min
 let library_divider_max pw = margin+browser_max pw
 let library_divider bw = Ui.divider (2, margin+bw, margin, divider_w, -bottom_h) `Horizontal
 
-let library_resizer_l = Ui.resizer (2, 1, 1-resizer_w, resizer_w, resizer_w)
-let library_resizer_r = Ui.resizer (2, 1-resizer_w, 1-resizer_w, resizer_w, resizer_w)
+let library_resizer_l = Ui.resizer (2, 1, -resizer_w, resizer_w, resizer_w)
+let library_resizer_r = Ui.resizer (2, -resizer_w, -resizer_w, resizer_w, resizer_w)
 
 
 (* Helpers *)
@@ -339,7 +342,7 @@ let run_control (st : State.t) =
 
   (* FPS *)
   if st.control.fps then
-    fps_text st.ui true (fmt "%d FPS" (Api.Window.fps win));
+    fps_text st.ui `Regular true (fmt "%d FPS" (Api.Window.fps win));
   if fps_key st.ui then st.control.fps <- not st.control.fps;
 
   (* Audio properties *)
@@ -353,7 +356,7 @@ let run_control (st : State.t) =
     let rate = Api.Audio.rate st.control.audio st.control.sound in
     let channels = Api.Audio.channels st.control.audio st.control.sound in
     let depth = bitrate /. float rate /. float channels in
-    prop_text st.ui true
+    prop_text st.ui `Regular true
       (fmt "%s    %.0f KBPS    %.1f KHZ    %s BIT    %s"
         format (bitrate /. 1000.0) (float rate /. 1000.0)
         (fmt (if depth = Float.round depth then "%.0f" else "%.1f") depth)
@@ -377,7 +380,7 @@ let run_control (st : State.t) =
   (* Volume control *)
   let volume' = volume_bar st.ui st.control.volume +. 0.05 *. volume_wheel st.ui +.
     0.05 *. (float_of_bool (volup_key st.ui) -. float_of_bool (voldown_key st.ui)) in
-  mute_text st.ui st.control.mute "MUTE";
+  mute_text st.ui `Inverted st.control.mute "MUTE";
   let mute' =
     if mute_button st.ui || mute_key st.ui then not st.control.mute else st.control.mute in
   if volume' <> st.control.volume || mute' <> st.control.mute then
@@ -566,7 +569,7 @@ let run_control (st : State.t) =
 
 let update_playlist_rows (st : State.t) =
   let _, _, _, h = Ui.dim st.ui playlist_area in
-  st.playlist.rows <- max 4 (int_of_float (Float.floor (float h /. float playlist_row_h)))
+  st.playlist.rows <- max 4 (int_of_float (Float.floor (float h /. float row_h)))
 
 let run_playlist (st : State.t) =
   let now = Unix.time () in
@@ -580,13 +583,13 @@ let run_playlist (st : State.t) =
 
   (* Playlist table *)
   let digits = log10 (len + 1) + 1 in
-  let font = Ui.font st.ui playlist_row_h in
+  let font = Ui.font st.ui row_h in
   let smax1 = String.make digits '0' ^ ". " in
-  let cw1 = Api.Draw.text_width win playlist_row_h font smax1 + 1 in
+  let cw1 = Api.Draw.text_width win row_h font smax1 + 1 in
   let cw3 = ref 16 in
   let (_, y, w, _) as r = Ui.dim st.ui playlist_area in
   let vlen = st.playlist.rows in
-  let h' = vlen * playlist_row_h in
+  let h' = vlen * row_h in
   (* Correct scrolling position for possible resize *)
   st.playlist.scroll <- clamp 0 (max 0 (len - vlen)) st.playlist.scroll;
   let rows =
@@ -607,12 +610,12 @@ let run_playlist (st : State.t) =
       in
       let inv = if Playlist.is_selected st.playlist i then `Inverted else `Regular in
       let time = if track.time = 0.0 then "" else fmt_time track.time in
-      cw3 := max !cw3 (Api.Draw.text_width win playlist_row_h font time + 1);
+      cw3 := max !cw3 (Api.Draw.text_width win row_h font time + 1);
       c, inv, [|fmt "%0*d. " digits (i + 1); track.name; time|]
     )
   in
-  let cols = [|cw1, `Right; w - cw1 - !cw3 - 2 * playlist_gutter_w, `Left; !cw3, `Right|] in
-  let dragging = playlist_drag st.ui (max_int, playlist_row_h) in
+  let cols = [|cw1, `Right; w - cw1 - !cw3 - 2 * gutter_w, `Left; !cw3, `Right|] in
+  let dragging = playlist_drag st.ui (max_int, row_h) in
   (match playlist_table st.ui cols rows with
   | None -> ()
   | Some i ->
@@ -760,7 +763,7 @@ let run_playlist (st : State.t) =
   );
 
   (* Playlist scrolling *)
-  let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * playlist_row_h)) in
+  let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
   let pos = if len = 0 then 0.0 else float st.playlist.scroll /. float len in
   let pos' = playlist_scroll st.ui pos ext -. 0.05 *. playlist_wheel st.ui in
   st.playlist.scroll <- clamp 0 (max 0 (len - vlen))
@@ -870,12 +873,14 @@ let run_playlist (st : State.t) =
   );
 
   (* Playlist drag & drop *)
-  let dropped = Api.File.dropped win in
   let _, my as m = Api.Mouse.pos win in
-  let pos = if Api.inside m r then
-    min len ((my - y) / playlist_row_h + st.playlist.scroll) else len in
-  Playlist.insert_paths st.playlist pos dropped st.control.audio;
-  Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
+  if Api.inside m r then
+  (
+    let dropped = Api.File.dropped win in
+    let pos = min len ((my - y) / row_h + st.playlist.scroll) in
+    Playlist.insert_paths st.playlist pos dropped st.control.audio;
+    Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
+  );
 
   (* Playlist total *)
   if int_of_float (time ()) mod 10 = 0 then Playlist.update_total st.playlist;
@@ -886,7 +891,7 @@ let run_playlist (st : State.t) =
   in
   let s2 = fmt_total st.playlist.total in
   playlist_total_box st.ui;
-  playlist_total_text st.ui true (s1 ^ s2);
+  playlist_total_text st.ui `Regular true (s1 ^ s2);
 
   (* Playlist resizing *)
   let w = control_w + (if st.library.shown then st.library.width else 0) in
@@ -911,14 +916,53 @@ let run_library (st : State.t) =
       library_divider_min (library_divider_max st.library.width);
   let bw = st.library.browser_width in
 
+  (* Browser drag & drop *)
+  let now = Unix.gettimeofday () in
+  let m = Api.Mouse.pos win in
+  let (_, _, w, _) as r = Ui.dim st.ui (browser_area bw) in
+  let dropped = Api.File.dropped win in
+  if dropped <> [] && Api.inside m r then
+  (
+    let count = Library.count_roots st.library in
+    st.library.error <- "";
+    List.iteri (fun i path ->
+      if st.library.error = "" then
+      let name = Filename.basename path in
+Printf.printf "adding %s\n%!"path;
+      let pos = count + i in  (* TODO: accound for mouse position *)
+      let root = Data.{id = 0L; path; name; parent = None; pos; folded = true} in
+      match Library.add_root st.library root with
+      | Ok _ -> ()
+      | Error msg -> st.library.error <- msg; st.library.error_time <- now
+    ) dropped;
+  );
+
   (* Browser *)
-  let cols = [||] in
-  let rows = [||] in
+  let roots = ref [] in
+  Library.iter_roots st.library (fun (root : Data.dir) ->
+    roots := root :: !roots
+  );
+  let roots = Array.of_list (List.rev !roots) in
+  let cols = [|w, `Left|] in
+  let rows =
+    Array.map (fun (root : Data.dir) ->
+      Ui.text_color st.ui, `Regular, [|root.name|]
+    ) roots
+  in
   ignore (browser_table bw st.ui cols rows);
 
   let pos = 0.0 in
   let ext = 1.0 in
   let _pos' = browser_scroll bw st.ui pos ext -. 0.05 *. browser_wheel bw st.ui in
+
+  (* Drop Error *)
+  library_error_box st.ui;
+  if now -. st.library.error_time < 10.0 then
+  (
+    if st.library.error_time = now then
+      browser_error_box bw (Ui.error_color st.ui) st.ui;  (* flash *)
+    library_error_text st.ui (Ui.error_color st.ui) `Regular true st.library.error;
+  );
 
   (* View *)
   let cols = [||] in
