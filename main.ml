@@ -562,9 +562,13 @@ let run_control (st : State.t) =
 
 (* Playlist Pane *)
 
-let update_playlist_rows (st : State.t) =
-  let _, _, _, h = Ui.dim st.ui playlist_area in
-  st.playlist.rows <- max 4 (int_of_float (Float.floor (float h /. float row_h)))
+let update_rows (st : State.t) =
+  let _, _, _, pl_h = Ui.dim st.ui playlist_area in
+  st.playlist.rows <-
+    max 4 (int_of_float (Float.floor (float pl_h /. float row_h)));
+  let _, _, _, br_h = Ui.dim st.ui (browser_area st.library.browser_width) in
+  st.library.browser_rows <-
+    max 4 (int_of_float (Float.floor (float br_h /. float row_h)))
 
 let run_playlist (st : State.t) =
   let now = Unix.time () in
@@ -893,7 +897,7 @@ let run_playlist (st : State.t) =
   let _, dh =
     playlist_resizer st.ui (w, control_h + playlist_min) (w, -1) in
   st.playlist.height <- st.playlist.height + dh;
-  update_playlist_rows st
+  update_rows st
 
 
 (* Library Pane *)
@@ -911,53 +915,42 @@ let run_library (st : State.t) =
       library_divider_min (library_divider_max st.library.width);
   let bw = st.library.browser_width in
 
-  (* Browser drag & drop *)
-  let now = Unix.gettimeofday () in
-  let m = Api.Mouse.pos win in
-  let (_, _, w, _) as r = Ui.dim st.ui (browser_area bw) in
-  let dropped = Api.File.dropped win in
-  if dropped <> [] && Api.inside m r then
-  (
-    let count = Library.count_roots st.library in
-    st.library.error <- "";
-    List.iteri (fun i path ->
-      if st.library.error = "" then
-      let name = Filename.basename path in
-Printf.printf "adding %s\n%!"path;
-      let pos = count + i in  (* TODO: accound for mouse position *)
-      let root = Data.{id = 0L; path; name; parent = None; pos; folded = true} in
-      match Library.add_root st.library root with
-      | Ok _ -> ()
-      | Error msg -> st.library.error <- msg; st.library.error_time <- now
-    ) dropped;
-  );
-
   (* Browser *)
-  let roots = ref [] in
-  Library.iter_roots st.library (fun (root : Data.dir) ->
-    roots := root :: !roots
-  );
-  let roots = Array.of_list (List.rev !roots) in
+  let len = Array.length st.library.roots in
+  let vlen = st.library.browser_rows in
+  (* Correct scrolling position for possible resize *)
+  st.library.browser_scroll <- clamp 0 (max 0 (len - vlen)) st.library.browser_scroll;
+  let (_, y, w, _) as r = Ui.dim st.ui (browser_area bw) in
   let cols = [|w, `Left|] in
   let rows =
     Array.map (fun (root : Data.dir) ->
       Ui.text_color st.ui, `Regular, [|root.name|]
-    ) roots
+    ) st.library.roots
   in
   ignore (browser_table bw st.ui cols rows);
 
   let pos = 0.0 in
   let ext = 1.0 in
-  let _pos' = browser_scroll bw st.ui pos ext -. 0.05 *. browser_wheel bw st.ui in
+  let pos' = browser_scroll bw st.ui pos ext -. 0.05 *. browser_wheel bw st.ui in
+  st.library.browser_scroll <- clamp 0 (max 0 (len - vlen))
+    (int_of_float (Float.round (pos' *. float len)));
 
-  (* Drop Error *)
-  library_error_box st.ui;
-  if now -. st.library.error_time < 10.0 then
+  (* Browser drag & drop *)
+  let (_, my) as m = Api.Mouse.pos win in
+  let dropped = Api.File.dropped win in
+  if dropped <> [] && Api.inside m r then
   (
-    if st.library.error_time = now then
+    let pos = min len ((my - y) / row_h + st.library.browser_scroll) in
+    if not (Library.add_roots st.library dropped pos) then
       browser_error_box bw (Ui.error_color st.ui) st.ui;  (* flash *)
-    library_error_text st.ui (Ui.error_color st.ui) `Regular true st.library.error;
   );
+
+  (* Error display *)
+  library_error_box st.ui;
+  let now = Unix.gettimeofday () in
+  if now -. st.library.error_time < 10.0 then
+    library_error_text st.ui (Ui.error_color st.ui) `Regular true
+      st.library.error;
 
   (* View *)
   let cols = [||] in
@@ -980,6 +973,7 @@ Printf.printf "adding %s\n%!"path;
     st.library.browser_width <-
       min st.library.browser_width (browser_max st.library.width);
     st.playlist.height <- st.playlist.height + dh;
+    update_rows st
   )
   else
   (
@@ -1052,7 +1046,7 @@ let startup () =
   let audio = Api.Audio.init () in
   let st = State.make ui audio db in
   State.load st;
-  update_playlist_rows st;
+  update_rows st;
   Playlist.adjust_scroll st.playlist st.playlist.pos;
   at_exit (fun () -> State.save st; Storage.clear_temp (); Db.exit db);
   st

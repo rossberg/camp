@@ -132,6 +132,7 @@ let to_string st =
   output "lib_side = %d\n" (Bool.to_int (st.library.side = `Right));
   output "lib_width = %d\n" st.library.width;
   output "lib_browser_width = %d\n" st.library.browser_width;
+  output "lib_browser_scroll = %d\n" st.library.browser_scroll;
   Buffer.contents buf
 
 let opt f = function
@@ -193,6 +194,7 @@ let load st =
     let x, y = input " win_pos = %d , %d " (num_pair sx sy (sx + sw - 20) (sy + sh - 20)) in
     Api.Window.set_pos win x y;
 
+    Library.load_roots st.library;
     let playlist = load_playlist () in
     let len = Array.length playlist in
 
@@ -239,7 +241,10 @@ let load st =
     (* TODO: 400 = library_min, 360 = control_w; use constants *)
     st.library.width <- input " lib_width = %d " (num 400 (sw - 360));
     (* TODO: 40 = browser_min, 60 = browser_min + 2*margin; use constants *)
-    st.library.browser_width <- input " lib_width = %d " (num 40 (st.library.width - 60));
+    st.library.browser_width <- input " lib_browser_width = %d "
+      (num 40 (st.library.width - 60));
+    st.library.browser_scroll <- input " lib_browser_scroll = %d "
+      (num 0 (max 0 (Array.length st.library.roots - 1)));
   );
   Playlist.update_total st.playlist;
   Storage.load config_file (fun file ->

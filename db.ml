@@ -79,18 +79,18 @@ let album_id_of_link link =
 (* Generic statements *)
 
 let create_table sql db =
-	let& () = db in
+  let& () = db in
   let* () = Sqlite3.exec db sql in
   ()
 
 let count_table stmt db =
-	let& () = db in
+  let& () = db in
   let stmt = prepare db stmt in
   let* () = Sqlite3.step stmt in
   Sqlite3.column_int stmt 0
 
 let exist_in_table' n stmt db path =
-	let& () = db in
+  let& () = db in
   let stmt = prepare db stmt in
   for i = 1 to n do
     let* () = bind_text stmt i path in ()
@@ -101,7 +101,7 @@ let exist_in_table' n stmt db path =
 let exist_in_table = exist_in_table' 1
 
 let iter_table binds of_data stmt db f =
-	let& () = db in
+  let& () = db in
   let stmt = prepare db stmt in
   ignore (Array.mapi (fun i data -> Sqlite3.bind stmt (i + 1) data) binds);
   let f data = f (of_data data) in
@@ -127,7 +127,7 @@ let create_roots = create_table
 {|
   CREATE TABLE IF NOT EXISTS Roots
   (
-  	path TEXT NOT NULL UNIQUE,
+    path TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
     pos INT NOT NULL UNIQUE,
     folded INT NOT NULL
@@ -141,16 +141,7 @@ let count_roots = count_table @@ stmt
 
 let exist_root = exist_in_table @@ stmt
 {|
-  SELECT COUNT(*) FROM Roots
-  WHERE path = ?;
-|}
-
-let iter_similar_roots db p =
-  db |> iter_table [|of_text p; of_text p; of_text p|]
-    (to_pair to_text 0 to_text 1) @@ stmt
-{|
-  SELECT path, name FROM Roots
-  WHERE (path LIKE ?) OR (path LIKE ?||'\%') OR (? LIKE path||'\%');
+  SELECT COUNT(*) FROM Roots WHERE path = ?;
 |}
 
 let iter_roots = iter_table [||] to_root @@ stmt
@@ -158,21 +149,15 @@ let iter_roots = iter_table [||] to_root @@ stmt
   SELECT rowid, * FROM Roots;
 |}
 
-let iter_root_paths = iter_table [||] (to_text 1) @@ stmt
-{|
-  SELECT path FROM Roots;
-|}
-
 
 let stmt_insert_root = stmt
 {|
-  INSERT OR REPLACE INTO Roots
-  VALUES (?, ?, ?, ?);
+  INSERT INTO Roots VALUES (?, ?, ?, ?);
 |}
 
 let insert_root db (root : dir) =
   assert (root.parent = None);
-	let& () = db in
+  let& () = db in
   let stmt = prepare db stmt_insert_root in
   let* () = bind_text stmt 1 root.path in
   let* () = bind_text stmt 2 root.name in
@@ -180,6 +165,20 @@ let insert_root db (root : dir) =
   let* () = bind_bool stmt 4 root.folded in
   let* () = Sqlite3.step stmt in
   root.id <- Sqlite3.last_insert_rowid db
+
+
+let stmt_update_roots_pos = stmt
+{|
+  UPDATE Roots SET pos = pos + ? WHERE pos >= ?;
+|}
+
+let update_roots_pos db first delta =
+  let& () = db in
+  let stmt = prepare db stmt_update_roots_pos in
+  let* () = bind_int stmt 1 delta in
+  let* () = bind_int stmt 2 first in
+  let* () = Sqlite3.step stmt in
+  ()
 
 
 (* Dirs *)
@@ -199,7 +198,7 @@ let create_dirs = create_table
 {|
   CREATE TABLE IF NOT EXISTS Dirs
   (
-  	path TEXT NOT NULL UNIQUE,
+    path TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
     parent_id INT,
     pos INT NOT NULL UNIQUE,
@@ -214,26 +213,23 @@ let count_dirs = count_table @@ stmt
 
 let exist_dir = exist_in_table @@ stmt
 {|
-  SELECT COUNT(*) FROM Dirs
-  WHERE path = ?;
+  SELECT COUNT(*) FROM Dirs WHERE path = ?;
 |}
 
 let iter_dir db id = db |> iter_table [|of_id id|] to_dir @@ stmt
 {|
-  SELECT rowid, * FROM Dirs
-  WHERE parent = ?;
+  SELECT rowid, * FROM Dirs WHERE parent = ?;
 |}
 
 
 let stmt_insert_dir = stmt
 {|
-  INSERT OR REPLACE INTO Dirs
-  VALUES (?, ?, ?, ?, ?);
+  INSERT INTO Dirs VALUES (?, ?, ?, ?, ?);
 |}
 
 let insert_dir db (dir : dir) =
   assert (dir.parent <> None);
-	let& () = db in
+  let& () = db in
   let stmt = prepare db stmt_insert_dir in
   let* () = bind_text stmt 1 dir.path in
   let* () = bind_text stmt 2 dir.name in
@@ -250,16 +246,16 @@ let create_albums = create_table
 {|
   CREATE TABLE IF NOT EXISTS Albums
   (
-  	path TEXT NOT NULL UNIQUE,
-  	dir_id INT NOT NULL,
-  	artist TEXT,
-  	title TEXT,
-  	tracks INT,
-  	discs INT,
-  	date TEXT,
-  	label TEXT,
-  	country TEXT,
-  	cover BLOB
+    path TEXT NOT NULL PRIMARY KEY,
+    dir_id INT NOT NULL,
+    artist TEXT,
+    title TEXT,
+    tracks INT,
+    discs INT,
+    date TEXT,
+    label TEXT,
+    country TEXT,
+    cover BLOB
   );
 |}
 
@@ -270,19 +266,17 @@ let count_albums = count_table @@ stmt
 
 let exist_album = exist_in_table @@ stmt
 {|
-  SELECT COUNT(*) FROM Albums
-  WHERE path = ?;
+  SELECT COUNT(*) FROM Albums WHERE path = ?;
 |}
 
 
 let stmt_insert_album = stmt
 {|
-  INSERT OR REPLACE INTO Albums
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  INSERT INTO Albums VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 |}
 
 let insert_album db (album : album) =
-	let& () = db in
+  let& () = db in
   let stmt = prepare db stmt_insert_album in
   let* () = bind_text stmt 1 album.path in
   let* () = bind_id stmt 2 (dir_id_of_link album.dir) in
@@ -304,27 +298,27 @@ let create_songs = create_table
 {|
   CREATE TABLE IF NOT EXISTS Songs
   (
-  	path TEXT NOT NULL UNIQUE,
-  	dir_id INT NOT NULL,
-  	album_id INT,
-  	size INT,
-  	time REAL,
-  	artist TEXT,
-  	title TEXT,
-  	track INT,
-  	disc INT,
-  	albumartist TEXT,
-  	albumtitle TEXT,
-  	date TEXT,
-  	label TEXT,
-  	country TEXT,
-  	length REAL,
-  	rating INT,
-  	cover BLOB,
-  	channels INT,
-  	depth INT,
-  	rate INT,
-  	bitrate REAL
+    path TEXT NOT NULL PRIMARY KEY,
+    dir_id INT NOT NULL,
+    album_id INT,
+    size INT,
+    time REAL,
+    artist TEXT,
+    title TEXT,
+    track INT,
+    disc INT,
+    albumartist TEXT,
+    albumtitle TEXT,
+    date TEXT,
+    label TEXT,
+    country TEXT,
+    length REAL,
+    rating INT,
+    cover BLOB,
+    channels INT,
+    depth INT,
+    rate INT,
+    bitrate REAL
   );
 |}
 
@@ -335,19 +329,18 @@ let count_songs = count_table @@ stmt
 
 let exist_song = exist_in_table @@ stmt
 {|
-  SELECT COUNT(*) FROM Songs
-  WHERE path = ?;
+  SELECT COUNT(*) FROM Songs WHERE path = ?;
 |}
 
 
 let stmt_insert_song = stmt
 {|
-  INSERT OR REPLACE INTO Songs
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  INSERT INTO Songs
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 |}
 
 let insert_song db (song : song) =
-	let& () = db in
+  let& () = db in
   let stmt = prepare db stmt_insert_album in
   let* () = bind_text stmt 1 song.path in
   let* () = bind_id stmt 2 (dir_id_of_link song.dir) in
@@ -380,8 +373,8 @@ let create_playlists = create_table
 {|
   CREATE TABLE IF NOT EXISTS Playlists
   (
-  	path TEXT NOT NULL UNIQUE,
-  	dir_id INT NOT NULL
+    path TEXT NOT NULL PRIMARY KEY,
+    dir_id INT NOT NULL
   );
 |}
 
@@ -392,19 +385,17 @@ let count_playlists = count_table @@ stmt
 
 let exist_playlist = exist_in_table @@ stmt
 {|
-  SELECT COUNT(*) FROM Playlists
-  WHERE path = ?;
+  SELECT COUNT(*) FROM Playlists WHERE path = ?;
 |}
 
 
 let stmt_insert_playlist = stmt
 {|
-  INSERT INTO Playlists
-  VALUES (?, ?);
+  INSERT INTO Playlists VALUES (?, ?);
 |}
 
 let insert_playlist db (playlist : playlist) =
-	let& () = db in
+  let& () = db in
   let stmt = prepare db stmt_insert_playlist in
   let* () = bind_text stmt 1 playlist.path in
   let* () = bind_id stmt 2 (dir_id_of_link playlist.dir) in
@@ -418,23 +409,24 @@ let create_entries = create_table
 {|
   CREATE TABLE IF NOT EXISTS Entries
   (
-  	playlist_id INT NOT NULL,
-  	song_id TEXT NOT NULL
+    playlist_id INT NOT NULL,
+    song_id TEXT NOT NULL,
+    pos INT NOT NULL
   );
 |}
 
 
 let stmt_insert_entry = stmt
 {|
-  INSERT INTO Entries
-  VALUES (?, ?);
+  INSERT INTO Entries VALUES (?, ?, ?);
 |}
 
-let insert_entry db playlist_id song_id =
-	let& () = db in
+let insert_entry db playlist_id song_id pos =
+  let& () = db in
   let stmt = prepare db stmt_insert_entry in
   let* () = bind_id stmt 1 playlist_id in
   let* () = bind_id stmt 2 song_id in
+  let* () = bind_int stmt 2 pos in
   let* () = Sqlite3.step stmt in
   ()
 
@@ -454,7 +446,7 @@ let init () =
   db
 
 let exit db =
-	ignore (Sqlite3.db_close db)
+  ignore (Sqlite3.db_close db)
 
 
 (* Scanning *)

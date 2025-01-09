@@ -10,8 +10,11 @@ type t =
   mutable side : Api.side;      (* external *)
   mutable width : int;          (* external *)
   mutable browser_width : int;  (* external *)
+  mutable browser_rows : int;   (* external *)
+  mutable browser_scroll : int; (* external *)
   mutable error : string;       (* external *)
   mutable error_time : time;    (* external *)
+  mutable roots : dir array;    (* external *)
 }
 
 
@@ -22,11 +25,12 @@ val make : db -> t
 
 (* Roots *)
 
-val add_root : t -> dir -> (id, string) result
+val load_roots : t -> unit
+
+val add_roots : t -> path list -> int -> bool
 
 val count_roots : t -> int
 val iter_roots : t -> (dir -> unit) -> unit
-val iter_root_paths : t -> (path -> unit) -> unit
 
 
 (* Validation *)
