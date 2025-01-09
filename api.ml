@@ -403,10 +403,11 @@ struct
       (* Work around Raylib bug: if window was moved but mouse hasn't, then
        * mouse pos is off; detect and correct by adding window delta. *)
       current_pos := point_of_vec2 (Raylib.get_mouse_position ());
+      let win_pos = point_of_vec2 (Raylib.get_window_position ()) in
       let mouse_delta = point_of_vec2 (Raylib.get_mouse_delta ()) in
-      let win_delta = sub (Window.pos ()) !last_win_pos in
+      let win_delta = sub win_pos !last_win_pos in
       if not is_mac || mouse_delta <> (0, 0) then
-        last_win_pos := Window.pos ()  (* caught up *)
+        last_win_pos := win_pos  (* true mouse location caught up *)
       else if is_mac && win_delta <> (0, 0) then
         current_pos := sub !current_pos win_delta;
 
