@@ -957,6 +957,8 @@ let run_library (st : State.t) =
   let vlen = st.library.browser_rows in
   let songs = Array.make vlen None in
   let n = ref 0 in
+  let current =
+    match st.control.current with Some track -> track.path | None -> "" in
   let exception Full in
   (try
     Library.iter_songs st.library (fun song ->
@@ -966,6 +968,7 @@ let run_library (st : State.t) =
       let country = Option.value song.country ~default: "" in
       let date = Option.value song.date ~default: "" in
       let format = Option.value song.format ~default: "" in
+      let c = if song.path = current then `White else c in
       songs.(!n) <- Some (c, `Regular, [|artist; title; country; date; format|]);
       incr n;
     )
