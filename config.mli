@@ -1,9 +1,11 @@
 (* Program Configuration *)
 
+type time = float
 type path = string
 
 type t =
 {
+  mutable delay_track_update : time;
   mutable exec_tag : path;
   mutable exec_tag_max_len : int;
 }

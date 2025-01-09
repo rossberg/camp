@@ -1,11 +1,6 @@
 (* Main Entry Point *)
 
 
-(* Configuration *)
-
-let playlist_file_check_freq = 5.0
-
-
 (* Layout *)
 
 let margin = 10
@@ -596,7 +591,7 @@ let run_playlist (st : State.t) =
     Array.init (min vlen len) (fun i ->
       let i = i + st.playlist.scroll in
       let track = st.playlist.tracks.(i) in
-      if now -. track.last_update > playlist_file_check_freq then
+      if now -. track.last_update > st.config.delay_track_update then
         Track.update st.control.audio track;
       let c =
         match track.status with
