@@ -1,3 +1,5 @@
+type path = string
+
 type t =
 {
   name : string;
@@ -19,6 +21,13 @@ let unknown =
   time  = 0.0;
   size = 0;
 }
+
+
+let exts = [".mp3"; ".flac"; ".wav"; ".ogg"; ".opus"; ".mod"]
+
+let is_known_ext path =
+  List.mem (String.lowercase_ascii (Filename.extension path)) exts
+
 
 let read path =
   match String.lowercase_ascii (Filename.extension path) with

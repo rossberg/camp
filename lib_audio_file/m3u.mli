@@ -13,3 +13,5 @@ val make_ext : item list -> playlist
 
 val parse : playlist -> path list
 val parse_ext : playlist -> item list
+
+val is_known_ext : path -> bool

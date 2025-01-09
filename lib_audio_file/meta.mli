@@ -26,9 +26,9 @@ type meta =
   discs : int;
   discfmt : int;
   albumartist : string;
-  album : string;
+  albumtitle : string;
   year : int;
-  date : time;
+  date : string;
   label : string;
   country : string;
   length : time;

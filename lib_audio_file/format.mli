@@ -1,3 +1,5 @@
+type path = string
+
 type t =
 {
   name : string;
@@ -10,4 +12,6 @@ type t =
 }
 
 val unknown : t
-val read : string -> t
+val read : path -> t
+
+val is_known_ext : path -> bool

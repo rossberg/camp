@@ -19,8 +19,6 @@ val make : path -> t
 val make_predet : path -> string -> time -> t
 val make_separator : unit -> t
 
-val is_known_ext : path -> bool
-
 
 (* Properties *)
 

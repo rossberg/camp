@@ -17,15 +17,10 @@ type t =
 
 (* Constructors *)
 
-let exts = [".mp3"; ".flac"; ".wav"; ".ogg"; ".mod"]
-
-let is_known_ext path =
-  List.mem (String.lowercase_ascii (Filename.extension path)) exts
-
 let name_separator = String.make 80 '-'
 let name_of_path path =
   let file = Filename.basename path in
-  if is_known_ext file then Filename.remove_extension file else file
+  if Format.is_known_ext file then Filename.remove_extension file else file
 
 
 let make' path name time status =
@@ -74,7 +69,7 @@ let rec updater () =
     track.status <- `Absent;
     track.name <- name_of_path track.path
   )
-  else if not (is_known_ext track.path) then
+  else if not (Format.is_known_ext track.path) then
   (
     track.status <- `Invalid;
     track.name <- name_of_path track.path

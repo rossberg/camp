@@ -32,6 +32,13 @@ val add_roots : t -> path list -> int -> bool
 val count_roots : t -> int
 val iter_roots : t -> (dir -> unit) -> unit
 
+val scan_roots : t -> dir array -> unit
+
+
+(* Songs *)
+
+val iter_songs : t -> (song -> unit) -> unit
+
 
 (* Validation *)
 

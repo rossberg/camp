@@ -922,9 +922,10 @@ let run_library (st : State.t) =
   st.library.browser_scroll <- clamp 0 (max 0 (len - vlen)) st.library.browser_scroll;
   let (_, y, w, _) as r = Ui.dim st.ui (browser_area bw) in
   let cols = [|w, `Left|] in
+  let c = Ui.text_color st.ui in
   let rows =
     Array.map (fun (root : Data.dir) ->
-      Ui.text_color st.ui, `Regular, [|root.name|]
+      c, `Regular, [|root.name|]
     ) st.library.roots
   in
   ignore (browser_table bw st.ui cols rows);
@@ -953,8 +954,25 @@ let run_library (st : State.t) =
       st.library.error;
 
   (* View *)
-  let cols = [||] in
-  let rows = [||] in
+  let vlen = st.library.browser_rows in
+  let songs = Array.make vlen None in
+  let n = ref 0 in
+  let exception Full in
+  (try
+    Library.iter_songs st.library (fun song ->
+      if !n = vlen then raise Full;
+      let artist = Option.value song.artist ~default: "" in
+      let title = Option.value song.title ~default: "" in
+      let country = Option.value song.country ~default: "" in
+      let date = Option.value song.date ~default: "" in
+      let format = Option.value song.format ~default: "" in
+      songs.(!n) <- Some (c, `Regular, [|artist; title; country; date; format|]);
+      incr n;
+    )
+  with Full -> ());
+  let (_, _, w, _) = Ui.dim st.ui (view_area bw) in
+  let cols = [|w/5, `Left; w/5, `Left; w/5, `Left; w/5, `Left; w/5, `Left|] in
+  let rows = Array.init !n (fun i -> Option.get songs.(i)) in
   ignore (view_table bw st.ui cols rows);
 
   let pos = 0.0 in

@@ -69,9 +69,9 @@ type meta =
   discs : int;
   discfmt : int;
   albumartist : string;
-  album : string;
+  albumtitle : string;
   year : int;
-  date : time;
+  date : string;
   label : string;
   country : string;
   length : time;
@@ -296,6 +296,7 @@ let picture_tag_field path tag : picture option =
 
 let meta path tag =
   try
+    let _date = date_tag_field ("TDAT", "DATE") path tag in
     {
       loaded = tag <> None;
       artist = text_tag_field ("TPE1", "ARTIST") path tag;
@@ -307,9 +308,9 @@ let meta path tag =
       discs = maxint_tag_field ("TPOS", "DISCNUMBER") path tag;
       discfmt = intfmt_tag_field ("TPOS", "DISCNUMBER") path tag;
       albumartist = text_tag_field ("TPE2", "ALBUMARTIST") path tag;
-      album = text_tag_field ("TALB", "ALBUM") path tag;
+      albumtitle = text_tag_field ("TALB", "ALBUM") path tag;
       year = year_tag_field ("TYER", "DATE") path tag;
-      date = date_tag_field ("TDAT", "DATE") path tag;
+      date = text_tag_field ("TDAT", "DATE") path tag;
       label = text_tag_field ("TPUB", "ORGANIZATION") path tag;
       country = text_tag_field ("COUNTRY", "COUNTRY") path tag;
       length = time_tag_field ("TLEN", "???") path tag;

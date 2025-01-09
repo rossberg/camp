@@ -1,5 +1,6 @@
 (* Library *)
 
+open Audio_file
 open Data
 
 type time = float
@@ -37,6 +38,99 @@ let make db =
   }
 
 
+(* Scanning *)
+
+let nonzero_int i = if i = 0 then None else Some i
+let nonzero_float z = if z = 0.0 then None else Some z
+let nonempty_text s = if s = "" then None else Some s
+
+let scan_roots lib roots =
+  let rec scan_path parent path =
+    try
+      if Sys.file_exists path then
+      (
+        if Sys.is_directory path then
+        (
+          if Format.is_known_ext path then
+            scan_album parent path
+          else
+            scan_dir (Some parent) path
+        )
+        else
+        (
+          if Format.is_known_ext path then
+            scan_song parent path
+          else if M3u.is_known_ext path then
+            scan_playlist parent path
+          else
+            ()
+        )
+      )
+    with Sys_error _ -> ()
+  and scan_dir parent path =
+    let dir : Data.dir =
+      {
+        id = -1L;
+        path;
+        name = Filename.basename path;
+        parent;
+        children = [||];
+        pos = 0;
+        folded = true;
+      }
+    in
+    Array.iter (fun file ->
+      scan_path (ref (`Val dir)) (Filename.concat path file)
+    ) (Sys.readdir path)
+  and scan_album parent path =
+    scan_dir (Some parent) path  (* TODO *)
+  and scan_song parent path =
+    let format = Format.read path in
+    let meta = Meta.load_meta path in
+    let song : Data.song =
+      {
+        id = -1L;
+        path;
+        dir = parent;
+        album = None;
+        size = nonzero_int format.size;
+        time = nonzero_float format.time;
+        artist = nonempty_text meta.artist;
+        title = nonempty_text meta.title;
+        track = nonzero_int meta.track;
+        disc = nonzero_int meta.disc;
+        albumartist = nonempty_text meta.albumartist;
+        albumtitle = nonempty_text meta.albumtitle;
+        date = nonempty_text meta.date;
+        label = nonempty_text meta.label;
+        country = nonempty_text meta.country;
+        length = nonzero_float meta.length;
+        rating = nonzero_int meta.rating;
+        cover = None;
+        format = nonempty_text format.name;
+        channels = nonzero_int format.channels;
+        depth = nonzero_int format.depth;
+        rate = nonzero_int format.rate;
+        bitrate = nonzero_float format.bitrate;
+      }
+    in
+    Db.insert_song lib.db song
+  and scan_playlist parent path =
+    let playlist : Data.playlist =
+      {
+        id = -1L;
+        path;
+        dir = parent;
+        entries = [||];
+        size = None;  (* TODO *)
+        time = None;  (* TODO *)
+      }
+    in
+    Db.insert_playlist lib.db playlist
+  in
+  Array.iter (fun (root : dir) -> scan_dir None root.path) roots
+
+
 (* Roots *)
 
 let count_roots lib = Db.count_roots lib.db
@@ -66,8 +160,15 @@ let make_root lib path pos =
       failwith
         (path ^ " overlaps with " ^ root.name ^ " (" ^ root.path ^ ")")
     | None ->
-      let name = Filename.basename path in
-      Data.{id = 0L; path; name; parent = None; pos; folded = true}
+      Data.{
+        id = 0L;
+        path;
+        name = Filename.basename path;
+        parent = None;
+        children = [||];
+        pos;
+        folded = true
+      }
   )
 
 let add_roots lib paths pos =
@@ -90,11 +191,17 @@ let add_roots lib paths pos =
     Db.update_roots_pos lib.db pos (+len);  (* avoid temporary pos clash *)
     Db.update_roots_pos lib.db pos (-len + len');
     Array.iter (Db.insert_root lib.db) roots';
+    scan_roots lib roots';
     true
   with Failure msg ->
     lib.error <- msg;
     lib.error_time <- Unix.gettimeofday ();
     false
+
+
+(* Songs *)
+
+let iter_songs lib f = Db.iter_songs lib.db f
 
 
 (* Validation *)

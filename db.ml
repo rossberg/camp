@@ -118,6 +118,7 @@ let to_root data : dir =
     path = to_string_exn data.(1);
     name = to_string_exn data.(2);
     parent = None;
+    children = [||];
     pos = to_int_exn data.(3);
     folded = to_bool_exn data.(4);
   }
@@ -189,6 +190,7 @@ let to_dir data : dir =
     path = to_text 1 data;
     name = to_text 2 data;
     parent = to_link_opt 3 data;
+    children = [||];
     pos = to_int 4 data;
     folded = to_bool 5 data;
   }
@@ -294,6 +296,34 @@ let insert_album db (album : album) =
 
 (* Songs *)
 
+let to_song data : song =
+  {
+    id = to_id 0 data;
+    path = to_text 1 data;
+    dir = to_link 2 data;
+    album = to_link_opt 3 data;
+    size = to_int_opt 4 data;
+    time = to_float_opt 5 data;
+    artist = to_text_opt 6 data;
+    title = to_text_opt 7 data;
+    track = to_int_opt 8 data;
+    disc = to_int_opt 9 data;
+    albumartist = to_text_opt 10 data;
+    albumtitle = to_text_opt 11 data;
+    date = to_text_opt 12 data;
+    label = to_text_opt 13 data;
+    country = to_text_opt 14 data;
+    length = to_float_opt 15 data;
+    rating = to_int_opt 16 data;
+    cover = None;
+    format = to_text_opt 18 data;
+    channels = to_int_opt 19 data;
+    depth = to_int_opt 20 data;
+    rate = to_int_opt 21 data;
+    bitrate = to_float_opt 22 data;
+  }
+
+
 let create_songs = create_table
 {|
   CREATE TABLE IF NOT EXISTS Songs
@@ -315,6 +345,7 @@ let create_songs = create_table
     length REAL,
     rating INT,
     cover BLOB,
+    format TEXT,
     channels INT,
     depth INT,
     rate INT,
@@ -332,16 +363,21 @@ let exist_song = exist_in_table @@ stmt
   SELECT COUNT(*) FROM Songs WHERE path = ?;
 |}
 
+let iter_songs = iter_table [||] to_song @@ stmt
+{|
+  SELECT rowid, * FROM Songs;
+|}
+
 
 let stmt_insert_song = stmt
 {|
   INSERT INTO Songs
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 |}
 
 let insert_song db (song : song) =
   let& () = db in
-  let stmt = prepare db stmt_insert_album in
+  let stmt = prepare db stmt_insert_song in
   let* () = bind_text stmt 1 song.path in
   let* () = bind_id stmt 2 (dir_id_of_link song.dir) in
   let* () = bind_id_opt stmt 3 (Option.map album_id_of_link song.album) in
@@ -359,10 +395,11 @@ let insert_song db (song : song) =
   let* () = bind_float_opt stmt 15 song.length in
   let* () = bind_int_opt stmt 16 song.rating in
   let* () = bind_none stmt 17 in
-  let* () = bind_int_opt stmt 18 song.channels in
-  let* () = bind_int_opt stmt 19 song.depth in
-  let* () = bind_int_opt stmt 20 song.rate in
-  let* () = bind_float_opt stmt 21 song.bitrate in
+  let* () = bind_text_opt stmt 18 song.format in
+  let* () = bind_int_opt stmt 19 song.channels in
+  let* () = bind_int_opt stmt 20 song.depth in
+  let* () = bind_int_opt stmt 21 song.rate in
+  let* () = bind_float_opt stmt 22 song.bitrate in
   let* () = Sqlite3.step stmt in
   song.id <- Sqlite3.last_insert_rowid db
 
@@ -374,7 +411,9 @@ let create_playlists = create_table
   CREATE TABLE IF NOT EXISTS Playlists
   (
     path TEXT NOT NULL PRIMARY KEY,
-    dir_id INT NOT NULL
+    dir_id INT NOT NULL,
+    size INT,
+    time REAL
   );
 |}
 
@@ -399,6 +438,8 @@ let insert_playlist db (playlist : playlist) =
   let stmt = prepare db stmt_insert_playlist in
   let* () = bind_text stmt 1 playlist.path in
   let* () = bind_id stmt 2 (dir_id_of_link playlist.dir) in
+  let* () = bind_int_opt stmt 3 playlist.size in
+  let* () = bind_float_opt stmt 4 playlist.time in
   let* () = Sqlite3.step stmt in
   playlist.id <- Sqlite3.last_insert_rowid db
 
@@ -447,6 +488,3 @@ let init () =
 
 let exit db =
   ignore (Sqlite3.db_close db)
-
-
-(* Scanning *)

@@ -7,6 +7,12 @@ type info = {time : int; title : string}
 type item = {path : path; info : info option}
 
 
+let exts = [".m3u"; ".m3u8"]
+
+let is_known_ext path =
+  List.mem (String.lowercase_ascii (Filename.extension path)) exts
+
+
 let is_separator path = String.starts_with ~prefix:"separator:" path
 
 
