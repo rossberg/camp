@@ -13,7 +13,6 @@ type dir =
   mutable id : id;
   path : path;  (* primary *)
   name : string;
-  parent : dir link option;  (* none for root *)
   mutable children : dir link array;
   mutable pos : int;
   mutable folded : bool;
@@ -23,7 +22,6 @@ type album =
 {
   mutable id : id;
   path : path;  (* primary *)
-  dir : dir link;
   artist  : string option;
   title : string option;
   tracks : int option;
@@ -38,7 +36,6 @@ type song =
 {
   mutable id : id;
   path : path;  (* primary *)
-  dir : dir link;
   album : album link option;
   size : int option;  (* B *)
   time : time option;
@@ -65,8 +62,4 @@ type playlist =
 {
   mutable id : id;
   path : path;  (* primary *)
-  dir : dir link;
-  size : int option;  (* B *)
-  time : time option;
-  entries : id array;
 }

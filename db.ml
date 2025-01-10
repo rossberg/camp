@@ -117,7 +117,6 @@ let to_root data : dir =
     id = to_int64_exn data.(0);
     path = to_string_exn data.(1);
     name = to_string_exn data.(2);
-    parent = None;
     children = [||];
     pos = to_int_exn data.(3);
     folded = to_bool_exn data.(4);
@@ -157,7 +156,6 @@ let stmt_insert_root = stmt
 |}
 
 let insert_root db (root : dir) =
-  assert (root.parent = None);
   let& () = db in
   let stmt = prepare db stmt_insert_root in
   let* () = bind_text stmt 1 root.path in
@@ -189,7 +187,6 @@ let to_dir data : dir =
     id = to_id 0 data;
     path = to_text 1 data;
     name = to_text 2 data;
-    parent = to_link_opt 3 data;
     children = [||];
     pos = to_int 4 data;
     folded = to_bool 5 data;
@@ -202,7 +199,6 @@ let create_dirs = create_table
   (
     path TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
-    parent_id INT,
     pos INT NOT NULL UNIQUE,
     folded INT NOT NULL
   );
@@ -226,18 +222,16 @@ let iter_dir db id = db |> iter_table [|of_id id|] to_dir @@ stmt
 
 let stmt_insert_dir = stmt
 {|
-  INSERT INTO Dirs VALUES (?, ?, ?, ?, ?);
+  INSERT INTO Dirs VALUES (?, ?, ?, ?);
 |}
 
 let insert_dir db (dir : dir) =
-  assert (dir.parent <> None);
   let& () = db in
   let stmt = prepare db stmt_insert_dir in
   let* () = bind_text stmt 1 dir.path in
   let* () = bind_text stmt 2 dir.name in
-  let* () = bind_id_opt stmt 3 (Option.map dir_id_of_link dir.parent) in
-  let* () = bind_int stmt 4 dir.pos in
-  let* () = bind_bool stmt 5 dir.folded in
+  let* () = bind_int stmt 3 dir.pos in
+  let* () = bind_bool stmt 4 dir.folded in
   let* () = Sqlite3.step stmt in
   dir.id <- Sqlite3.last_insert_rowid db
 
@@ -249,7 +243,6 @@ let create_albums = create_table
   CREATE TABLE IF NOT EXISTS Albums
   (
     path TEXT NOT NULL PRIMARY KEY,
-    dir_id INT NOT NULL,
     artist TEXT,
     title TEXT,
     tracks INT,
@@ -274,22 +267,21 @@ let exist_album = exist_in_table @@ stmt
 
 let stmt_insert_album = stmt
 {|
-  INSERT INTO Albums VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  INSERT INTO Albums VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 |}
 
 let insert_album db (album : album) =
   let& () = db in
   let stmt = prepare db stmt_insert_album in
   let* () = bind_text stmt 1 album.path in
-  let* () = bind_id stmt 2 (dir_id_of_link album.dir) in
-  let* () = bind_text_opt stmt 3 album.artist in
-  let* () = bind_text_opt stmt 4 album.title in
-  let* () = bind_int_opt stmt 5 album.tracks in
-  let* () = bind_int_opt stmt 6 album.discs in
-  let* () = bind_text_opt stmt 7 album.date in
-  let* () = bind_text_opt stmt 8 album.label in
-  let* () = bind_text_opt stmt 9 album.country in
-  let* () = bind_none stmt 10 in
+  let* () = bind_text_opt stmt 2 album.artist in
+  let* () = bind_text_opt stmt 3 album.title in
+  let* () = bind_int_opt stmt 4 album.tracks in
+  let* () = bind_int_opt stmt 5 album.discs in
+  let* () = bind_text_opt stmt 6 album.date in
+  let* () = bind_text_opt stmt 7 album.label in
+  let* () = bind_text_opt stmt 8 album.country in
+  let* () = bind_none stmt 9 in
   let* () = Sqlite3.step stmt in
   album.id <- Sqlite3.last_insert_rowid db
 
@@ -300,27 +292,26 @@ let to_song data : song =
   {
     id = to_id 0 data;
     path = to_text 1 data;
-    dir = to_link 2 data;
-    album = to_link_opt 3 data;
-    size = to_int_opt 4 data;
-    time = to_float_opt 5 data;
-    artist = to_text_opt 6 data;
-    title = to_text_opt 7 data;
-    track = to_int_opt 8 data;
-    disc = to_int_opt 9 data;
-    albumartist = to_text_opt 10 data;
-    albumtitle = to_text_opt 11 data;
-    date = to_text_opt 12 data;
-    label = to_text_opt 13 data;
-    country = to_text_opt 14 data;
-    length = to_float_opt 15 data;
-    rating = to_int_opt 16 data;
+    album = to_link_opt 2 data;
+    size = to_int_opt 3 data;
+    time = to_float_opt 4 data;
+    artist = to_text_opt 5 data;
+    title = to_text_opt 6 data;
+    track = to_int_opt 7 data;
+    disc = to_int_opt 8 data;
+    albumartist = to_text_opt 9 data;
+    albumtitle = to_text_opt 10 data;
+    date = to_text_opt 11 data;
+    label = to_text_opt 12 data;
+    country = to_text_opt 13 data;
+    length = to_float_opt 14 data;
+    rating = to_int_opt 15 data;
     cover = None;
-    format = to_text_opt 18 data;
-    channels = to_int_opt 19 data;
-    depth = to_int_opt 20 data;
-    rate = to_int_opt 21 data;
-    bitrate = to_float_opt 22 data;
+    format = to_text_opt 17 data;
+    channels = to_int_opt 18 data;
+    depth = to_int_opt 19 data;
+    rate = to_int_opt 20 data;
+    bitrate = to_float_opt 21 data;
   }
 
 
@@ -329,7 +320,6 @@ let create_songs = create_table
   CREATE TABLE IF NOT EXISTS Songs
   (
     path TEXT NOT NULL PRIMARY KEY,
-    dir_id INT NOT NULL,
     album_id INT,
     size INT,
     time REAL,
@@ -372,34 +362,33 @@ let iter_songs = iter_table [||] to_song @@ stmt
 let stmt_insert_song = stmt
 {|
   INSERT INTO Songs
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 |}
 
 let insert_song db (song : song) =
   let& () = db in
   let stmt = prepare db stmt_insert_song in
   let* () = bind_text stmt 1 song.path in
-  let* () = bind_id stmt 2 (dir_id_of_link song.dir) in
-  let* () = bind_id_opt stmt 3 (Option.map album_id_of_link song.album) in
-  let* () = bind_int_opt stmt 4 song.size in
-  let* () = bind_float_opt stmt 5 song.time in
-  let* () = bind_text_opt stmt 6 song.artist in
-  let* () = bind_text_opt stmt 7 song.title in
-  let* () = bind_int_opt stmt 8 song.track in
-  let* () = bind_int_opt stmt 9 song.disc in
-  let* () = bind_text_opt stmt 10 song.albumartist in
-  let* () = bind_text_opt stmt 11 song.albumtitle in
-  let* () = bind_text_opt stmt 12 song.date in
-  let* () = bind_text_opt stmt 13 song.label in
-  let* () = bind_text_opt stmt 14 song.country in
-  let* () = bind_float_opt stmt 15 song.length in
-  let* () = bind_int_opt stmt 16 song.rating in
-  let* () = bind_none stmt 17 in
-  let* () = bind_text_opt stmt 18 song.format in
-  let* () = bind_int_opt stmt 19 song.channels in
-  let* () = bind_int_opt stmt 20 song.depth in
-  let* () = bind_int_opt stmt 21 song.rate in
-  let* () = bind_float_opt stmt 22 song.bitrate in
+  let* () = bind_id_opt stmt 2 (Option.map album_id_of_link song.album) in
+  let* () = bind_int_opt stmt 3 song.size in
+  let* () = bind_float_opt stmt 4 song.time in
+  let* () = bind_text_opt stmt 5 song.artist in
+  let* () = bind_text_opt stmt 6 song.title in
+  let* () = bind_int_opt stmt 7 song.track in
+  let* () = bind_int_opt stmt 8 song.disc in
+  let* () = bind_text_opt stmt 9 song.albumartist in
+  let* () = bind_text_opt stmt 10 song.albumtitle in
+  let* () = bind_text_opt stmt 11 song.date in
+  let* () = bind_text_opt stmt 12 song.label in
+  let* () = bind_text_opt stmt 13 song.country in
+  let* () = bind_float_opt stmt 14 song.length in
+  let* () = bind_int_opt stmt 15 song.rating in
+  let* () = bind_none stmt 16 in
+  let* () = bind_text_opt stmt 17 song.format in
+  let* () = bind_int_opt stmt 18 song.channels in
+  let* () = bind_int_opt stmt 19 song.depth in
+  let* () = bind_int_opt stmt 20 song.rate in
+  let* () = bind_float_opt stmt 21 song.bitrate in
   let* () = Sqlite3.step stmt in
   song.id <- Sqlite3.last_insert_rowid db
 
@@ -410,10 +399,7 @@ let create_playlists = create_table
 {|
   CREATE TABLE IF NOT EXISTS Playlists
   (
-    path TEXT NOT NULL PRIMARY KEY,
-    dir_id INT NOT NULL,
-    size INT,
-    time REAL
+    path TEXT NOT NULL PRIMARY KEY
   );
 |}
 
@@ -430,16 +416,13 @@ let exist_playlist = exist_in_table @@ stmt
 
 let stmt_insert_playlist = stmt
 {|
-  INSERT INTO Playlists VALUES (?, ?);
+  INSERT INTO Playlists VALUES (?);
 |}
 
 let insert_playlist db (playlist : playlist) =
   let& () = db in
   let stmt = prepare db stmt_insert_playlist in
   let* () = bind_text stmt 1 playlist.path in
-  let* () = bind_id stmt 2 (dir_id_of_link playlist.dir) in
-  let* () = bind_int_opt stmt 3 playlist.size in
-  let* () = bind_float_opt stmt 4 playlist.time in
   let* () = Sqlite3.step stmt in
   playlist.id <- Sqlite3.last_insert_rowid db
 

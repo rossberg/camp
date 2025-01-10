@@ -45,53 +45,51 @@ let nonzero_float z = if z = 0.0 then None else Some z
 let nonempty_text s = if s = "" then None else Some s
 
 let scan_roots lib roots =
-  let rec scan_path parent path =
+  let rec scan_path path =
     try
       if Sys.file_exists path then
       (
         if Sys.is_directory path then
         (
           if Format.is_known_ext path then
-            scan_album parent path
+            scan_album path
           else
-            scan_dir (Some parent) path
+            scan_dir path
         )
         else
         (
           if Format.is_known_ext path then
-            scan_song parent path
+            scan_song path
           else if M3u.is_known_ext path then
-            scan_playlist parent path
+            scan_playlist path
           else
             ()
         )
       )
     with Sys_error _ -> ()
-  and scan_dir parent path =
-    let dir : Data.dir =
+  and scan_dir path =
+    let _dir : Data.dir =
       {
         id = -1L;
         path;
         name = Filename.basename path;
-        parent;
         children = [||];
         pos = 0;
         folded = true;
       }
     in
     Array.iter (fun file ->
-      scan_path (ref (`Val dir)) (Filename.concat path file)
+      scan_path (Filename.concat path file)
     ) (Sys.readdir path)
-  and scan_album parent path =
-    scan_dir (Some parent) path  (* TODO *)
-  and scan_song parent path =
+  and scan_album path =
+    scan_dir path  (* TODO *)
+  and scan_song path =
     let format = Format.read path in
     let meta = Meta.load_meta path in
     let song : Data.song =
       {
         id = -1L;
         path;
-        dir = parent;
         album = None;
         size = nonzero_int format.size;
         time = nonzero_float format.time;
@@ -115,20 +113,16 @@ let scan_roots lib roots =
       }
     in
     Db.insert_song lib.db song
-  and scan_playlist parent path =
+  and scan_playlist path =
     let playlist : Data.playlist =
       {
         id = -1L;
         path;
-        dir = parent;
-        entries = [||];
-        size = None;  (* TODO *)
-        time = None;  (* TODO *)
       }
     in
     Db.insert_playlist lib.db playlist
   in
-  Array.iter (fun (root : dir) -> scan_dir None root.path) roots
+  Array.iter (fun (root : dir) -> scan_dir root.path) roots
 
 
 (* Roots *)
@@ -164,7 +158,6 @@ let make_root lib path pos =
         id = 0L;
         path;
         name = Filename.basename path;
-        parent = None;
         children = [||];
         pos;
         folded = true
