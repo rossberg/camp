@@ -5,7 +5,7 @@
 
 let margin = 10
 let row_h = 13
-let gutter_w = 1
+let gutter_w = 3
 let bottom_h = 24
 let footer_h = row_h
 let footer_y = -footer_h-(bottom_h-footer_h)/2
@@ -143,7 +143,7 @@ let loop_label = mode_label 0 "LOOP"
 let playlist_pane = Ui.pane 1
 let playlist_min = 31 + 4 * row_h
 
-let playlist_area = (1, margin, margin, -margin-scrollbar_w-gutter_w, -bottom_h)
+let playlist_area = (1, margin, margin, -margin-scrollbar_w, -bottom_h)
 let playlist_table = Ui.table playlist_area gutter_w row_h
 let playlist_scroll = Ui.scroll_bar (1, -margin-scrollbar_w, margin, scrollbar_w, -bottom_h)
 let playlist_wheel = Ui.wheel (1, margin, margin, -margin, -bottom_h)
@@ -211,7 +211,13 @@ let browser_table bw = Ui.table (browser_area bw) 0 row_h
 let browser_scroll bw = Ui.scroll_bar (2, margin+bw-scrollbar_w, margin, scrollbar_w, -bottom_h)
 let browser_wheel bw = Ui.wheel (2, margin, margin, bw, -bottom_h)
 
-let view_area bw = (2, margin+divider_w+bw, margin, -margin-scrollbar_w-1, -bottom_h)
+let header_h = row_h
+let header_area bw = (2, margin+divider_w+bw, margin, -margin-scrollbar_w-1, header_h)
+let header_table bw = Ui.table (header_area bw) gutter_w row_h
+let header_drag bw = Ui.drag (header_area bw)
+let header_margin = 2
+
+let view_area bw = (2, margin+divider_w+bw, margin+header_h+header_margin, -margin-scrollbar_w-1, -bottom_h)
 let view_table bw = Ui.table (view_area bw) gutter_w row_h
 let view_scroll _bw = Ui.scroll_bar (2, -margin-scrollbar_w, margin, scrollbar_w, -bottom_h)
 let view_wheel bw = Ui.wheel (2, margin+divider_w+bw, margin, -margin, -bottom_h)
@@ -626,7 +632,7 @@ let run_playlist (st : State.t) =
       c, inv, [|fmt "%0*d. " digits (i + 1); track.name; time|]
     )
   in
-  let cols = [|cw1, `Right; w - cw1 - !cw3 - 2 * gutter_w, `Left; !cw3, `Right|] in
+  let cols = [|cw1, `Right; w - cw1 - !cw3 - 4 * gutter_w, `Left; !cw3, `Right|] in
   let dragging = playlist_drag st.ui (max_int, row_h) in
   (match playlist_table st.ui cols rows with
   | None -> ()
@@ -971,44 +977,94 @@ let run_library (st : State.t) =
     library_error_text st.ui (Ui.error_color st.ui) `Regular true
       st.library.error;
 
+  (* View header *)
+  let (x, y, w, h) = Ui.dim st.ui (header_area bw) in
+  let percent p = int_of_float (float (w * p) /. 100.0) - gutter_w in
+  let cols =
+    [|
+      percent 10, `Left;   (* file time *)
+      percent 03, `Left;   (* rating *)
+      percent 15, `Left;   (* artist *)
+      percent 20, `Left;   (* title *)
+      percent 05, `Right;  (* length *)
+      percent 10, `Left;   (* album artist *)
+      percent 15, `Left;   (* album title *)
+      percent 00, `Right;  (* track *)
+      percent 05, `Left;   (* date *)
+      percent 05, `Left;   (* country *)
+      percent 05, `Left;   (* label *)
+      percent 02, `Left;   (* code *)
+      percent 03, `Right;  (* bit rate / sample rate *)
+      percent 00, `Right;  (* file size *)
+      percent 00, `Left;   (* path *)
+    |]
+  and headings =
+    [|
+      " File Time";
+      " Rating";
+      " Artist";
+      " Title";
+      " Length ";
+      " Album Artist";
+      " Album";
+      "Track ";
+      " Date";
+      " Country";
+      " Label";
+      " Codec";
+      "Rate ";
+      "File Size ";
+      " File Path";
+    |]
+  in
+  let rows = [|Ui.text_color st.ui, `Inverted, headings|] in
+  ignore (header_table bw st.ui cols rows);
+
+  (* Header column dividers *)
+  Array.fold_left (fun cx (cw, _) ->
+    Api.Draw.fill win (cx + cw + 1) y 1 h `Black;
+    cx + cw + gutter_w;
+  ) (x + gutter_w) cols |> ignore;
+
+  ignore header_drag;
+
   (* View *)
   let len = Array.length st.library.tracks in
   let vlen = st.library.view_rows in
   let current =
     match st.control.current with Some track -> track.path | None -> "" in
-  let (_, _, w, _) = Ui.dim st.ui (view_area bw) in
   let rows =
     Array.init (min vlen len) (fun i ->
       let i = i + st.library.view_scroll in
       let track = st.library.tracks.(i) in
       let filetime =
-        if track.filetime = 0.0 then "" else fmt_date_time track.filetime
+        if track.filetime = 0.0 then "" else " " ^ fmt_date_time track.filetime
       and filesize =
         if track.filesize = 0 then "" else
-        fmt "%.1f MB" (float track.filesize /. 2.0 ** 20.0)
+        fmt "%.1f MB " (float track.filesize /. 2.0 ** 20.0)
       and artist, title, albumartist, album, no, label, country, date, rating =
         match track.meta with
         | None -> "", "", "", "", "", "", "", "", ""
         | Some meta ->
-          meta.artist,
-          meta.title,
-          meta.albumartist,
-          meta.albumtitle,
-          (if meta.track = 0 then "" else fmt "%d" meta.track),
-          meta.label,
-          meta.country,
-          meta.date_txt,
-          fmt_rating meta.rating
+          " " ^ meta.artist,
+          " " ^ meta.title,
+          " " ^ meta.albumartist,
+          " " ^ meta.albumtitle,
+          (if meta.track = 0 then "" else fmt "%d " meta.track),
+          " " ^ meta.label,
+          " " ^ meta.country,
+          " " ^ meta.date_txt,
+          " " ^ fmt_rating meta.rating
       and code, rate, length =
         match track.format with
         | None -> "", "", ""
         | Some format ->
-          format.code,
+          " " ^ format.code,
           ( if format.code = "MP3"
-            then fmt "%.0f kbps" (format.bitrate /. 1024.0)
-            else fmt "%.1f KHz" (float format.rate /. 1000.0)
+            then fmt "%.0f kbps " (format.bitrate /. 1024.0)
+            else fmt "%.1f KHz " (float format.rate /. 1000.0)
           ),
-          if format.time = 0.0 then "" else fmt_time format.time
+          if format.time = 0.0 then "" else fmt_time format.time ^ " "
       and c =
         match track.status with
         | _ when track.path = current -> `White
@@ -1026,26 +1082,6 @@ let run_library (st : State.t) =
         track.path
       |]
     )
-  in
-  let percent p = int_of_float (float (w * p) /. 100.0) in
-  let cols =
-    [|
-      percent 10, `Right;  (* file time *)
-      percent 03, `Left;   (* rating *)
-      percent 15, `Left;   (* artist *)
-      percent 20, `Left;   (* title *)
-      percent 05, `Right;  (* length *)
-      percent 10, `Left;   (* album artist *)
-      percent 15, `Left;   (* album title *)
-      percent 00, `Right;  (* track *)
-      percent 05, `Left;   (* date *)
-      percent 05, `Left;   (* country *)
-      percent 05, `Left;   (* label *)
-      percent 02, `Left;   (* code *)
-      percent 03, `Right;  (* bit rate / sample rate *)
-      percent 00, `Right;  (* file size *)
-      percent 00, `Left;   (* path *)
-    |]
   in
   ignore (view_table bw st.ui cols rows);
 

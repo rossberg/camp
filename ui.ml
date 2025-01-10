@@ -500,7 +500,7 @@ let scroll_bar r ui v len =
   let h' = int_of_float (Float.ceil (len *. float (h - 2))) in
   if len < 1.0 then Draw.fill ui.win x y' w h' (fill ui true);
   for j = 0 to h / 2 - 1 do
-    Draw.fill ui.win x (y + 2*j + 1) w 1 `Black
+    Draw.fill ui.win x (y + 2*j) w 1 `Black
   done;
   Draw.rect ui.win x y w h (border ui status);
   if status <> `Pressed then v else
@@ -546,7 +546,7 @@ let table r gw ch ui cols rows =
     let bg = if j mod 2 = 0 then `Black else `Gray 0x10 in
     let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
     if bg <> `Black then Draw.fill ui.win x cy w ch bg;
-    let cx = ref x in
+    let cx = ref (x + gw) in
     Array.iteri (fun i (cw, align) ->
       let tw = Draw.text_width ui.win ch font texts.(i) in
       let dx =
@@ -555,15 +555,16 @@ let table r gw ch ui cols rows =
         | `Center -> (cw - tw) / 2
         | `Right -> cw - tw
       in
-      if tw >= cw then Draw.clip ui.win !cx y cw h;
+      let cw' = min cw (x + w - gw - !cx) in
+      if tw >= cw' then Draw.clip ui.win !cx y cw' h;
       Draw.text ui.win (!cx + max 0 dx) cy ch fg font texts.(i);
       if tw >= cw then
       (
-        let gw = min cw 16 in
-        Draw.gradient ui.win (!cx + cw - gw) cy gw ch
+        let rw = min cw 16 in
+        Draw.gradient ui.win (!cx + cw - rw) cy rw ch
           (`Trans (bg, 0)) `Horizontal bg;
-        Draw.unclip ui.win;
       );
+      if tw >= cw' then Draw.unclip ui.win;
       cx := !cx + cw + gw;
     ) cols
   ) rows;
