@@ -15,9 +15,12 @@ type t =
   mutable browser_width : int;  (* external *)
   mutable browser_rows : int;   (* external *)
   mutable browser_scroll : int; (* external *)
+  mutable view_rows : int;      (* external *)
+  mutable view_scroll : int;    (* external *)
   mutable error : string;       (* external *)
   mutable error_time : time;    (* external *)
   mutable roots : dir array;    (* external *)
+  mutable tracks : track array; (* external *)
 }
 
 
@@ -32,10 +35,27 @@ let make db =
     browser_width = 100;
     browser_rows = 4;
     browser_scroll = 0;
+    view_rows = 4;
+    view_scroll = 0;
     error = "";
     error_time = 0.0;
     roots = [||];
+    tracks = [||];
   }
+
+
+(* Helpers *)
+
+let array_swap a i j =
+  let temp = a.(i) in
+  a.(i) <- a.(j);
+  a.(j) <- temp
+
+let array_rev a =
+  let len = Array.length a in
+  for i = 0 to len / 2 - 1 do
+    array_swap a i (len - i - 1)
+  done
 
 
 (* Scanning *)
@@ -44,26 +64,21 @@ let scan_roots lib roots =
   let rec scan_path path =
     try
       if Sys.file_exists path then
-      (
         if Sys.is_directory path then
-        (
           if Format.is_known_ext path then
             scan_album path
           else
             scan_dir path
-        )
         else
-        (
           if Format.is_known_ext path then
             scan_track path
           else if M3u.is_known_ext path then
             scan_playlist path
           else
             false
-        )
-      )
       else false
     with Sys_error _ -> false
+
   and scan_dir path =
     if
       Array.fold_left (fun b file ->
@@ -84,8 +99,10 @@ let scan_roots lib roots =
       true
     )
     else false
+
   and scan_album path =
     scan_dir path  (* TODO *)
+
   and scan_track path =
     let stats = Unix.stat path in
     let track : Data.track =
@@ -103,6 +120,7 @@ let scan_roots lib roots =
     in
     Db.insert_track lib.db track;
     true
+
   and scan_playlist path =
     let playlist : Data.playlist =
       {
@@ -182,9 +200,13 @@ let add_roots lib paths pos =
     false
 
 
-(* Songs *)
+(* View *)
 
-let iter_tracks lib f = Db.iter_tracks lib.db f
+let update_view lib =
+  let tracks = ref [] in
+  Db.iter_tracks lib.db (fun track -> tracks := track :: !tracks);
+  lib.tracks <- Array.of_list !tracks;
+  array_rev lib.tracks
 
 
 (* Validation *)

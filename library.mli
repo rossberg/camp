@@ -12,9 +12,12 @@ type t =
   mutable browser_width : int;  (* external *)
   mutable browser_rows : int;   (* external *)
   mutable browser_scroll : int; (* external *)
+  mutable view_rows : int;      (* external *)
+  mutable view_scroll : int;    (* external *)
   mutable error : string;       (* external *)
   mutable error_time : time;    (* external *)
   mutable roots : dir array;    (* external *)
+  mutable tracks : track array; (* external *)
 }
 
 
@@ -35,9 +38,9 @@ val iter_roots : t -> (dir -> unit) -> unit
 val scan_roots : t -> dir array -> unit
 
 
-(* Songs *)
+(* View *)
 
-val iter_tracks : t -> (track -> unit) -> unit
+val update_view : t -> unit
 
 
 (* Validation *)

@@ -263,6 +263,17 @@ let fmt_time3 t =
   else
     fmt "%d:%02d:%02d" (t' / 3600) (t' / 60 mod 60) (t' mod  60)
 
+let fmt_date_time t =
+  let tm = Unix.localtime t in
+  fmt "%04d-%02d-%02d %02d:%02d:%02d"
+    (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
+    tm.tm_hour tm.tm_min tm.tm_sec
+
+let star = "*"  (* TODO: "★" *)
+let fmt_rating n =
+  let len = String.length star in
+  String.init (n * len) (fun i -> star.[i mod len])
+
 
 let exec prog args =
   let cmd = Filename.quote_command prog args in
@@ -568,7 +579,10 @@ let update_rows (st : State.t) =
     max 4 (int_of_float (Float.floor (float pl_h /. float row_h)));
   let _, _, _, br_h = Ui.dim st.ui (browser_area st.library.browser_width) in
   st.library.browser_rows <-
-    max 4 (int_of_float (Float.floor (float br_h /. float row_h)))
+    max 4 (int_of_float (Float.floor (float br_h /. float row_h)));
+  let _, _, _, vw_h = Ui.dim st.ui (view_area st.library.browser_width) in
+  st.library.view_rows <-
+    max 4 (int_of_float (Float.floor (float vw_h /. float row_h)))
 
 let run_playlist (st : State.t) =
   let now = Unix.time () in
@@ -588,7 +602,6 @@ let run_playlist (st : State.t) =
   let cw3 = ref 16 in
   let (_, y, w, _) as r = Ui.dim st.ui playlist_area in
   let vlen = st.playlist.rows in
-  let h' = vlen * row_h in
   (* Correct scrolling position for possible resize *)
   st.playlist.scroll <- clamp 0 (max 0 (len - vlen)) st.playlist.scroll;
   let rows =
@@ -762,6 +775,7 @@ let run_playlist (st : State.t) =
   );
 
   (* Playlist scrolling *)
+  let h' = vlen * row_h in
   let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
   let pos = if len = 0 then 0.0 else float st.playlist.scroll /. float len in
   let pos' = playlist_scroll st.ui pos ext -. 0.05 *. playlist_wheel st.ui in
@@ -930,8 +944,10 @@ let run_library (st : State.t) =
   in
   ignore (browser_table bw st.ui cols rows);
 
-  let pos = 0.0 in
-  let ext = 1.0 in
+  (* Browser scrolling *)
+  let h' = vlen * row_h in
+  let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
+  let pos = if len = 0 then 0.0 else float st.library.browser_scroll /. float len in
   let pos' = browser_scroll bw st.ui pos ext -. 0.05 *. browser_wheel bw st.ui in
   st.library.browser_scroll <- clamp 0 (max 0 (len - vlen))
     (int_of_float (Float.round (pos' *. float len)));
@@ -942,7 +958,9 @@ let run_library (st : State.t) =
   if dropped <> [] && Api.inside m r then
   (
     let pos = min len ((my - y) / row_h + st.library.browser_scroll) in
-    if not (Library.add_roots st.library dropped pos) then
+    if Library.add_roots st.library dropped pos then
+      Library.update_view st.library
+    else
       browser_error_box bw (Ui.error_color st.ui) st.ui;  (* flash *)
   );
 
@@ -954,37 +972,90 @@ let run_library (st : State.t) =
       st.library.error;
 
   (* View *)
-  let vlen = st.library.browser_rows in
-  let entries = Array.make vlen None in
-  let n = ref 0 in
+  let len = Array.length st.library.tracks in
+  let vlen = st.library.view_rows in
   let current =
     match st.control.current with Some track -> track.path | None -> "" in
-  let exception Full in
-  (try
-    Library.iter_tracks st.library (fun track ->
-      if !n = vlen then raise Full;
-      let artist, title, country, date =
-        match track.meta with
-        | None -> "", "", "", ""
-        | Some meta -> meta.artist, meta.title, meta.country, meta.date_txt
-      and code =
-        match track.format with
-        | None -> ""
-        | Some format -> format.code
-      and c = if track.path = current then `White else c in
-      entries.(!n) <-
-        Some (c, `Regular, [|artist; title; country; date; code|]);
-      incr n;
-    )
-  with Full -> ());
   let (_, _, w, _) = Ui.dim st.ui (view_area bw) in
-  let cols = [|w/5, `Left; w/5, `Left; w/5, `Left; w/5, `Left; w/5, `Left|] in
-  let rows = Array.init !n (fun i -> Option.get entries.(i)) in
+  let rows =
+    Array.init (min vlen len) (fun i ->
+      let i = i + st.library.view_scroll in
+      let track = st.library.tracks.(i) in
+      let filetime =
+        if track.filetime = 0.0 then "" else fmt_date_time track.filetime
+      and filesize =
+        if track.filesize = 0 then "" else
+        fmt "%.1f MB" (float track.filesize /. 2.0 ** 20.0)
+      and artist, title, albumartist, album, no, label, country, date, rating =
+        match track.meta with
+        | None -> "", "", "", "", "", "", "", "", ""
+        | Some meta ->
+          meta.artist,
+          meta.title,
+          meta.albumartist,
+          meta.albumtitle,
+          (if meta.track = 0 then "" else fmt "%d" meta.track),
+          meta.label,
+          meta.country,
+          meta.date_txt,
+          fmt_rating meta.rating
+      and code, rate, length =
+        match track.format with
+        | None -> "", "", ""
+        | Some format ->
+          format.code,
+          ( if format.code = "MP3"
+            then fmt "%.0f kbps" (format.bitrate /. 1024.0)
+            else fmt "%.1f KHz" (float format.rate /. 1000.0)
+          ),
+          if format.time = 0.0 then "" else fmt_time format.time
+      and c =
+        match track.status with
+        | _ when track.path = current -> `White
+        | `Absent -> Ui.error_color st.ui
+        | `Invalid -> Ui.warn_color st.ui
+        | `Undet -> Ui.semilit_color (Ui.text_color st.ui)
+        | `Predet | `Det -> Ui.text_color st.ui
+      in
+      c, `Regular,
+      [|
+        filetime;
+        rating; artist; title; length;
+        albumartist; album; no; date; country; label;
+        code; rate; filesize;
+        track.path
+      |]
+    )
+  in
+  let percent p = int_of_float (float (w * p) /. 100.0) in
+  let cols =
+    [|
+      percent 10, `Right;  (* file time *)
+      percent 03, `Left;   (* rating *)
+      percent 15, `Left;   (* artist *)
+      percent 20, `Left;   (* title *)
+      percent 05, `Right;  (* length *)
+      percent 10, `Left;   (* album artist *)
+      percent 15, `Left;   (* album title *)
+      percent 00, `Right;  (* track *)
+      percent 05, `Left;   (* date *)
+      percent 05, `Left;   (* country *)
+      percent 05, `Left;   (* label *)
+      percent 02, `Left;   (* code *)
+      percent 03, `Right;  (* bit rate / sample rate *)
+      percent 00, `Right;  (* file size *)
+      percent 00, `Left;   (* path *)
+    |]
+  in
   ignore (view_table bw st.ui cols rows);
 
-  let pos = 0.0 in
-  let ext = 1.0 in
-  let _pos' = view_scroll bw st.ui pos ext -. 0.05 *. view_wheel bw st.ui in
+  (* View scrolling *)
+  let h' = vlen * row_h in
+  let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
+  let pos = if len = 0 then 0.0 else float st.library.view_scroll /. float len in
+  let pos' = view_scroll bw st.ui pos ext -. 0.05 *. view_wheel bw st.ui in
+  st.library.view_scroll <- clamp 0 (max 0 (len - vlen))
+    (int_of_float (Float.round (pos' *. float len)));
 
   (* Library resizing *)
   let left = st.library.side = `Left in
@@ -1072,6 +1143,7 @@ let startup () =
   let st = State.make ui audio db in
   State.load st;
   update_rows st;
+  Library.update_view st.library;
   Playlist.adjust_scroll st.playlist st.playlist.pos;
   at_exit (fun () -> State.save st; Storage.clear_temp (); Db.exit db);
   st
