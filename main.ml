@@ -352,7 +352,7 @@ let run_control (st : State.t) =
     let channels = Api.Audio.channels st.control.audio st.control.sound in
     let depth = bitrate /. float rate /. float channels in
     prop_text st.ui `Regular true
-      (fmt "%s    %.0f KBPS    %.1f KHZ    %s BIT    %s"
+      (fmt "%s   %.0f KBPS   %.1f KHZ   %s BIT   %s"
         format (bitrate /. 1000.0) (float rate /. 1000.0)
         (fmt (if depth = Float.round depth then "%.0f" else "%.1f") depth)
         (match channels with
