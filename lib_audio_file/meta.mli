@@ -14,21 +14,22 @@ type picture =
   data : string;
 }
 
-type meta =
+type t =
 {
   loaded : bool;
-  artist  : string;
+  artist : string;
   title : string;
   track : int;
   tracks : int;
-  trackfmt : int;
+  track_txt : string;
   disc : int;
   discs : int;
-  discfmt : int;
+  disc_txt : string;
   albumartist : string;
   albumtitle : string;
   year : int;
-  date : string;
+  date : time;
+  date_txt : string;
   label : string;
   country : string;
   length : time;
@@ -41,8 +42,10 @@ val progress_hook : (unit -> unit) ref
 
 val date0 : time
 val date : int -> int -> int -> time
+val date_of_string : string -> time  (* returns 0.0 on error *)
+val year_of_string : string -> int   (* returns 0 on error *)
 
 val load_tag : path -> tag option
-val load_meta : path -> meta
+val load : path -> t
 
-val meta : path -> tag option -> meta
+val meta : path -> tag option -> t

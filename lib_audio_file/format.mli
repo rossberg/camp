@@ -2,7 +2,7 @@ type path = string
 
 type t =
 {
-  name : string;
+  code : string;
   channels : int;
   depth : int;
   rate : int; (* Hz *)

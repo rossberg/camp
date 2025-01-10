@@ -77,7 +77,7 @@ let rec updater () =
   else
   (
     try
-      let meta = Meta.load_meta track.path in
+      let meta = Meta.load track.path in
       if meta.loaded then track.status <- `Det;
       if track.time = 0.0 then
       (

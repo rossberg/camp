@@ -57,21 +57,22 @@ type picture =
   data : string;
 }
 
-type meta =
+type t =
 {
   loaded : bool;
-  artist  : string;
+  artist : string;
   title : string;
   track : int;
   tracks : int;
-  trackfmt : int;
+  track_txt : string;
   disc : int;
   discs : int;
-  discfmt : int;
+  disc_txt : string;
   albumartist : string;
   albumtitle : string;
   year : int;
-  date : string;
+  date : time;
+  date_txt : string;
   label : string;
   country : string;
   length : time;
@@ -137,11 +138,6 @@ let maxint_tag_field names _path tag : int =
     | Some i -> i
     | None -> 0
 
-let intfmt_tag_field names _path tag : int =
-  match tag_field names tag with
-  | None -> 0
-  | Some s -> Option.value (String.index_opt s '/') ~default:(String.length s)
-
 let time_tag_field names path tag : float =
   match tag_field names tag with
   | None -> 0.0
@@ -150,16 +146,23 @@ let time_tag_field names path tag : float =
     | Some t -> t /. 1000.0
     | None -> warn_field names path tag s; 0.0
 
+let year_of_string s =
+  let n = Option.value (String.index_opt s '-') ~default:(String.length s) in
+  let s' = String.sub s 0 n in
+  match int_of_string_opt s' with
+  | Some n -> n
+  | None when s' = "????" -> 1
+  | None -> 0
+
 let year_tag_field names path tag : int =
   match tag_field names tag with
   | None -> 0
   | Some s ->
-    let n = Option.value (String.index_opt s '-') ~default:(String.length s) in
-    let s' = String.sub s 0 n in
-    match int_of_string_opt s' with
-    | Some n -> n
-    | None when s' = "????" -> 1
-    | None -> warn_field names path tag s; 0
+    let year = year_of_string s in
+    if year = 0 then warn_field names path tag s;
+    year
+
+let date0 = -1970.0 *. 365.0 *. 24.0 *. 60.0 *. 60.0  (* year 0 *)
 
 let date y m d =
     let min_year = 1971 in  (* Windows mktime cannot handle earlier dates *)
@@ -179,28 +182,29 @@ let date y m d =
     let t = fst (Unix.mktime tm) in
     if y >= min_year then t else t -. float (min_year - y) *. 365.0 *. 24.0 *. 60.0 *. 60.0
 
-let date0 = -1970.0 *. 365.0 *. 24.0 *. 60.0 *. 60.0  (* year 0 *)
+let date_of_string s =
+  let num_from i default =
+    let j_opt = String.index_from_opt s i '-' in
+    let n = Option.value j_opt ~default:(String.length s) - i in
+    let s' = String.sub s i n in
+    let i' = min (i + n + 1) (String.length s) in
+    match int_of_string_opt s' with
+    | Some x -> x, i'
+    | None when String.for_all ((=) '?') s' -> 1, i'
+    | None -> default, String.length s
+  in
+  let y, i = num_from 0 0 in
+  let m, j = num_from i 1 in
+  let d, _ = num_from j 1 in
+  try date y m d with _ -> date0
 
 let date_tag_field names path tag : float =
   match tag_field names tag with
   | None -> date0
   | Some s ->
-    let num_from i default =
-      let j_opt = String.index_from_opt s i '-' in
-      let n = Option.value j_opt ~default:(String.length s) - i in
-      let s' = String.sub s i n in
-      let i' = min (i + n + 1) (String.length s) in
-      match int_of_string_opt s' with
-      | Some x -> x, i'
-      | None when String.for_all ((=) '?') s' -> 1, i'
-      | None -> default, String.length s
-    in
-    let y, i = num_from 0 0 in
-    let m, j = num_from i 1 in
-    let d, _ = num_from j 1 in
-    try date y m d with _ ->
-      warn_field names path tag s;
-      date0
+    let date = date_of_string s in
+    if date = date0 then warn_field names path tag s;
+    date
 
 let rating_tag_field names path tag : int =
   match tag_field names tag with
@@ -296,21 +300,21 @@ let picture_tag_field path tag : picture option =
 
 let meta path tag =
   try
-    let _date = date_tag_field ("TDAT", "DATE") path tag in
     {
       loaded = tag <> None;
       artist = text_tag_field ("TPE1", "ARTIST") path tag;
       title = text_tag_field ("TIT2", "TITLE") path tag;
       track = int_tag_field ("TRCK", "TRACKNUMBER") path tag;
       tracks = maxint_tag_field ("TRCK", "TRACKNUMBER") path tag;
-      trackfmt = intfmt_tag_field ("TRCK", "TRACKNUMBER") path tag;
+      track_txt = text_tag_field ("TRCK", "TRACKNUMBER") path tag;
       disc = int_tag_field ("TPOS", "DISCNUMBER") path tag;
       discs = maxint_tag_field ("TPOS", "DISCNUMBER") path tag;
-      discfmt = intfmt_tag_field ("TPOS", "DISCNUMBER") path tag;
+      disc_txt = text_tag_field ("TPOS", "DISCNUMBER") path tag;
       albumartist = text_tag_field ("TPE2", "ALBUMARTIST") path tag;
       albumtitle = text_tag_field ("TALB", "ALBUM") path tag;
       year = year_tag_field ("TYER", "DATE") path tag;
-      date = text_tag_field ("TDAT", "DATE") path tag;
+      date = date_tag_field ("TDAT", "DATE") path tag;
+      date_txt = text_tag_field ("TDAT", "DATE") path tag;
       label = text_tag_field ("TPUB", "ORGANIZATION") path tag;
       country = text_tag_field ("COUNTRY", "COUNTRY") path tag;
       length = time_tag_field ("TLEN", "???") path tag;
@@ -323,4 +327,4 @@ let meta path tag =
     Printexc.raise_with_backtrace exn bt
 
 
-let load_meta path = meta path (load_tag path)
+let load path = meta path (load_tag path)

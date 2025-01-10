@@ -37,7 +37,7 @@ val scan_roots : t -> dir array -> unit
 
 (* Songs *)
 
-val iter_songs : t -> (song -> unit) -> unit
+val iter_tracks : t -> (track -> unit) -> unit
 
 
 (* Validation *)

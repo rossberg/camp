@@ -1,5 +1,7 @@
 (* Library Data Representation *)
 
+open Audio_file
+
 type path = string
 type time = float
 type blob = string
@@ -32,30 +34,17 @@ type album =
   cover : blob option;
 }
 
-type song =
+type track =
 {
   mutable id : id;
   path : path;  (* primary *)
   album : album link option;
-  size : int option;  (* B *)
-  time : time option;
-  artist  : string option;
-  title : string option;
-  track : int option;
-  disc : int option;
-  albumartist : string option;
-  albumtitle : string option;
-  date : string option;
-  label : string option;
-  country : string option;
-  length : time option;
-  rating : int option;
-  cover : blob option;
-  format : string option;
-  channels : int option;
-  depth : int option;
-  rate : int option;       (* Hz *)
-  bitrate : float option;  (* b/s *)
+  filetime : time;
+  filesize : int;
+  fileage : time;
+  status : [`Undet | `Predet | `Det | `Invalid | `Absent];
+  format : Format.t option;
+  meta : Meta.t option;
 }
 
 type playlist =

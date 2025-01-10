@@ -1,5 +1,6 @@
 (* Music Database *)
 
+open Audio_file
 open Data
 
 type t = Sqlite3.db
@@ -31,10 +32,10 @@ let bind_float = Sqlite3.bind_double
 let bind_text = Sqlite3.bind_text
 let bind_id = Sqlite3.bind_int64
 
-let bind_none stmt i = Sqlite3.bind stmt i Sqlite3.Data.NULL
+let bind_null stmt i = Sqlite3.bind stmt i Sqlite3.Data.NULL
 
 let bind_opt bind_x stmt i = function
-  | None -> bind_none stmt i
+  | None -> bind_null stmt i
   | Some x -> bind_x stmt i x
 
 let bind_bool_opt stmt i = bind_opt bind_bool stmt i
@@ -42,6 +43,13 @@ let bind_int_opt stmt i = bind_opt bind_int stmt i
 let bind_float_opt stmt i = bind_opt bind_float stmt i
 let bind_text_opt stmt i = bind_opt bind_text stmt i
 let bind_id_opt stmt i = bind_opt bind_id stmt i
+
+let bind_default bind_x def stmt i v =
+  if v = def then bind_null stmt i else bind_x stmt i v
+
+let bind_int_default stmt i = bind_default bind_int 0 stmt i
+let bind_float_default stmt i = bind_default bind_float 0.0 stmt i
+let bind_text_default stmt i = bind_default bind_text "" stmt i
 
 let of_bool b = Sqlite3.Data.INT (if b then 1L else 0L)
 let of_int i = Sqlite3.Data.INT (Int64.of_int i)
@@ -62,6 +70,14 @@ let to_float_opt i data = Sqlite3.Data.to_float data.(i)
 let to_text_opt i data = Sqlite3.Data.to_string data.(i)
 let to_id_opt i data = Sqlite3.Data.to_int64 data.(i)
 let to_link_opt i data = Option.map link (to_id_opt i data)
+
+let to_default to_x def i data =
+  if data.(i) = Sqlite3.Data.NULL then def else to_x i data
+
+let to_bool_default i data = to_default to_bool false i data
+let to_int_default i data = to_default to_int 0 i data
+let to_float_default i data = to_default to_float 0.0 i data
+let to_text_default i data = to_default to_text "" i data
 
 let to_pair to_x i to_y j data = (to_x i data, to_y j data)
 
@@ -199,7 +215,7 @@ let create_dirs = create_table
   (
     path TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
-    pos INT NOT NULL UNIQUE,
+    pos INT NOT NULL,
     folded INT NOT NULL
   );
 |}
@@ -281,46 +297,96 @@ let insert_album db (album : album) =
   let* () = bind_text_opt stmt 6 album.date in
   let* () = bind_text_opt stmt 7 album.label in
   let* () = bind_text_opt stmt 8 album.country in
-  let* () = bind_none stmt 9 in
+  let* () = bind_null stmt 9 in
   let* () = Sqlite3.step stmt in
   album.id <- Sqlite3.last_insert_rowid db
 
 
 (* Songs *)
 
-let to_song data : song =
+let all_null is data =
+  Array.for_all (fun i -> data.(i) = Sqlite3.Data.NULL) is
+
+let format_fields = [|6; 7; 8; 9; 10; 11; 12|]
+let meta_fields = [|13; 14; 15; 16; 17; 18; 19; 20; 21; 22; 23|]
+
+let of_status = function
+  | `Undet -> 0
+  | `Predet -> 1
+  | `Det -> 2
+  | `Invalid -> -1
+  | `Absent -> -2
+
+let to_status = function
+  | 1 -> `Predet
+  | 2 -> `Det
+  | -1 -> `Invalid
+  | -2 -> `Absent
+  | _ -> `Undet
+
+let to_track data : track =
   {
     id = to_id 0 data;
     path = to_text 1 data;
     album = to_link_opt 2 data;
-    size = to_int_opt 3 data;
-    time = to_float_opt 4 data;
-    artist = to_text_opt 5 data;
-    title = to_text_opt 6 data;
-    track = to_int_opt 7 data;
-    disc = to_int_opt 8 data;
-    albumartist = to_text_opt 9 data;
-    albumtitle = to_text_opt 10 data;
-    date = to_text_opt 11 data;
-    label = to_text_opt 12 data;
-    country = to_text_opt 13 data;
-    length = to_float_opt 14 data;
-    rating = to_int_opt 15 data;
-    cover = None;
-    format = to_text_opt 17 data;
-    channels = to_int_opt 18 data;
-    depth = to_int_opt 19 data;
-    rate = to_int_opt 20 data;
-    bitrate = to_float_opt 21 data;
+    filesize = to_int_default 3 data;
+    filetime = to_float_default 4 data;
+    fileage = to_float_default 5 data;
+    status = to_status (to_int 25 data);
+    format = if all_null format_fields data then None else
+      Some Format.
+      {
+        code = to_text_default 6 data;
+        channels = to_int_default 7 data;
+        depth = to_int_default 8 data;
+        rate = to_int_default 9 data;
+        bitrate = to_float_default 10 data;
+        size = to_int_default 11 data;
+        time = to_float_default 12 data;
+      };
+    meta = if all_null meta_fields data then None else
+      let track = to_int_default 15 data in
+      let disc = to_int_default 16 data in
+      let date_txt = to_text_default 19 data in
+      Some Meta.
+      {
+        loaded = true;
+        artist = to_text_default 13 data;
+        title = to_text_default 14 data;
+        track;
+        track_txt = if track = 0 then "" else string_of_int track;
+        tracks = 0;
+        disc;
+        disc_txt = if disc = 0 then "" else string_of_int disc;
+        discs = 0;
+        albumartist = to_text_default 17 data;
+        albumtitle = to_text_default 18 data;
+        date_txt;
+        date = Meta.date_of_string date_txt;
+        year = Meta.year_of_string date_txt;
+        label = to_text_default 20 data;
+        country = to_text_default 21 data;
+        length = to_float_default 22 data;
+        rating = to_int_default 23 data;
+        cover = None;
+      };
   }
 
 
-let create_songs = create_table
+let create_tracks = create_table
 {|
-  CREATE TABLE IF NOT EXISTS Songs
+  CREATE TABLE IF NOT EXISTS Tracks
   (
     path TEXT NOT NULL PRIMARY KEY,
     album_id INT,
+    filesize INT,
+    filetime REAL,
+    fileage REAL,
+    format TEXT,
+    channels INT,
+    depth INT,
+    rate INT,
+    bitrate REAL,
     size INT,
     time REAL,
     artist TEXT,
@@ -335,62 +401,68 @@ let create_songs = create_table
     length REAL,
     rating INT,
     cover BLOB,
-    format TEXT,
-    channels INT,
-    depth INT,
-    rate INT,
-    bitrate REAL
+    status INT NOT NULL
   );
 |}
 
-let count_songs = count_table @@ stmt
+let count_tracks = count_table @@ stmt
 {|
-  SELECT COUNT(*) FROM Songs;
+  SELECT COUNT(*) FROM Tracks;
 |}
 
-let exist_song = exist_in_table @@ stmt
+let exist_track = exist_in_table @@ stmt
 {|
-  SELECT COUNT(*) FROM Songs WHERE path = ?;
+  SELECT COUNT(*) FROM Tracks WHERE path = ?;
 |}
 
-let iter_songs = iter_table [||] to_song @@ stmt
+let iter_tracks = iter_table [||] to_track @@ stmt
 {|
-  SELECT rowid, * FROM Songs;
+  SELECT rowid, * FROM Tracks;
 |}
 
 
-let stmt_insert_song = stmt
+let stmt_insert_track = stmt
 {|
-  INSERT INTO Songs
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  INSERT INTO Tracks
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 |}
 
-let insert_song db (song : song) =
+let insert_track db (track : track) =
   let& () = db in
-  let stmt = prepare db stmt_insert_song in
-  let* () = bind_text stmt 1 song.path in
-  let* () = bind_id_opt stmt 2 (Option.map album_id_of_link song.album) in
-  let* () = bind_int_opt stmt 3 song.size in
-  let* () = bind_float_opt stmt 4 song.time in
-  let* () = bind_text_opt stmt 5 song.artist in
-  let* () = bind_text_opt stmt 6 song.title in
-  let* () = bind_int_opt stmt 7 song.track in
-  let* () = bind_int_opt stmt 8 song.disc in
-  let* () = bind_text_opt stmt 9 song.albumartist in
-  let* () = bind_text_opt stmt 10 song.albumtitle in
-  let* () = bind_text_opt stmt 11 song.date in
-  let* () = bind_text_opt stmt 12 song.label in
-  let* () = bind_text_opt stmt 13 song.country in
-  let* () = bind_float_opt stmt 14 song.length in
-  let* () = bind_int_opt stmt 15 song.rating in
-  let* () = bind_none stmt 16 in
-  let* () = bind_text_opt stmt 17 song.format in
-  let* () = bind_int_opt stmt 18 song.channels in
-  let* () = bind_int_opt stmt 19 song.depth in
-  let* () = bind_int_opt stmt 20 song.rate in
-  let* () = bind_float_opt stmt 21 song.bitrate in
+  let stmt = prepare db stmt_insert_track in
+  let* () = bind_text stmt 1 track.path in
+  let* () = bind_id_opt stmt 2 (Option.map album_id_of_link track.album) in
+  let* () = bind_int_default stmt 3 track.filesize in
+  let* () = bind_float_default stmt 4 track.filetime in
+  let* () = bind_float_default stmt 5 track.fileage in
+  let* () = bind_int stmt 25 (of_status track.status) in
+  Option.iter (fun (format : Format.t) ->
+    let* () = bind_text_default stmt 6 format.code in
+    let* () = bind_int_default stmt 7 format.channels in
+    let* () = bind_int_default stmt 8 format.depth in
+    let* () = bind_int_default stmt 9 format.rate in
+    let* () = bind_float_default stmt 10 format.bitrate in
+    let* () = bind_int_default stmt 11 format.size in
+    let* () = bind_float_default stmt 12 format.time in
+    ()
+  ) track.format;
+  Option.iter (fun (meta : Meta.t) ->
+    let* () = bind_text_default stmt 13 meta.artist in
+    let* () = bind_text_default stmt 14 meta.title in
+    let* () = bind_int_default stmt 15 meta.track in
+    let* () = bind_int_default stmt 16 meta.disc in
+    let* () = bind_text_default stmt 17 meta.albumartist in
+    let* () = bind_text_default stmt 18 meta.albumtitle in
+    let* () = bind_text_default stmt 19 meta.date_txt in
+    let* () = bind_text_default stmt 20 meta.label in
+    let* () = bind_text_default stmt 21 meta.country in
+    let* () = bind_float_default stmt 22 meta.length in
+    let* () = bind_int_default stmt 23 meta.rating in
+    let* () = bind_null stmt 24 in
+    ()
+  ) track.meta;
   let* () = Sqlite3.step stmt in
-  song.id <- Sqlite3.last_insert_rowid db
+  track.id <- Sqlite3.last_insert_rowid db
 
 
 (* Playlists *)
@@ -427,34 +499,6 @@ let insert_playlist db (playlist : playlist) =
   playlist.id <- Sqlite3.last_insert_rowid db
 
 
-(* Playlist Entries *)
-
-let create_entries = create_table
-{|
-  CREATE TABLE IF NOT EXISTS Entries
-  (
-    playlist_id INT NOT NULL,
-    song_id TEXT NOT NULL,
-    pos INT NOT NULL
-  );
-|}
-
-
-let stmt_insert_entry = stmt
-{|
-  INSERT INTO Entries VALUES (?, ?, ?);
-|}
-
-let insert_entry db playlist_id song_id pos =
-  let& () = db in
-  let stmt = prepare db stmt_insert_entry in
-  let* () = bind_id stmt 1 playlist_id in
-  let* () = bind_id stmt 2 song_id in
-  let* () = bind_int stmt 2 pos in
-  let* () = Sqlite3.step stmt in
-  ()
-
-
 (* Initialization *)
 
 let filename = "library.db"
@@ -464,9 +508,8 @@ let init () =
   create_roots db;
   create_dirs db;
   create_albums db;
-  create_songs db;
+  create_tracks db;
   create_playlists db;
-  create_entries db;
   db
 
 let exit db =
