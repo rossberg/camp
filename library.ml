@@ -59,24 +59,31 @@ let scan_roots lib roots =
           else if M3u.is_known_ext path then
             scan_playlist path
           else
-            ()
+            false
         )
       )
-    with Sys_error _ -> ()
+      else false
+    with Sys_error _ -> false
   and scan_dir path =
-    let _dir : Data.dir =
-      {
-        id = -1L;
-        path;
-        name = Filename.basename path;
-        children = [||];
-        pos = 0;
-        folded = true;
-      }
-    in
-    Array.iter (fun file ->
-      scan_path (Filename.concat path file)
-    ) (Sys.readdir path)
+    if
+      Array.fold_left (fun b file ->
+        scan_path (Filename.concat path file) || b
+      ) false (Sys.readdir path)
+    then
+    (
+      let dir : Data.dir =
+        {
+          id = -1L;
+          path;
+          name = Filename.basename path;
+          children = [||];
+          pos = 0;
+          folded = true;
+        }
+      in Db.insert_dir lib.db dir;
+      true
+    )
+    else false
   and scan_album path =
     scan_dir path  (* TODO *)
   and scan_track path =
@@ -94,7 +101,8 @@ let scan_roots lib roots =
         meta = Some (Meta.load path);
       }
     in
-    Db.insert_track lib.db track
+    Db.insert_track lib.db track;
+    true
   and scan_playlist path =
     let playlist : Data.playlist =
       {
@@ -102,9 +110,10 @@ let scan_roots lib roots =
         path;
       }
     in
-    Db.insert_playlist lib.db playlist
+    Db.insert_playlist lib.db playlist;
+    true
   in
-  Array.iter (fun (root : dir) -> scan_dir root.path) roots
+  Array.iter (fun (root : dir) -> ignore (scan_dir root.path)) roots
 
 
 (* Roots *)
