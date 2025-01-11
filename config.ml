@@ -30,6 +30,6 @@ type error = string
 let check msg b = if b then [] else [msg]
 
 let ok cfg =
-  check "row height in range" (cfg.row_height > 8) @
+  check "row height in range" (cfg.row_height >= 8 && cfg.row_height <= 64) @
   check "track update delay in range" (cfg.delay_track_update >= 0.0) @
   []
