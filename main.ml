@@ -144,7 +144,7 @@ let playlist_pane = Ui.pane 1
 let playlist_min = 31 + 4 * row_h
 
 let playlist_area = (1, margin, margin, -margin-scrollbar_w, -bottom_h)
-let playlist_table = Ui.table playlist_area gutter_w row_h
+let playlist_table = Ui.table playlist_area gutter_w
 let playlist_scroll = Ui.scroll_bar (1, -margin-scrollbar_w, margin, scrollbar_w, -bottom_h) `Vertical
 let playlist_wheel = Ui.wheel (1, margin, margin, -margin, -bottom_h)
 let playlist_drag = Ui.drag (1, margin, margin, -margin-scrollbar_w, -bottom_h)
@@ -207,18 +207,17 @@ let view_min = 40
 let browser_max pw = pw-view_min-2*margin-divider_w
 let browser_area bw = (2, margin, margin, bw-margin-1, -bottom_h)
 let browser_error_box bw = Ui.box (browser_area bw)
-let browser_table bw = Ui.table (browser_area bw) 0 row_h
+let browser_table bw = Ui.table (browser_area bw) 0
 let browser_scroll bw = Ui.scroll_bar (2, margin+bw-scrollbar_w, margin, scrollbar_w, -bottom_h) `Vertical
 let browser_wheel bw = Ui.wheel (2, margin, margin, bw, -bottom_h)
 
-let header_h = row_h
-let header_area bw = (2, margin+divider_w+bw, margin, -margin-scrollbar_w-1, header_h)
-let header_table bw = Ui.table (header_area bw) gutter_w row_h
-let header_drag bw = Ui.drag (header_area bw)
+let header_area bw rh = (2, margin+divider_w+bw, margin, -margin-scrollbar_w-1, rh)
+let header_table bw rh = Ui.table (header_area bw rh) gutter_w rh
+let header_drag bw rh = Ui.drag (header_area bw rh)
 let header_margin = 2
 
-let view_area bw = (2, margin+divider_w+bw, margin+header_h+header_margin, -margin-scrollbar_w-1, -bottom_h-scrollbar_w-1)
-let view_table bw = Ui.table (view_area bw) gutter_w row_h
+let view_area bw rh = (2, margin+divider_w+bw, margin+rh+header_margin, -margin-scrollbar_w-1, -bottom_h-scrollbar_w-1)
+let view_table bw rh = Ui.table (view_area bw rh) gutter_w rh
 let view_scroll _bw = Ui.scroll_bar (2, -margin-scrollbar_w, margin, scrollbar_w, -bottom_h) `Vertical
 let view_scroll_h bw = Ui.scroll_bar (2, margin+divider_w+bw, -bottom_h-scrollbar_w, -margin-scrollbar_w-1, scrollbar_w) `Horizontal
 let view_wheel bw = Ui.wheel (2, margin+divider_w+bw, margin, -margin, -bottom_h)
@@ -570,13 +569,14 @@ let run_control (st : State.t) =
 (* Playlist Pane *)
 
 let update_rows (st : State.t) =
+  let row_h = st.config.row_height in
   let _, _, _, pl_h = Ui.dim st.ui playlist_area in
   st.playlist.rows <-
     max 4 (int_of_float (Float.floor (float pl_h /. float row_h)));
   let _, _, _, br_h = Ui.dim st.ui (browser_area st.library.browser_width) in
   st.library.browser_rows <-
     max 4 (int_of_float (Float.floor (float br_h /. float row_h)));
-  let _, _, _, vw_h = Ui.dim st.ui (view_area st.library.browser_width) in
+  let _, _, _, vw_h = Ui.dim st.ui (view_area st.library.browser_width row_h) in
   st.library.view_rows <-
     max 4 (int_of_float (Float.floor (float vw_h /. float row_h)))
 
@@ -584,6 +584,7 @@ let run_playlist (st : State.t) =
   let now = Unix.time () in
   let win = Ui.window st.ui in
   let len = Array.length st.playlist.tracks in
+  let row_h = st.config.row_height in
 
   let x =
     if st.library.shown && st.library.side = `Left then st.library.width else 0
@@ -626,7 +627,7 @@ let run_playlist (st : State.t) =
   let cw2 = w - cw1 - !cw3 - 2 * gutter_w - 2 * margin_w in
   let cols = [|cw1, `Right; cw2, `Left; !cw3, `Right|] in
   let dragging = playlist_drag st.ui (max_int, row_h) in
-  (match playlist_table st.ui cols rows 0 with
+  (match playlist_table row_h st.ui cols rows 0 with
   | None -> ()
   | Some i ->
     let i = st.playlist.scroll + i in
@@ -916,6 +917,7 @@ let run_playlist (st : State.t) =
 
 let run_library (st : State.t) =
   let win = Ui.window st.ui in
+  let row_h = st.config.row_height in
 
   let x = if st.library.side = `Left then 0 else control_w - 5 in
   let dh = if st.playlist.shown then st.playlist.height else 0 in
@@ -940,7 +942,7 @@ let run_library (st : State.t) =
       c, `Regular, [|root.name|]
     ) st.library.roots
   in
-  ignore (browser_table bw st.ui cols rows 0);
+  ignore (browser_table bw row_h st.ui cols rows 0);
 
   (* Browser scrolling *)
   let h' = vlen * row_h in
@@ -970,14 +972,14 @@ let run_library (st : State.t) =
       st.library.error;
 
   (* View header *)
-  let (x, y, w, h) = Ui.dim st.ui (header_area bw) in
+  let (x, y, w, h) = Ui.dim st.ui (header_area bw row_h) in
   let cols =
     Array.map (fun (attr, cw) -> cw, Library.attr_align attr) st.library.columns
   and headings =
     Array.map (fun (attr, _) -> Library.attr_name attr) st.library.columns
   in
   let rows = [|Ui.text_color st.ui, `Inverted, headings|] in
-  ignore (header_table bw st.ui cols rows st.library.view_scroll_h);
+  ignore (header_table bw row_h st.ui cols rows st.library.view_scroll_h);
 
   (* Header column dividers (HACK) *)
   let margin_w = (gutter_w + 1)/2 in  (* match mw in Ui.table *)
@@ -1029,7 +1031,7 @@ let run_library (st : State.t) =
       c, `Regular, values
     )
   in
-  ignore (view_table bw st.ui cols rows st.library.view_scroll_h);
+  ignore (view_table bw row_h st.ui cols rows st.library.view_scroll_h);
 
   (* View scrolling *)
   let h' = vlen * row_h in
@@ -1047,7 +1049,7 @@ let run_library (st : State.t) =
     clamp 0 (max 0 (vw' - w)) (int_of_float (Float.round (pos' *. float vw')));
 
   (* View column resizing *)
-  (match header_drag bw st.ui (1, max_int) with
+  (match header_drag bw row_h st.ui (1, max_int) with
   | `None | `Click -> ()
   | `Drag (dx, _) ->
     match find_gutter (mx - dx) with

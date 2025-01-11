@@ -291,6 +291,8 @@ let load st =
   Storage.load config_file (fun file ->
     let input fmt = fscanf file fmt in
     if input " [%s@]" value <> config_header then failwith "load_config";
+    st.config.row_height <- input " row_height = %d "
+      (num 8 max_int);
     st.config.exec_tag <- input " exec_tag = %[\x20-\xff]" String.trim;
     st.config.exec_tag_max_len <- input " exec_tag_max_len = %d "
       (num 0 max_int);

@@ -5,6 +5,7 @@ type path = string
 
 type t =
 {
+  mutable row_height : int;
   mutable delay_track_update : time;
   mutable exec_tag : path;
   mutable exec_tag_max_len : int;
