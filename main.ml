@@ -950,7 +950,7 @@ let run_library (st : State.t) =
     (int_of_float (Float.round (pos' *. float len)));
 
   (* Browser drag & drop *)
-  let (_, my) as m = Api.Mouse.pos win in
+  let (mx, my) as m = Api.Mouse.pos win in
   let dropped = Api.File.dropped win in
   if dropped <> [] && Api.inside m r then
   (
@@ -985,7 +985,20 @@ let run_library (st : State.t) =
     cx + cw + gutter_w;
   ) (x + margin_w) cols |> ignore;
 
-  ignore header_drag;
+  let gutter_tolerance = 5 in
+  let rec find_gutter' mx i cx =
+    if i = Array.length cols then None else
+    let cx' = cx + fst cols.(i) in
+    if abs (cx' + gutter_w/2 - mx) < gutter_tolerance then Some i else
+    if cx' + gutter_w/2 < mx then find_gutter' mx (i + 1) (cx' + gutter_w) else
+    None
+  in
+  let find_gutter mx = find_gutter' mx 0 (x + margin_w) in
+
+  (match find_gutter mx with
+  | None -> ()
+  | Some _ -> Api.Mouse.set_cursor win (`Resize `E_W)
+  );
 
   (* View *)
   let len = Array.length st.library.tracks in
@@ -1019,6 +1032,20 @@ let run_library (st : State.t) =
   let pos' = view_scroll bw st.ui pos ext -. 0.05 *. view_wheel bw st.ui in
   st.library.view_scroll <- clamp 0 (max 0 (len - vlen))
     (int_of_float (Float.round (pos' *. float len)));
+
+  (* View column resizing *)
+  (match header_drag bw st.ui (1, max_int) with
+  | `None | `Click -> ()
+  | `Drag (dx, _) ->
+    match find_gutter (mx - dx) with
+    | None -> ()
+    | Some i ->
+      let add_snd d (x, y) = (x, max 0 (y + d)) in
+      st.library.columns.(i) <- add_snd dx st.library.columns.(i);
+      if i + 1 < Array.length st.library.columns
+      && Api.Key.is_modifier_down `Shift then
+        st.library.columns.(i + 1) <- add_snd (-dx) st.library.columns.(i + 1);
+  );
 
   (* Library resizing *)
   let left = st.library.side = `Left in
