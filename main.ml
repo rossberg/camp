@@ -269,17 +269,6 @@ let fmt_time3 t =
   else
     fmt "%d:%02d:%02d" (t' / 3600) (t' / 60 mod 60) (t' mod  60)
 
-let fmt_date_time t =
-  let tm = Unix.localtime t in
-  fmt "%04d-%02d-%02d %02d:%02d:%02d"
-    (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
-    tm.tm_hour tm.tm_min tm.tm_sec
-
-let star = "*"  (* TODO: "★" *)
-let fmt_rating n =
-  let len = String.length star in
-  String.init (n * len) (fun i -> star.[i mod len])
-
 
 let exec prog args =
   let cmd = Filename.quote_command prog args in
@@ -980,44 +969,11 @@ let run_library (st : State.t) =
       st.library.error;
 
   (* View header *)
-  let (x, y, w, h) = Ui.dim st.ui (header_area bw) in
-  let percent p = int_of_float (float (w * p) /. 100.0) - gutter_w in
+  let (x, y, _, h) = Ui.dim st.ui (header_area bw) in
   let cols =
-    [|
-      percent 10, `Left;   (* file time *)
-      percent 03, `Left;   (* rating *)
-      percent 15, `Left;   (* artist *)
-      percent 20, `Left;   (* title *)
-      percent 05, `Right;  (* length *)
-      percent 10, `Left;   (* album artist *)
-      percent 15, `Left;   (* album title *)
-      percent 02, `Right;  (* track *)
-      percent 05, `Left;   (* date *)
-      percent 05, `Left;   (* country *)
-      percent 05, `Left;   (* label *)
-      percent 02, `Left;   (* code *)
-      percent 03, `Right;  (* bit rate / sample rate *)
-      percent 00, `Right;  (* file size *)
-      percent 00, `Left;   (* path *)
-    |]
+    Array.map (fun (attr, cw) -> cw, Library.attr_align attr) st.library.columns
   and headings =
-    [|
-      "File Time";
-      "Rating";
-      "Artist";
-      "Title";
-      "Length";
-      "Album Artist";
-      "Album";
-      "Track";
-      "Date";
-      "Country";
-      "Label";
-      "Codec";
-      "Rate";
-      "File Size";
-      "File Path";
-    |]
+    Array.map (fun (attr, _) -> Library.attr_name attr) st.library.columns
   in
   let rows = [|Ui.text_color st.ui, `Inverted, headings|] in
   ignore (header_table bw st.ui cols rows);
@@ -1040,34 +996,9 @@ let run_library (st : State.t) =
     Array.init (min vlen len) (fun i ->
       let i = i + st.library.view_scroll in
       let track = st.library.tracks.(i) in
-      let filetime =
-        if track.filetime = 0.0 then "" else fmt_date_time track.filetime
-      and filesize =
-        if track.filesize = 0 then "" else
-        fmt "%.1f MB" (float track.filesize /. 2.0 ** 20.0)
-      and artist, title, albumartist, album, no, label, country, date, rating =
-        match track.meta with
-        | None -> "", "", "", "", "", "", "", "", ""
-        | Some meta ->
-          meta.artist,
-          meta.title,
-          meta.albumartist,
-          meta.albumtitle,
-          (if meta.track = 0 then "" else fmt "%d" meta.track),
-          meta.label,
-          meta.country,
-          meta.date_txt,
-          fmt_rating meta.rating
-      and code, rate, length =
-        match track.format with
-        | None -> "", "", ""
-        | Some format ->
-          format.code,
-          ( if format.code = "MP3"
-            then fmt "%.0f kbps" (format.bitrate /. 1024.0)
-            else fmt "%.1f KHz" (float format.rate /. 1000.0)
-          ),
-          if format.time = 0.0 then "" else fmt_time format.time
+      let values =
+        Array.map (fun (attr, _) -> Library.attr_string track attr)
+          st.library.columns
       and c =
         match track.status with
         | _ when track.path = current -> `White
@@ -1076,14 +1007,7 @@ let run_library (st : State.t) =
         | `Undet -> Ui.semilit_color (Ui.text_color st.ui)
         | `Predet | `Det -> Ui.text_color st.ui
       in
-      c, `Regular,
-      [|
-        filetime;
-        rating; artist; title; length;
-        albumartist; album; no; date; country; label;
-        code; rate; filesize;
-        track.path
-      |]
+      c, `Regular, values
     )
   in
   ignore (view_table bw st.ui cols rows);

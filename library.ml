@@ -6,6 +6,15 @@ open Data
 type time = float
 type db = Db.t
 
+type attr =
+[
+  | `FilePath | `FileSize | `FileTime
+  | `Codec | `Channels | `Depth | `SampleRate | `Bitrate | `Rate
+  | `Artist | `Title | `Length | `Rating
+  | `AlbumArtist | `AlbumTitle | `Track | `Disc
+  | `Date | `Year | `Label | `Country
+]
+
 type t =
 {
   db : db;
@@ -21,10 +30,30 @@ type t =
   mutable error_time : time;    (* external *)
   mutable roots : dir array;    (* external *)
   mutable tracks : track array; (* external *)
+  mutable columns : (attr * int) array; (* external *)
 }
 
 
 (* Constructor *)
+
+let columns =
+[|
+  `FileTime, 110;
+  `Rating, 30;
+  `Artist, 150;
+  `Title, 180;
+  `Length, 30;
+  `AlbumArtist, 100;
+  `AlbumTitle, 150;
+  `Track, 20;
+  `Date, 60;
+  `Country, 50;
+  `Label, 50;
+  `Codec, 30;
+  `Rate, 50;
+  `FileSize, 50;
+  `FilePath, 400;
+|]
 
 let make db =
   {
@@ -41,7 +70,103 @@ let make db =
     error_time = 0.0;
     roots = [||];
     tracks = [||];
+    columns;
   }
+
+
+(* Attributes *)
+
+let attr_prop = function
+  | `FilePath -> "File Path", `Left
+  | `FileSize -> "File Size", `Right
+  | `FileTime -> "File Time", `Left
+  | `Codec -> "Format", `Left
+  | `Channels -> "Channels", `Left
+  | `Depth -> "Bit Depth", `Right
+  | `SampleRate -> "Sample Rate", `Right
+  | `Bitrate -> "Bit Rate", `Right
+  | `Rate -> "Rate", `Right
+  | `Artist -> "Artist", `Left
+  | `Title -> "Title", `Left
+  | `Length -> "Length", `Right
+  | `Rating -> "Rating", `Left
+  | `AlbumArtist -> "Album Artist", `Left
+  | `AlbumTitle -> "Album Title", `Left
+  | `Track -> "Track", `Right
+  | `Disc -> "Disc", `Right
+  | `Date -> "Date", `Left
+  | `Year -> "Year", `Left
+  | `Label -> "Label", `Left
+  | `Country -> "Country", `Left
+
+let attr_name attr = fst (attr_prop attr)
+let attr_align attr = snd (attr_prop attr)
+
+let rate_for_codec = function
+  | "MP3" | "OGG" | "OPUS" -> `Bitrate
+  | _ -> `SampleRate
+
+let fmt = Printf.sprintf
+
+let fmt_time t =
+  let t' = int_of_float (Float.trunc t) in
+  fmt "%d:%02d" (t' / 60) (t' mod  60)
+
+let fmt_date_time t =
+  let tm = Unix.localtime t in
+  fmt "%04d-%02d-%02d %02d:%02d:%02d"
+    (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
+    tm.tm_hour tm.tm_min tm.tm_sec
+
+let star = "*"  (* TODO: "★" *)
+let fmt_rating n =
+  let len = String.length star in
+  String.init (n * len) (fun i -> star.[i mod len])
+
+let nonzero zero f x = if x = zero then "" else f x
+let nonzero_int x = nonzero 0 string_of_int x
+let nonempty opt f =
+  match opt with
+  | None -> ""
+  | Some x -> f x
+
+let rec attr_string (track : Data.track) = function
+  | `FilePath -> track.path
+  | `FileSize ->
+    nonzero 0.0 (fmt "%.1f MB") (float track.filesize /. 2.0 ** 20.0)
+  | `FileTime -> nonzero 0.0 fmt_date_time track.filetime
+  | `Codec -> nonempty track.format (fun format -> format.codec)
+  | `Channels ->
+    nonempty track.format (fun format -> nonzero_int format.channels)
+  | `Depth ->
+    nonempty track.format (fun format ->
+      let depth = format.bitrate /. float format.rate /. float format.channels in
+      let fmts : _ format =
+        if float format.depth = Float.round depth then "%.0f" else "%.1f"
+      in nonzero 0.0 (fmt fmts) depth
+    )
+  | `SampleRate ->
+    nonempty track.format (fun format ->
+      nonzero 0.0 (fmt "%.1f KHz") (float format.rate /. 1000.0))
+  | `Bitrate ->
+    nonempty track.format (fun format ->
+      nonzero 0.0 (fmt "%.0f kbps") (format.bitrate /. 1000.0))
+  | `Rate ->
+    nonempty track.format (fun format ->
+      attr_string track (rate_for_codec format.codec))
+  | `Artist -> nonempty track.meta (fun meta -> meta.artist)
+  | `Title -> nonempty track.meta (fun meta -> meta.title)
+  | `Length ->
+    nonempty track.format (fun format -> nonzero 0.0 fmt_time format.time)
+  | `Rating -> nonempty track.meta (fun meta -> fmt_rating meta.rating)
+  | `AlbumArtist -> nonempty track.meta (fun meta -> meta.albumartist)
+  | `AlbumTitle -> nonempty track.meta (fun meta -> meta.albumtitle)
+  | `Track -> nonempty track.meta (fun meta -> nonzero_int meta.track)
+  | `Disc -> nonempty track.meta (fun meta -> nonzero_int meta.disc)
+  | `Date -> nonempty track.meta (fun meta -> meta.date_txt)
+  | `Year -> nonempty track.meta (fun meta -> nonzero_int meta.year)
+  | `Label -> nonempty track.meta (fun meta -> meta.label)
+  | `Country -> nonempty track.meta (fun meta -> meta.country)
 
 
 (* Helpers *)

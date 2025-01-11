@@ -96,6 +96,40 @@ let load_playlist () =
   !tracks
 
 
+let attr_str =
+[
+  `FilePath, "PTH";
+  `FileSize, "SIZ";
+  `FileTime, "TIM";
+  `Codec, "COD";
+  `Channels, "CHA";
+  `Depth, "DEP";
+  `SampleRate, "KHZ";
+  `Bitrate, "BPS";
+  `Rate, "RES";
+  `Artist, "ART";
+  `Title, "TIT";
+  `Length, "LEN";
+  `Rating, "RAT";
+  `AlbumArtist, "ALA";
+  `AlbumTitle, "ALB";
+  `Track, "TRK";
+  `Disc, "DIS";
+  `Date, "DAT";
+  `Year, "YER";
+  `Label, "LAB";
+  `Country, "CTY";
+]
+
+let string_of_attr attr = List.assoc attr attr_str
+let attr_of_string s = fst (List.find (fun (_, s') -> s' = s) attr_str)
+
+let string_of_col (attr, w) = string_of_attr attr ^ string_of_int w
+let col_of_string s =
+  attr_of_string (String.sub s 0 3),
+  int_of_string (String.sub s 3 (String.length s - 3))
+
+
 let to_string st =
   let buf = Buffer.create 1024 in
   let output fmt  = Printf.bprintf buf fmt in
@@ -133,6 +167,9 @@ let to_string st =
   output "lib_width = %d\n" st.library.width;
   output "lib_browser_width = %d\n" st.library.browser_width;
   output "lib_browser_scroll = %d\n" st.library.browser_scroll;
+  output "lib_view_columns = %s\n"
+    (String.concat " " (Array.to_list
+      (Array.map string_of_col st.library.columns)));
   Buffer.contents buf
 
 let opt f = function
@@ -245,6 +282,10 @@ let load st =
       (num 40 (st.library.width - 60));
     st.library.browser_scroll <- input " lib_browser_scroll = %d "
       (num 0 (max 0 (Array.length st.library.roots - 1)));
+    let cols = input " lib_view_columns = %[\x20-\xff]" String.trim in
+    st.library.columns <-
+      Array.of_list (List.map col_of_string
+        (List.filter ((<>) "") (String.split_on_char ' ' cols)));
   );
   Playlist.update_total st.playlist;
   Storage.load config_file (fun file ->

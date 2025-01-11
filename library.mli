@@ -3,6 +3,15 @@
 open Data
 type db = Db.t
 
+type attr =
+[
+  | `FilePath | `FileSize | `FileTime
+  | `Codec | `Channels | `Depth | `SampleRate | `Bitrate | `Rate
+  | `Artist | `Title | `Length | `Rating
+  | `AlbumArtist | `AlbumTitle | `Track | `Disc
+  | `Date | `Year | `Country | `Label
+]
+
 type t =
 {
   db : db;
@@ -18,6 +27,7 @@ type t =
   mutable error_time : time;    (* external *)
   mutable roots : dir array;    (* external *)
   mutable tracks : track array; (* external *)
+  mutable columns : (attr * int) array; (* external *)
 }
 
 
@@ -41,6 +51,10 @@ val scan_roots : t -> dir array -> unit
 (* View *)
 
 val update_view : t -> unit
+
+val attr_name : attr -> string
+val attr_align : attr -> [> `Left | `Right]
+val attr_string : track -> attr -> string
 
 
 (* Validation *)

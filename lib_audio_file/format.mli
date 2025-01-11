@@ -2,7 +2,7 @@ type path = string
 
 type t =
 {
-  code : string;
+  codec : string;
   channels : int;
   depth : int;
   rate : int; (* Hz *)

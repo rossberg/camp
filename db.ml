@@ -336,7 +336,7 @@ let to_track data : track =
     format = if all_null format_fields data then None else
       Some Format.
       {
-        code = to_text_default 6 data;
+        codec = to_text_default 6 data;
         channels = to_int_default 7 data;
         depth = to_int_default 8 data;
         rate = to_int_default 9 data;
@@ -382,7 +382,7 @@ let create_tracks = create_table
     filesize INT,
     filetime REAL,
     fileage REAL,
-    format TEXT,
+    codec TEXT,
     channels INT,
     depth INT,
     rate INT,
@@ -437,7 +437,7 @@ let insert_track db (track : track) =
   let* () = bind_float_default stmt 5 track.fileage in
   let* () = bind_int stmt 25 (of_status track.status) in
   Option.iter (fun (format : Format.t) ->
-    let* () = bind_text_default stmt 6 format.code in
+    let* () = bind_text_default stmt 6 format.codec in
     let* () = bind_int_default stmt 7 format.channels in
     let* () = bind_int_default stmt 8 format.depth in
     let* () = bind_int_default stmt 9 format.rate in

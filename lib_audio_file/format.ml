@@ -2,7 +2,7 @@ type path = string
 
 type t =
 {
-  code : string;
+  codec : string;
   channels : int;
   depth : int;
   rate : int; (* Hz *)
@@ -13,7 +13,7 @@ type t =
 
 let unknown =
 {
-  code = "";
+  codec = "";
   channels = 0;
   depth = 0;
   rate  = 0;
@@ -35,7 +35,7 @@ let read path =
     let mp3 = Mp3.read_format path in
     let channels = match mp3.channels with Mono -> 1 | _ -> 2 in
     {
-      code = "MP3";
+      codec = "MP3";
       channels = channels;
       depth = 1024 * mp3.bitrate / mp3.rate / channels;
       rate = mp3.rate;
@@ -48,7 +48,7 @@ let read path =
     let flac = Flac.read_format path in
     let time = float flac.samples /. float flac.rate in
     {
-      code = "FLAC";
+      codec = "FLAC";
       channels = flac.channels;
       depth = flac.depth;
       rate = flac.rate;
@@ -60,7 +60,7 @@ let read path =
   | ".wav" ->
     let wav = Wav.read_format path in
     {
-      code = "WAV";
+      codec = "WAV";
       channels = wav.channels;
       depth = wav.depth;
       rate = wav.rate;
@@ -69,7 +69,7 @@ let read path =
       size = wav.size;
     }
 
-  | ".ogg" -> {unknown with code = "OGG"}  (* TODO *)
-  | ".opus" -> {unknown with code = "OPUS"}  (* TODO *)
+  | ".ogg" -> {unknown with codec = "OGG"}  (* TODO *)
+  | ".opus" -> {unknown with codec = "OPUS"}  (* TODO *)
 
   | _ -> unknown
