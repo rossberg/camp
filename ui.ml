@@ -490,41 +490,63 @@ let volume_bar r ui v =
 
 
 type drag += Scroll_bar_page of {last_repeat : time}
-type drag += Scroll_bar_drag of {value : float; mouse : int}
+type drag += Scroll_bar_drag of {value : float; mx : int; my : int}
 
-let scroll_bar r ui v len =
+let scroll_bar r orient ui v len =
   assert (v +. len <= 1.0);
   let (x, y, w, h), status = element r no_modkey ui in
   Draw.fill ui.win x y w h (fill ui false);
-  let y' = y + int_of_float (v *. float (h - 2)) + 1 in
-  let h' = int_of_float (Float.ceil (len *. float (h - 2))) in
-  if len < 1.0 then Draw.fill ui.win x y' w h' (fill ui true);
-  for j = 0 to h / 2 - 1 do
-    Draw.fill ui.win x (y + 2*j) w 1 `Black
-  done;
+  let x', y', w', h' as r' =
+    match orient with
+    | `Vertical ->
+      x, y + int_of_float (v *. float (h - 2)) + 1,
+      w, int_of_float (Float.ceil (len *. float (h - 2)))
+    | `Horizontal ->
+      x + int_of_float (v *. float (w - 2)) + 1, y,
+      int_of_float (Float.ceil (len *. float (w - 2))), h
+  in
+  if len < 1.0 then Draw.fill ui.win x' y' w' h' (fill ui true);
+  (match orient with
+  | `Vertical ->
+    for j = 0 to h / 2 - 1 do
+      Draw.fill ui.win x (y + 2*j) w 1 `Black
+    done
+  | `Horizontal ->
+    for i = 0 to w / 2 - 1 do
+      Draw.fill ui.win (x + 2*i) y 1 h `Black
+    done
+  );
   Draw.rect ui.win x y w h (border ui status);
   if status <> `Pressed then v else
-  let _, my = Mouse.pos ui.win in
-  let v0, my0, t, dragging =
+  let (mx, my) as m = Mouse.pos ui.win in
+  let v0, mx0, my0, t, dragging =
     match ui.drag_extra with
-    | No_drag -> v, my, 0.0, false
-    | Scroll_bar_page {last_repeat} -> v, my, last_repeat, false
-    | Scroll_bar_drag {value; mouse} -> value, mouse, 0.0, true
+    | No_drag -> v, mx, my, 0.0, false
+    | Scroll_bar_page {last_repeat} -> v, mx, my, last_repeat, false
+    | Scroll_bar_drag {value; mx; my} -> value, mx, my, 0.0, true
     | _ -> assert false
   in
   let now = Unix.gettimeofday () in
   let v' =
-    if dragging || y' <= my && my < y' + h' then
+    if dragging || inside m r' then
     (
-      ui.drag_extra <- Scroll_bar_drag {value = v0; mouse = my0};
-      v0 +. float (my - my0) /. float (h - 2)
+      ui.drag_extra <- Scroll_bar_drag {value = v0; mx = mx0; my = my0};
+      match orient with
+      | `Vertical -> v0 +. float (my - my0) /. float (h - 2)
+      | `Horizontal -> v0 +. float (mx - mx0) /. float (w - 2)
     )
-    else if now -. t > 0.5 then
+    else if now -. t > 0.2 (* TODO: use config *) then
     (
       ui.drag_extra <- Scroll_bar_page {last_repeat = now};
-      if my < y' then v -. len else
-      if my >= y' + h' then v +. len else
-      v
+      match orient with
+      | `Vertical ->
+        if my < y' then v -. len else
+        if my >= y' + h' then v +. len else
+        v
+      | `Horizontal ->
+        if mx < x' then v -. len else
+        if mx >= x' + w' then v +. len else
+        v
     )
     else v
   in clamp 0.0 (1.0 -. len) v'
@@ -537,7 +559,7 @@ type inversion = [`Regular | `Inverted]
 type column = int * align
 type row = color * inversion * string array
 
-let table r gw ch ui cols rows =
+let table r gw ch ui cols rows scroll =
   let (x, y, w, h), status = element r no_modkey ui in
   let font = font ui ch in
   Draw.fill ui.win x y w h `Black;
@@ -547,7 +569,7 @@ let table r gw ch ui cols rows =
     let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
     if bg <> `Black then Draw.fill ui.win x cy w ch bg;
     let mw = (gw + 1)/2 in
-    let cx = ref (x + mw) in
+    let cx = ref (x + mw - scroll) in
     Array.iteri (fun i (cw, align) ->
       let tw = Draw.text_width ui.win ch font texts.(i) in
       let dx =
@@ -557,7 +579,8 @@ let table r gw ch ui cols rows =
         | `Right -> cw - tw - mw  (* subtract another mw, since tw can be off *)
       in
       let cw' = min cw (x + w - mw - !cx) in
-      if tw >= cw' then Draw.clip ui.win !cx y cw' h;
+      let left = max !cx (x + mw) in
+      Draw.clip ui.win left y (cw' - max 0 (left - !cx)) h;
       Draw.text ui.win (!cx + max 0 dx) cy ch fg font texts.(i);
       if tw >= cw then
       (
@@ -565,7 +588,7 @@ let table r gw ch ui cols rows =
         Draw.gradient ui.win (!cx + cw - rw) cy rw ch
           (`Trans (bg, 0)) `Horizontal bg;
       );
-      if tw >= cw' then Draw.unclip ui.win;
+      Draw.unclip ui.win;
       cx := !cx + cw + gw;
     ) cols
   ) rows;

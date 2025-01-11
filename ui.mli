@@ -67,11 +67,11 @@ val labeled_button : area -> ?protrude: bool -> int -> string -> modifier list *
 
 val progress_bar : area -> t -> float -> float
 val volume_bar : area -> t -> float -> float
-val scroll_bar : area -> t -> float -> float -> float
+val scroll_bar : area -> Api.orientation -> t -> float -> float -> float
 
 val divider : area -> Api.orientation -> t -> int -> int -> int
 val resizer : area -> Api.resize -> t -> size -> size -> size
 
 type column = int * align
 type row = color * inversion * string array
-val table : area -> int -> int -> t -> column array -> row array -> int option
+val table : area -> int -> int -> t -> column array -> row array -> int -> int option

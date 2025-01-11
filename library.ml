@@ -26,6 +26,7 @@ type t =
   mutable browser_scroll : int; (* external *)
   mutable view_rows : int;      (* external *)
   mutable view_scroll : int;    (* external *)
+  mutable view_scroll_h : int;  (* external *)
   mutable error : string;       (* external *)
   mutable error_time : time;    (* external *)
   mutable roots : dir array;    (* external *)
@@ -66,6 +67,7 @@ let make db =
     browser_scroll = 0;
     view_rows = 4;
     view_scroll = 0;
+    view_scroll_h = 0;
     error = "";
     error_time = 0.0;
     roots = [||];

@@ -23,6 +23,7 @@ type t =
   mutable browser_scroll : int; (* external *)
   mutable view_rows : int;      (* external *)
   mutable view_scroll : int;    (* external *)
+  mutable view_scroll_h : int;  (* external *)
   mutable error : string;       (* external *)
   mutable error_time : time;    (* external *)
   mutable roots : dir array;    (* external *)

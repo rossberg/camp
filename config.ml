@@ -17,7 +17,7 @@ let make () =
   {
     delay_track_update = 10.0;
     exec_tag = "";
-    exec_tag_max_len = 0;
+    exec_tag_max_len = 8000;
   }
 
 
@@ -25,5 +25,8 @@ let make () =
 
 type error = string
 
-let ok _cfg =
+let check msg b = if b then [] else [msg]
+
+let ok cfg =
+  check "track update delay in range" (cfg.delay_track_update >= 0.0) @
   []
