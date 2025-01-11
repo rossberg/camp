@@ -5,7 +5,7 @@
 
 let margin = 10
 let row_h = 13
-let gutter_w = 3
+let gutter_w = 7
 let bottom_h = 24
 let footer_h = row_h
 let footer_y = -footer_h-(bottom_h-footer_h)/2
@@ -603,7 +603,7 @@ let run_playlist (st : State.t) =
   (* Playlist table *)
   let digits = log10 (len + 1) + 1 in
   let font = Ui.font st.ui row_h in
-  let smax1 = String.make digits '0' ^ ". " in
+  let smax1 = String.make digits '0' ^ "." in
   let cw1 = Api.Draw.text_width win row_h font smax1 + 1 in
   let cw3 = ref 16 in
   let (_, y, w, _) as r = Ui.dim st.ui playlist_area in
@@ -629,10 +629,12 @@ let run_playlist (st : State.t) =
       let inv = if Playlist.is_selected st.playlist i then `Inverted else `Regular in
       let time = if track.time = 0.0 then "" else fmt_time track.time in
       cw3 := max !cw3 (Api.Draw.text_width win row_h font time + 1);
-      c, inv, [|fmt "%0*d. " digits (i + 1); track.name; time|]
+      c, inv, [|fmt "%0*d." digits (i + 1); track.name; time|]
     )
   in
-  let cols = [|cw1, `Right; w - cw1 - !cw3 - 4 * gutter_w, `Left; !cw3, `Right|] in
+  let margin_w = (gutter_w + 1)/2 in  (* matches mw in UI.table *)
+  let cw2 = w - cw1 - !cw3 - 2 * gutter_w - 2 * margin_w in
+  let cols = [|cw1, `Right; cw2, `Left; !cw3, `Right|] in
   let dragging = playlist_drag st.ui (max_int, row_h) in
   (match playlist_table st.ui cols rows with
   | None -> ()
@@ -989,7 +991,7 @@ let run_library (st : State.t) =
       percent 05, `Right;  (* length *)
       percent 10, `Left;   (* album artist *)
       percent 15, `Left;   (* album title *)
-      percent 00, `Right;  (* track *)
+      percent 02, `Right;  (* track *)
       percent 05, `Left;   (* date *)
       percent 05, `Left;   (* country *)
       percent 05, `Left;   (* label *)
@@ -1000,31 +1002,32 @@ let run_library (st : State.t) =
     |]
   and headings =
     [|
-      " File Time";
-      " Rating";
-      " Artist";
-      " Title";
-      " Length ";
-      " Album Artist";
-      " Album";
-      "Track ";
-      " Date";
-      " Country";
-      " Label";
-      " Codec";
-      "Rate ";
-      "File Size ";
-      " File Path";
+      "File Time";
+      "Rating";
+      "Artist";
+      "Title";
+      "Length";
+      "Album Artist";
+      "Album";
+      "Track";
+      "Date";
+      "Country";
+      "Label";
+      "Codec";
+      "Rate";
+      "File Size";
+      "File Path";
     |]
   in
   let rows = [|Ui.text_color st.ui, `Inverted, headings|] in
   ignore (header_table bw st.ui cols rows);
 
-  (* Header column dividers *)
+  (* Header column dividers (HACK) *)
+  let margin_w = (gutter_w + 1)/2 in  (* match mw in Ui.table *)
   Array.fold_left (fun cx (cw, _) ->
-    Api.Draw.fill win (cx + cw + 1) y 1 h `Black;
+    Api.Draw.fill win (cx + cw + gutter_w/2) y 1 h `Black;
     cx + cw + gutter_w;
-  ) (x + gutter_w) cols |> ignore;
+  ) (x + margin_w) cols |> ignore;
 
   ignore header_drag;
 
@@ -1038,33 +1041,33 @@ let run_library (st : State.t) =
       let i = i + st.library.view_scroll in
       let track = st.library.tracks.(i) in
       let filetime =
-        if track.filetime = 0.0 then "" else " " ^ fmt_date_time track.filetime
+        if track.filetime = 0.0 then "" else fmt_date_time track.filetime
       and filesize =
         if track.filesize = 0 then "" else
-        fmt "%.1f MB " (float track.filesize /. 2.0 ** 20.0)
+        fmt "%.1f MB" (float track.filesize /. 2.0 ** 20.0)
       and artist, title, albumartist, album, no, label, country, date, rating =
         match track.meta with
         | None -> "", "", "", "", "", "", "", "", ""
         | Some meta ->
-          " " ^ meta.artist,
-          " " ^ meta.title,
-          " " ^ meta.albumartist,
-          " " ^ meta.albumtitle,
-          (if meta.track = 0 then "" else fmt "%d " meta.track),
-          " " ^ meta.label,
-          " " ^ meta.country,
-          " " ^ meta.date_txt,
-          " " ^ fmt_rating meta.rating
+          meta.artist,
+          meta.title,
+          meta.albumartist,
+          meta.albumtitle,
+          (if meta.track = 0 then "" else fmt "%d" meta.track),
+          meta.label,
+          meta.country,
+          meta.date_txt,
+          fmt_rating meta.rating
       and code, rate, length =
         match track.format with
         | None -> "", "", ""
         | Some format ->
-          " " ^ format.code,
+          format.code,
           ( if format.code = "MP3"
-            then fmt "%.0f kbps " (format.bitrate /. 1024.0)
-            else fmt "%.1f KHz " (float format.rate /. 1000.0)
+            then fmt "%.0f kbps" (format.bitrate /. 1024.0)
+            else fmt "%.1f KHz" (float format.rate /. 1000.0)
           ),
-          if format.time = 0.0 then "" else fmt_time format.time ^ " "
+          if format.time = 0.0 then "" else fmt_time format.time
       and c =
         match track.status with
         | _ when track.path = current -> `White

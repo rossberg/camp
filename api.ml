@@ -26,7 +26,7 @@ let sub (x1, y1) (x2, y2) = (x1 - x2, y1 - y2)
 let mul (x1, y1) (x2, y2) = (x1 * x2, y1 * y2)
 
 let inside (x, y) (x', y', w, h) =
-  x' <= x && x <= x' + w && y' <= y && y <= y' + h
+  x' <= x && x < x' + w && y' <= y && y < y' + h
 
 let point_of_vec2 v =
   Raylib.Vector2.(int_of_float (x v), int_of_float (y v))
@@ -400,7 +400,7 @@ struct
 
   let _ = after_frame_start :=
     (fun () ->
-      (* Work around Raylib bug: if window was moved but mouse hasn't, then
+      (* Work around Raylib issue: if window was moved but mouse hasn't, then
        * mouse pos is off; detect and correct by adding window delta. *)
       current_pos := point_of_vec2 (Raylib.get_mouse_position ());
       let win_pos = point_of_vec2 (Raylib.get_window_position ()) in

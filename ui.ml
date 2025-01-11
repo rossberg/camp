@@ -546,16 +546,17 @@ let table r gw ch ui cols rows =
     let bg = if j mod 2 = 0 then `Black else `Gray 0x10 in
     let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
     if bg <> `Black then Draw.fill ui.win x cy w ch bg;
-    let cx = ref (x + gw) in
+    let mw = (gw + 1)/2 in
+    let cx = ref (x + mw) in
     Array.iteri (fun i (cw, align) ->
       let tw = Draw.text_width ui.win ch font texts.(i) in
       let dx =
         match align with
         | `Left -> 0
         | `Center -> (cw - tw) / 2
-        | `Right -> cw - tw
+        | `Right -> cw - tw - mw  (* subtract another mw, since tw can be off *)
       in
-      let cw' = min cw (x + w - gw - !cx) in
+      let cw' = min cw (x + w - mw - !cx) in
       if tw >= cw' then Draw.clip ui.win !cx y cw' h;
       Draw.text ui.win (!cx + max 0 dx) cy ch fg font texts.(i);
       if tw >= cw then
