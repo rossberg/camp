@@ -337,12 +337,39 @@ let add_roots lib paths pos =
 
 (* View *)
 
+let has_selection lib = Table.has_selection lib.view
+let num_selected lib = Table.num_selected lib.view
+let first_selected lib = Table.first_selected lib.view
+let last_selected lib = Table.last_selected lib.view
+let is_selected lib i = Table.is_selected lib.view i
+
+let select_all lib =
+  Table.select_all lib.view
+
+let deselect_all lib =
+  Table.deselect_all lib.view
+
+let select_invert lib =
+  Table.select_invert lib.view
+
+let select lib i j =
+  Table.select lib.view i j
+
+let deselect lib i j =
+  Table.deselect lib.view i j
+
+
 let update_view lib =
+  deselect_all lib;
   let tracks = ref [] in
   Db.iter_tracks lib.db (fun track -> tracks := track :: !tracks);
   lib.view.entries <- Array.of_list !tracks;
   array_rev lib.view.entries;
   Table.adjust_pos lib.view
+
+
+let adjust_scroll lib pos =
+  Table.adjust_scroll lib.view pos
 
 
 (* Persistance *)

@@ -147,7 +147,7 @@ let playlist_area = (1, margin, margin, -margin-scrollbar_w, -bottom_h)
 let playlist_table = Ui.table playlist_area gutter_w
 let playlist_scroll = Ui.scroll_bar (1, -margin-scrollbar_w, margin, scrollbar_w, -bottom_h) `Vertical
 let playlist_wheel = Ui.wheel (1, margin, margin, -margin, -bottom_h)
-let playlist_drag = Ui.drag (1, margin, margin, -margin-scrollbar_w, -bottom_h)
+let playlist_drag = Ui.drag playlist_area
 
 let total_w = -margin-scrollbar_w-gutter_w
 let total_x = total_w-100
@@ -221,6 +221,7 @@ let view_table bw rh = Ui.table (view_area bw rh) gutter_w rh
 let view_scroll_v _bw = Ui.scroll_bar (2, -margin-scrollbar_w, margin, scrollbar_w, -bottom_h) `Vertical
 let view_scroll_h bw = Ui.scroll_bar (2, margin+divider_w+bw, -bottom_h-scrollbar_w, -margin-scrollbar_w-1, scrollbar_w) `Horizontal
 let view_wheel bw = Ui.wheel (2, margin+divider_w+bw, margin, -margin, -bottom_h)
+let view_drag bw rh = Ui.drag (view_area bw rh)
 
 let error_w = -margin-scrollbar_w-gutter_w
 let error_x = margin+resizer_w
@@ -635,7 +636,10 @@ let run_playlist (st : State.t) =
     if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left && dragging = `None then
     (
       if i >= len || not (Playlist.is_selected st.playlist i) then
+      (
+        Library.deselect_all st.library;
         Playlist.deselect_all st.playlist;
+      );
       if i < len then
       (
         if Api.Mouse.is_doubleclick `Left then
@@ -647,6 +651,7 @@ let run_playlist (st : State.t) =
         )
         else
         (
+          Library.deselect_all st.library;
           Playlist.select st.playlist i i;
         )
       )
@@ -654,7 +659,11 @@ let run_playlist (st : State.t) =
     else if Api.Key.are_modifiers_down [] && not (Api.Mouse.is_pressed `Left) && dragging = `Click then
     (
       Playlist.deselect_all st.playlist;
-      if i < len then Playlist.select st.playlist i i;
+      if i < len then
+      (
+        Library.deselect_all st.library;
+        Playlist.select st.playlist i i;
+      )
     )
     else if Api.Key.are_modifiers_down [`Command] && Api.Mouse.is_pressed `Left then
     (
@@ -663,21 +672,25 @@ let run_playlist (st : State.t) =
         if Playlist.is_selected st.playlist i then
           Playlist.deselect st.playlist i i
         else
-          Playlist.select st.playlist i i
+        (
+          Library.deselect_all st.library;
+          Playlist.select st.playlist i i;
+        )
       )
     )
     else if Api.Key.are_modifiers_down [`Shift] && Api.Mouse.is_down `Left then
     (
       let pos1, pos2 = Option.value tab.sel_range ~default: (0, 0) in
       let i' = max 0 (min i (len - 1)) in
-      if tab.sel_range = None
-      || Playlist.is_selected st.playlist pos1 then
+      if tab.sel_range = None || Playlist.is_selected st.playlist pos1 then
       (
+        Library.deselect_all st.library;
         Playlist.deselect st.playlist pos2 i';
         Playlist.select st.playlist pos1 i'
       )
       else
       (
+        Library.deselect_all st.library;
         Playlist.select st.playlist pos2 i';
         Playlist.deselect st.playlist pos1 i'
       )
@@ -685,67 +698,72 @@ let run_playlist (st : State.t) =
   );
 
   (* Playlist selection *)
-  let d =
-    if begin_key st.ui then -len else
-    if end_key st.ui then +len else
-    if pageup_key st.ui then -tab.fit else
-    if pagedown_key st.ui then +tab.fit else
-    if up_key st.ui then -1 else
-    if down_key st.ui then +1 else
-    0
-  in
-  if min len (abs d) > 0 then
+  if not (Library.has_selection st.library) then
   (
-    let default = 0, if d < 0 then len else -1 in
-    let _, pos2 = Option.value tab.sel_range ~default in
-    let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
-    Playlist.deselect_all st.playlist;
-    Playlist.select st.playlist i i;
-    Playlist.adjust_scroll st.playlist (Some i);
-  );
-
-  let d =
-    if selbegin_key st.ui then -len else
-    if selend_key st.ui then +len else
-    if selpageup_key st.ui then -tab.fit else
-    if selpagedown_key st.ui then +tab.fit else
-    if selup_key st.ui then -1 else
-    if seldown_key st.ui then +1 else
-    0
-  in
-  if min len (abs d) > 0 then
-  (
-    let default = 0, if d < 0 then len else -1 in
-    let pos1, pos2 = Option.value tab.sel_range ~default in
-    let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
-    if tab.sel_range = None then
+    let d =
+      if begin_key st.ui then -len else
+      if end_key st.ui then +len else
+      if pageup_key st.ui then -tab.fit else
+      if pagedown_key st.ui then +tab.fit else
+      if up_key st.ui then -1 else
+      if down_key st.ui then +1 else
+      0
+    in
+    if min len (abs d) > 0 then
     (
-      Playlist.select st.playlist (len - 1) i
-    )
-    else if Playlist.is_selected st.playlist pos1 then
-    (
-      Playlist.deselect st.playlist (max 0 pos2) i;
-      Playlist.select st.playlist pos1 i
-    )
-    else
-    (
-      Playlist.select st.playlist (max 0 pos2) i;
-      Playlist.deselect st.playlist pos1 i
+      let default = 0, if d < 0 then len else -1 in
+      let _, pos2 = Option.value tab.sel_range ~default in
+      let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
+      Playlist.deselect_all st.playlist;
+      Playlist.select st.playlist i i;
+      Playlist.adjust_scroll st.playlist (Some i);
     );
-    Playlist.adjust_scroll st.playlist (Some i);
-  );
 
-  if selall_key st.ui then
-  (
-    Playlist.select_all st.playlist;
-  )
-  else if selnone_key st.ui then
-  (
-    Playlist.deselect_all st.playlist;
-  )
-  else if selinv_key st.ui then
-  (
-    Playlist.select_invert st.playlist;
+    let d =
+      if selbegin_key st.ui then -len else
+      if selend_key st.ui then +len else
+      if selpageup_key st.ui then -tab.fit else
+      if selpagedown_key st.ui then +tab.fit else
+      if selup_key st.ui then -1 else
+      if seldown_key st.ui then +1 else
+      0
+    in
+    if min len (abs d) > 0 then
+    (
+      let default = 0, if d < 0 then len else -1 in
+      let pos1, pos2 = Option.value tab.sel_range ~default in
+      let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
+      if tab.sel_range = None then
+      (
+        Playlist.select st.playlist (len - 1) i
+      )
+      else if Playlist.is_selected st.playlist pos1 then
+      (
+        Playlist.deselect st.playlist (max 0 pos2) i;
+        Playlist.select st.playlist pos1 i
+      )
+      else
+      (
+        Playlist.select st.playlist (max 0 pos2) i;
+        Playlist.deselect st.playlist pos1 i
+      );
+      Playlist.adjust_scroll st.playlist (Some i);
+    );
+
+    if selall_key st.ui then
+    (
+      Library.deselect_all st.library;
+      Playlist.select_all st.playlist;
+    )
+    else if selnone_key st.ui then
+    (
+      Playlist.deselect_all st.playlist;
+    )
+    else if selinv_key st.ui then
+    (
+      Library.deselect_all st.library;
+      Playlist.select_invert st.playlist;
+    )
   );
 
   (* Playlist reordering *)
@@ -830,6 +848,7 @@ let run_playlist (st : State.t) =
     Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
     if Playlist.num_selected st.playlist = 1 then
     (
+      Library.deselect_all st.library;
       Playlist.deselect_all st.playlist;
       Playlist.select st.playlist pos pos;
     )
@@ -881,6 +900,7 @@ let run_playlist (st : State.t) =
       Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
       if Playlist.num_selected st.playlist = 1 && tracks <> [||] then
       (
+        Library.deselect_all st.library;
         Playlist.deselect_all st.playlist;
         Playlist.select st.playlist pos (pos + Array.length tracks - 1);
       )
@@ -1030,15 +1050,22 @@ let run_library (st : State.t) =
         | `Undet -> Ui.semilit_color (Ui.text_color st.ui)
         | `Predet | `Det -> Ui.text_color st.ui
       in
-      c, `Regular, values
+      let inv = if Library.is_selected st.library i then `Inverted else `Regular in
+      c, inv, values
     )
   in
+  let dragging = view_drag bw row_h st.ui (max_int, row_h) in
   (match view_table bw row_h st.ui cols rows view.scroll_h with
   | None -> ()
   | Some i ->
     let i = view.scroll_v + i in
-    if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left then
+    if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left && dragging = `None then
     (
+      if i >= len || not (Library.is_selected st.library i) then
+      (
+        Playlist.deselect_all st.playlist;
+        Library.deselect_all st.library;
+      );
       if i < len then
       (
         if Api.Mouse.is_doubleclick `Left then
@@ -1049,7 +1076,120 @@ let run_library (st : State.t) =
           Playlist.insert st.playlist 0 [|track|];
           Control.switch st.control track true;
         )
+        else
+        (
+          Playlist.deselect_all st.playlist;
+          Library.select st.library i i;
+        )
       )
+    )
+    else if Api.Key.are_modifiers_down [] && not (Api.Mouse.is_pressed `Left) && dragging = `Click then
+    (
+      Library.deselect_all st.library;
+      if i < len then
+      (
+        Playlist.deselect_all st.playlist;
+        Library.select st.library i i;
+      )
+    )
+    else if Api.Key.are_modifiers_down [`Command] && Api.Mouse.is_pressed `Left then
+    (
+      if i < len then
+      (
+        if Library.is_selected st.library i then
+          Library.deselect st.library i i
+        else
+        (
+          Playlist.deselect_all st.playlist;
+          Library.select st.library i i;
+        )
+      )
+    )
+    else if Api.Key.are_modifiers_down [`Shift] && Api.Mouse.is_down `Left then
+    (
+      let pos1, pos2 = Option.value view.sel_range ~default: (0, 0) in
+      let i' = max 0 (min i (len - 1)) in
+      if view.sel_range = None || Library.is_selected st.library pos1 then
+      (
+        Playlist.deselect_all st.playlist;
+        Library.deselect st.library pos2 i';
+        Library.select st.library pos1 i'
+      )
+      else
+      (
+        Playlist.deselect_all st.playlist;
+        Library.select st.library pos2 i';
+        Library.deselect st.library pos1 i'
+      )
+    )
+  );
+
+  (* View selection *)
+  if Library.has_selection st.library then
+  (
+    let d =
+      if begin_key st.ui then -len else
+      if end_key st.ui then +len else
+      if pageup_key st.ui then -view.fit else
+      if pagedown_key st.ui then +view.fit else
+      if up_key st.ui then -1 else
+      if down_key st.ui then +1 else
+      0
+    in
+    if min len (abs d) > 0 then
+    (
+      let default = 0, if d < 0 then len else -1 in
+      let _, pos2 = Option.value view.sel_range ~default in
+      let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
+      Library.deselect_all st.library;
+      Library.select st.library i i;
+      Library.adjust_scroll st.library (Some i);
+    );
+
+    let d =
+      if selbegin_key st.ui then -len else
+      if selend_key st.ui then +len else
+      if selpageup_key st.ui then -view.fit else
+      if selpagedown_key st.ui then +view.fit else
+      if selup_key st.ui then -1 else
+      if seldown_key st.ui then +1 else
+      0
+    in
+    if min len (abs d) > 0 then
+    (
+      let default = 0, if d < 0 then len else -1 in
+      let pos1, pos2 = Option.value view.sel_range ~default in
+      let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
+      if view.sel_range = None then
+      (
+        Library.select st.library (len - 1) i
+      )
+      else if Library.is_selected st.library pos1 then
+      (
+        Library.deselect st.library (max 0 pos2) i;
+        Library.select st.library pos1 i
+      )
+      else
+      (
+        Library.select st.library (max 0 pos2) i;
+        Library.deselect st.library pos1 i
+      );
+      Library.adjust_scroll st.library (Some i);
+    );
+
+    if selall_key st.ui then
+    (
+      Playlist.deselect_all st.playlist;
+      Library.select_all st.library;
+    )
+    else if selnone_key st.ui then
+    (
+      Library.deselect_all st.library;
+    )
+    else if selinv_key st.ui then
+    (
+      Playlist.deselect_all st.playlist;
+      Library.select_invert st.library;
     )
   );
 

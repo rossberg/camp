@@ -42,6 +42,7 @@ val adjust_scroll : 'a t -> int option -> unit
 
 (* Selection *)
 
+val has_selection : 'a t -> bool
 val num_selected : 'a t -> int
 val first_selected : 'a t -> int option
 val last_selected : 'a t -> int option

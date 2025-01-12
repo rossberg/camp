@@ -74,6 +74,7 @@ val shuffle_next : t -> int -> unit
 
 (* Selection *)
 
+val has_selection : t -> bool
 val num_selected : t -> int
 val first_selected : t -> int option
 val last_selected : t -> int option

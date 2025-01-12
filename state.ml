@@ -36,7 +36,11 @@ let rec ok st =
     Library.ok st.library @
     Config.ok st.config @
     check "playlist empty when no current track"
-      (st.control.current <> None || st.playlist.table.entries = [||]);
+      (st.control.current <> None || st.playlist.table.entries = [||]) @
+    check "at most one selection"
+      (not (Playlist.has_selection st.playlist &&
+        Library.has_selection st.library)) @
+    []
   with
   | errors when errors <> [] ->
     dump st (List.map ((^) "Invariant violated: ") errors)

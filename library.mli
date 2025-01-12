@@ -41,6 +41,11 @@ val load : t -> in_channel -> unit  (* assumes roots already set *)
 val save : t -> out_channel -> unit
 
 
+(* Accessors *)
+
+val adjust_scroll : t -> int option -> unit
+
+
 (* Roots *)
 
 val load_roots : t -> unit
@@ -60,6 +65,19 @@ val update_view : t -> unit
 val attr_name : attr -> string
 val attr_align : attr -> [> `Left | `Right]
 val attr_string : track -> attr -> string
+
+val has_selection : t -> bool
+val num_selected : t -> int
+val first_selected : t -> int option
+val last_selected : t -> int option
+val is_selected : t -> int -> bool
+
+val select_all : t -> unit
+val deselect_all : t -> unit
+val select_invert : t -> unit
+
+val select : t -> int -> int -> unit
+val deselect : t -> int -> int -> unit
 
 
 (* Validation *)

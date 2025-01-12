@@ -97,6 +97,7 @@ let ok name tab =
 
 (* Selection *)
 
+let has_selection tab = tab.sel_range <> None
 let num_selected tab = IntSet.cardinal tab.selected
 let first_selected tab = IntSet.min_elt_opt tab.selected
 let last_selected tab = IntSet.max_elt_opt tab.selected

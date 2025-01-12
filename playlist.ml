@@ -184,6 +184,7 @@ let shuffle_next pl i =
 
 (* Selection *)
 
+let has_selection pl = Table.has_selection pl.table
 let num_selected pl = Table.num_selected pl.table
 let first_selected pl = Table.first_selected pl.table
 let last_selected pl = Table.last_selected pl.table
