@@ -1033,7 +1033,25 @@ let run_library (st : State.t) =
       c, `Regular, values
     )
   in
-  ignore (view_table bw row_h st.ui cols rows view.scroll_h);
+  (match view_table bw row_h st.ui cols rows view.scroll_h with
+  | None -> ()
+  | Some i ->
+    let i = view.scroll_v + i in
+    if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left then
+    (
+      if i < len then
+      (
+        if Api.Mouse.is_doubleclick `Left then
+        (
+          Control.eject st.control;
+          Playlist.remove_all st.playlist;
+          let track = Track.make view.entries.(i).path in
+          Playlist.insert st.playlist 0 [|track|];
+          Control.switch st.control track true;
+        )
+      )
+    )
+  );
 
   (* View scrolling *)
   let h' = view.fit * row_h in

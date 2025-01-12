@@ -88,8 +88,7 @@ let track_total (track : track) =
   | `Undet | `Invalid | `Absent -> 0.0, 1
   | `Predet | `Det -> track.time, 0
 
-let range_total pl i0 j0 =
-  let i, j = min i0 j0, max i0 j0 in
+let range_total pl i j =
   let total = ref (0.0, 0) in
   let total_selected = ref (0.0, 0) in
   for i = i to j do
@@ -203,12 +202,14 @@ let select_invert pl =
   update_total pl
 
 let select pl i j =
+  let i, j = min i j, max i j in
   let _, prev = range_total pl i j in
   Table.select pl.table i j;
   let _, current = range_total pl i j in
   pl.total_selected <- add_total (sub_total pl.total_selected prev) current
 
 let deselect pl i j =
+  let i, j = min i j, max i j in
   let _, prev = range_total pl i j in
   Table.deselect pl.table i j;
   let _, current = range_total pl i j in
