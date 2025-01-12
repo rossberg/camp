@@ -189,6 +189,7 @@ let num_selected pl = Table.num_selected pl.table
 let first_selected pl = Table.first_selected pl.table
 let last_selected pl = Table.last_selected pl.table
 let is_selected pl i = Table.is_selected pl.table i
+let selected pl = Table.selected pl.table
 
 let select_all pl =
   Table.select_all pl.table;
@@ -234,14 +235,6 @@ let pop_redo pl = pop_unredo pl Table.pop_redo pl.table.redos
 
 
 (* Editing *)
-
-let copy_selected pl =
-  let d = ref 0 in
-  Array.init (Table.num_selected pl.table) (fun i ->
-    while not (Table.is_selected pl.table (i + !d)) do incr d done;
-    pl.table.entries.(i + !d)
-  )
-
 
 let insert pl pos tracks =
   if tracks <> [||] then

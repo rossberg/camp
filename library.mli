@@ -71,6 +71,7 @@ val num_selected : t -> int
 val first_selected : t -> int option
 val last_selected : t -> int option
 val is_selected : t -> int -> bool
+val selected : t -> track array
 
 val select_all : t -> unit
 val deselect_all : t -> unit

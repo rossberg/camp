@@ -79,6 +79,7 @@ val num_selected : t -> int
 val first_selected : t -> int option
 val last_selected : t -> int option
 val is_selected : t -> int -> bool
+val selected : t -> track array
 
 val select_all : t -> unit
 val deselect_all : t -> unit
@@ -89,8 +90,6 @@ val deselect : t -> int -> int -> unit
 
 
 (* Editing *)
-
-val copy_selected : t -> track array
 
 val insert : t -> int -> track array -> unit
 val insert_paths : t -> int -> Track.path list -> Api.audio -> unit

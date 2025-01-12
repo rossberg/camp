@@ -342,6 +342,7 @@ let num_selected lib = Table.num_selected lib.view
 let first_selected lib = Table.first_selected lib.view
 let last_selected lib = Table.last_selected lib.view
 let is_selected lib i = Table.is_selected lib.view i
+let selected lib = Table.selected lib.view
 
 let select_all lib =
   Table.select_all lib.view

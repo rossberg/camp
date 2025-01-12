@@ -103,6 +103,13 @@ let first_selected tab = IntSet.min_elt_opt tab.selected
 let last_selected tab = IntSet.max_elt_opt tab.selected
 let is_selected tab i = IntSet.mem i tab.selected
 
+let selected tab =
+  let d = ref 0 in
+  Array.init (num_selected tab) (fun i ->
+    while not (is_selected tab (i + !d)) do incr d done;
+    tab.entries.(i + !d)
+  )
+
 let max_sel_range tab =
   if num_selected tab = 0 then None else
   Some (Option.get (first_selected tab), Option.get (last_selected tab))

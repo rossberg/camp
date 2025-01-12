@@ -47,6 +47,7 @@ val num_selected : 'a t -> int
 val first_selected : 'a t -> int option
 val last_selected : 'a t -> int option
 val is_selected : 'a t -> int -> bool
+val selected : 'a t -> 'a array
 
 val select_all : 'a t -> unit
 val deselect_all : 'a t -> unit

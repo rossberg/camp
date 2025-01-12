@@ -680,7 +680,8 @@ let run_playlist (st : State.t) =
     )
     else if Api.Key.are_modifiers_down [`Shift] && Api.Mouse.is_down `Left then
     (
-      let pos1, pos2 = Option.value tab.sel_range ~default: (0, 0) in
+      let default = if i < len then (i, i) else (0, 0) in
+      let pos1, pos2 = Option.value tab.sel_range ~default in
       let i' = max 0 (min i (len - 1)) in
       if tab.sel_range = None || Playlist.is_selected st.playlist pos1 then
       (
@@ -808,7 +809,7 @@ let run_playlist (st : State.t) =
   let selected = Playlist.num_selected st.playlist > 0 in
   if tag_button st.ui (if selected && st.config.exec_tag <> "" then Some false else None) then
   (
-    let tracks = Array.to_list (Playlist.copy_selected st.playlist) in
+    let tracks = Array.to_list (Playlist.selected st.playlist) in
     Domain.spawn (fun () ->
       let tracks' = List.filter (fun tr -> not (Track.is_separator tr)) tracks in
       let paths = List.map (fun (track : Track.t) -> track.path) tracks' in
@@ -878,14 +879,14 @@ let run_playlist (st : State.t) =
 
   if cut_key st.ui then
   (
-    let s = Playlist.string_of_playlist (Playlist.copy_selected st.playlist) in
+    let s = Playlist.string_of_playlist (Playlist.selected st.playlist) in
     Api.Clipboard.write win s;
     Playlist.remove_selected st.playlist;
   );
 
   if copy_key st.ui then
   (
-    let s = Playlist.string_of_playlist (Playlist.copy_selected st.playlist) in
+    let s = Playlist.string_of_playlist (Playlist.selected st.playlist) in
     Api.Clipboard.write win s;
   );
 
@@ -1026,9 +1027,11 @@ let run_library (st : State.t) =
   let find_gutter mx =
     find_gutter' mx 0 (x + margin_w - view.scroll_h) in
 
-  (match find_gutter mx with
-  | None -> ()
-  | Some _ -> Api.Mouse.set_cursor win (`Resize `E_W)
+  if Api.inside m (Ui.dim st.ui (header_area bw row_h)) then
+  (
+    match find_gutter mx with
+    | None -> ()
+    | Some _ -> Api.Mouse.set_cursor win (`Resize `E_W)
   );
 
   (* View *)
@@ -1102,24 +1105,34 @@ let run_library (st : State.t) =
         (
           Playlist.deselect_all st.playlist;
           Library.select st.library i i;
+          if Api.Mouse.is_doubleclick `Left then
+          (
+            Control.eject st.control;
+            Playlist.remove_all st.playlist;
+            let tracks = Library.selected st.library in
+            Playlist.insert st.playlist 0
+              (Array.map (fun (tr : Data.track) -> Track.make tr.path) tracks);
+            Control.switch st.control (Playlist.current st.playlist) true;
+          )
         )
       )
     )
     else if Api.Key.are_modifiers_down [`Shift] && Api.Mouse.is_down `Left then
     (
-      let pos1, pos2 = Option.value view.sel_range ~default: (0, 0) in
+      let default = if i < len then (i, i) else (0, 0) in
+      let pos1, pos2 = Option.value view.sel_range ~default in
       let i' = max 0 (min i (len - 1)) in
       if view.sel_range = None || Library.is_selected st.library pos1 then
       (
         Playlist.deselect_all st.playlist;
         Library.deselect st.library pos2 i';
-        Library.select st.library pos1 i'
+        Library.select st.library pos1 i';
       )
       else
       (
         Playlist.deselect_all st.playlist;
         Library.select st.library pos2 i';
-        Library.deselect st.library pos1 i'
+        Library.deselect st.library pos1 i';
       )
     )
   );
