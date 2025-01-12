@@ -100,3 +100,78 @@ let switch_if_empty ctl track_opt =
   match ctl.current, track_opt with
   | None, Some track -> switch ctl track false
   | _, _ -> ()
+
+
+(* Persistance *)
+
+let to_string' ctl =
+  let buf = Buffer.create 1024 in
+  let output fmt  = Printf.bprintf buf fmt in
+  output "volume = %.2f\n" ctl.volume;
+  output "mute = %d\n" (Bool.to_int ctl.mute);
+  output "play = %s\n" (match ctl.current with Some s -> s.path | None -> "");
+  let length = Api.Audio.length ctl.audio ctl.sound in
+  let played = Api.Audio.played ctl.audio ctl.sound in
+  output "seek = %.4f\n" (if length > 0.0 then played /. length else 0.0);
+  output "timemode = %d\n" (Bool.to_int (ctl.timemode = `Remain));
+  output "repeat = %d\n"
+    (match ctl.repeat with
+    | `None -> 0
+    | `One -> 1
+    | `All -> 2
+    );
+  let a, b =
+    match ctl.loop with
+    | `None -> -1.0, -1.0
+    | `A t1 -> t1, -1.0
+    | `AB tt -> tt
+  in
+  output "loop = %.4f, %.4f\n" a b;
+  Buffer.contents buf
+
+let to_string ctl =
+  to_string' ctl ^
+  let buf = Buffer.create 1024 in
+  let output fmt = Printf.bprintf buf fmt in
+  output "fps = %d\n" (Bool.to_int ctl.fps);
+  Buffer.contents buf
+
+
+let save ctl file =
+  Out_channel.output_string file (to_string' ctl)
+
+
+let fscanf file =
+  match In_channel.input_line file with
+  | None -> raise End_of_file
+  | Some s -> Scanf.sscanf s
+
+let value = Fun.id
+let bool x = x <> 0
+let num l h x = max l (min h x)
+let pair x y = x, y
+
+let load ctl file =
+  let input fmt = fscanf file fmt in
+  ctl.volume <- input " volume = %f " (num 0.0 1.0);
+  ctl.mute <- input " mute = %d " bool;
+  let current = input " play = %[\x20-\xff]" String.trim in
+  ctl.current <-
+    if current = "" then None else Some (Track.make current);
+  let seek' = input " seek = %f " (num 0.0 1.0) in
+  ctl.timemode <-
+    if input " timemode = %d " bool then `Remain else `Elapse;
+  ctl.repeat <-
+    (match input " repeat = %d " value with
+    | 1 -> `One
+    | 2 -> `All
+    | _ -> `None
+    );
+  ctl.loop <-
+    (match input " loop = %f, %f " pair with
+    | t1, _t2 when t1 < 0.0 -> `None
+    | t1, t2 when t2 < 0.0 -> `A t1
+    | t1, t2 -> `AB (t1, max t1 t2)
+    );
+  if ctl.current <> None then switch ctl (Option.get ctl.current) false;
+  seek ctl seek'

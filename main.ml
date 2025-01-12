@@ -218,7 +218,7 @@ let header_margin = 2
 
 let view_area bw rh = (2, margin+divider_w+bw, margin+rh+header_margin, -margin-scrollbar_w-1, -bottom_h-scrollbar_w-1)
 let view_table bw rh = Ui.table (view_area bw rh) gutter_w rh
-let view_scroll _bw = Ui.scroll_bar (2, -margin-scrollbar_w, margin, scrollbar_w, -bottom_h) `Vertical
+let view_scroll_v _bw = Ui.scroll_bar (2, -margin-scrollbar_w, margin, scrollbar_w, -bottom_h) `Vertical
 let view_scroll_h bw = Ui.scroll_bar (2, margin+divider_w+bw, -bottom_h-scrollbar_w, -margin-scrollbar_w-1, scrollbar_w) `Horizontal
 let view_wheel bw = Ui.wheel (2, margin+divider_w+bw, margin, -margin, -bottom_h)
 
@@ -857,14 +857,14 @@ let run_playlist (st : State.t) =
 
   if cut_key st.ui then
   (
-    let s = State.string_of_playlist (Playlist.copy_selected st.playlist) in
+    let s = Playlist.string_of_playlist (Playlist.copy_selected st.playlist) in
     Api.Clipboard.write win s;
     Playlist.remove_selected st.playlist;
   );
 
   if copy_key st.ui then
   (
-    let s = State.string_of_playlist (Playlist.copy_selected st.playlist) in
+    let s = Playlist.string_of_playlist (Playlist.copy_selected st.playlist) in
     Api.Clipboard.write win s;
   );
 
@@ -873,7 +873,7 @@ let run_playlist (st : State.t) =
     match Api.Clipboard.read win with
     | None -> ()
     | Some s ->
-      let tracks = State.playlist_of_string s in
+      let tracks = Playlist.playlist_of_string s in
       let pos = Option.value (Playlist.first_selected st.playlist) ~default: 0 in
       Playlist.insert st.playlist pos tracks;
       Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
@@ -1015,7 +1015,7 @@ let run_library (st : State.t) =
     match st.control.current with Some track -> track.path | None -> "" in
   let rows =
     Array.init (min vlen len) (fun i ->
-      let i = i + st.library.view_scroll in
+      let i = i + st.library.view_scroll_v in
       let track = st.library.tracks.(i) in
       let values =
         Array.map (fun (attr, _) -> Library.attr_string track attr)
@@ -1035,10 +1035,12 @@ let run_library (st : State.t) =
 
   (* View scrolling *)
   let h' = vlen * row_h in
-  let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
-  let pos = if len = 0 then 0.0 else float st.library.view_scroll /. float len in
-  let pos' = view_scroll bw st.ui pos ext -. 0.05 *. view_wheel bw st.ui in
-  st.library.view_scroll <- clamp 0 (max 0 (len - vlen))
+  let ext =
+    if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
+  let pos =
+    if len = 0 then 0.0 else float st.library.view_scroll_v /. float len in
+  let pos' = view_scroll_v bw st.ui pos ext -. 0.05 *. view_wheel bw st.ui in
+  st.library.view_scroll_v <- clamp 0 (max 0 (len - vlen))
     (int_of_float (Float.round (pos' *. float len)));
 
   let vw' = max vw (st.library.view_scroll_h + w) in

@@ -38,6 +38,20 @@ type error = string
 val ok : t -> error list
 
 
+(* Persistance *)
+
+val to_string : t -> string
+
+val load : t -> in_channel -> unit  (* assumes tracks already set *)
+val save : t -> out_channel -> unit
+
+val load_playlist : t -> unit
+val save_playlist : t -> unit
+
+val string_of_playlist : track array -> string
+val playlist_of_string : string -> track array
+
+
 (* Total *)
 
 val update_total : t -> unit

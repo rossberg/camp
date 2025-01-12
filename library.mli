@@ -22,7 +22,7 @@ type t =
   mutable browser_rows : int;   (* external *)
   mutable browser_scroll : int; (* external *)
   mutable view_rows : int;      (* external *)
-  mutable view_scroll : int;    (* external *)
+  mutable view_scroll_v : int;  (* external *)
   mutable view_scroll_h : int;  (* external *)
   mutable error : string;       (* external *)
   mutable error_time : time;    (* external *)
@@ -35,6 +35,14 @@ type t =
 (* Constructor *)
 
 val make : db -> t
+
+
+(* Persistance *)
+
+val to_string : t -> string
+
+val load : t -> in_channel -> unit  (* assumes roots already set *)
+val save : t -> out_channel -> unit
 
 
 (* Roots *)

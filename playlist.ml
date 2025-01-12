@@ -75,7 +75,7 @@ let ok pl =
   let len = Array.length pl.tracks in
   check "playlist position in range" (
     pl.pos = None && len = 0 ||
-    Option.get pl.pos >= 0 && Option.get pl.pos < len
+    pl.pos <> None && Option.get pl.pos >= 0 && Option.get pl.pos < len
   ) @
   check "playlist row number in range" (pl.rows >= 3) @
   check "playlist scroll in range" (
@@ -573,3 +573,95 @@ let move_selected pl d =
       Array.map_inplace (fun i -> js.(i)) shuffle.tracks
     ) pl.shuffle
   )
+
+
+(* Persistance *)
+
+let playlist_file = "playlist.m3u"
+
+let string_of_playlist (tracks : Track.t array) =
+  List.init (Array.length tracks) (fun i ->
+    let time = int_of_float tracks.(i).time in
+    let info =
+      if time = 0 then None else Some M3u.{time; title = tracks.(i).name} in
+    M3u.{path = tracks.(i).path; info}
+  ) |> M3u.make_ext
+
+let playlist_of_string s =
+  Array.map (fun (item : M3u.item) ->
+    match item.info with
+    | None -> Track.make item.path
+    | Some info -> Track.make_predet item.path info.title (float info.time)
+  ) (Array.of_list (M3u.parse_ext s))
+
+
+let save_playlist pl =
+  Storage.save playlist_file (fun file ->
+    Out_channel.output_string file (string_of_playlist pl.tracks)
+  )
+
+let load_playlist pl =
+  Storage.load playlist_file (fun file ->
+    pl.tracks <- playlist_of_string (In_channel.input_all file)
+  )
+
+
+let opt f = function
+  | None -> ""
+  | Some i -> f i
+
+let opt_int_pair = opt (fun (i, j) -> string_of_int i ^ ", " ^ string_of_int j)
+
+let to_string' pl =
+  let buf = Buffer.create 1024 in
+  let output fmt  = Printf.bprintf buf fmt in
+  output "shuffle = %d\n" (Bool.to_int (pl.shuffle <> None));
+  output "play_open = %d\n" (Bool.to_int pl.shown);
+  output "play_height = %d\n" pl.height;
+  output "play_pos = %d\n" (Option.value pl.pos ~default: (-1));
+  output "play_scroll = %d\n" pl.scroll;
+  Buffer.contents buf
+
+let to_string pl =
+  to_string' pl ^
+  let buf = Buffer.create 1024 in
+  let output fmt = Printf.bprintf buf fmt in
+  output "play_rows = %d\n" pl.rows;
+  output "play_length = %d\n" (Array.length pl.tracks);
+  output "play_selected = %d" (IntSet.cardinal pl.selected);
+  if pl.selected <> IntSet.empty then
+    output " (%d-%d)" (IntSet.min_elt pl.selected) (IntSet.max_elt pl.selected);
+  output "\n";
+  output "play_sel_range = %s\n" (opt_int_pair pl.sel_range);
+  output "play_total = %.2f, %d\n" (fst pl.total) (snd pl.total);
+  output "play_total_selected = %.2f, %d\n"
+    (fst pl.total_selected) (snd pl.total_selected);
+  output "play_undo_length = %d\n" (List.length !(pl.undos));
+  output "play_redo_length = %d\n" (List.length !(pl.redos));
+  Buffer.contents buf
+
+let save pl file =
+  Out_channel.output_string file (to_string' pl)
+
+
+let fscanf file =
+  match In_channel.input_line file with
+  | None -> raise End_of_file
+  | Some s -> Scanf.sscanf s
+
+let bool x = x <> 0
+let num l h x = max l (min h x)
+let num_opt l h x = if x < 0 then None else Some (num l h x)
+
+let load pl file =
+  let input fmt = fscanf file fmt in
+  let len = Array.length pl.tracks in
+  let shuffled = input " shuffle = %d " bool in
+  pl.shown <- input " play_open = %d " bool;
+  pl.height <- input " play_height = %d " (num 20 max_int);  (* clamped later *)
+  pl.pos <- input " play_pos = %d " (num_opt 0 (len - 1));
+  if pl.pos = None && len > 0 then pl.pos <- Some 0;
+  if pl.pos <> None && len = 0 then pl.pos <- None;
+  pl.scroll <- input " play_scroll = %d " (num 0 (len - 1));
+  if shuffled then shuffle pl pl.pos;
+  update_total pl

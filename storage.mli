@@ -12,6 +12,11 @@ val copy_to_temp : path -> path
 val remove_temp : path -> unit
 val clear_temp : unit -> unit
 
+(* Logging *)
+
+val log : string -> unit
+val log_clear : unit -> unit
+
 (* Loading & Saving *)
 
 val load : string -> (in_channel -> unit) -> unit

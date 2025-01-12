@@ -25,7 +25,7 @@ type t =
   mutable browser_rows : int;   (* external *)
   mutable browser_scroll : int; (* external *)
   mutable view_rows : int;      (* external *)
-  mutable view_scroll : int;    (* external *)
+  mutable view_scroll_v : int;  (* external *)
   mutable view_scroll_h : int;  (* external *)
   mutable error : string;       (* external *)
   mutable error_time : time;    (* external *)
@@ -66,7 +66,7 @@ let make db =
     browser_rows = 4;
     browser_scroll = 0;
     view_rows = 4;
-    view_scroll = 0;
+    view_scroll_v = 0;
     view_scroll_h = 0;
     error = "";
     error_time = 0.0;
@@ -74,6 +74,17 @@ let make db =
     tracks = [||];
     columns;
   }
+
+
+(* Validation *)
+
+type error = string
+
+let check msg b = if b then [] else [msg]
+
+let ok lib =
+  check "browser width in range" (lib.browser_width <= lib.width - 40) @
+  []
 
 
 (* Attributes *)
@@ -336,12 +347,92 @@ let update_view lib =
   array_rev lib.tracks
 
 
-(* Validation *)
+(* Persistance *)
 
-type error = string
+let attr_str =
+[
+  `FilePath, "PTH";
+  `FileSize, "SIZ";
+  `FileTime, "TIM";
+  `Codec, "COD";
+  `Channels, "CHA";
+  `Depth, "DEP";
+  `SampleRate, "KHZ";
+  `Bitrate, "BPS";
+  `Rate, "RES";
+  `Artist, "ART";
+  `Title, "TIT";
+  `Length, "LEN";
+  `Rating, "RAT";
+  `AlbumArtist, "ALA";
+  `AlbumTitle, "ALB";
+  `Track, "TRK";
+  `Disc, "DIS";
+  `Date, "DAT";
+  `Year, "YER";
+  `Label, "LAB";
+  `Country, "CTY";
+]
 
-let check msg b = if b then [] else [msg]
+let string_of_attr attr = List.assoc attr attr_str
+let attr_of_string s = fst (List.find (fun (_, s') -> s' = s) attr_str)
 
-let ok lib =
-  check "browser width in range" (lib.browser_width <= lib.width - 40) @
-  []
+let string_of_col (attr, w) = string_of_attr attr ^ string_of_int w
+let col_of_string s =
+  attr_of_string (String.sub s 0 3),
+  int_of_string (String.sub s 3 (String.length s - 3))
+
+
+let to_string' lib =
+  let buf = Buffer.create 1024 in
+  let output fmt  = Printf.bprintf buf fmt in
+  output "lib_open = %d\n" (Bool.to_int lib.shown);
+  output "lib_side = %d\n" (Bool.to_int (lib.side = `Right));
+  output "lib_width = %d\n" lib.width;
+  output "lib_browser_width = %d\n" lib.browser_width;
+  output "lib_browser_scroll = %d\n" lib.browser_scroll;
+  output "lib_view_columns = %s\n"
+    (String.concat " " (Array.to_list (Array.map string_of_col lib.columns)));
+  Buffer.contents buf
+
+let to_string lib =
+  to_string' lib ^
+  let buf = Buffer.create 1024 in
+  let output fmt = Printf.bprintf buf fmt in
+  output "lib_browser_rows = %d\n" lib.browser_rows;
+  output "lib_browser_length = %d\n" (Array.length lib.roots);
+  output "lib_view_rows = %d\n" lib.view_rows;
+  output "lib_view_scroll_v = %d\n" lib.view_scroll_v;
+  output "lib_view_scroll_h = %d\n" lib.view_scroll_h;
+  output "lib_view_length = %d\n" (Array.length lib.tracks);
+  output "lib_error = %s\n" lib.error;
+  output "lib_error_time = %.1f\n" lib.error_time;
+  Buffer.contents buf
+
+let save lib file =
+  Out_channel.output_string file (to_string' lib)
+
+
+let fscanf file =
+  match In_channel.input_line file with
+  | None -> raise End_of_file
+  | Some s -> Scanf.sscanf s
+
+let bool x = x <> 0
+let num l h x = max l (min h x)
+
+let load lib file =
+  let input fmt = fscanf file fmt in
+  lib.shown <- input " lib_open = %d " bool;
+  lib.side <- if input " lib_side = %d " bool then `Right else `Left;
+  (* TODO: 400 = library_min, 360 = control_w; use constants *)
+  lib.width <- input " lib_width = %d " (num 120 max_int);  (* clamped later *)
+  (* TODO: 40 = browser_min, 60 = browser_min + 2*margin; use constants *)
+  lib.browser_width <- input " lib_browser_width = %d "
+    (num 40 (lib.width - 60));
+  lib.browser_scroll <- input " lib_browser_scroll = %d "
+    (num 0 (max 0 (Array.length lib.roots - 1)));
+  let cols = input " lib_view_columns = %[\x20-\xff]" String.trim in
+  lib.columns <-
+    Array.of_list (List.map col_of_string
+      (List.filter ((<>) "") (String.split_on_char ' ' cols)))

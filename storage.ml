@@ -47,22 +47,52 @@ let clear_temp () =
   )
 
 
+(* Logging *)
+
+let log_file = "error.log"
+
+let log_clear () =
+  Out_channel.with_open_bin (path log_file) ignore
+
+let append_fwd = ref (fun _ -> assert false)
+
+let log msg =
+  let tm = Unix.(localtime (time ())) in
+  let msg' = Printf.sprintf
+    "%04d-%02d-%02d %02d:%02d:%02d "
+    (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
+    tm.tm_hour tm.tm_min tm.tm_sec ^ msg
+  in
+  Out_channel.output_string stderr msg';
+  !append_fwd log_file (fun file -> Out_channel.output_string file msg');
+  Out_channel.flush_all ()
+
+
 (* Loading & Saving *)
+
+let log_error op filename exn =
+  log ("exception " ^ Printexc.to_string exn ^ " while " ^ op ^ " " ^ filename
+    ^ "\n" ^ Printexc.get_backtrace ())
 
 let load filename f =
   try
     In_channel.with_open_bin (path filename) f
-  with Sys_error _ | End_of_file | Scanf.Scan_failure _ | Failure _ -> ()
+  with Sys_error _ | End_of_file | Scanf.Scan_failure _ | Failure _ as exn ->
+    log_error "loading" filename exn
 
 let save filename f =
   try
     if not (Sys.file_exists dir) then Sys.mkdir dir 0o770;
     Out_channel.with_open_bin (path filename) f
-  with Sys_error _ -> ()
+  with Sys_error _ as exn ->
+    log_error "saving" filename exn
 
 let append filename f =
   try
     if not (Sys.file_exists dir) then Sys.mkdir dir 0o770;
     Out_channel.(with_open_gen [Open_binary; Open_creat; Open_append; Open_nonblock])
       0o660 (path filename) f
-  with Sys_error _ -> ()
+  with Sys_error _ as exn ->
+    log_error "appending to" filename exn
+
+let _ = append_fwd := append

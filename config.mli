@@ -22,3 +22,11 @@ val make : unit -> t
 type error = string
 
 val ok : t -> error list
+
+
+(* Persistance *)
+
+val to_string : t -> string
+
+val load : t -> in_channel -> unit
+val save : t -> out_channel -> unit
