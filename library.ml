@@ -18,20 +18,16 @@ type attr =
 type t =
 {
   db : db;
-  mutable shown : bool;         (* external *)
-  mutable side : Api.side;      (* external *)
-  mutable width : int;          (* external *)
-  mutable browser_width : int;  (* external *)
-  mutable browser_rows : int;   (* external *)
-  mutable browser_scroll : int; (* external *)
-  mutable view_rows : int;      (* external *)
-  mutable view_scroll_v : int;  (* external *)
-  mutable view_scroll_h : int;  (* external *)
-  mutable error : string;       (* external *)
-  mutable error_time : time;    (* external *)
-  mutable roots : dir array;    (* external *)
-  mutable tracks : track array; (* external *)
-  mutable columns : (attr * int) array; (* external *)
+  mutable shown : bool;
+  mutable side : Api.side;
+  mutable width : int;
+  mutable browser_width : int;
+  mutable browser : dir Table.t;
+  mutable view : track Table.t;
+  mutable error : string;
+  mutable error_time : time;
+  mutable roots : dir array;
+  mutable columns : (attr * int) array;
 }
 
 
@@ -63,15 +59,11 @@ let make db =
     side = `Right;
     width = 600;
     browser_width = 100;
-    browser_rows = 4;
-    browser_scroll = 0;
-    view_rows = 4;
-    view_scroll_v = 0;
-    view_scroll_h = 0;
+    browser = Table.make ();
+    view = Table.make ();
     error = "";
     error_time = 0.0;
     roots = [||];
-    tracks = [||];
     columns;
   }
 
@@ -84,6 +76,9 @@ let check msg b = if b then [] else [msg]
 
 let ok lib =
   check "browser width in range" (lib.browser_width <= lib.width - 40) @
+  Table.ok "browser" lib.browser @
+  Table.ok "view" lib.view @
+  check "browser consistent with roots" (lib.browser.entries == lib.roots) @
   []
 
 
@@ -328,6 +323,8 @@ let add_roots lib paths pos =
           let root = lib.roots.(i - len') in
           root.pos <- i; root
       );
+    lib.browser.entries <- lib.roots;
+    Table.adjust_pos lib.browser;
     Db.update_roots_pos lib.db pos (+len');
     Array.iter (Db.insert_root lib.db) roots';
     scan_roots lib roots';
@@ -343,8 +340,9 @@ let add_roots lib paths pos =
 let update_view lib =
   let tracks = ref [] in
   Db.iter_tracks lib.db (fun track -> tracks := track :: !tracks);
-  lib.tracks <- Array.of_list !tracks;
-  array_rev lib.tracks
+  lib.view.entries <- Array.of_list !tracks;
+  array_rev lib.view.entries;
+  Table.adjust_pos lib.view
 
 
 (* Persistance *)
@@ -390,7 +388,7 @@ let to_string' lib =
   output "lib_side = %d\n" (Bool.to_int (lib.side = `Right));
   output "lib_width = %d\n" lib.width;
   output "lib_browser_width = %d\n" lib.browser_width;
-  output "lib_browser_scroll = %d\n" lib.browser_scroll;
+  output "lib_browser_scroll = %d\n" lib.browser.scroll_v;
   output "lib_view_columns = %s\n"
     (String.concat " " (Array.to_list (Array.map string_of_col lib.columns)));
   Buffer.contents buf
@@ -399,12 +397,15 @@ let to_string lib =
   to_string' lib ^
   let buf = Buffer.create 1024 in
   let output fmt = Printf.bprintf buf fmt in
-  output "lib_browser_rows = %d\n" lib.browser_rows;
-  output "lib_browser_length = %d\n" (Array.length lib.roots);
-  output "lib_view_rows = %d\n" lib.view_rows;
-  output "lib_view_scroll_v = %d\n" lib.view_scroll_v;
-  output "lib_view_scroll_h = %d\n" lib.view_scroll_h;
-  output "lib_view_length = %d\n" (Array.length lib.tracks);
+  output "lib_browser_fit = %d\n" lib.browser.fit;
+  output "lib_browser_pos = %d\n" (Option.value lib.browser.pos ~default: (-1));
+  output "lib_browser_length = %d\n" (Array.length lib.browser.entries);
+  output "lib_view_fit = %d\n" lib.view.fit;
+  output "lib_view_pos = %d\n" (Option.value lib.view.pos ~default: (-1));
+  output "lib_view_scroll_v = %d\n" lib.view.scroll_v;
+  output "lib_view_scroll_h = %d\n" lib.view.scroll_h;
+  output "lib_view_length = %d\n" (Array.length lib.view.entries);
+  output "lib_root_length = %d\n" (Array.length lib.roots);
   output "lib_error = %s\n" lib.error;
   output "lib_error_time = %.1f\n" lib.error_time;
   Buffer.contents buf
@@ -430,7 +431,9 @@ let load lib file =
   (* TODO: 40 = browser_min, 60 = browser_min + 2*margin; use constants *)
   lib.browser_width <- input " lib_browser_width = %d "
     (num 40 (lib.width - 60));
-  lib.browser_scroll <- input " lib_browser_scroll = %d "
+  lib.browser.entries <- lib.roots;
+  Table.adjust_pos lib.browser;
+  lib.browser.scroll_v <- input " lib_browser_scroll = %d "
     (num 0 (max 0 (Array.length lib.roots - 1)));
   let cols = input " lib_view_columns = %[\x20-\xff]" String.trim in
   lib.columns <-

@@ -36,7 +36,7 @@ let rec ok st =
     Library.ok st.library @
     Config.ok st.config @
     check "playlist empty when no current track"
-      (st.control.current <> None || st.playlist.tracks = [||]);
+      (st.control.current <> None || st.playlist.table.entries = [||]);
   with
   | errors when errors <> [] ->
     dump st (List.map ((^) "Invariant violated: ") errors)
@@ -46,11 +46,12 @@ let rec ok st =
   | _ -> ()
 
 and dump st errors =
-  if !dumped_before <> Some st then
+  let msgs = errors @ ["State:\n" ^ !to_string_fwd st] in
+  if !dumped_before <> Some msgs then
   (
     if !dumped_before = None then Storage.log_clear ();
-    List.iter Storage.log (errors @ ["State:\n" ^ !to_string_fwd st]);
-    dumped_before := Some st;
+    List.iter Storage.log msgs;
+    dumped_before := Some msgs;
   )
 
 
@@ -144,9 +145,9 @@ let load st =
     load_ui st file;
   );
 
-  if st.control.current = None && Array.length st.playlist.tracks > 0 then
+  if st.control.current = None && Playlist.length st.playlist > 0 then
   (
-    st.control.current <- Playlist.current_opt st.playlist;
+    st.control.current <- Table.current_opt st.playlist.table;
     Control.switch st.control (Option.get st.control.current) false;
   );
 

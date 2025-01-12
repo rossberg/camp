@@ -61,7 +61,7 @@ let log msg =
   let msg' = Printf.sprintf
     "%04d-%02d-%02d %02d:%02d:%02d "
     (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
-    tm.tm_hour tm.tm_min tm.tm_sec ^ msg
+    tm.tm_hour tm.tm_min tm.tm_sec ^ msg ^ "\n"
   in
   Out_channel.output_string stderr msg';
   !append_fwd log_file (fun file -> Out_channel.output_string file msg');

@@ -417,22 +417,22 @@ let run_control (st : State.t) =
   );
 
   (* Play controls *)
-  let off =
-    (if bwd_button st.ui (Some false) && st.playlist.tracks <> [||] then -1 else 0) +
-    (if fwd_button st.ui (Some false) && st.playlist.tracks <> [||] then +1 else 0)
-  in
-  if off <> 0 && st.playlist.tracks <> [||] then
+  let len = Playlist.length st.playlist in
+  let bwd = if bwd_button st.ui (Some false) then -1 else 0 in
+  let fwd = if fwd_button st.ui (Some false) then +1 else 0 in
+  let off = if len = 0 then 0 else bwd + fwd in
+  if off <> 0 then
   (
     let more = Playlist.skip st.playlist off (st.control.repeat <> `None) in
     Control.switch st.control (Playlist.current st.playlist) more;
-    Playlist.adjust_scroll st.playlist st.playlist.pos;
+    Playlist.adjust_scroll st.playlist st.playlist.table.pos;
   );
 
   let playing' = play_button st.ui (Some playing) in
-  if stopped && playing' && st.playlist.tracks <> [||] then
+  if stopped && playing' && len > 0 then
   (
     Control.switch st.control (Playlist.current st.playlist) true;
-    Playlist.adjust_scroll st.playlist st.playlist.pos;
+    Playlist.adjust_scroll st.playlist st.playlist.table.pos;
   );
 
   let paused' = pause_button st.ui (Some paused) in
@@ -448,7 +448,7 @@ let run_control (st : State.t) =
     | None -> Control.eject st.control
     | Some track -> Control.switch st.control track false
     );
-    Playlist.adjust_scroll st.playlist st.playlist.pos;
+    Playlist.adjust_scroll st.playlist st.playlist.table.pos;
   );
 
   if eject_button st.ui (Some false) then
@@ -463,9 +463,9 @@ let run_control (st : State.t) =
       Api.Audio.pause st.control.audio st.control.sound
     else if paused then
       Api.Audio.resume st.control.audio st.control.sound
-    else if stopped && st.playlist.tracks <> [||] then
+    else if stopped && len > 0 then
       Control.switch st.control (Playlist.current st.playlist) true;
-    Playlist.adjust_scroll st.playlist st.playlist.pos;
+    Playlist.adjust_scroll st.playlist st.playlist.table.pos;
   );
 
   (* End of track *)
@@ -480,12 +480,12 @@ let run_control (st : State.t) =
       | `None -> Playlist.skip st.playlist (+1) false
     in
     let next_track =
-      if st.playlist.pos = None
+      if st.playlist.table.pos = None
       then Option.get st.control.current
       else Playlist.current st.playlist
     in
     Control.switch st.control next_track more;
-    Playlist.adjust_scroll st.playlist st.playlist.pos;
+    Playlist.adjust_scroll st.playlist st.playlist.table.pos;
   );
 
   (* Play modes *)
@@ -497,10 +497,11 @@ let run_control (st : State.t) =
   (
     if shuffle' then
     (
-      Playlist.shuffle st.playlist (if stopped then None else st.playlist.pos);
-      if stopped && st.playlist.pos <> None then
+      Playlist.shuffle st.playlist
+        (if stopped then None else st.playlist.table.pos);
+      if stopped && st.playlist.table.pos <> None then
         Control.switch st.control (Playlist.current st.playlist) false;
-      Playlist.adjust_scroll st.playlist st.playlist.pos;
+      Playlist.adjust_scroll st.playlist st.playlist.table.pos;
     )
     else
       Playlist.unshuffle st.playlist
@@ -568,23 +569,23 @@ let run_control (st : State.t) =
 
 (* Playlist Pane *)
 
-let update_rows (st : State.t) =
+let update_fit (st : State.t) =
   let row_h = st.config.row_height in
   let _, _, _, pl_h = Ui.dim st.ui playlist_area in
-  st.playlist.rows <-
+  st.playlist.table.fit <-
     max 4 (int_of_float (Float.floor (float pl_h /. float row_h)));
   let _, _, _, br_h = Ui.dim st.ui (browser_area st.library.browser_width) in
-  st.library.browser_rows <-
+  st.library.browser.fit <-
     max 4 (int_of_float (Float.floor (float br_h /. float row_h)));
   let _, _, _, vw_h = Ui.dim st.ui (view_area st.library.browser_width row_h) in
-  st.library.view_rows <-
+  st.library.view.fit <-
     max 4 (int_of_float (Float.floor (float vw_h /. float row_h)))
 
 let run_playlist (st : State.t) =
-  let now = Unix.time () in
   let win = Ui.window st.ui in
-  let len = Array.length st.playlist.tracks in
   let row_h = st.config.row_height in
+  let len = Playlist.length st.playlist in
+  let now = Unix.time () in
 
   let x =
     if st.library.shown && st.library.side = `Left then st.library.width else 0
@@ -592,24 +593,24 @@ let run_playlist (st : State.t) =
   playlist_pane st.ui (x, control_h, control_w, st.playlist.height);
 
   (* Playlist table *)
+  let tab = st.playlist.table in
   let digits = log10 (len + 1) + 1 in
   let font = Ui.font st.ui row_h in
   let smax1 = String.make digits '0' ^ "." in
   let cw1 = Api.Draw.text_width win row_h font smax1 + 1 in
   let cw3 = ref 16 in
   let (_, y, w, _) as r = Ui.dim st.ui playlist_area in
-  let vlen = st.playlist.rows in
   (* Correct scrolling position for possible resize *)
-  st.playlist.scroll <- clamp 0 (max 0 (len - vlen)) st.playlist.scroll;
+  tab.scroll_v <- clamp 0 (max 0 (len - tab.fit)) tab.scroll_v;
   let rows =
-    Array.init (min vlen len) (fun i ->
-      let i = i + st.playlist.scroll in
-      let track = st.playlist.tracks.(i) in
+    Array.init (min tab.fit len) (fun i ->
+      let i = i + tab.scroll_v in
+      let track = tab.entries.(i) in
       if now -. track.last_update > st.config.delay_track_update then
         Track.update st.control.audio track;
       let c =
         match track.status with
-        | _ when Some i = st.playlist.pos ->
+        | _ when Some i = tab.pos ->
           if track.path = (Option.get st.control.current).path then `White else `Gray 0xc0
         | _ when Track.is_separator track -> Ui.text_color st.ui
         | `Absent -> Ui.error_color st.ui
@@ -617,7 +618,7 @@ let run_playlist (st : State.t) =
         | `Undet -> Ui.semilit_color (Ui.text_color st.ui)
         | `Predet | `Det -> Ui.text_color st.ui
       in
-      let inv = if Playlist.is_selected st.playlist i then `Inverted else `Regular in
+      let inv = if Table.is_selected tab i then `Inverted else `Regular in
       let time = if track.time = 0.0 then "" else fmt_time track.time in
       cw3 := max !cw3 (Api.Draw.text_width win row_h font time + 1);
       c, inv, [|fmt "%0*d." digits (i + 1); track.name; time|]
@@ -630,7 +631,7 @@ let run_playlist (st : State.t) =
   (match playlist_table row_h st.ui cols rows 0 with
   | None -> ()
   | Some i ->
-    let i = st.playlist.scroll + i in
+    let i = tab.scroll_v + i in
     if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left && dragging = `None then
     (
       if i >= len || not (Playlist.is_selected st.playlist i) then
@@ -639,9 +640,10 @@ let run_playlist (st : State.t) =
       (
         if Api.Mouse.is_doubleclick `Left then
         (
-          st.playlist.pos <- Some i;
-          Control.switch st.control st.playlist.tracks.(i) true;
-          if st.playlist.shuffle <> None then Playlist.shuffle_next st.playlist i;
+          tab.pos <- Some i;
+          Control.switch st.control tab.entries.(i) true;
+          if st.playlist.shuffle <> None then 
+            Playlist.shuffle_next st.playlist i;
         )
         else
         (
@@ -666,9 +668,9 @@ let run_playlist (st : State.t) =
     )
     else if Api.Key.are_modifiers_down [`Shift] && Api.Mouse.is_down `Left then
     (
-      let pos1, pos2 = Option.value st.playlist.sel_range ~default: (0, 0) in
+      let pos1, pos2 = Option.value tab.sel_range ~default: (0, 0) in
       let i' = max 0 (min i (len - 1)) in
-      if st.playlist.sel_range = None
+      if tab.sel_range = None
       || Playlist.is_selected st.playlist pos1 then
       (
         Playlist.deselect st.playlist pos2 i';
@@ -684,10 +686,10 @@ let run_playlist (st : State.t) =
 
   (* Playlist selection *)
   let d =
-    if begin_key st.ui then - Array.length st.playlist.tracks else
-    if end_key st.ui then + Array.length st.playlist.tracks else
-    if pageup_key st.ui then - st.playlist.rows else
-    if pagedown_key st.ui then + st.playlist.rows else
+    if begin_key st.ui then -len else
+    if end_key st.ui then +len else
+    if pageup_key st.ui then -tab.fit else
+    if pagedown_key st.ui then +tab.fit else
     if up_key st.ui then -1 else
     if down_key st.ui then +1 else
     0
@@ -695,7 +697,7 @@ let run_playlist (st : State.t) =
   if min len (abs d) > 0 then
   (
     let default = 0, if d < 0 then len else -1 in
-    let _, pos2 = Option.value st.playlist.sel_range ~default in
+    let _, pos2 = Option.value tab.sel_range ~default in
     let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
     Playlist.deselect_all st.playlist;
     Playlist.select st.playlist i i;
@@ -703,10 +705,10 @@ let run_playlist (st : State.t) =
   );
 
   let d =
-    if selbegin_key st.ui then - Array.length st.playlist.tracks else
-    if selend_key st.ui then + Array.length st.playlist.tracks else
-    if selpageup_key st.ui then - st.playlist.rows else
-    if selpagedown_key st.ui then + st.playlist.rows else
+    if selbegin_key st.ui then -len else
+    if selend_key st.ui then +len else
+    if selpageup_key st.ui then -tab.fit else
+    if selpagedown_key st.ui then +tab.fit else
     if selup_key st.ui then -1 else
     if seldown_key st.ui then +1 else
     0
@@ -714,9 +716,9 @@ let run_playlist (st : State.t) =
   if min len (abs d) > 0 then
   (
     let default = 0, if d < 0 then len else -1 in
-    let pos1, pos2 = Option.value st.playlist.sel_range ~default in
+    let pos1, pos2 = Option.value tab.sel_range ~default in
     let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
-    if st.playlist.sel_range = None then
+    if tab.sel_range = None then
     (
       Playlist.select st.playlist (len - 1) i
     )
@@ -755,8 +757,8 @@ let run_playlist (st : State.t) =
   let d = d0 +
     if movebegin_key st.ui then -len else
     if moveend_key st.ui then +len else
-    if movepageup_key st.ui then -vlen else
-    if movepagedown_key st.ui then +vlen else
+    if movepageup_key st.ui then -tab.fit else
+    if movepagedown_key st.ui then +tab.fit else
     if moveup_key st.ui then -1 else
     if movedown_key st.ui then +1 else
     0
@@ -770,15 +772,15 @@ let run_playlist (st : State.t) =
     in
     Playlist.move_selected st.playlist d';
     if d0 = 0 then
-      st.playlist.scroll <- clamp 0 (max 0 (len - vlen)) (st.playlist.scroll + d);
+      tab.scroll_v <- clamp 0 (max 0 (len - tab.fit)) (tab.scroll_v + d);
   );
 
   (* Playlist scrolling *)
-  let h' = vlen * row_h in
+  let h' = tab.fit * row_h in
   let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
-  let pos = if len = 0 then 0.0 else float st.playlist.scroll /. float len in
+  let pos = if len = 0 then 0.0 else float tab.scroll_v /. float len in
   let pos' = playlist_scroll st.ui pos ext -. 0.05 *. playlist_wheel st.ui in
-  st.playlist.scroll <- clamp 0 (max 0 (len - vlen))
+  tab.scroll_v <- clamp 0 (max 0 (len - tab.fit))
     (int_of_float (Float.round (pos' *. float len)));
 
   (* Playlist buttons *)
@@ -836,20 +838,20 @@ let run_playlist (st : State.t) =
   if del_button st.ui (if selected then Some false else None) then
     Playlist.remove_selected st.playlist;
 
-  let unselected = Playlist.num_selected st.playlist < Array.length st.playlist.tracks in
+  let unselected = Playlist.num_selected st.playlist < len in
   if crop_button st.ui (if unselected then Some false else None) then
     Playlist.remove_unselected st.playlist;
 
   if clean_button st.ui (if snd st.playlist.total > 0 then Some false else None) then
     Playlist.remove_invalid st.playlist;
 
-  if undo_button st.ui (if !(st.playlist.undos) <> [] then Some false else None) then
+  if undo_button st.ui (if !(tab.undos) <> [] then Some false else None) then
   (
     Playlist.pop_undo st.playlist;
     Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
   );
 
-  if redo_button st.ui (if !(st.playlist.redos) <> [] then Some false else None) then
+  if redo_button st.ui (if !(tab.redos) <> [] then Some false else None) then
   (
     Playlist.pop_redo st.playlist;
     Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
@@ -889,7 +891,7 @@ let run_playlist (st : State.t) =
   if Api.inside m r then
   (
     let dropped = Api.File.dropped win in
-    let pos = min len ((my - y) / row_h + st.playlist.scroll) in
+    let pos = min len ((my - y) / row_h + tab.scroll_v) in
     Playlist.insert_paths st.playlist pos dropped st.control.audio;
     Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
   );
@@ -910,7 +912,7 @@ let run_playlist (st : State.t) =
   let _, dh =
     playlist_resizer st.ui (w, control_h + playlist_min) (w, -1) in
   st.playlist.height <- st.playlist.height + dh;
-  update_rows st
+  update_fit st
 
 
 (* Library Pane *)
@@ -930,26 +932,26 @@ let run_library (st : State.t) =
   let bw = st.library.browser_width in
 
   (* Browser *)
-  let len = Array.length st.library.roots in
-  let vlen = st.library.browser_rows in
+  let brow = st.library.browser in
+  let len = Array.length brow.entries in
   (* Correct scrolling position for possible resize *)
-  st.library.browser_scroll <- clamp 0 (max 0 (len - vlen)) st.library.browser_scroll;
+  brow.scroll_v <- clamp 0 (max 0 (len - brow.fit)) brow.scroll_v;
   let (_, y, w, _) as r = Ui.dim st.ui (browser_area bw) in
   let cols = [|w, `Left|] in
   let c = Ui.text_color st.ui in
   let rows =
     Array.map (fun (root : Data.dir) ->
       c, `Regular, [|root.name|]
-    ) st.library.roots
+    ) brow.entries
   in
   ignore (browser_table bw row_h st.ui cols rows 0);
 
   (* Browser scrolling *)
-  let h' = vlen * row_h in
+  let h' = brow.fit * row_h in
   let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
-  let pos = if len = 0 then 0.0 else float st.library.browser_scroll /. float len in
+  let pos = if len = 0 then 0.0 else float brow.scroll_v /. float len in
   let pos' = browser_scroll bw st.ui pos ext -. 0.05 *. browser_wheel bw st.ui in
-  st.library.browser_scroll <- clamp 0 (max 0 (len - vlen))
+  brow.scroll_v <- clamp 0 (max 0 (len - brow.fit))
     (int_of_float (Float.round (pos' *. float len)));
 
   (* Browser drag & drop *)
@@ -957,7 +959,7 @@ let run_library (st : State.t) =
   let dropped = Api.File.dropped win in
   if dropped <> [] && Api.inside m r then
   (
-    let pos = min len ((my - y) / row_h + st.library.browser_scroll) in
+    let pos = min len ((my - y) / row_h + brow.scroll_v) in
     if Library.add_roots st.library dropped pos then
       Library.update_view st.library
     else
@@ -972,6 +974,7 @@ let run_library (st : State.t) =
       st.library.error;
 
   (* View header *)
+  let view = st.library.view in
   let (x, y, w, h) = Ui.dim st.ui (header_area bw row_h) in
   let cols =
     Array.map (fun (attr, cw) -> cw, Library.attr_align attr) st.library.columns
@@ -979,14 +982,14 @@ let run_library (st : State.t) =
     Array.map (fun (attr, _) -> Library.attr_name attr) st.library.columns
   in
   let rows = [|Ui.text_color st.ui, `Inverted, headings|] in
-  ignore (header_table bw row_h st.ui cols rows st.library.view_scroll_h);
+  ignore (header_table bw row_h st.ui cols rows view.scroll_h);
 
   (* Header column dividers (HACK) *)
   let margin_w = (gutter_w + 1)/2 in  (* match mw in Ui.table *)
   Api.Draw.clip win x y w h;
   let vw =
     Array.fold_left (fun cx (cw, _) ->
-      Api.Draw.fill win (cx + cw + gutter_w/2 - st.library.view_scroll_h) y 1 h `Black;
+      Api.Draw.fill win (cx + cw + gutter_w/2 - view.scroll_h) y 1 h `Black;
       cx + cw + gutter_w;
     ) (x + margin_w) cols - x - margin_w
   in
@@ -1001,7 +1004,7 @@ let run_library (st : State.t) =
     None
   in
   let find_gutter mx =
-    find_gutter' mx 0 (x + margin_w - st.library.view_scroll_h) in
+    find_gutter' mx 0 (x + margin_w - view.scroll_h) in
 
   (match find_gutter mx with
   | None -> ()
@@ -1009,14 +1012,13 @@ let run_library (st : State.t) =
   );
 
   (* View *)
-  let len = Array.length st.library.tracks in
-  let vlen = st.library.view_rows in
+  let len = Array.length st.library.view.entries in
   let current =
     match st.control.current with Some track -> track.path | None -> "" in
   let rows =
-    Array.init (min vlen len) (fun i ->
-      let i = i + st.library.view_scroll_v in
-      let track = st.library.tracks.(i) in
+    Array.init (min view.fit len) (fun i ->
+      let i = i + view.scroll_v in
+      let track = view.entries.(i) in
       let values =
         Array.map (fun (attr, _) -> Library.attr_string track attr)
           st.library.columns
@@ -1031,23 +1033,23 @@ let run_library (st : State.t) =
       c, `Regular, values
     )
   in
-  ignore (view_table bw row_h st.ui cols rows st.library.view_scroll_h);
+  ignore (view_table bw row_h st.ui cols rows view.scroll_h);
 
   (* View scrolling *)
-  let h' = vlen * row_h in
+  let h' = view.fit * row_h in
   let ext =
     if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
   let pos =
-    if len = 0 then 0.0 else float st.library.view_scroll_v /. float len in
+    if len = 0 then 0.0 else float view.scroll_v /. float len in
   let pos' = view_scroll_v bw st.ui pos ext -. 0.05 *. view_wheel bw st.ui in
-  st.library.view_scroll_v <- clamp 0 (max 0 (len - vlen))
+  view.scroll_v <- clamp 0 (max 0 (len - view.fit))
     (int_of_float (Float.round (pos' *. float len)));
 
-  let vw' = max vw (st.library.view_scroll_h + w) in
+  let vw' = max vw (view.scroll_h + w) in
   let ext = if vw' = 0 then 1.0 else min 1.0 (float w /. float vw') in
-  let pos = if vw' = 0 then 0.0 else float st.library.view_scroll_h /. float vw' in
+  let pos = if vw' = 0 then 0.0 else float view.scroll_h /. float vw' in
   let pos' = view_scroll_h bw st.ui pos ext in
-  st.library.view_scroll_h <-
+  view.scroll_h <-
     clamp 0 (max 0 (vw' - w)) (int_of_float (Float.round (pos' *. float vw')));
 
   (* View column resizing *)
@@ -1076,7 +1078,7 @@ let run_library (st : State.t) =
     st.library.browser_width <-
       min st.library.browser_width (browser_max st.library.width);
     st.playlist.height <- st.playlist.height + dh;
-    update_rows st
+    update_fit st
   )
   else
   (
@@ -1149,9 +1151,9 @@ let startup () =
   let audio = Api.Audio.init () in
   let st = State.make ui audio db in
   State.load st;
-  update_rows st;
+  update_fit st;
   Library.update_view st.library;
-  Playlist.adjust_scroll st.playlist st.playlist.pos;
+  Playlist.adjust_scroll st.playlist st.playlist.table.pos;
   at_exit (fun () -> State.save st; Storage.clear_temp (); Db.exit db);
   st
 

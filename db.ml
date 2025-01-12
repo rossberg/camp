@@ -145,7 +145,7 @@ let create_roots = create_table
   (
     path TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
-    pos INT NOT NULL UNIQUE,
+    pos INT NOT NULL,
     folded INT NOT NULL
   );
 |}

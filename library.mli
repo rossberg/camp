@@ -15,20 +15,16 @@ type attr =
 type t =
 {
   db : db;
-  mutable shown : bool;         (* external *)
-  mutable side : Api.side;      (* external *)
-  mutable width : int;          (* external *)
-  mutable browser_width : int;  (* external *)
-  mutable browser_rows : int;   (* external *)
-  mutable browser_scroll : int; (* external *)
-  mutable view_rows : int;      (* external *)
-  mutable view_scroll_v : int;  (* external *)
-  mutable view_scroll_h : int;  (* external *)
-  mutable error : string;       (* external *)
-  mutable error_time : time;    (* external *)
-  mutable roots : dir array;    (* external *)
-  mutable tracks : track array; (* external *)
-  mutable columns : (attr * int) array; (* external *)
+  mutable shown : bool;
+  mutable side : Api.side;
+  mutable width : int;
+  mutable browser_width : int;
+  mutable browser : dir Table.t;
+  mutable view : track Table.t;
+  mutable error : string;
+  mutable error_time : time;
+  mutable roots : dir array;
+  mutable columns : (attr * int) array;
 }
 
 

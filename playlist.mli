@@ -1,28 +1,18 @@
 (* Playlist *)
 
-module IntSet : module type of Set.Make(Int)
-
 type time = Track.time
 type track = Track.t
 
-type undo
 type shuffle
 
 type t =
 {
-  mutable tracks : track array;  (* external *)
-  mutable shown : bool;  (* external *)
-  mutable height : int;  (* external *)
-  mutable rows : int;  (* external *)
-  mutable scroll : int;  (* external *)
-  mutable pos : int option;  (* external *)
-  mutable sel_range : (int * int) option;  (* external *)
-  mutable selected : IntSet.t;  (* r external *)
-  mutable total : time * int;  (* r external *)
-  mutable total_selected : time * int;  (* r external *)
-  mutable shuffle : shuffle option;  (* r external *)
-  mutable undos : undo list ref;
-  mutable redos : undo list ref;
+  table : track Table.t;
+  mutable shown : bool;
+  mutable height : int;
+  mutable total : time * int;
+  mutable total_selected : time * int;
+  mutable shuffle : shuffle option;
 }
 
 
@@ -52,6 +42,14 @@ val string_of_playlist : track array -> string
 val playlist_of_string : string -> track array
 
 
+(* Accessors *)
+
+val current : t -> track
+val current_opt : t -> track option
+
+val adjust_scroll : t -> int option -> unit
+
+
 (* Total *)
 
 val update_total : t -> unit
@@ -59,12 +57,9 @@ val update_total : t -> unit
 
 (* Navigation *)
 
-val current : t -> track
-val current_opt : t -> track option
+val length : t -> int
 
 val skip : t -> int (* delta *) -> bool (* repeat *) -> bool
-
-val adjust_scroll : t -> int option -> unit
 
 val swap : 'a array -> int -> int -> unit
 
