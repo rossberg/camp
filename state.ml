@@ -130,6 +130,8 @@ let load_ui st file =  (* assumes playlist and library already loaded *)
     num 40 (st.library.width - 60) st.library.browser_width
 
 let load st =
+  let success = ref false in
+
   Storage.load config_file (fun file ->
     let input fmt = fscanf file fmt in
     if input " [%s@]" value <> config_header then failwith "load_config";
@@ -147,12 +149,14 @@ let load st =
     Playlist.load st.playlist file;
     Library.load st.library file;
     load_ui st file;
+
+    if st.control.current = None && Playlist.length st.playlist > 0 then
+    (
+      st.control.current <- Table.current_opt st.playlist.table;
+      Control.switch st.control (Option.get st.control.current) false;
+    );
+
+    success := true;
   );
 
-  if st.control.current = None && Playlist.length st.playlist > 0 then
-  (
-    st.control.current <- Table.current_opt st.playlist.table;
-    Control.switch st.control (Option.get st.control.current) false;
-  );
-
-  ok st
+  !success && try ok st; true with _ -> false

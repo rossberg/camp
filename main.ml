@@ -90,7 +90,7 @@ let seek_h = 14
 let seek_y = margin+info_h-info_margin/2-seek_h
 let title_h = 16
 let title_y = seek_y-title_h-4
-let prop_text = Ui.text (0, margin+info_margin, lcd_y+lcd_h+3, mute_x, 12) `Left
+let prop_text = Ui.text (0, margin+info_margin, lcd_y+lcd_h+10, mute_x, 12) `Left
 let title_ticker = Ui.ticker (0, margin+info_margin, title_y, info_w-info_margin, title_h)
 let seek_bar = Ui.progress_bar (0, margin+info_margin/2, seek_y, info_w-info_margin, seek_h)
 let rw_key = Ui.key ([], `Arrow `Left)
@@ -1320,8 +1320,8 @@ let startup () =
   let win = Api.Window.init 0 0 control_w control_h App.name in
   let ui = Ui.make win in
   let audio = Api.Audio.init () in
-  let st = State.make ui audio db in
-  State.load st;
+  let rst = ref (State.make ui audio db) in
+  let st = if State.load !rst then !rst else State.make ui audio db in
   update_fit st;
   Library.update_view st.library;
   Playlist.adjust_scroll st.playlist st.playlist.table.pos;
