@@ -43,7 +43,7 @@ val font : t -> int -> Api.font
 
 val key : modifier list * key -> t -> bool
 val mouse : area -> side -> t -> bool
-val drag : area -> t -> size -> [`Drag of size | `Click | `None]
+val drag : area -> t -> size -> [`Drag of size | `Drop | `Click | `None]
 val wheel : area -> t -> float
 
 (* UI elements *)

@@ -204,17 +204,17 @@ let select_invert pl =
   Table.select_invert pl.table;
   update_total pl
 
-let select pl i j =
-  let i, j = min i j, max i j in
+let select pl i0 j0 =
+  let i, j = min i0 j0, max i0 j0 in
   let _, prev = range_total pl i j in
-  Table.select pl.table i j;
+  Table.select pl.table i0 j0;
   let _, current = range_total pl i j in
   pl.total_selected <- add_total (sub_total pl.total_selected prev) current
 
-let deselect pl i j =
-  let i, j = min i j, max i j in
+let deselect pl i0 j0 =
+  let i, j = min i0 j0, max i0 j0 in
   let _, prev = range_total pl i j in
-  Table.deselect pl.table i j;
+  Table.deselect pl.table i0 j0;
   let _, current = range_total pl i j in
   pl.total_selected <- add_total (sub_total pl.total_selected prev) current
 

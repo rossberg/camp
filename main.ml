@@ -14,9 +14,6 @@ let divider_w = margin
 let resizer_w = 16
 let indicator_w = 7
 
-let enlarge_key = Ui.key ([`Command], `Char '+')
-let reduce_key = Ui.key ([`Command], `Char '-')
-
 let control_pane = Ui.pane 0
 
 let control_w = 360
@@ -159,6 +156,9 @@ let playlist_total_box = Ui.box (1, total_x, footer_y, total_w, footer_h) `Black
 let playlist_total_text = Ui.text (1, total_x, footer_y, total_w-2, footer_h) `Right
 
 let playlist_resizer = Ui.resizer (1, -resizer_w, -resizer_w, resizer_w, resizer_w) `N_S
+
+let enlarge_key = Ui.key ([`Command], `Char '+')
+let reduce_key = Ui.key ([`Command], `Char '-')
 
 let up_key = Ui.key ([], `Arrow `Up)
 let down_key = Ui.key ([], `Arrow `Down)
@@ -637,7 +637,12 @@ let run_playlist (st : State.t) =
   | None -> ()
   | Some i ->
     let i = tab.scroll_v + i in
-    if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left && dragging = `None then
+    if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
+      Api.Mouse.set_cursor win `Point;
+    if
+      Api.Key.are_modifiers_down [] &&
+      Api.Mouse.is_pressed `Left && dragging = `None
+    then
     (
       if i >= len || not (Playlist.is_selected st.playlist i) then
       (
@@ -660,7 +665,10 @@ let run_playlist (st : State.t) =
         )
       )
     )
-    else if Api.Key.are_modifiers_down [] && not (Api.Mouse.is_pressed `Left) && dragging = `Click then
+    else if
+      Api.Key.are_modifiers_down [] &&
+      not (Api.Mouse.is_pressed `Left) && dragging = `Click
+    then
     (
       Playlist.deselect_all st.playlist;
       if i < len then
@@ -669,7 +677,9 @@ let run_playlist (st : State.t) =
         Playlist.select st.playlist i i;
       )
     )
-    else if Api.Key.are_modifiers_down [`Command] && Api.Mouse.is_pressed `Left then
+    else if
+      Api.Key.are_modifiers_down [`Command] && Api.Mouse.is_pressed `Left
+    then
     (
       if i < len then
       (
@@ -771,7 +781,7 @@ let run_playlist (st : State.t) =
     )
   );
 
-  (* Playlist reordering *)
+  (* Playlist dragging *)
   let d0 =
     match dragging with
     | `Drag (_, dy) when Api.Key.are_modifiers_down [] -> dy
@@ -1070,7 +1080,19 @@ let run_library (st : State.t) =
   | None -> ()
   | Some i ->
     let i = view.scroll_v + i in
-    if Api.Key.are_modifiers_down [] && Api.Mouse.is_pressed `Left && dragging = `None then
+    if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
+    (
+      let view_area = view_area st.library.browser_width row_h in
+      Api.Mouse.set_cursor win
+        (if
+          Api.inside m (Ui.dim st.ui view_area) ||
+          Api.inside m (Ui.dim st.ui playlist_area)
+        then `Point else `Blocked)
+    );
+    if
+      Api.Key.are_modifiers_down [] &&
+      Api.Mouse.is_pressed `Left && dragging = `None
+    then
     (
       if i >= len || not (Library.is_selected st.library i) then
       (
@@ -1094,7 +1116,7 @@ let run_library (st : State.t) =
         )
       )
     )
-    else if Api.Key.are_modifiers_down [] && not (Api.Mouse.is_pressed `Left) && dragging = `Click then
+    else if Api.Key.are_modifiers_down [] && dragging = `Click then
     (
       Library.deselect_all st.library;
       if i < len then
@@ -1103,7 +1125,21 @@ let run_library (st : State.t) =
         Library.select st.library i i;
       )
     )
-    else if Api.Key.are_modifiers_down [`Command] && Api.Mouse.is_pressed `Left then
+    else if Api.Key.are_modifiers_down [] && dragging = `Drop then
+    (
+      let tracks = Library.selected st.library in
+      let len = Array.length st.playlist.table.entries in
+      let _, y, _, _ = Ui.dim st.ui playlist_area in
+      let pos = min len ((my - y) / row_h + st.playlist.table.scroll_v) in
+      Playlist.insert st.playlist pos
+        (Array.map (fun (tr : Data.track) -> Track.make tr.path) tracks);
+      Library.deselect_all st.library;
+      Playlist.select st.playlist pos (pos + Array.length tracks - 1);
+      Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
+    )
+    else if
+      Api.Key.are_modifiers_down [`Command] && Api.Mouse.is_pressed `Left
+    then
     (
       if i < len then
       (
@@ -1233,7 +1269,7 @@ let run_library (st : State.t) =
 
   (* View column resizing *)
   (match header_drag bw row_h st.ui (1, max_int) with
-  | `None | `Click -> ()
+  | `None | `Drop | `Click -> ()
   | `Drag (dx, _) ->
     match find_gutter (mx - dx) with
     | None -> ()
@@ -1280,13 +1316,6 @@ let rec run (st : State.t) =
 
   Api.Draw.start win (`Trans (`Black, 0x40));
 
-  (* Changing font size *)
-  let row_height' = st.config.row_height +
-    (if enlarge_key st.ui then +1 else 0) +
-    (if reduce_key st.ui then -1 else 0)
-  in
-  st.config.row_height <- max 8 (min 64 row_height');
-
   (* Handle background and window repositioning *)
   Ui.background st.ui;
 
@@ -1303,6 +1332,13 @@ let rec run (st : State.t) =
     if playlist_shown then run_playlist st;
     if library_shown then run_library st;
   );
+
+  (* Adjust font size *)
+  let row_height' = st.config.row_height +
+    (if enlarge_key st.ui then +1 else 0) +
+    (if reduce_key st.ui then -1 else 0)
+  in
+  st.config.row_height <- max 8 (min 64 row_height');
 
   (* Adjust window size after resize *)
   let dw = if st.library.shown then st.library.width else 0 in

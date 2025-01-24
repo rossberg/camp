@@ -194,7 +194,7 @@ let background ui =
       ui.drag_extra <- Window {target = w};
     )
   )
-  else
+  else if not (Mouse.is_released `Left) then
   (
     ui.drag_origin <- no_drag;
     ui.drag_extra <- No_drag;
@@ -218,26 +218,28 @@ let key_status _ui (modifiers, key) =
     `Untouched
 
 let mouse_status ui r side =
-  if Mouse.is_down side && inside ui.drag_origin r then
-    `Pressed
-  else if not (inside (Mouse.pos ui.win) r) then
+  if ui.drag_origin = no_drag && inside (Mouse.pos ui.win) r then
+    `Hovered
+  else if not (inside ui.drag_origin r) then
     `Untouched
+  else if Mouse.is_down side then
+    `Pressed
   else if Mouse.is_released side then
     `Released
-  else if not (Mouse.is_down side) then
-    `Hovered
   else
-    `Untouched
+    `Untouched  (* is this reachable? *)
 
 
 type drag += Drag of {pos : point}
 
 let drag_status ui r (stepx, stepy) =
   if not (inside ui.drag_origin r) then
-    if inside (Mouse.pos ui.win) r && Mouse.(is_released `Left && not (is_drag `Left)) then
-      `Click
+    `None
+  else if Mouse.is_released `Left then
+    if Mouse.is_drag `Left then
+      `Drop
     else
-      `None
+      `Click
   else
   let (mx, my) as m = Mouse.pos ui.win in
   match ui.drag_extra with

@@ -339,8 +339,8 @@ type cursor =
   | `Blocked
   | `Beam
   | `Crosshair
+  | `Point
   | `Resize of resize
-  | `Link
 ]
 
 module Mouse =
@@ -391,12 +391,12 @@ struct
       | `Blocked -> Not_allowed
       | `Beam -> Ibeam
       | `Crosshair -> Crosshair
+      | `Point -> Pointing_hand
       | `Resize `N_S -> Resize_ns
       | `Resize `E_W -> Resize_ew
       | `Resize `NE_SW -> Resize_nesw
       | `Resize `NW_SE -> Resize_nwse
       | `Resize `All -> Resize_all
-      | `Link -> Pointing_hand
 
   let _ = after_frame_start :=
     (fun () ->

@@ -155,8 +155,8 @@ type cursor =
   | `Blocked
   | `Beam
   | `Crosshair
+  | `Point
   | `Resize of resize
-  | `Link
 ]
 
 module Mouse :

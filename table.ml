@@ -212,6 +212,7 @@ let move_pos tab i j len =
 
 
 let insert tab pos entries =
+  assert (pos <= Array.length tab.entries);
   if entries <> [||] then
   (
     push_undo tab;
