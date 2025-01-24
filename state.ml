@@ -31,10 +31,10 @@ let check msg b = if b then [] else [msg]
 
 let rec ok st =
   match
+    Config.ok st.config @
     Control.ok st.control @
     Playlist.ok st.playlist @
     Library.ok st.library @
-    Config.ok st.config @
     check "playlist empty when no current track"
       (st.control.current <> None || st.playlist.table.entries = [||]) @
     check "at most one selection"
@@ -62,10 +62,7 @@ and dump st errors =
 (* Persistance *)
 
 let state_file = "state.conf"
-let config_file = "config.conf"
-
-let state_header = App.name ^ " state"
-let config_header = App.name ^ " config"
+let state_header = App.name
 
 
 let ui_to_string st =
@@ -80,14 +77,12 @@ let save_ui st file =
   Out_channel.output_string file (ui_to_string st)
 
 
-let to_string' st =
+let to_string st =
+  Config.to_string st.config ^
   Control.to_string st.control ^
   Playlist.to_string st.playlist ^
   Library.to_string st.library ^
   ui_to_string st
-
-let to_string st =
-  to_string' st ^ Config.to_string st.config
 
 let _ = to_string_fwd := to_string
 
@@ -95,6 +90,7 @@ let save st =
   Playlist.save_playlist st.playlist;
   Storage.save state_file (fun file ->
     Printf.fprintf file "[%s]\n" state_header;
+    Config.save st.config file;
     Control.save st.control file;
     Playlist.save st.playlist file;
     Library.save st.library file;
@@ -132,19 +128,14 @@ let load_ui st file =  (* assumes playlist and library already loaded *)
 let load st =
   let success = ref false in
 
-  Storage.load config_file (fun file ->
-    let input fmt = fscanf file fmt in
-    if input " [%s@]" value <> config_header then failwith "load_config";
-    Config.load st.config file;
-  );
-
   Library.load_roots st.library;
   Playlist.load_playlist st.playlist;
 
   Storage.load state_file (fun file ->
     let input fmt = fscanf file fmt in
-    if input " [%s@]" value <> state_header then failwith "load_state";
+    if input " [%s@]" value <> state_header then failwith "State.load";
 
+    Config.load st.config file;
     Control.load st.control file;
     Playlist.load st.playlist file;
     Library.load st.library file;

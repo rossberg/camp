@@ -18,7 +18,7 @@ let make () =
   {
     row_height = 13;
     delay_track_update = 10.0;
-    exec_tag = "";
+    exec_tag = "C:\\Program Files\\Mp3tag\\Mp3tag.exe";
     exec_tag_max_len = 8000;
   }
 
@@ -60,7 +60,7 @@ let num l h x = max l (min h x)
 let load cfg file =
   let input fmt = fscanf file fmt in
   cfg.row_height <- input " row_height = %d " (num 8 64);
-  cfg.exec_tag <- input " exec_tag = %[\x20-\xff]" String.trim;
-  cfg.exec_tag_max_len <- input " exec_tag_max_len = %d " (num 0 max_int);
   cfg.delay_track_update <- input " delay_track_update = %f "
-    (num 1.0 Float.infinity)
+    (num 1.0 Float.infinity);
+  cfg.exec_tag <- input " exec_tag = %[\x20-\xff]" String.trim;
+  cfg.exec_tag_max_len <- input " exec_tag_max_len = %d " (num 0 max_int)

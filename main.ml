@@ -14,6 +14,9 @@ let divider_w = margin
 let resizer_w = 16
 let indicator_w = 7
 
+let enlarge_key = Ui.key ([`Command], `Char '+')
+let reduce_key = Ui.key ([`Command], `Char '-')
+
 let control_pane = Ui.pane 0
 
 let control_w = 360
@@ -807,7 +810,11 @@ let run_playlist (st : State.t) =
     ();  (* TODO *)
 
   let selected = Playlist.num_selected st.playlist > 0 in
-  if tag_button st.ui (if selected && st.config.exec_tag <> "" then Some false else None) then
+  let is_executable path =
+    try Unix.(access path [X_OK]); true with Unix.Unix_error _ -> false
+  in
+  let tag_available = selected && is_executable st.config.exec_tag in
+  if tag_button st.ui (if tag_available then Some false else None) then
   (
     let tracks = Array.to_list (Playlist.selected st.playlist) in
     Domain.spawn (fun () ->
@@ -1271,6 +1278,13 @@ let rec run (st : State.t) =
   if Api.Window.closed win then exit 0;
 
   Api.Draw.start win (`Trans (`Black, 0x40));
+
+  (* Changing font size *)
+  let row_height' = st.config.row_height +
+    (if enlarge_key st.ui then +1 else 0) +
+    (if reduce_key st.ui then -1 else 0)
+  in
+  st.config.row_height <- max 8 (min 64 row_height');
 
   (* Handle background and window repositioning *)
   Ui.background st.ui;
