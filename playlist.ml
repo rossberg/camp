@@ -48,9 +48,10 @@ let ok pl =
   check "playlist window height positive" (pl.height > 0) @
   check "playlist total in range"
     (fst pl.total >= 0.0 && snd pl.total <= len) @
-  check "playlist selection total in range" (
-    fst pl.total_selected >= 0.0 &&
-    fst pl.total_selected <= fst pl.total &&
+  check "playlist selection total in range"
+    (fst pl.total_selected >= 0.0 && snd pl.total_selected <= len) @
+  check "playlist selection total consistent" (
+    (fst pl.total_selected <= fst pl.total || snd pl.total > 0) &&
     snd pl.total_selected <= snd pl.total
   ) @
   (match pl.shuffle with

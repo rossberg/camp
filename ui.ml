@@ -207,10 +207,12 @@ let background ui =
 let no_modkey = ([], `None)
 
 let key_status _ui (modifiers, key) =
-  if (Key.is_pressed key || Key.is_repeated key)
-  && Api.Key.are_modifiers_down modifiers then
+  (* Mouse click or drag masks keys *)
+  if Mouse.is_down `Left || not (Api.Key.are_modifiers_down modifiers) then
+    `Untouched
+  else if Key.is_pressed key || Key.is_repeated key then
     `Pressed
-  else if Key.is_released key && Api.Key.are_modifiers_down modifiers then
+  else if Key.is_released key then
     `Released
   else
     `Untouched

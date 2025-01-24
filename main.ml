@@ -115,6 +115,7 @@ let pause_button = control_button 2 "||" 'C'
 let stop_button = control_button 3 "[]" 'V'
 let fwd_button = control_button 4 ">>" 'B'
 let eject_button = control_button 5 "^" 'N'
+let start_stop_key = Ui.key ([], `Char ' ')
 
 let mode_w = 25
 let mode_h = 12
@@ -461,7 +462,7 @@ let run_control (st : State.t) =
     Playlist.remove_all st.playlist;
   );
 
-  if Api.Key.is_released (`Char ' ') then
+  if start_stop_key st.ui then
   (
     if playing then
       Api.Audio.pause st.control.audio st.control.sound
