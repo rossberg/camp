@@ -1045,6 +1045,16 @@ let run_library (st : State.t) =
   let find_gutter mx =
     find_gutter' mx 0 (x + margin_w - view.scroll_h) in
 
+  let rec find_heading' mx i cx =
+    if i = Array.length cols then None else
+    let cx' = cx + fst cols.(i) in
+    if mx >= cx && mx < cx' then Some (fst st.library.columns.(i)) else
+    if mx >= cx' then find_heading' mx (i + 1) (cx' + gutter_w) else
+    None
+  in
+  let find_heading mx =
+    find_heading' mx 0 (x + margin_w - view.scroll_h) in
+
   if Api.inside m (Ui.dim st.ui (header_area bw row_h)) then
   (
     match find_gutter mx with
@@ -1267,11 +1277,16 @@ let run_library (st : State.t) =
   view.scroll_h <-
     clamp 0 (max 0 (vw' - w)) (int_of_float (Float.round (pos' *. float vw')));
 
-  (* View column resizing *)
+  (* View row sorting & column resizing *)
   (match header_drag bw row_h st.ui (1, max_int) with
-  | `None | `Drop | `Click -> ()
+  | `None | `Drop -> ()
+  | `Click ->
+    (match find_heading mx with
+    | None -> ()
+    | Some attr -> Library.reorder_view st.library attr
+    )
   | `Drag (dx, _) ->
-    match find_gutter (mx - dx) with
+    (match find_gutter (mx - dx) with
     | None -> ()
     | Some i ->
       let add_snd d (x, y) = (x, max 0 (y + d)) in
@@ -1279,6 +1294,7 @@ let run_library (st : State.t) =
       if i + 1 < Array.length st.library.columns
       && Api.Key.is_modifier_down `Shift then
         st.library.columns.(i + 1) <- add_snd (-dx) st.library.columns.(i + 1);
+    )
   );
 
   (* Library resizing *)

@@ -368,6 +368,21 @@ let update_view lib =
   array_rev lib.view.entries;
   Table.adjust_pos lib.view
 
+let array_is_sorted cmp a =
+  let rec loop i =
+    i >= Array.length a || cmp a.(i - 1) a.(i) <= 0 && loop (i + 1)
+  in loop 1
+
+let reorder_view lib attr =
+  deselect_all lib;  (* TODO: reorder with selection intact *)
+  let entries' =
+    Array.map (fun track -> attr_string track attr, track) lib.view.entries in
+  let cmp_asc t1 t2 = compare (fst t1) (fst t2) in
+  let cmp_desc t1 t2 = - cmp_asc t1 t2 in
+  let cmp = if array_is_sorted cmp_asc entries' then cmp_desc else cmp_asc in
+  Array.stable_sort cmp entries';
+  lib.view.entries <- Array.map snd entries'
+
 
 let adjust_scroll lib pos =
   Table.adjust_scroll lib.view pos
