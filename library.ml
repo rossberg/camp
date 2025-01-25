@@ -3,6 +3,9 @@
 open Audio_file
 open Data
 
+module Set = Set.Make(String)
+
+
 type time = float
 type db = Db.t
 
@@ -78,6 +81,7 @@ let ok lib =
   check "browser width in range" (lib.browser_width <= lib.width - 40) @
   Table.ok "browser" lib.browser @
   Table.ok "view" lib.view @
+  check "view pos unset" (lib.view.pos = None || lib.view.pos = Some 0) @
   check "browser consistent with roots" (lib.browser.entries == lib.roots) @
   []
 
@@ -138,7 +142,7 @@ let nonempty opt f =
   | None -> ""
   | Some x -> f x
 
-let rec attr_string (track : Data.track) = function
+let rec attr_string track = function
   | `FilePath -> track.path
   | `FileSize ->
     nonzero 0.0 (fmt "%.1f MB") (float track.filesize /. 2.0 ** 20.0)
@@ -360,6 +364,10 @@ let deselect lib i j =
   Table.deselect lib.view i j
 
 
+let adjust_scroll lib pos =
+  Table.adjust_scroll lib.view pos
+
+
 let update_view lib =
   deselect_all lib;
   let tracks = ref [] in
@@ -374,18 +382,21 @@ let array_is_sorted cmp a =
   in loop 1
 
 let reorder_view lib attr =
-  deselect_all lib;  (* TODO: reorder with selection intact *)
+  let selection = selected lib in
+  deselect_all lib;
+
   let entries' =
     Array.map (fun track -> attr_string track attr, track) lib.view.entries in
   let cmp_asc t1 t2 = compare (fst t1) (fst t2) in
   let cmp_desc t1 t2 = - cmp_asc t1 t2 in
   let cmp = if array_is_sorted cmp_asc entries' then cmp_desc else cmp_asc in
   Array.stable_sort cmp entries';
-  lib.view.entries <- Array.map snd entries'
+  lib.view.entries <- Array.map snd entries';
 
-
-let adjust_scroll lib pos =
-  Table.adjust_scroll lib.view pos
+  let set = Array.fold_right (fun t -> Set.add t.path) selection Set.empty in
+  Array.iteri (fun i t -> if Set.mem t.path set then select lib i i)
+    lib.view.entries;
+  adjust_scroll lib (first_selected lib)
 
 
 (* Persistance *)

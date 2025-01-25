@@ -34,6 +34,12 @@ type album =
   cover : blob option;
 }
 
+type playlist =
+{
+  mutable id : id;
+  path : path;  (* primary *)
+}
+
 type track =
 {
   mutable id : id;
@@ -45,10 +51,4 @@ type track =
   status : [`Undet | `Predet | `Det | `Invalid | `Absent];
   format : Format.t option;
   meta : Meta.t option;
-}
-
-type playlist =
-{
-  mutable id : id;
-  path : path;  (* primary *)
 }
