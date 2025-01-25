@@ -45,8 +45,8 @@ type track =
   mutable id : id;
   path : path;  (* primary *)
   album : album link option;
-  filetime : time;
   filesize : int;
+  filetime : time;
   fileage : time;
   status : [`Undet | `Predet | `Det | `Invalid | `Absent];
   format : Format.t option;

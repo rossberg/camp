@@ -1141,8 +1141,7 @@ let run_library (st : State.t) =
       let len = Array.length st.playlist.table.entries in
       let _, y, _, _ = Ui.dim st.ui playlist_area in
       let pos = min len ((my - y) / row_h + st.playlist.table.scroll_v) in
-      Playlist.insert st.playlist pos
-        (Array.map (fun (tr : Data.track) -> Track.make tr.path) tracks);
+      Playlist.insert st.playlist pos (Array.map Track.make_from_data tracks);
       Library.deselect_all st.library;
       Playlist.select st.playlist pos (pos + Array.length tracks - 1);
       Control.switch_if_empty st.control (Playlist.current_opt st.playlist);

@@ -18,6 +18,7 @@ type t =
 val make : path -> t
 val make_predet : path -> string -> time -> t
 val make_separator : unit -> t
+val make_from_data : Data.track -> t
 
 
 (* Properties *)

@@ -428,6 +428,7 @@ let stmt_insert_track = stmt
 |}
 
 let insert_track db (track : track) =
+  assert (track.fileage > 0.0);
   let& () = db in
   let stmt = prepare db stmt_insert_track in
   let* () = bind_text stmt 1 track.path in

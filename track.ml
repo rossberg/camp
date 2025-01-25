@@ -18,9 +18,18 @@ type t =
 (* Constructors *)
 
 let name_separator = String.make 80 '-'
+
 let name_of_path path =
   let file = Filename.basename path in
   if Format.is_known_ext file then Filename.remove_extension file else file
+
+let name_of_meta path (meta : Meta.t) =
+  if meta.artist <> "" && meta.title <> "" then
+    meta.artist ^ " - " ^ meta.title
+  else if meta.title <> "" then
+    meta.title
+  else
+    name_of_path path
 
 
 let make' path name time status =
@@ -33,6 +42,23 @@ let make_predet path name time = make' path name time `Predet
 let make path =
   if M3u.is_separator path then make_separator () else
   make' path (name_of_path path) 0.0 `Undet
+
+let make_from_data (track : Data.track) =
+  {
+    path = track.path;
+    name =
+      (match track.meta with
+      | Some meta -> name_of_meta track.path meta
+      | None -> name_of_path track.path
+      );
+    time =
+      (match track.format with
+      | Some format -> format.time
+      | None -> 0.0
+      );
+    status = track.status;
+    last_update = track.fileage;
+  }
 
 
 (* Properties *)
@@ -91,9 +117,7 @@ let rec updater () =
             t
           )
       );
-      track.name <-
-        if meta.artist <> "" && meta.title <> "" then meta.artist ^ " - " ^ meta.title else
-        if meta.title <> "" then meta.title else name_of_path track.path
+      track.name <- name_of_meta track.path meta
     with
     | Sys_error _ -> track.status <- `Invalid
     | exn ->
