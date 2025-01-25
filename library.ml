@@ -82,7 +82,9 @@ let ok lib =
   Table.ok "browser" lib.browser @
   Table.ok "view" lib.view @
   check "view pos unset" (lib.view.pos = None || lib.view.pos = Some 0) @
-  check "browser consistent with roots" (lib.browser.entries == lib.roots) @
+  check "browser consistent with roots"
+    ( Array.length lib.browser.entries = 1 ||
+      Array.length lib.browser.entries > Array.length lib.roots ) @
   []
 
 
@@ -197,48 +199,71 @@ let array_rev a =
 
 (* Scanning *)
 
-let scan_roots lib roots =
-  let rec scan_path path =
+let queue = Safe_queue.create ()
+let completed = Atomic.make false
+
+let rescan_root lib root = Safe_queue.add (lib, root) queue
+let rescan_roots lib = Array.iter (rescan_root lib) lib.roots
+let rescan_roots_done _lib = Atomic.exchange completed false
+
+let dirs = Option.value ~default: []
+
+let rec scanner () =
+  let lib, root = Safe_queue.take queue in
+
+  let rec scan_path path nest =
     try
       if Sys.file_exists path then
         if Sys.is_directory path then
           if Format.is_known_ext path then
-            scan_album path
+            scan_album path nest
           else
-            scan_dir path
+            scan_dir path nest
         else
           if Format.is_known_ext path then
             scan_track path
           else if M3u.is_known_ext path then
             scan_playlist path
           else
-            false
-      else false
-    with Sys_error _ -> false
+            None
+      else None
+    with Sys_error _ -> None
 
-  and scan_dir path =
-    if
-      Array.fold_left (fun b file ->
-        scan_path (Filename.concat path file) || b
-      ) false (Sys.readdir path)
-    then
-    (
-      let dir : Data.dir =
-        {
-          id = -1L;
-          path;
-          name = Filename.basename path;
-          children = [||];
-          pos = 0;
-          folded = true;
-        }
-      in Db.insert_dir lib.db dir;
-      true
-    )
-    else false
+  and scan_dir path nest' =
+    let nest = nest' + 1 in
+    match
+      Array.fold_left (fun r file ->
+        match r, scan_path (Filename.concat path file) nest with
+        | None, None -> None
+        | dirs1, dirs2 -> Some (dirs dirs1 @ dirs dirs2)
+      ) None (Sys.readdir path)
+    with
+    | None -> None
+    | Some dirs ->
+      let children = Array.map Data.link_val (Array.of_list dirs) in
+      let dir =
+        match Db.find_dir lib.db path with
+        | Some dir ->
+          (* TODO: remove missing children *)
+          {dir with children}
+        | None ->
+          let dir : Data.dir =
+            {
+              id = -1L;
+              path;
+              name = Filename.basename path;
+              children;
+              pos = 0;
+              nest;
+              folded = true;
+            }
+          in Db.insert_dir lib.db dir;
+          dir
+      in
+      Some [dir]
 
-  and scan_album path =
-    scan_dir path  (* TODO *)
+  and scan_album path nest =
+    scan_dir path nest (* TODO *)
 
   and scan_track path =
     let stats = Unix.stat path in
@@ -255,8 +280,9 @@ let scan_roots lib roots =
         meta = Some (Meta.load path);
       }
     in
-    Db.insert_track lib.db track;
-    true
+    if not (Db.exist_track lib.db path) then
+      Db.insert_track lib.db track;
+    Some []
 
   and scan_playlist path =
     let playlist : Data.playlist =
@@ -265,10 +291,43 @@ let scan_roots lib roots =
         path;
       }
     in
-    Db.insert_playlist lib.db playlist;
-    true
+    if not (Db.exist_playlist lib.db path) then
+      Db.insert_playlist lib.db playlist;
+    Some []
   in
-  Array.iter (fun (root : dir) -> ignore (scan_dir root.path)) roots
+
+  Option.iter (fun dirs ->
+    assert (List.length dirs = 1);
+    root.children <- (List.hd dirs).children;
+  ) (scan_dir root.path (-1));
+
+  Atomic.set completed true;
+  scanner ()
+
+let _ = Domain.spawn scanner
+
+
+(* Browser *)
+
+let make_all lib =
+  {
+    id = -1L;
+    path = "";
+    name = "All";
+    children = Array.map Data.link_val lib.roots;
+    pos = 0;
+    nest = -1;
+    folded = false;
+  }
+
+let update_browser lib =
+  let rec entries dir acc =
+    dir ::
+    Array.fold_right
+      (fun link -> entries (Data.val_of_link link)) dir.children acc
+  in
+  lib.browser.entries <- Array.of_list (entries (make_all lib) []);
+  Table.adjust_pos lib.browser
 
 
 (* Roots *)
@@ -278,9 +337,11 @@ let iter_roots lib f = Db.iter_roots lib.db f
 
 let load_roots lib =
   let roots = ref [] in
-  iter_roots lib (fun root -> roots := root :: !roots);
+  Db.iter_roots lib.db (fun root -> roots := root :: !roots);
   lib.roots <- Array.of_list !roots;
-  Array.sort (fun r1 r2 -> compare r1.pos r2.pos) lib.roots
+  Array.sort (fun r1 r2 -> compare r1.pos r2.pos) lib.roots;
+  rescan_roots lib
+
 
 let make_root lib path pos =
   if not (Sys.file_exists path) then
@@ -306,7 +367,8 @@ let make_root lib path pos =
         name = Filename.basename path;
         children = [||];
         pos;
-        folded = true;
+        nest = 0;
+        folded = false;
       }
   )
 
@@ -327,11 +389,10 @@ let add_roots lib paths pos =
           let root = lib.roots.(i - len') in
           root.pos <- i; root
       );
-    lib.browser.entries <- lib.roots;
-    Table.adjust_pos lib.browser;
+    update_browser lib;
     Db.update_roots_pos lib.db pos (+len');
     Array.iter (Db.insert_root lib.db) roots';
-    scan_roots lib roots';
+    Array.iter (rescan_root lib) roots';
     true
   with Failure msg ->
     lib.error <- msg;
@@ -375,6 +436,7 @@ let update_view lib =
   lib.view.entries <- Array.of_list !tracks;
   array_rev lib.view.entries;
   Table.adjust_pos lib.view
+
 
 let array_is_sorted cmp a =
   let rec loop i =
@@ -485,8 +547,7 @@ let load lib file =
   (* TODO: 40 = browser_min, 60 = browser_min + 2*margin; use constants *)
   lib.browser_width <- input " lib_browser_width = %d "
     (num 40 (lib.width - 60));
-  lib.browser.entries <- lib.roots;
-  Table.adjust_pos lib.browser;
+  update_browser lib;
   lib.browser.scroll_v <- input " lib_browser_scroll = %d "
     (num 0 (max 0 (Array.length lib.roots - 1)));
   let cols = input " lib_view_columns = %[\x20-\xff]" String.trim in

@@ -8,7 +8,11 @@ type blob = string
 type id = int64
 type 'a link = [`Id of id | `Val of 'a] ref
 
-let link id = ref (`Id id)
+let link_id id = ref (`Id id)
+let link_val x = ref (`Val x)
+
+let id_of_link = function {contents = `Id id} -> id | _ -> assert false
+let val_of_link = function {contents = `Val x} -> x | _ -> assert false
 
 type dir =
 {
@@ -17,6 +21,7 @@ type dir =
   name : string;
   mutable children : dir link array;
   mutable pos : int;
+  mutable nest : int;
   mutable folded : bool;
 }
 

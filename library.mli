@@ -55,7 +55,13 @@ val add_roots : t -> path list -> int -> bool
 val count_roots : t -> int
 val iter_roots : t -> (dir -> unit) -> unit
 
-val scan_roots : t -> dir array -> unit
+val rescan_roots : t -> unit
+val rescan_roots_done : t -> bool
+
+
+(* Browser *)
+
+val update_browser : t -> unit
 
 
 (* View *)

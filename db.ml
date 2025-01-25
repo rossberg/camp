@@ -69,7 +69,7 @@ let to_int_opt i data = Sqlite3.Data.to_int data.(i)
 let to_float_opt i data = Sqlite3.Data.to_float data.(i)
 let to_text_opt i data = Sqlite3.Data.to_string data.(i)
 let to_id_opt i data = Sqlite3.Data.to_int64 data.(i)
-let to_link_opt i data = Option.map link (to_id_opt i data)
+let to_link_opt i data = Option.map link_id (to_id_opt i data)
 
 let to_default to_x def i data =
   if data.(i) = Sqlite3.Data.NULL then def else to_x i data
@@ -116,6 +116,15 @@ let exist_in_table' n stmt db path =
 
 let exist_in_table = exist_in_table' 1
 
+let find_in_table of_data stmt db path =
+  let& () = db in
+  let stmt = prepare db stmt in
+  let* () = bind_text stmt 1 path in
+  let result = ref None in
+  let f data = result := Some (of_data data) in
+  let* () = Sqlite3.iter stmt ~f in
+  !result
+
 let iter_table binds of_data stmt db f =
   let& () = db in
   let stmt = prepare db stmt in
@@ -135,6 +144,7 @@ let to_root data : dir =
     name = to_string_exn data.(2);
     children = [||];
     pos = to_int_exn data.(3);
+    nest = 0;
     folded = to_bool_exn data.(4);
   }
 
@@ -204,7 +214,8 @@ let to_dir data : dir =
     path = to_text 1 data;
     name = to_text 2 data;
     children = [||];
-    pos = to_int 4 data;
+    pos = to_int 3 data;
+    nest = to_int 4 data;
     folded = to_bool 5 data;
   }
 
@@ -216,6 +227,7 @@ let create_dirs = create_table
     path TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
     pos INT NOT NULL,
+    nest INT NOT NULL,
     folded INT NOT NULL
   );
 |}
@@ -230,6 +242,11 @@ let exist_dir = exist_in_table @@ stmt
   SELECT COUNT(*) FROM Dirs WHERE path = ?;
 |}
 
+let find_dir = find_in_table to_dir @@ stmt
+{|
+  SELECT rowid, * FROM Dirs WHERE path = ?;
+|}
+
 let iter_dir db id = db |> iter_table [|of_id id|] to_dir @@ stmt
 {|
   SELECT rowid, * FROM Dirs WHERE parent = ?;
@@ -238,7 +255,7 @@ let iter_dir db id = db |> iter_table [|of_id id|] to_dir @@ stmt
 
 let stmt_insert_dir = stmt
 {|
-  INSERT INTO Dirs VALUES (?, ?, ?, ?);
+  INSERT INTO Dirs VALUES (?, ?, ?, ?, ?);
 |}
 
 let insert_dir db (dir : dir) =
@@ -247,7 +264,8 @@ let insert_dir db (dir : dir) =
   let* () = bind_text stmt 1 dir.path in
   let* () = bind_text stmt 2 dir.name in
   let* () = bind_int stmt 3 dir.pos in
-  let* () = bind_bool stmt 4 dir.folded in
+  let* () = bind_int stmt 4 dir.nest in
+  let* () = bind_bool stmt 5 dir.folded in
   let* () = Sqlite3.step stmt in
   dir.id <- Sqlite3.last_insert_rowid db
 
@@ -302,7 +320,7 @@ let insert_album db (album : album) =
   album.id <- Sqlite3.last_insert_rowid db
 
 
-(* Songs *)
+(* Tracks *)
 
 let all_null is data =
   Array.for_all (fun i -> data.(i) = Sqlite3.Data.NULL) is
@@ -413,6 +431,11 @@ let count_tracks = count_table @@ stmt
 let exist_track = exist_in_table @@ stmt
 {|
   SELECT COUNT(*) FROM Tracks WHERE path = ?;
+|}
+
+let find_track = find_in_table to_track @@ stmt
+{|
+  SELECT rowid, * FROM Tracks WHERE path = ?;
 |}
 
 let iter_tracks = iter_table [||] to_track @@ stmt

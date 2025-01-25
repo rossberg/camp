@@ -956,6 +956,10 @@ let run_playlist (st : State.t) =
 
 (* Library Pane *)
 
+let symbol_empty = "○"
+let symbol_folded = "►" (*"▲"*) (* "▸" *)
+let symbol_unfolded = "▼" (* "▾" *)
+
 let run_library (st : State.t) =
   let win = Ui.window st.ui in
   let row_h = st.config.row_height in
@@ -970,6 +974,13 @@ let run_library (st : State.t) =
       library_divider_min (library_divider_max st.library.width);
   let bw = st.library.browser_width in
 
+  (* Background rescanning *)
+  if Library.rescan_roots_done st.library then
+  (
+    Library.update_browser st.library;
+    Library.update_view st.library;
+  );
+
   (* Browser *)
   let brow = st.library.browser in
   let len = Array.length brow.entries in
@@ -979,8 +990,15 @@ let run_library (st : State.t) =
   let cols = [|w, `Left|] in
   let c = Ui.text_color st.ui in
   let rows =
-    Array.map (fun (root : Data.dir) ->
-      c, `Regular, [|root.name|]
+    Array.map (fun (dir : Data.dir) ->
+      let sym =
+        if dir.children = [||] then symbol_empty else
+        if dir.folded then symbol_folded else symbol_unfolded
+      in
+      let pre =
+        if dir.nest = -1 then "" else String.make (2 * dir.nest) ' ' ^ sym ^ " "
+      in
+      c, `Regular, [|pre ^ dir.name|]
     ) brow.entries
   in
   ignore (browser_table bw row_h st.ui cols rows 0);
@@ -999,7 +1017,11 @@ let run_library (st : State.t) =
   if dropped <> [] && Api.inside m r then
   (
     let pos = min len ((my - y) / row_h + brow.scroll_v) in
-    if Library.add_roots st.library dropped pos then
+    let rec find_root_pos i j =
+      if i = pos then j else
+      find_root_pos (i + 1) (if brow.entries.(i).nest = 0 then j + 1 else j)
+    in
+    if Library.add_roots st.library dropped (find_root_pos 0 0) then
       Library.update_view st.library
     else
       browser_error_box bw (Ui.error_color st.ui) st.ui;  (* flash *)
