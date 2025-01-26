@@ -294,6 +294,7 @@ let insert_paths pl pos paths audio =
 let remove_all pl =
   if pl.table.entries <> [||] then
   (
+    deselect_all pl;
     Table.remove_all pl.table;
     pl.total <- 0.0, 0;
     Option.iter (fun shuffle ->

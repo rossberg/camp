@@ -1049,6 +1049,21 @@ let run_library (st : State.t) =
         )
       )
     )
+    else if Api.Key.are_modifiers_down [] && dragging = `Drop then
+    (
+      let (_, y, _, _) as r = Ui.dim st.ui playlist_area in
+      if Api.inside m r then
+      (
+        let tracks = Array.map Track.make_from_data st.library.view.entries in
+        let len = Array.length st.playlist.table.entries in
+        let pos = min len ((my - y) / row_h + st.playlist.table.scroll_v) in
+        Playlist.insert st.playlist pos tracks;
+        Library.deselect_all st.library;
+        Playlist.deselect_all st.playlist;
+        Playlist.select st.playlist pos (pos + Array.length tracks - 1);
+        Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
+      )
+    )
   );
 
   (* Browser scrolling *)
@@ -1206,14 +1221,18 @@ let run_library (st : State.t) =
     )
     else if Api.Key.are_modifiers_down [] && dragging = `Drop then
     (
-      let tracks = Library.selected st.library in
-      let len = Array.length st.playlist.table.entries in
-      let _, y, _, _ = Ui.dim st.ui playlist_area in
-      let pos = min len ((my - y) / row_h + st.playlist.table.scroll_v) in
-      Playlist.insert st.playlist pos (Array.map Track.make_from_data tracks);
-      Library.deselect_all st.library;
-      Playlist.select st.playlist pos (pos + Array.length tracks - 1);
-      Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
+      let (_, y, _, _) as r = Ui.dim st.ui playlist_area in
+      if Api.inside m r then
+      (
+        let tracks = Library.selected st.library in
+        let len = Array.length st.playlist.table.entries in
+        let pos = min len ((my - y) / row_h + st.playlist.table.scroll_v) in
+        Playlist.insert st.playlist pos (Array.map Track.make_from_data tracks);
+        Library.deselect_all st.library;
+        Playlist.deselect_all st.playlist;
+        Playlist.select st.playlist pos (pos + Array.length tracks - 1);
+        Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
+      )
     )
     else if
       Api.Key.are_modifiers_down [`Command] && Api.Mouse.is_pressed `Left
