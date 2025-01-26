@@ -443,6 +443,11 @@ let iter_tracks = iter_table [||] to_track @@ stmt
   SELECT rowid, * FROM Tracks;
 |}
 
+let iter_tracks_for db path = db |> iter_table [|of_text (path ^ "%")|] to_track @@ stmt
+{|
+  SELECT rowid, * FROM Tracks WHERE path LIKE ?;
+|}
+
 
 let stmt_insert_track = stmt
 {|

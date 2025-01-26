@@ -309,6 +309,24 @@ let _ = Domain.spawn scanner
 
 (* Browser *)
 
+let selected_dir lib = Table.first_selected lib.browser
+let deselect_dir lib = Table.deselect_all lib.browser
+let select_dir lib i = deselect_dir lib; Table.select lib.browser i i
+
+
+let save_browser_selection lib =
+  let selection =
+    Option.map (fun i -> lib.browser.entries.(i).path) (selected_dir lib) in
+  deselect_dir lib;
+  selection
+
+let restore_browser_selection lib selection =
+  Array.iteri
+    (fun i (d : Data.dir) -> if selection = Some d.path then select_dir lib i)
+    lib.browser.entries;
+  Table.adjust_scroll lib.browser (Table.first_selected lib.browser)
+
+
 let make_all lib =
   {
     id = -1L;
@@ -326,8 +344,10 @@ let update_browser lib =
     Array.fold_right
       (fun link -> entries (Data.val_of_link link)) dir.children acc
   in
+  let selection = save_browser_selection lib in
   lib.browser.entries <- Array.of_list (entries (make_all lib) []);
-  Table.adjust_pos lib.browser
+  Table.adjust_pos lib.browser;
+  restore_browser_selection lib selection
 
 
 (* Roots *)
@@ -429,13 +449,30 @@ let adjust_scroll lib pos =
   Table.adjust_scroll lib.view pos
 
 
-let update_view lib =
+let save_view_selection lib =
+  let selection = selected lib in
   deselect_all lib;
+  selection
+
+let restore_view_selection lib selection =
+  let set = Array.fold_right (fun t -> Set.add t.path) selection Set.empty in
+  Array.iteri (fun i t -> if Set.mem t.path set then select lib i i)
+    lib.view.entries;
+  Table.adjust_scroll lib.view (first_selected lib)
+
+
+let update_view lib =
+  let selection = save_view_selection lib in
   let tracks = ref [] in
-  Db.iter_tracks lib.db (fun track -> tracks := track :: !tracks);
+  Option.iter (fun i ->
+    let dir = lib.browser.entries.(i) in
+    let path = Filename.concat dir.path "" in
+    Db.iter_tracks_for lib.db path (fun tr -> tracks := tr :: !tracks);
+  ) (Table.first_selected lib.browser);
   lib.view.entries <- Array.of_list !tracks;
   array_rev lib.view.entries;
-  Table.adjust_pos lib.view
+  Table.adjust_pos lib.view;
+  restore_view_selection lib selection
 
 
 let array_is_sorted cmp a =
@@ -444,9 +481,7 @@ let array_is_sorted cmp a =
   in loop 1
 
 let reorder_view lib attr =
-  let selection = selected lib in
-  deselect_all lib;
-
+  let selection = save_view_selection lib in
   let entries' =
     Array.map (fun track -> attr_string track attr, track) lib.view.entries in
   let cmp_asc t1 t2 = compare (fst t1) (fst t2) in
@@ -454,11 +489,7 @@ let reorder_view lib attr =
   let cmp = if array_is_sorted cmp_asc entries' then cmp_desc else cmp_asc in
   Array.stable_sort cmp entries';
   lib.view.entries <- Array.map snd entries';
-
-  let set = Array.fold_right (fun t -> Set.add t.path) selection Set.empty in
-  Array.iteri (fun i t -> if Set.mem t.path set then select lib i i)
-    lib.view.entries;
-  adjust_scroll lib (first_selected lib)
+  restore_view_selection lib selection
 
 
 (* Persistance *)

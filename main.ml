@@ -214,6 +214,7 @@ let browser_error_box bw = Ui.box (browser_area bw)
 let browser_table bw = Ui.table (browser_area bw) 0
 let browser_scroll bw = Ui.scroll_bar (2, margin+bw-scrollbar_w, margin, scrollbar_w, -bottom_h) `Vertical
 let browser_wheel bw = Ui.wheel (2, margin, margin, bw, -bottom_h)
+let browser_drag bw = Ui.drag (browser_area bw)
 
 let header_area bw rh = (2, margin+divider_w+bw, margin, -margin-scrollbar_w-1, rh)
 let header_table bw rh = Ui.table (header_area bw rh) gutter_w rh
@@ -962,6 +963,7 @@ let symbol_unfolded = "▼" (* "▾" *)
 
 let run_library (st : State.t) =
   let win = Ui.window st.ui in
+  let (mx, my) as m = Api.Mouse.pos win in
   let row_h = st.config.row_height in
 
   let x = if st.library.side = `Left then 0 else control_w - 5 in
@@ -989,8 +991,9 @@ let run_library (st : State.t) =
   let (_, y, w, _) as r = Ui.dim st.ui (browser_area bw) in
   let cols = [|w, `Left|] in
   let c = Ui.text_color st.ui in
+  let sel = Library.selected_dir st.library in
   let rows =
-    Array.map (fun (dir : Data.dir) ->
+    Array.mapi (fun i (dir : Data.dir) ->
       let sym =
         if dir.children = [||] then symbol_empty else
         if dir.folded then symbol_folded else symbol_unfolded
@@ -998,10 +1001,55 @@ let run_library (st : State.t) =
       let pre =
         if dir.nest = -1 then "" else String.make (2 * dir.nest) ' ' ^ sym ^ " "
       in
-      c, `Regular, [|pre ^ dir.name|]
+      let inv = if Some i = sel then `Inverted else `Regular in
+      c, inv, [|pre ^ dir.name|]
     ) brow.entries
   in
-  ignore (browser_table bw row_h st.ui cols rows 0);
+  let dragging = browser_drag bw st.ui (max_int, row_h) in
+  (match browser_table bw row_h st.ui cols rows 0 with
+  | None -> ()
+  | Some i ->
+    let i = brow.scroll_v + i in
+    if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
+    (
+      let browser_area = browser_area bw in
+      Api.Mouse.set_cursor win
+        (if
+          Api.inside m (Ui.dim st.ui browser_area) ||
+          Api.inside m (Ui.dim st.ui playlist_area)
+        then `Point else `Blocked)
+    );
+    if
+      Api.Key.are_modifiers_down [] &&
+      Api.Mouse.is_pressed `Left && dragging = `None
+    then
+    (
+      if i >= len then
+      (
+        Library.deselect_dir st.library;
+        Library.deselect_all st.library;
+        Library.update_view st.library;
+      )
+      else
+      (
+        if Some i <> Library.selected_dir st.library then
+        (
+          Library.select_dir st.library i;
+          Library.deselect_all st.library;
+          Library.update_view st.library;
+        );
+        if Api.Mouse.is_doubleclick `Left then
+        (
+          Control.eject st.control;
+          Playlist.remove_all st.playlist;
+          let tracks = Array.map Track.make_from_data st.library.view.entries in
+          Playlist.insert st.playlist 0 tracks;
+          if tracks <> [||] then
+            Control.switch st.control tracks.(0) true;
+        )
+      )
+    )
+  );
 
   (* Browser scrolling *)
   let h' = brow.fit * row_h in
@@ -1012,7 +1060,6 @@ let run_library (st : State.t) =
     (int_of_float (Float.round (pos' *. float len)));
 
   (* Browser drag & drop *)
-  let (mx, my) as m = Api.Mouse.pos win in
   let dropped = Api.File.dropped win in
   if dropped <> [] && Api.inside m r then
   (

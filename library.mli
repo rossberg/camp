@@ -63,6 +63,10 @@ val rescan_roots_done : t -> bool
 
 val update_browser : t -> unit
 
+val selected_dir : t -> int option
+val select_dir : t -> int -> unit
+val deselect_dir : t -> unit
+
 
 (* View *)
 
