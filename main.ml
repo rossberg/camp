@@ -988,21 +988,23 @@ let run_library (st : State.t) =
   let len = Array.length brow.entries in
   (* Correct scrolling position for possible resize *)
   brow.scroll_v <- clamp 0 (max 0 (len - brow.fit)) brow.scroll_v;
-  let (_, y, w, _) as r = Ui.dim st.ui (browser_area bw) in
+  let (x, y, w, _) as r = Ui.dim st.ui (browser_area bw) in
   let cols = [|w, `Left|] in
   let c = Ui.text_color st.ui in
   let sel = Library.selected_dir st.library in
-  let rows =
-    Array.mapi (fun i (dir : Data.dir) ->
+  let pres =
+    Array.map (fun (dir : Data.dir) ->
       let sym =
         if dir.children = [||] then symbol_empty else
         if dir.folded then symbol_folded else symbol_unfolded
       in
-      let pre =
-        if dir.nest = -1 then "" else String.make (2 * dir.nest) ' ' ^ sym ^ " "
-      in
+      if dir.nest = -1 then "" else String.make (2 * dir.nest) ' ' ^ sym ^ " "
+    ) brow.entries
+  in
+  let rows =
+    Array.mapi (fun i (dir : Data.dir) ->
       let inv = if Some i = sel then `Inverted else `Regular in
-      c, inv, [|pre ^ dir.name|]
+      c, inv, [|pres.(i) ^ dir.name|]
     ) brow.entries
   in
   let dragging = browser_drag bw st.ui (max_int, row_h) in
@@ -1012,6 +1014,7 @@ let run_library (st : State.t) =
     let i = brow.scroll_v + i in
     if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
     (
+      (* Mouse button down: adjust cursor *)
       let browser_area = browser_area bw in
       Api.Mouse.set_cursor win
         (if
@@ -1024,36 +1027,53 @@ let run_library (st : State.t) =
       Api.Mouse.is_pressed `Left && dragging = `None
     then
     (
+      (* Click into browser table *)
       if i >= len then
       (
+        (* Click into empty space: deselect everything *)
         Library.deselect_dir st.library;
         Library.deselect_all st.library;
         Library.update_view st.library;
       )
       else
       (
-        if Some i <> Library.selected_dir st.library then
+        let tw = Api.Draw.text_width win row_h (Ui.font st.ui row_h) pres.(i) in
+        if mx < x + tw then
         (
-          Library.select_dir st.library i;
-          Library.deselect_all st.library;
-          Library.update_view st.library;
-        );
-        if Api.Mouse.is_doubleclick `Left then
+          (* CLick on triangle: fold/unfold entry *)
+          let dir = brow.entries.(i) in
+          dir.folded <- not dir.folded;
+          Library.update_browser st.library;
+        )
+        else
         (
-          Control.eject st.control;
-          Playlist.remove_all st.playlist;
-          let tracks = Array.map Track.make_from_data st.library.view.entries in
-          Playlist.insert st.playlist 0 tracks;
-          if tracks <> [||] then
-            Control.switch st.control tracks.(0) true;
+          (* Click on directory name: change view if necessary *)
+          if Some i <> Library.selected_dir st.library then
+          (
+            Library.select_dir st.library i;
+            Library.deselect_all st.library;
+            Library.update_view st.library;
+          );
+          if Api.Mouse.is_doubleclick `Left then
+          (
+            (* Double-click on directory name: send track view to playlist *)
+            Control.eject st.control;
+            Playlist.remove_all st.playlist;
+            let tracks = Array.map Track.make_from_data st.library.view.entries in
+            Playlist.insert st.playlist 0 tracks;
+            if tracks <> [||] then
+              Control.switch st.control tracks.(0) true;
+          )
         )
       )
     )
     else if Api.Key.are_modifiers_down [] && dragging = `Drop then
     (
+      (* Drag & drop *)
       let (_, y, _, _) as r = Ui.dim st.ui playlist_area in
       if Api.inside m r then
       (
+        (* Drag & drop onto playlist: send directory contents to playlist *)
         let tracks = Array.map Track.make_from_data st.library.view.entries in
         let len = Array.length st.playlist.table.entries in
         let pos = min len ((my - y) / row_h + st.playlist.table.scroll_v) in

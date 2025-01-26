@@ -84,7 +84,7 @@ let ok lib =
   check "view pos unset" (lib.view.pos = None || lib.view.pos = Some 0) @
   check "browser consistent with roots"
     ( Array.length lib.browser.entries = 1 ||
-      Array.length lib.browser.entries > Array.length lib.roots ) @
+      Array.length lib.browser.entries >= Array.length lib.roots ) @
   []
 
 
@@ -340,9 +340,9 @@ let make_all lib =
 
 let update_browser lib =
   let rec entries dir acc =
-    dir ::
+    dir :: ( if dir.folded then acc else
     Array.fold_right
-      (fun link -> entries (Data.val_of_link link)) dir.children acc
+      (fun link -> entries (Data.val_of_link link)) dir.children acc)
   in
   let selection = save_browser_selection lib in
   lib.browser.entries <- Array.of_list (entries (make_all lib) []);
