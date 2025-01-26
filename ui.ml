@@ -217,17 +217,29 @@ let key_status _ui (modifiers, key) =
   else
     `Untouched
 
-let mouse_status ui r side =
-  if ui.drag_origin = no_drag && inside (Mouse.pos ui.win) r then
-    `Hovered
-  else if not (inside ui.drag_origin r) then
-    `Untouched
-  else if Mouse.is_down side then
-    `Pressed
-  else if Mouse.is_released side then
-    `Released
-  else
-    `Untouched  (* is this reachable? *)
+let mouse_status ui r = function
+  | `Left ->
+    let side = `Left in
+    if ui.drag_origin = no_drag && inside (Mouse.pos ui.win) r then
+      `Hovered
+    else if not (inside ui.drag_origin r) then
+      `Untouched
+    else if Mouse.is_down side then
+      `Pressed
+    else if Mouse.is_released side then
+      `Released
+    else
+      `Untouched  (* is this reachable? *)
+  | `Right ->
+    let side = `Right in
+    if not (inside (Mouse.pos ui.win) r) then
+      `Untouched
+    else if Mouse.is_down side then
+      `Pressed
+    else if Mouse.is_released side then
+      `Released
+    else
+      `Hovered
 
 
 type drag += Drag of {pos : point}

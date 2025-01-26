@@ -29,7 +29,7 @@ let power_h = 22
 let power_y = margin
 let power_button = Ui.button (0, shown_x, power_y, shown_w, power_h) ([`Command], `Char 'Q')
 let power_label = Ui.label (0, shown_x, power_y+power_h+1, shown_w, label_h) `Center "POWER"
-let minimize_button = Ui.mouse (0, shown_x, margin, shown_w, power_h) `Right
+let minimize_button = Ui.mouse (0, shown_x, power_y, shown_w, power_h) `Right
 
 let shown_indicator y = Ui.indicator (0, shown_indicator_x, y-indicator_w-1, indicator_w, indicator_w)
 let shown_button y ch = Ui.button (0, shown_x, y, shown_w, shown_h) ([], `Char ch)
@@ -334,6 +334,7 @@ let run_control (st : State.t) =
 
   if lcd_button st.ui then
   (
+    (* Click on time LCD: toggle time mode *)
     st.control.timemode <-
       match st.control.timemode with
       | `Elapse -> `Remain
@@ -392,6 +393,7 @@ let run_control (st : State.t) =
     if mute_button st.ui || mute_key st.ui then not st.control.mute else st.control.mute in
   if volume' <> st.control.volume || mute' <> st.control.mute then
   (
+    (* Click or drag on volume bar or mute button: adjust volume *)
     (* Hack to overlap volume bar with mute button. *)
     if mute_drag st.ui (0, 0) = `None then st.control.volume <- clamp 0.0 1.0 volume';
     st.control.mute <- mute';
@@ -405,8 +407,10 @@ let run_control (st : State.t) =
   let progress' = seek_bar st.ui progress +.
     0.05 *. (float_of_bool (ff_key st.ui) -. float_of_bool (rw_key st.ui)) in
   if progress' <> progress && not silence then
+  (
+    (* Click or drag on seek bar: reposition audio *)
     Control.seek st.control (clamp 0.0 1.0 progress');
-
+  );
 (*
   let s1 = fmt_time2 elapsed in
   let s2 = "-" ^ fmt_time2 remaining in
@@ -418,6 +422,7 @@ let run_control (st : State.t) =
   (* Looping *)
   (match st.control.loop with
   | `AB (t1, t2) when playing && t2 < elapsed ->
+    (* End of loop reached: jump back to start *)
     Control.seek st.control (t1 /. length);
   | _ -> ()
   );
@@ -429,6 +434,7 @@ let run_control (st : State.t) =
   let off = if len = 0 then 0 else bwd + fwd in
   if off <> 0 then
   (
+    (* Click on navigation button: jump to track *)
     let more = Playlist.skip st.playlist off (st.control.repeat <> `None) in
     Control.switch st.control (Playlist.current st.playlist) more;
     Playlist.adjust_scroll st.playlist st.playlist.table.pos;
@@ -437,18 +443,26 @@ let run_control (st : State.t) =
   let playing' = play_button st.ui (Some playing) in
   if stopped && playing' && len > 0 then
   (
+    (* Click on play button: start track *)
     Control.switch st.control (Playlist.current st.playlist) true;
     Playlist.adjust_scroll st.playlist st.playlist.table.pos;
   );
 
   let paused' = pause_button st.ui (Some paused) in
   if playing' && paused' then
+  (
+    (* Click on pause button when playing: pause track *)
     Api.Audio.pause st.control.audio st.control.sound
+  )
   else if (not stopped && not paused' || stopped && paused') && not silence then
+  (
+    (* Click on pause button when paused: resume track *)
     Api.Audio.resume st.control.audio st.control.sound;
+  );
 
   if stop_button st.ui (Some false) && not stopped then
   (
+    (* Click on stop button when playing: stop track *)
     Api.Audio.pause st.control.audio st.control.sound;
     (match Playlist.current_opt st.playlist with
     | None -> Control.eject st.control
@@ -459,12 +473,14 @@ let run_control (st : State.t) =
 
   if eject_button st.ui (Some false) then
   (
+    (* Click on eject button: stop and clear playlist *)
     Control.eject st.control;
     Playlist.remove_all st.playlist;
   );
 
   if start_stop_key st.ui then
   (
+    (* Press of space key: pause or resume *)
     if playing then
       Api.Audio.pause st.control.audio st.control.sound
     else if paused then
@@ -475,10 +491,11 @@ let run_control (st : State.t) =
   );
 
   (* End of track *)
-  (* Check must occur after possible Audio.resume abve,
+  (* Check must occur after possible Audio.resume above,
    * otherwise the last track would be restarted. *)
   if playing && (remaining < 0.2 || silence) then
   (
+    (* Close to end: switch to next track *)
     let more =
       match st.control.repeat with
       | `One -> true
@@ -501,6 +518,7 @@ let run_control (st : State.t) =
   let shuffle' = shuffle_button st.ui (Some shuffle) in
   if shuffle' <> shuffle then
   (
+    (* Click on shuffle button: toggle shuffle *)
     if shuffle' then
     (
       Playlist.shuffle st.playlist
@@ -518,6 +536,7 @@ let run_control (st : State.t) =
   repeat_indicator2 st.ui (st.control.repeat = `All);
   let repeat' = repeat_button st.ui (Some (st.control.repeat <> `None)) in
   st.control.repeat <-
+    (* Click on repeat button: cycle repeat mode *)
     (match st.control.repeat, repeat' with
     | `None, false | `All, false -> `None
     | `None, true | `One, true -> `One
@@ -529,6 +548,7 @@ let run_control (st : State.t) =
   loop_indicator2 st.ui (match st.control.loop with `AB _ -> true | _ -> false);
   let loop' = loop_button st.ui (Some (st.control.loop <> `None)) in
   st.control.loop <-
+    (* Click on loop button: cycle loop mode *)
     (match st.control.loop, loop' with
     | `None, false | `AB _, false -> `None
     | `None, true -> `A elapsed
@@ -542,6 +562,7 @@ let run_control (st : State.t) =
   playlist_label st.ui;
   playlist_indicator st.ui st.playlist.shown;
   let playlist_shown' = playlist_button st.ui (Some st.playlist.shown) in
+  (* Click on playlist activation button: toggle playlist *)
   st.playlist.shown <- playlist_shown';
 
   library_label st.ui;
@@ -550,9 +571,10 @@ let run_control (st : State.t) =
   let wx, _ = Api.Window.pos win in
   let sx, _ = Api.Window.min_pos win in
   let sw, _ = Api.Window.max_size win in
+  (* Click on library activation button: toggle library *)
   if not st.library.shown && library_shown' && not (Api.Key.is_modifier_down `Shift) then
   (
-    (* Switch library side if window is at the respective border. *)
+    (* Library was off: show; switch side if window is at the respective border *)
     if st.library.side = `Left && wx <= sx then st.library.side <- `Right;
     if st.library.side = `Right && wx + control_w >= sx + sw then st.library.side <- `Left;
     st.library.shown <- library_shown';
@@ -562,15 +584,21 @@ let run_control (st : State.t) =
     library_mouse st.ui || library_key st.ui
   then
   (
-    (* Instead of closing, switch sides. *)
+    (* Shift-click: switch sides for library pane *)
     st.library.side <- if st.library.side = `Left then `Right else `Left
   )
   else
+  (
+    (* Library was on: turn off *)
     st.library.shown <- library_shown';
+  );
 
   (* Minimize button *)
   if minimize_button st.ui then
+  (
+    (* Right-click on power button: minimize window *)
     Api.Window.minimize win
+  )
 
 
 (* Playlist Pane *)
@@ -645,15 +673,19 @@ let run_playlist (st : State.t) =
       Api.Mouse.is_pressed `Left && dragging = `None
     then
     (
+      (* Click on playlist *)
       if i >= len || not (Playlist.is_selected st.playlist i) then
       (
+        (* Click on empty space: deselect all *)
         Library.deselect_all st.library;
         Playlist.deselect_all st.playlist;
       );
       if i < len then
       (
+        (* Click on track *)
         if Api.Mouse.is_doubleclick `Left then
         (
+          (* Double-click on track: switch to track *)
           tab.pos <- Some i;
           Control.switch st.control tab.entries.(i) true;
           if st.playlist.shuffle <> None then 
@@ -661,6 +693,7 @@ let run_playlist (st : State.t) =
         )
         else
         (
+          (* Single-click on track: make it singular selection *)
           Library.deselect_all st.library;
           Playlist.select st.playlist i i;
         )
@@ -671,6 +704,7 @@ let run_playlist (st : State.t) =
       not (Api.Mouse.is_pressed `Left) && dragging = `Click
     then
     (
+      (* Click-release on playlist: deselect all except for clicked track *)
       Playlist.deselect_all st.playlist;
       if i < len then
       (
@@ -682,6 +716,7 @@ let run_playlist (st : State.t) =
       Api.Key.are_modifiers_down [`Command] && Api.Mouse.is_pressed `Left
     then
     (
+      (* Cmd-click on playlist: toggle selection of clicked track *)
       if i < len then
       (
         if Playlist.is_selected st.playlist i then
@@ -695,17 +730,20 @@ let run_playlist (st : State.t) =
     )
     else if Api.Key.are_modifiers_down [`Shift] && Api.Mouse.is_down `Left then
     (
+      (* Shift-click/drag on playlist: adjust selection range *)
       let default = if i < len then (i, i) else (0, 0) in
       let pos1, pos2 = Option.value tab.sel_range ~default in
       let i' = max 0 (min i (len - 1)) in
       if tab.sel_range = None || Playlist.is_selected st.playlist pos1 then
       (
+        (* Track was already selected: deselect old range, select new range *)
         Library.deselect_all st.library;
         Playlist.deselect st.playlist pos2 i';
         Playlist.select st.playlist pos1 i'
       )
       else
       (
+        (* Track was not selected: select old range, deselect new range *)
         Library.deselect_all st.library;
         Playlist.select st.playlist pos2 i';
         Playlist.deselect st.playlist pos1 i'
@@ -727,6 +765,7 @@ let run_playlist (st : State.t) =
     in
     if min len (abs d) > 0 then
     (
+      (* Plain cursor movement: deselect all, reselect relative to range end *)
       let default = 0, if d < 0 then len else -1 in
       let _, pos2 = Option.value tab.sel_range ~default in
       let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
@@ -746,20 +785,24 @@ let run_playlist (st : State.t) =
     in
     if min len (abs d) > 0 then
     (
+      (* Shift-cursor movement: adjust selection range *)
       let default = 0, if d < 0 then len else -1 in
       let pos1, pos2 = Option.value tab.sel_range ~default in
       let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
       if tab.sel_range = None then
       (
+        (* No selection yet: range from end of playlist *)
         Playlist.select st.playlist (len - 1) i
       )
       else if Playlist.is_selected st.playlist pos1 then
       (
+        (* Range start was already selected: deselect old range, select new *)
         Playlist.deselect st.playlist (max 0 pos2) i;
         Playlist.select st.playlist pos1 i
       )
       else
       (
+        (* Range start was not selected: select old range, deselect new *)
         Playlist.select st.playlist (max 0 pos2) i;
         Playlist.deselect st.playlist pos1 i
       );
@@ -768,15 +811,18 @@ let run_playlist (st : State.t) =
 
     if selall_key st.ui then
     (
+      (* Select-all key pressed: select all *)
       Library.deselect_all st.library;
       Playlist.select_all st.playlist;
     )
     else if selnone_key st.ui then
     (
+      (* Deselect-all key pressed: deselect all *)
       Playlist.deselect_all st.playlist;
     )
     else if selinv_key st.ui then
     (
+      (* Selection inversion key pressed: invert selection *)
       Library.deselect_all st.library;
       Playlist.select_invert st.playlist;
     )
