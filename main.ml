@@ -11,7 +11,6 @@ let footer_h = row_h
 let footer_y = -footer_h-(bottom_h-footer_h)/2
 let scrollbar_w = 10
 let divider_w = margin
-let resizer_w = 16
 let indicator_w = 7
 
 let control_pane = Ui.pane 0
@@ -155,8 +154,6 @@ let total_x = total_w-100
 let playlist_total_box = Ui.box (1, total_x, footer_y, total_w, footer_h) `Black
 let playlist_total_text = Ui.text (1, total_x, footer_y, total_w-2, footer_h) `Right
 
-let playlist_resizer = Ui.resizer (1, -resizer_w, -resizer_w, resizer_w, resizer_w)
-
 let enlarge_key = Ui.key ([`Command], `Char '+')
 let reduce_key = Ui.key ([`Command], `Char '-')
 
@@ -229,16 +226,13 @@ let view_wheel bw = Ui.wheel (2, margin+divider_w+bw, margin, -margin, -bottom_h
 let view_drag bw rh = Ui.drag (view_area bw rh)
 
 let error_w = -margin-scrollbar_w-gutter_w
-let error_x = margin+resizer_w
+let error_x = 2*margin
 let library_error_box = Ui.box (2, error_x, footer_y, error_w, footer_h) `Black
 let library_error_text = Ui.color_text (2, error_x, footer_y, error_w-2, footer_h) `Left
 
 let library_divider_min = margin+browser_min
 let library_divider_max pw = margin+browser_max pw
 let library_divider bw = Ui.divider (2, margin+bw, margin, divider_w, -bottom_h) `Horizontal
-
-let library_resizer_l = Ui.resizer (2, 1, -resizer_w, resizer_w, resizer_w)
-let library_resizer_r = Ui.resizer (2, -resizer_w, -resizer_w, resizer_w, resizer_w)
 
 
 (* Helpers *)
@@ -288,9 +282,8 @@ let exec prog args =
 let run_control (st : State.t) =
   let win = Ui.window st.ui in
 
-  let x =
-    if st.library.shown && st.library.side = `Left then st.library.width else 0
-  in
+  let lib = st.library in
+  let x = if lib.shown && lib.side = `Left then st.library.width else 0 in
   control_pane st.ui (x, 0, control_w, control_h);
 
   (* Exit button *)
@@ -299,7 +292,6 @@ let run_control (st : State.t) =
   power_label st.ui;
 
   (* Current status *)
-  State.ok st;
   let silence = st.control.sound = Api.Audio.silence st.control.audio in
   let length = Api.Audio.length st.control.audio st.control.sound in
   let elapsed = Api.Audio.played st.control.audio st.control.sound in
@@ -604,18 +596,6 @@ let run_control (st : State.t) =
 
 (* Playlist Pane *)
 
-let update_fit (st : State.t) =
-  let row_h = st.config.row_height in
-  let _, _, _, pl_h = Ui.dim st.ui playlist_area in
-  st.playlist.table.fit <-
-    max 4 (int_of_float (Float.floor (float pl_h /. float row_h)));
-  let _, _, _, br_h = Ui.dim st.ui (browser_area st.library.browser_width) in
-  st.library.browser.fit <-
-    max 4 (int_of_float (Float.floor (float br_h /. float row_h)));
-  let _, _, _, vw_h = Ui.dim st.ui (view_area st.library.browser_width row_h) in
-  st.library.view.fit <-
-    max 4 (int_of_float (Float.floor (float vw_h /. float row_h)))
-
 let run_playlist (st : State.t) =
   let win = Ui.window st.ui in
   let row_h = st.config.row_height in
@@ -634,7 +614,9 @@ let run_playlist (st : State.t) =
   let smax1 = String.make digits '0' ^ "." in
   let cw1 = Api.Draw.text_width win row_h font smax1 + 1 in
   let cw3 = ref 16 in
-  let (_, y, w, _) as r = Ui.dim st.ui playlist_area in
+  let (_, y, w, h) as r = Ui.dim st.ui playlist_area in
+  st.playlist.table.fit <-
+    max 4 (int_of_float (Float.floor (float h /. float row_h)));
   (* Correct scrolling position for possible resize *)
   tab.scroll_v <- clamp 0 (max 0 (len - tab.fit)) tab.scroll_v;
   let rows =
@@ -1015,22 +997,7 @@ let run_playlist (st : State.t) =
   in
   let s2 = fmt_total st.playlist.total in
   playlist_total_box st.ui;
-  playlist_total_text st.ui `Regular true (s1 ^ s2);
-
-  (* Playlist resizing *)
-  let w = control_w + (if st.library.shown then st.library.width else 0) in
-  let cursor, wmin, wmax =
-    if st.library.shown
-    then `NW_SE, control_w + library_min, -1
-    else `N_S, w, w
-  in
-  let dw, dh =
-    playlist_resizer cursor st.ui (wmin, control_h + playlist_min) (wmax, -1) in
-  st.library.width <- st.library.width + dw;
-  st.library.browser_width <-
-    min st.library.browser_width (browser_max st.library.width);
-  st.playlist.height <- st.playlist.height + dh;
-  update_fit st
+  playlist_total_text st.ui `Regular true (s1 ^ s2)
 
 
 (* Library Pane *)
@@ -1048,12 +1015,6 @@ let run_library (st : State.t) =
   let dh = if st.playlist.shown then st.playlist.height else 0 in
   library_pane st.ui (x, 0, st.library.width + 5, control_h + dh);
 
-  (* Pane resizing *)
-  st.library.browser_width <- st.library.browser_width +
-    library_divider st.library.browser_width st.ui
-      library_divider_min (library_divider_max st.library.width);
-  let bw = st.library.browser_width in
-
   (* Background rescanning *)
   if Library.rescan_roots_done st.library then
   (
@@ -1061,12 +1022,26 @@ let run_library (st : State.t) =
     Library.update_view st.library;
   );
 
+  (* Update internal geometry *)
+  st.library.browser_width <-
+    clamp browser_min (browser_max st.library.width) st.library.browser_width;
+
+  (* Pane divider *)
+  let browser_width_delta =
+    library_divider st.library.browser_width st.ui
+      library_divider_min (library_divider_max st.library.width)
+  in
+  st.library.browser_width <- st.library.browser_width + browser_width_delta;
+  let bw = st.library.browser_width in
+
   (* Browser *)
   let brow = st.library.browser in
   let len = Array.length brow.entries in
+  let (x, y, w, h) as r = Ui.dim st.ui (browser_area bw) in
+  st.library.browser.fit <-
+    max 4 (int_of_float (Float.floor (float h /. float row_h)));
   (* Correct scrolling position for possible resize *)
   brow.scroll_v <- clamp 0 (max 0 (len - brow.fit)) brow.scroll_v;
-  let (x, y, w, _) as r = Ui.dim st.ui (browser_area bw) in
   let cols = [|w, `Left|] in
   let c = Ui.text_color st.ui in
   let sel = Library.selected_dir st.library in
@@ -1245,6 +1220,9 @@ let run_library (st : State.t) =
   );
 
   (* View *)
+  let _, _, _, h = Ui.dim st.ui (view_area bw row_h) in
+  st.library.view.fit <-
+    max 4 (int_of_float (Float.floor (float h /. float row_h)));
   let len = Array.length st.library.view.entries in
   let current =
     match st.control.current with Some track -> track.path | None -> "" in
@@ -1480,54 +1458,23 @@ let run_library (st : State.t) =
       && Api.Key.is_modifier_down `Shift then
         st.library.columns.(i + 1) <- add_snd (-dx) st.library.columns.(i + 1);
     )
-  );
-
-  (* Library resizing *)
-  let left = st.library.side = `Left in
-  let lw = st.library.width in
-  if st.playlist.shown && snd (Api.Window.size win) > control_h then
-  (
-    let dw, dh =
-      (if left then library_resizer_l `NE_SW else library_resizer_r `NW_SE)
-        st.ui (control_w + library_min, control_h + playlist_min) (-1, -1)
-    in
-    st.library.width <- st.library.width + dw;
-    st.library.browser_width <-
-      min st.library.browser_width (browser_max st.library.width);
-    st.playlist.height <- st.playlist.height + dh;
-    update_fit st
-  )
-  else
-  (
-    let h = control_h + (if st.playlist.shown then st.playlist.height else 0) in
-    let dw, _ =
-      (if left then library_resizer_l else library_resizer_r) `E_W
-        st.ui (control_w + library_min, h) (-1, h)
-    in
-    st.library.width <- st.library.width + dw;
-    st.library.browser_width <-
-      min st.library.browser_width (browser_max st.library.width);
-  );
-
-  let dw = st.library.width - lw in
-  if left && dw <> 0 then
-  (
-    (* Window was resized on the left: reposition window *)
-    let x, y = Api.Window.pos win in
-    Api.Window.set_pos win (x - dw) y;
   )
 
 
 (* Runner *)
 
 let rec run (st : State.t) =
+  State.ok st;
   let win = Ui.window st.ui in
   if Api.Window.closed win then exit 0;
 
-  Api.Draw.start win (`Trans (`Black, 0x40));
+  (* Start drawing *)
+  Ui.start st.ui;
 
-  (* Handle background and window repositioning *)
-  Ui.background st.ui;
+  (* Update geometry *)
+  let ww, wh = Api.Window.size win in
+  if st.playlist.shown then st.playlist.height <- wh - control_h;
+  if st.library.shown then st.library.width <- ww - control_w;
 
   (* Remember current geometry for later *)
   let playlist_shown = st.playlist.shown in
@@ -1548,12 +1495,7 @@ let rec run (st : State.t) =
     (if enlarge_key st.ui then +1 else 0) +
     (if reduce_key st.ui then -1 else 0)
   in
-  st.config.row_height <- max 8 (min 64 row_height');
-
-  (* Adjust window size after resize *)
-  let dw = if st.library.shown then st.library.width else 0 in
-  let dh = if st.playlist.shown then st.playlist.height else 0 in
-  Api.Window.set_size win (control_w + dw) (control_h + dh);
+  st.config.row_height <- clamp 8 64 row_height';
 
   (* Adjust window position after opening/closing library *)
   let dx =
@@ -1567,7 +1509,17 @@ let rec run (st : State.t) =
   let x, y = Api.Window.pos win in
   if dx <> 0 then Api.Window.set_pos win (x + dx) y;
 
-  Api.Draw.finish win;
+  (* Finish drawing *)
+  let minw, maxw =
+    if library_shown
+    then control_w + library_min, -1
+    else control_w, control_w
+  and minh, maxh =
+    if playlist_shown
+    then control_h + playlist_min, -1
+    else control_h, control_h
+  in
+  Ui.finish st.ui margin (minw, minh) (maxw, maxh);
 
   run st
 
@@ -1582,7 +1534,6 @@ let startup () =
   let audio = Api.Audio.init () in
   let rst = ref (State.make ui audio db) in
   let st = if State.load !rst then !rst else State.make ui audio db in
-  update_fit st;
   Library.update_view st.library;
   Playlist.adjust_scroll st.playlist st.playlist.table.pos;
   at_exit (fun () -> State.save st; Storage.clear_temp (); Db.exit db);

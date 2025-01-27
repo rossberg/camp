@@ -51,7 +51,8 @@ val wheel : area -> t -> float
 type align = [`Left | `Center | `Right]
 type inversion = [`Regular | `Inverted]
 
-val background : t -> unit
+val start : t -> unit
+val finish : t -> int -> size -> size -> unit
 
 val label : area -> align -> string -> t -> unit
 val indicator : area -> t -> bool -> unit
@@ -70,7 +71,6 @@ val volume_bar : area -> t -> float -> float
 val scroll_bar : area -> Api.orientation -> t -> float -> float -> float
 
 val divider : area -> Api.orientation -> t -> int -> int -> int
-val resizer : area -> Api.resize -> t -> size -> size -> size
 
 type column = int * align
 type row = color * inversion * string array

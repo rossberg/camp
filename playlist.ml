@@ -45,7 +45,7 @@ let check msg b = if b then [] else [msg]
 let ok pl =
   let len = Array.length pl.table.entries in
   Table.ok "playlist" pl.table @
-  check "playlist window height positive" (pl.height > 0) @
+  check "playlist height positive" (pl.height > 0) @
   check "playlist total in range"
     (fst pl.total >= 0.0 && snd pl.total <= len) @
   check "playlist selection total in range"

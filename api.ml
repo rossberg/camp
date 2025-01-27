@@ -95,7 +95,7 @@ struct
     Raylib.(set_trace_log_level TraceLogLevel.Warning);
     Raylib.(set_exit_key Key.Null);
 
-    (* Discover screen geometry by opening a dummy window. *)
+    (* Discover screen geometry by opening a dummy window and maximise it. *)
     Raylib.(set_config_flags
       ConfigFlags.[Window_undecorated; (*Window_transparent;*) Window_resizable]);
     Raylib.init_window 8000 4000 "";

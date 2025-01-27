@@ -110,20 +110,20 @@ let num_pair lx ly hx hy x y = num lx hx x, num ly hy y
 let load_ui st file =  (* assumes playlist and library already loaded *)
   let win = Ui.window st.ui in
   let input fmt = fscanf file fmt in
+  let ww, wh = Api.Window.size win in
   let sx, sy = Api.Window.min_pos win in
   let sw, sh = Api.Window.max_size win in
   let x, y =
     input " win_pos = %d , %d " (num_pair sx sy (sx + sw - 20) (sy + sh - 20)) in
-  Api.Window.set_pos win x y;
   let pal = input " palette = %d " (num 0 (Ui.num_palette st.ui - 1)) in
   Ui.set_palette st.ui pal;
-  (* TODO: 83 = playlist_min, 160 = control_h; use constants *)
-  st.playlist.height <- num 83 (sh - 160) st.playlist.height;
-  (* TODO: 400 = library_min, 360 = control_w; use constants *)
-  st.library.width <- num 400 (sw - 360) st.library.width;
-  (* TODO: 40 = browser_min, 60 = browser_min + 2*margin; use constants *)
-  st.library.browser_width <-
-    num 40 (st.library.width - 60) st.library.browser_width
+  st.playlist.height <- num 0 (sh - wh) st.playlist.height;
+  st.library.width <- num 0 (sw - ww) st.library.width;
+  st.library.browser_width <- num 0 st.library.width st.library.browser_width;
+  Api.Draw.start win `Black;
+  Api.Window.set_pos win x y;
+  Api.Window.set_size win (ww + st.library.width) (wh + st.playlist.height);
+  Api.Draw.finish win
 
 let load st =
   let success = ref false in
