@@ -78,7 +78,7 @@ let mute_y = volume_y+volume_h-8
 let mute_area = (0, mute_x, mute_y, mute_w, mute_h)
 let volume_bar = Ui.volume_bar (0, volume_x, volume_y, volume_w, volume_h)
 let volume_wheel = Ui.wheel (0, 0, 0, control_w, control_h)
-let mute_text = Ui.text (0, mute_x, mute_y, mute_w, 8) `Center
+let mute_text = Ui.color_text (0, mute_x, mute_y, mute_w, 8) `Center
 let mute_button = Ui.mouse mute_area `Left
 let mute_drag = Ui.drag mute_area
 let mute_key = Ui.key ([], `Char '0')
@@ -381,7 +381,7 @@ let run_control (st : State.t) =
   (* Volume control *)
   let volume' = volume_bar st.ui st.control.volume +. 0.05 *. volume_wheel st.ui +.
     0.05 *. (float_of_bool (volup_key st.ui) -. float_of_bool (voldown_key st.ui)) in
-  mute_text st.ui `Inverted st.control.mute "MUTE";
+  mute_text st.ui (Ui.error_color st.ui) `Inverted st.control.mute "MUTE";
   let mute' =
     if mute_button st.ui || mute_key st.ui then not st.control.mute else st.control.mute in
   if volume' <> st.control.volume || mute' <> st.control.mute then

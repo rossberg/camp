@@ -655,7 +655,7 @@ let table r gw ch ui cols rows scroll =
         match align with
         | `Left -> 0
         | `Center -> (cw - tw) / 2
-        | `Right -> cw - tw - mw  (* subtract another mw, since tw can be off *)
+        | `Right -> cw - tw (*- mw*)  (* subtract another mw, since tw can be off *)
       in
       let cw' = min cw (x + w - mw - !cx) in
       let left = max !cx (x + mw) in
