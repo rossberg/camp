@@ -682,34 +682,34 @@ let table r gw ch ui cols rows scroll =
 
 type drag += Divide of {overshoot : size}
 
-let divider r orient ui minv maxv =
+let divider r orient ui v minv maxv =
   let (x, y, w, h), status = element r no_modkey ui in
   let proj = match orient with `Horizontal -> fst | `Vertical -> snd in
   let inj v = match orient with `Horizontal -> v, y | `Vertical -> x, v in
   let cursor = match orient with `Horizontal -> `E_W | `Vertical -> `N_S in
   if status <> `Untouched then Api.Mouse.set_cursor ui.win (`Resize cursor);
   (*Draw.rect ui.win x y w h (border ui status);*)
-  if status <> `Pressed then 0 else
+  if status <> `Pressed then v else
   let over =
     match ui.drag_extra with
     | No_drag -> 0, 0
     | Divide {overshoot} -> overshoot
     | _ -> assert false
   in
-  let vx, vy = add (add (x, y) (Mouse.delta ui.win)) over in
+  let vx, vy = inj v in
+  let vx', vy' = add (add (vx, vy) (Mouse.delta ui.win)) over in
   let i, _, _, _, _ = r in
-  let px, _, pw, ph = ui.panes.(i) in
+  let _, _, pw, ph = ui.panes.(i) in
   let minx, miny = inj minv in
   let maxx, maxy = inj maxv in
-  let minx = px + minx in
-  let maxx = px + if maxx < 0 then pw else maxx in
+  let maxx = if maxx < 0 then pw else maxx in
   let maxy = if maxy < 0 then ph else maxy in
-  let vx', vy' = clamp minx maxx vx, clamp miny maxy vy in
-  ui.drag_extra <- Divide {overshoot = vx - vx', vy - vy'};
+  let vx'', vy'' = clamp minx maxx vx', clamp miny maxy vy' in
+  ui.drag_extra <- Divide {overshoot = vx' - vx'', vy' - vy''};
   (* HACK: Adjust owned drag_origin for size-relative position *)
   (* This assumes that the caller actually moves the divider! *)
-  let dx = vx' - x in
-  let dy = vy' - y in
+  let dx = vx'' - vx in
+  let dy = vy'' - vy in
   ui.drag_origin <- add ui.drag_origin (dx, dy);
   assert (inside ui.drag_origin (x + dx, y + dy, w, h));
-  proj (dx, dy)
+  proj (vx'', vy'')

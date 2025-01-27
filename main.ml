@@ -149,10 +149,10 @@ let playlist_scroll = Ui.scroll_bar (1, -margin-scrollbar_w, margin, scrollbar_w
 let playlist_wheel = Ui.wheel (1, margin, margin, -margin, -bottom_h)
 let playlist_drag = Ui.drag playlist_area
 
-let total_w = -margin-scrollbar_w-gutter_w
+let total_w = -margin-scrollbar_w
 let total_x = total_w-100
 let playlist_total_box = Ui.box (1, total_x, footer_y, total_w, footer_h) `Black
-let playlist_total_text = Ui.text (1, total_x, footer_y, total_w-2, footer_h) `Right
+let playlist_total_text = Ui.text (1, total_x, footer_y, total_w-(gutter_w+1)/2, footer_h) `Right
 
 let enlarge_key = Ui.key ([`Command], `Char '+')
 let reduce_key = Ui.key ([`Command], `Char '-')
@@ -200,39 +200,41 @@ let copy_key = Ui.key ([`Command], `Char 'C')
 let paste_key = Ui.key ([`Command], `Char 'V')
 
 
-let library_pane = Ui.pane 2
-let library_min = 400
+let browser_pane = Ui.pane 2
 
-let browser_min = 40
-let view_min = 40
-let browser_max pw = pw-view_min-2*margin-divider_w
-let browser_area bw = (2, margin, margin, bw-margin-1, -bottom_h)
-let browser_error_box bw = Ui.box (browser_area bw)
-let browser_table bw = Ui.table (browser_area bw) 0
-let browser_scroll bw = Ui.scroll_bar (2, margin+bw-scrollbar_w, margin, scrollbar_w, -bottom_h) `Vertical
-let browser_wheel bw = Ui.wheel (2, margin, margin, bw, -bottom_h)
-let browser_drag bw = Ui.drag (browser_area bw)
+let browser_min = 100
+let view_min = 200
+let library_min = browser_min + view_min
+let browser_max pw = pw-view_min
 
-let header_area bw rh = (2, margin+divider_w+bw, margin, -margin-scrollbar_w-1, rh)
-let header_table bw rh = Ui.table (header_area bw rh) gutter_w rh
-let header_drag bw rh = Ui.drag (header_area bw rh)
+let browser_divider = Ui.divider (2, -divider_w, margin, divider_w, -bottom_h) `Horizontal
+
+let browser_area = (2, margin, margin, -scrollbar_w-divider_w, -bottom_h)
+let browser_error_box = Ui.box browser_area
+let browser_table = Ui.table browser_area 0
+let browser_scroll = Ui.scroll_bar (2, -divider_w-scrollbar_w, margin, scrollbar_w, -bottom_h) `Vertical
+let browser_wheel = Ui.wheel (2, margin, margin, -divider_w, -bottom_h)
+let browser_drag = Ui.drag browser_area
+
+
+let view_pane = Ui.pane 3
+
+let header_area rh = (3, 0, margin, -margin-scrollbar_w-1, rh)
+let header_table rh = Ui.table (header_area rh) gutter_w rh
+let header_drag rh = Ui.drag (header_area rh)
 let header_margin = 2
 
-let view_area bw rh = (2, margin+divider_w+bw, margin+rh+header_margin, -margin-scrollbar_w-1, -bottom_h-scrollbar_w-1)
-let view_table bw rh = Ui.table (view_area bw rh) gutter_w rh
-let view_scroll_v _bw = Ui.scroll_bar (2, -margin-scrollbar_w, margin, scrollbar_w, -bottom_h) `Vertical
-let view_scroll_h bw = Ui.scroll_bar (2, margin+divider_w+bw, -bottom_h-scrollbar_w, -margin-scrollbar_w-1, scrollbar_w) `Horizontal
-let view_wheel bw = Ui.wheel (2, margin+divider_w+bw, margin, -margin, -bottom_h)
-let view_drag bw rh = Ui.drag (view_area bw rh)
+let view_area rh = (3, 0, margin+rh+header_margin, -margin-scrollbar_w-1, -bottom_h-scrollbar_w-1)
+let view_table rh = Ui.table (view_area rh) gutter_w rh
+let view_scroll_v = Ui.scroll_bar (3, -margin-scrollbar_w, margin, scrollbar_w, -bottom_h) `Vertical
+let view_scroll_h = Ui.scroll_bar (3, 0, -bottom_h-scrollbar_w, -margin-scrollbar_w-1, scrollbar_w) `Horizontal
+let view_wheel = Ui.wheel (3, 0, margin, -margin, -bottom_h-scrollbar_w-1)
+let view_drag rh = Ui.drag (view_area rh)
 
-let error_w = -margin-scrollbar_w-gutter_w
-let error_x = 2*margin
-let library_error_box = Ui.box (2, error_x, footer_y, error_w, footer_h) `Black
-let library_error_text = Ui.color_text (2, error_x, footer_y, error_w-2, footer_h) `Left
-
-let library_divider_min = margin+browser_min
-let library_divider_max pw = margin+browser_max pw
-let library_divider bw = Ui.divider (2, margin+bw, margin, divider_w, -bottom_h) `Horizontal
+let error_x = 0
+let error_w = -margin
+let error_box = Ui.box (3, error_x, footer_y, error_w, footer_h) `Black
+let error_text = Ui.color_text (3, error_x, footer_y, error_w-2, footer_h) `Left
 
 
 (* Helpers *)
@@ -1003,7 +1005,7 @@ let run_playlist (st : State.t) =
 (* Library Pane *)
 
 let symbol_empty = "○"
-let symbol_folded = "►" (*"▲"*) (* "▸" *)
+let symbol_folded = "►" (* "▸" *)
 let symbol_unfolded = "▼" (* "▾" *)
 
 let run_library (st : State.t) =
@@ -1011,9 +1013,13 @@ let run_library (st : State.t) =
   let (mx, my) as m = Api.Mouse.pos win in
   let row_h = st.config.row_height in
 
-  let x = if st.library.side = `Left then 0 else control_w - 5 in
+  let bx = if st.library.side = `Left then 0 else control_w - 5 in
   let dh = if st.playlist.shown then st.playlist.height else 0 in
-  library_pane st.ui (x, 0, st.library.width + 5, control_h + dh);
+  browser_pane st.ui (bx, 0, st.library.browser_width, control_h + dh);
+
+  (* Update geometry after possible window resize *)
+  st.library.browser_width <-
+    clamp browser_min (browser_max st.library.width) st.library.browser_width;
 
   (* Background rescanning *)
   if Library.rescan_roots_done st.library then
@@ -1022,22 +1028,16 @@ let run_library (st : State.t) =
     Library.update_view st.library;
   );
 
-  (* Update internal geometry *)
-  st.library.browser_width <-
-    clamp browser_min (browser_max st.library.width) st.library.browser_width;
-
   (* Pane divider *)
-  let browser_width_delta =
-    library_divider st.library.browser_width st.ui
-      library_divider_min (library_divider_max st.library.width)
-  in
-  st.library.browser_width <- st.library.browser_width + browser_width_delta;
-  let bw = st.library.browser_width in
+  let browser_width' = browser_divider st.ui st.library.browser_width
+    browser_min (browser_max st.library.width) in
+  st.library.browser_width <- browser_width';
+  browser_pane st.ui (bx, 0, st.library.browser_width, control_h + dh);
 
   (* Browser *)
   let brow = st.library.browser in
   let len = Array.length brow.entries in
-  let (x, y, w, h) as r = Ui.dim st.ui (browser_area bw) in
+  let (x, y, w, h) as r = Ui.dim st.ui browser_area in
   st.library.browser.fit <-
     max 4 (int_of_float (Float.floor (float h /. float row_h)));
   (* Correct scrolling position for possible resize *)
@@ -1060,15 +1060,14 @@ let run_library (st : State.t) =
       c, inv, [|pres.(i) ^ dir.name|]
     ) brow.entries
   in
-  let dragging = browser_drag bw st.ui (max_int, row_h) in
-  (match browser_table bw row_h st.ui cols rows 0 with
+  let dragging = browser_drag st.ui (max_int, row_h) in
+  (match browser_table row_h st.ui cols rows 0 with
   | None -> ()
   | Some i ->
     let i = brow.scroll_v + i in
     if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
     (
       (* Mouse button down: adjust cursor *)
-      let browser_area = browser_area bw in
       Api.Mouse.set_cursor win
         (if
           Api.inside m (Ui.dim st.ui browser_area) ||
@@ -1143,7 +1142,7 @@ let run_library (st : State.t) =
   let h' = brow.fit * row_h in
   let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
   let pos = if len = 0 then 0.0 else float brow.scroll_v /. float len in
-  let pos' = browser_scroll bw st.ui pos ext -. 0.05 *. browser_wheel bw st.ui in
+  let pos' = browser_scroll st.ui pos ext -. 0.05 *. browser_wheel st.ui in
   brow.scroll_v <- clamp 0 (max 0 (len - brow.fit))
     (int_of_float (Float.round (pos' *. float len)));
 
@@ -1159,26 +1158,28 @@ let run_library (st : State.t) =
     if Library.add_roots st.library dropped (find_root_pos 0 0) then
       Library.update_view st.library
     else
-      browser_error_box bw (Ui.error_color st.ui) st.ui;  (* flash *)
+      browser_error_box (Ui.error_color st.ui) st.ui;  (* flash *)
   );
 
+  view_pane st.ui (bx + st.library.browser_width, 0,
+    st.library.width - st.library.browser_width + 5, control_h + dh);
+
   (* Error display *)
-  library_error_box st.ui;
+  error_box st.ui;
   let now = Unix.gettimeofday () in
   if now -. st.library.error_time < 10.0 then
-    library_error_text st.ui (Ui.error_color st.ui) `Regular true
-      st.library.error;
+    error_text st.ui (Ui.error_color st.ui) `Regular true st.library.error;
 
   (* View header *)
   let view = st.library.view in
-  let (x, y, w, h) = Ui.dim st.ui (header_area bw row_h) in
+  let (x, y, w, h) = Ui.dim st.ui (header_area row_h) in
   let cols =
     Array.map (fun (attr, cw) -> cw, Library.attr_align attr) st.library.columns
   and headings =
     Array.map (fun (attr, _) -> Library.attr_name attr) st.library.columns
   in
   let rows = [|Ui.text_color st.ui, `Inverted, headings|] in
-  ignore (header_table bw row_h st.ui cols rows view.scroll_h);
+  ignore (header_table row_h st.ui cols rows view.scroll_h);
 
   (* Header column dividers (HACK) *)
   let margin_w = (gutter_w + 1)/2 in  (* match mw in Ui.table *)
@@ -1212,7 +1213,7 @@ let run_library (st : State.t) =
   let find_heading mx =
     find_heading' mx 0 (x + margin_w - view.scroll_h) in
 
-  if Api.inside m (Ui.dim st.ui (header_area bw row_h)) then
+  if Api.inside m (Ui.dim st.ui (header_area row_h)) then
   (
     match find_gutter mx with
     | None -> ()
@@ -1220,7 +1221,7 @@ let run_library (st : State.t) =
   );
 
   (* View *)
-  let _, _, _, h = Ui.dim st.ui (view_area bw row_h) in
+  let _, _, _, h = Ui.dim st.ui (view_area row_h) in
   st.library.view.fit <-
     max 4 (int_of_float (Float.floor (float h /. float row_h)));
   let len = Array.length st.library.view.entries in
@@ -1245,14 +1246,14 @@ let run_library (st : State.t) =
       c, inv, values
     )
   in
-  let dragging = view_drag bw row_h st.ui (max_int, row_h) in
-  (match view_table bw row_h st.ui cols rows view.scroll_h with
+  let dragging = view_drag row_h st.ui (max_int, row_h) in
+  (match view_table row_h st.ui cols rows view.scroll_h with
   | None -> ()
   | Some i ->
     let i = view.scroll_v + i in
     if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
     (
-      let view_area = view_area st.library.browser_width row_h in
+      let view_area = view_area row_h in
       Api.Mouse.set_cursor win
         (if
           Api.inside m (Ui.dim st.ui view_area) ||
@@ -1429,19 +1430,19 @@ let run_library (st : State.t) =
     if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
   let pos =
     if len = 0 then 0.0 else float view.scroll_v /. float len in
-  let pos' = view_scroll_v bw st.ui pos ext -. 0.05 *. view_wheel bw st.ui in
+  let pos' = view_scroll_v st.ui pos ext -. 0.05 *. view_wheel st.ui in
   view.scroll_v <- clamp 0 (max 0 (len - view.fit))
     (int_of_float (Float.round (pos' *. float len)));
 
   let vw' = max vw (view.scroll_h + w) in
   let ext = if vw' = 0 then 1.0 else min 1.0 (float w /. float vw') in
   let pos = if vw' = 0 then 0.0 else float view.scroll_h /. float vw' in
-  let pos' = view_scroll_h bw st.ui pos ext in
+  let pos' = view_scroll_h st.ui pos ext in
   view.scroll_h <-
     clamp 0 (max 0 (vw' - w)) (int_of_float (Float.round (pos' *. float vw')));
 
   (* View row sorting & column resizing *)
-  (match header_drag bw row_h st.ui (1, max_int) with
+  (match header_drag row_h st.ui (1, max_int) with
   | `None | `Drop -> ()
   | `Click ->
     (match find_heading mx with
@@ -1534,6 +1535,8 @@ let startup () =
   let audio = Api.Audio.init () in
   let rst = ref (State.make ui audio db) in
   let st = if State.load !rst then !rst else State.make ui audio db in
+  st.library.browser_width <-
+    clamp browser_min (browser_max st.library.width) st.library.browser_width;
   Library.update_view st.library;
   Playlist.adjust_scroll st.playlist st.playlist.table.pos;
   at_exit (fun () -> State.save st; Storage.clear_temp (); Db.exit db);

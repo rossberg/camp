@@ -70,7 +70,7 @@ val progress_bar : area -> t -> float -> float
 val volume_bar : area -> t -> float -> float
 val scroll_bar : area -> Api.orientation -> t -> float -> float -> float
 
-val divider : area -> Api.orientation -> t -> int -> int -> int
+val divider : area -> Api.orientation -> t -> int -> int -> int -> int
 
 type column = int * align
 type row = color * inversion * string array
