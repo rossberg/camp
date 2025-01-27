@@ -128,9 +128,9 @@ let fill ui b = modal (text_color ui) b
 
 let border ui = function
   | `Hovered -> hover_color ui
-(* *)
+(*
   | `Pressed -> `Orange
-(* *)
+*)
   | _ -> `Black
 
 
