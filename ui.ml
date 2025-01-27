@@ -625,7 +625,7 @@ let divider r orient ui minv maxv =
   let inj v = match orient with `Horizontal -> v, y | `Vertical -> x, v in
   let cursor = match orient with `Horizontal -> `E_W | `Vertical -> `N_S in
   if status <> `Untouched then Api.Mouse.set_cursor ui.win (`Resize cursor);
-  Draw.rect ui.win x y w h (border ui status);
+  (*Draw.rect ui.win x y w h (border ui status);*)
   if status <> `Pressed then 0 else
   let over =
     match ui.drag_extra with
@@ -666,8 +666,8 @@ type drag += Resize of {overshoot : size}
 let resizer r cursor ui (minw, minh) (maxw, maxh) =
   let (x, y, w, h), status = element r no_modkey ui in
   if status <> `Untouched then Api.Mouse.set_cursor ui.win (`Resize cursor);
-  Draw.fill ui.win x y w h (fill ui false);
-  Draw.rect ui.win x y w h (border ui status);
+  (*Draw.fill ui.win x y w h (fill ui false);*)
+  (*Draw.rect ui.win x y w h (border ui status);*)
   if status <> `Pressed then 0, 0 else
   let sz = Window.size ui.win in
   let _, x0, y0, _, _ = r in

@@ -155,7 +155,7 @@ let total_x = total_w-100
 let playlist_total_box = Ui.box (1, total_x, footer_y, total_w, footer_h) `Black
 let playlist_total_text = Ui.text (1, total_x, footer_y, total_w-2, footer_h) `Right
 
-let playlist_resizer = Ui.resizer (1, -resizer_w, -resizer_w, resizer_w, resizer_w) `N_S
+let playlist_resizer = Ui.resizer (1, -resizer_w, -resizer_w, resizer_w, resizer_w)
 
 let enlarge_key = Ui.key ([`Command], `Char '+')
 let reduce_key = Ui.key ([`Command], `Char '-')
@@ -346,6 +346,7 @@ let run_control (st : State.t) =
     (if color_button_fwd st.ui then +1 else 0) +
     (if color_button_bwd st.ui then -1 else 0)
   in
+  (* Possible click on color button: cycle color palette *)
   Ui.set_palette st.ui ((Ui.get_palette st.ui + dcol + ncol) mod ncol);
 
   (* FPS *)
@@ -434,7 +435,7 @@ let run_control (st : State.t) =
   let off = if len = 0 then 0 else bwd + fwd in
   if off <> 0 then
   (
-    (* Click on navigation button: jump to track *)
+    (* Click on one of the skip buttons: jump to track *)
     let more = Playlist.skip st.playlist off (st.control.repeat <> `None) in
     Control.switch st.control (Playlist.current st.playlist) more;
     Playlist.adjust_scroll st.playlist st.playlist.table.pos;
@@ -518,7 +519,7 @@ let run_control (st : State.t) =
   let shuffle' = shuffle_button st.ui (Some shuffle) in
   if shuffle' <> shuffle then
   (
-    (* Click on shuffle button: toggle shuffle *)
+    (* Click on Shuffle button: toggle shuffle *)
     if shuffle' then
     (
       Playlist.shuffle st.playlist
@@ -536,7 +537,7 @@ let run_control (st : State.t) =
   repeat_indicator2 st.ui (st.control.repeat = `All);
   let repeat' = repeat_button st.ui (Some (st.control.repeat <> `None)) in
   st.control.repeat <-
-    (* Click on repeat button: cycle repeat mode *)
+    (* Click on Repeat button: cycle repeat mode *)
     (match st.control.repeat, repeat' with
     | `None, false | `All, false -> `None
     | `None, true | `One, true -> `One
@@ -548,7 +549,7 @@ let run_control (st : State.t) =
   loop_indicator2 st.ui (match st.control.loop with `AB _ -> true | _ -> false);
   let loop' = loop_button st.ui (Some (st.control.loop <> `None)) in
   st.control.loop <-
-    (* Click on loop button: cycle loop mode *)
+    (* Click on Loop button: cycle loop mode *)
     (match st.control.loop, loop' with
     | `None, false | `AB _, false -> `None
     | `None, true -> `A elapsed
@@ -845,6 +846,7 @@ let run_playlist (st : State.t) =
   in
   if min len (abs d) > 0 then
   (
+    (* Drag or Cmd-cursor movement: move selection *)
     let d' =
       if d < 0
       then max d (- Option.value (Playlist.first_selected st.playlist) ~default: (len - 1))
@@ -865,7 +867,10 @@ let run_playlist (st : State.t) =
 
   (* Playlist buttons *)
   if save_button st.ui None then
-    ();  (* TODO *)
+  (
+    (* Click on Save button: save playlist *)
+    (* TODO: file dialog for chosing file path and name *)
+  );
 
   let selected = Playlist.num_selected st.playlist > 0 in
   let is_executable path =
@@ -874,6 +879,7 @@ let run_playlist (st : State.t) =
   let tag_available = selected && is_executable st.config.exec_tag in
   if tag_button st.ui (if tag_available then Some false else None) then
   (
+    (* Click on Tag button: execute tagging program *)
     let tracks = Array.to_list (Playlist.selected st.playlist) in
     Domain.spawn (fun () ->
       let tracks' = List.filter (fun tr -> not (Track.is_separator tr)) tracks in
@@ -909,11 +915,13 @@ let run_playlist (st : State.t) =
 
   if sep_button st.ui (Some false) then
   (
+    (* Click on Separator button: insert separator *)
     let pos = Option.value (Playlist.first_selected st.playlist) ~default: 0 in
     Playlist.insert st.playlist pos [|Track.make_separator ()|];
     Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
     if Playlist.num_selected st.playlist = 1 then
     (
+      (* Selection was singular: change it to new insertion *)
       Library.deselect_all st.library;
       Playlist.deselect_all st.playlist;
       Playlist.select st.playlist pos pos;
@@ -921,29 +929,41 @@ let run_playlist (st : State.t) =
   );
 
   if del_button st.ui (if selected then Some false else None) then
+  (
+    (* Click on Delete button: remove selected tracks from playlist *)
     Playlist.remove_selected st.playlist;
+  );
 
   let unselected = Playlist.num_selected st.playlist < len in
   if crop_button st.ui (if unselected then Some false else None) then
+  (
+    (* Click on Crop button: remove unselected tracks from playlist *)
     Playlist.remove_unselected st.playlist;
+  );
 
   if clean_button st.ui (if snd st.playlist.total > 0 then Some false else None) then
+  (
+    (* Click on Clean button: remove invalid tracks from playlist *)
     Playlist.remove_invalid st.playlist;
+  );
 
   if undo_button st.ui (if !(tab.undos) <> [] then Some false else None) then
   (
+    (* Click on Undo button: pop undo *)
     Playlist.pop_undo st.playlist;
     Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
   );
 
   if redo_button st.ui (if !(tab.redos) <> [] then Some false else None) then
   (
+    (* Click on Redo button: pop redo *)
     Playlist.pop_redo st.playlist;
     Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
   );
 
   if cut_key st.ui then
   (
+    (* Press of Cut key: remove selected tracks and write them to clipboard *)
     let s = Playlist.string_of_playlist (Playlist.selected st.playlist) in
     Api.Clipboard.write win s;
     Playlist.remove_selected st.playlist;
@@ -951,12 +971,14 @@ let run_playlist (st : State.t) =
 
   if copy_key st.ui then
   (
+    (* Press of Copy key: write selected tracks to clipboard *)
     let s = Playlist.string_of_playlist (Playlist.selected st.playlist) in
     Api.Clipboard.write win s;
   );
 
   if paste_key st.ui then
   (
+    (* Press of Paste key: insert tracks from clipboard *)
     match Api.Clipboard.read win with
     | None -> ()
     | Some s ->
@@ -966,6 +988,7 @@ let run_playlist (st : State.t) =
       Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
       if Playlist.num_selected st.playlist = 1 && tracks <> [||] then
       (
+        (* Selection was singular: change it to new insertion *)
         Library.deselect_all st.library;
         Playlist.deselect_all st.playlist;
         Playlist.select st.playlist pos (pos + Array.length tracks - 1);
@@ -976,6 +999,7 @@ let run_playlist (st : State.t) =
   let _, my as m = Api.Mouse.pos win in
   if Api.inside m r then
   (
+    (* Files drop on playlist: insertion paths at pointed position *)
     let dropped = Api.File.dropped win in
     let pos = min len ((my - y) / row_h + tab.scroll_v) in
     Playlist.insert_paths st.playlist pos dropped st.control.audio;
@@ -995,8 +1019,16 @@ let run_playlist (st : State.t) =
 
   (* Playlist resizing *)
   let w = control_w + (if st.library.shown then st.library.width else 0) in
-  let _, dh =
-    playlist_resizer st.ui (w, control_h + playlist_min) (w, -1) in
+  let cursor, wmin, wmax =
+    if st.library.shown
+    then `NW_SE, control_w + library_min, -1
+    else `N_S, w, w
+  in
+  let dw, dh =
+    playlist_resizer cursor st.ui (wmin, control_h + playlist_min) (wmax, -1) in
+  st.library.width <- st.library.width + dw;
+  st.library.browser_width <-
+    min st.library.browser_width (browser_max st.library.width);
   st.playlist.height <- st.playlist.height + dh;
   update_fit st
 
@@ -1452,6 +1484,7 @@ let run_library (st : State.t) =
 
   (* Library resizing *)
   let left = st.library.side = `Left in
+  let lw = st.library.width in
   if st.playlist.shown && snd (Api.Window.size win) > control_h then
   (
     let dw, dh =
@@ -1474,6 +1507,14 @@ let run_library (st : State.t) =
     st.library.width <- st.library.width + dw;
     st.library.browser_width <-
       min st.library.browser_width (browser_max st.library.width);
+  );
+
+  let dw = st.library.width - lw in
+  if left && dw <> 0 then
+  (
+    (* Window was resized on the left: reposition window *)
+    let x, y = Api.Window.pos win in
+    Api.Window.set_pos win (x - dw) y;
   )
 
 
@@ -1521,7 +1562,6 @@ let rec run (st : State.t) =
     | true, true, `Right, `Left -> -st.library.width  (* opened on the left *)
     | true, false, `Left, _
     | true, true, `Left, `Right -> +library_width     (* closed on the left *)
-    | true, true, `Left, `Left -> library_width - st.library.width (* resized *)
     | _ -> 0
   in
   let x, y = Api.Window.pos win in
