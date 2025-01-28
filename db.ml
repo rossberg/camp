@@ -125,6 +125,20 @@ let find_in_table of_data stmt db path =
   let* () = Sqlite3.iter stmt ~f in
   !result
 
+let delete_from_table stmt db path =
+  let& () = db in
+  let stmt = prepare db stmt in
+  let* () = bind_text stmt 1 path in
+  let* () = Sqlite3.step stmt in
+  ()
+
+let delete_from_table_prefix stmt db path =
+  let& () = db in
+  let stmt = prepare db stmt in
+  let* () = bind_text stmt 1 (path ^ "%") in
+  let* () = Sqlite3.step stmt in
+  ()
+
 let iter_table binds of_data stmt db f =
   let& () = db in
   let stmt = prepare db stmt in
@@ -137,15 +151,14 @@ let iter_table binds of_data stmt db f =
 (* Roots *)
 
 let to_root data : dir =
-  let open Sqlite3.Data in
   {
-    id = to_int64_exn data.(0);
-    path = to_string_exn data.(1);
-    name = to_string_exn data.(2);
+    id = to_id 0 data;
+    path = to_text 1 data;
+    name = to_text 2 data;
     children = [||];
-    pos = to_int_exn data.(3);
+    pos = to_int 3 data;
     nest = 0;
-    folded = to_bool_exn data.(4);
+    folded = to_bool 4 data;
   }
 
 
@@ -165,7 +178,7 @@ let count_roots = count_table @@ stmt
   SELECT COUNT(*) FROM Roots;
 |}
 
-let exist_root = exist_in_table @@ stmt
+let exists_root = exist_in_table @@ stmt
 {|
   SELECT COUNT(*) FROM Roots WHERE path = ?;
 |}
@@ -178,7 +191,7 @@ let iter_roots = iter_table [||] to_root @@ stmt
 
 let stmt_insert_root = stmt
 {|
-  INSERT INTO Roots VALUES (?, ?, ?, ?);
+  INSERT OR REPLACE INTO Roots VALUES (?, ?, ?, ?);
 |}
 
 let insert_root db (root : dir) =
@@ -191,10 +204,14 @@ let insert_root db (root : dir) =
   let* () = Sqlite3.step stmt in
   root.id <- Sqlite3.last_insert_rowid db
 
+let delete_root = delete_from_table @@ stmt
+{|
+  DELETE FROM Roots WHERE path = ?;
+|}
 
 let stmt_update_roots_pos = stmt
 {|
-  UPDATE Roots SET pos = pos + ? WHERE pos >= ?;
+  UPDATE Roots SET pos = pos + (?) WHERE pos >= ?;
 |}
 
 let update_roots_pos db first delta =
@@ -237,7 +254,7 @@ let count_dirs = count_table @@ stmt
   SELECT COUNT(*) FROM Dirs;
 |}
 
-let exist_dir = exist_in_table @@ stmt
+let exists_dir = exist_in_table @@ stmt
 {|
   SELECT COUNT(*) FROM Dirs WHERE path = ?;
 |}
@@ -247,15 +264,15 @@ let find_dir = find_in_table to_dir @@ stmt
   SELECT rowid, * FROM Dirs WHERE path = ?;
 |}
 
-let iter_dir db id = db |> iter_table [|of_id id|] to_dir @@ stmt
+let iter_dirs = iter_table [||] to_dir @@ stmt
 {|
-  SELECT rowid, * FROM Dirs WHERE parent = ?;
+  SELECT rowid, * FROM Dirs;
 |}
 
 
 let stmt_insert_dir = stmt
 {|
-  INSERT INTO Dirs VALUES (?, ?, ?, ?, ?);
+  INSERT OR REPLACE INTO Dirs VALUES (?, ?, ?, ?, ?);
 |}
 
 let insert_dir db (dir : dir) =
@@ -268,6 +285,11 @@ let insert_dir db (dir : dir) =
   let* () = bind_bool stmt 5 dir.folded in
   let* () = Sqlite3.step stmt in
   dir.id <- Sqlite3.last_insert_rowid db
+
+let delete_dirs = delete_from_table_prefix @@ stmt
+{|
+  DELETE FROM Dirs WHERE path LIKE ?;
+|}
 
 
 (* Albums *)
@@ -301,7 +323,7 @@ let exist_album = exist_in_table @@ stmt
 
 let stmt_insert_album = stmt
 {|
-  INSERT INTO Albums VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+  INSERT OR REPLACE INTO Albums VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 |}
 
 let insert_album db (album : album) =
@@ -318,6 +340,11 @@ let insert_album db (album : album) =
   let* () = bind_null stmt 9 in
   let* () = Sqlite3.step stmt in
   album.id <- Sqlite3.last_insert_rowid db
+
+let delete_albums = delete_from_table_prefix @@ stmt
+{|
+  DELETE FROM Albums WHERE path LIKE ?;
+|}
 
 
 (* Tracks *)
@@ -451,7 +478,7 @@ let iter_tracks_for db path = db |> iter_table [|of_text (path ^ "%")|] to_track
 
 let stmt_insert_track = stmt
 {|
-  INSERT INTO Tracks
+  INSERT OR REPLACE INTO Tracks
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 |}
 
@@ -493,6 +520,11 @@ let insert_track db (track : track) =
   let* () = Sqlite3.step stmt in
   track.id <- Sqlite3.last_insert_rowid db
 
+let delete_tracks = delete_from_table_prefix @@ stmt
+{|
+  DELETE FROM Tracks WHERE path LIKE ?;
+|}
+
 
 (* Playlists *)
 
@@ -517,7 +549,7 @@ let exist_playlist = exist_in_table @@ stmt
 
 let stmt_insert_playlist = stmt
 {|
-  INSERT INTO Playlists VALUES (?);
+  INSERT OR REPLACE INTO Playlists VALUES (?);
 |}
 
 let insert_playlist db (playlist : playlist) =
@@ -526,6 +558,11 @@ let insert_playlist db (playlist : playlist) =
   let* () = bind_text stmt 1 playlist.path in
   let* () = Sqlite3.step stmt in
   playlist.id <- Sqlite3.last_insert_rowid db
+
+let delete_playlists = delete_from_table_prefix @@ stmt
+{|
+  DELETE FROM Playlists WHERE path LIKE ?;
+|}
 
 
 (* Initialization *)

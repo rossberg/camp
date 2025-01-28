@@ -200,38 +200,90 @@ let array_rev a =
 
 (* Scanning *)
 
-let queue = Safe_queue.create ()
-let completed = Atomic.make false
+let rescan_track lib track =
+  try
+    if not (Sys.file_exists track.path) then
+    (
+      track.status <- `Absent;
+    )
+    else if Sys.is_directory track.path then
+    (
+      track.status <- `Invalid;
+    )
+    else if not (Format.is_known_ext track.path) then
+    (
+      let stats = Unix.stat track.path in
+      track.filesize <- stats.st_size;
+      track.filetime <- stats.st_mtime;
+      track.status <- `Invalid;
+    )
+    else
+    (
+      let stats = Unix.stat track.path in
+      track.filesize <- stats.st_size;
+      track.filetime <- stats.st_mtime;
+      track.format <- Some (Format.read track.path);
+      track.meta <- Some (Meta.load track.path);
+      track.status <- `Det;
+    );
+    track.fileage <- Unix.gettimeofday ();
+    Db.insert_track lib.db track;
+  with Sys_error _ -> ()
 
-let rescan_root lib root = Safe_queue.add (lib, root) queue
-let rescan_roots lib = Array.iter (rescan_root lib) lib.roots
-let rescan_roots_done _lib = Atomic.exchange completed false
 
-let dirs = Option.value ~default: []
-
-let rec scanner () =
-  let lib, root = Safe_queue.take queue in
-
-  let rec scan_path path nest =
+let rescan_dir lib (dir : Data.dir) =
+  Array.iter (fun file ->
     try
-      if Sys.file_exists path then
-        if Sys.is_directory path then
-          if Format.is_known_ext path then
-            scan_album path nest
-          else
-            scan_dir path nest
-        else
-          if Format.is_known_ext path then
-            scan_track path
-          else if M3u.is_known_ext path then
-            scan_playlist path
-          else
-            None
-      else None
-    with Sys_error _ -> None
+      let path = Filename.concat dir.path file in
+      if
+        Sys.file_exists path &&
+        not (Sys.is_directory path) &&
+        Format.is_known_ext path
+      then
+      (
+        let track : Data.track =
+          match Db.find_track lib.db path with
+          | Some track -> track
+          | None ->
+            {
+              id = -1L;
+              path;
+              album = None;
+              filesize = 0;
+              filetime = 0.0;
+              fileage = 0.0;
+              status = `Undet;
+              format = None;
+              meta = None;
+            }
+        in
+        (* Parent may have been deleted in the mean time... *)
+        if Db.exists_dir lib.db dir.path then
+          rescan_track lib track
+      )
+    with Sys_error _ -> ()
+  ) (Sys.readdir dir.path)
+
+let queue_rescan_dir = ref (fun _ -> assert false)
+
+let rescan_root lib (root : Data.dir) =
+  let rec scan_path path nest =
+    if Sys.is_directory path then
+      if Format.is_known_ext path then
+        scan_album path nest
+      else
+        scan_dir path nest
+    else
+      if Format.is_known_ext path then
+        scan_track path
+      else if M3u.is_known_ext path then
+        scan_playlist path
+      else
+        None
 
   and scan_dir path nest' =
     let nest = nest' + 1 in
+    let dirs = Option.value ~default: [] in
     match
       Array.fold_left (fun r file ->
         match r, scan_path (Filename.concat path file) nest with
@@ -239,51 +291,41 @@ let rec scanner () =
         | dirs1, dirs2 -> Some (dirs dirs1 @ dirs dirs2)
       ) None (Sys.readdir path)
     with
-    | None -> None
+    | None ->
+    None
     | Some dirs ->
       let children = Array.map Data.link_val (Array.of_list dirs) in
       let dir =
+        if nest = 0 then root else
         match Db.find_dir lib.db path with
-        | Some dir ->
-          (* TODO: remove missing children *)
-          {dir with children}
+        | Some dir -> dir
         | None ->
           let dir : Data.dir =
             {
               id = -1L;
               path;
               name = Filename.basename path;
-              children;
+              children = [||];
               pos = 0;
               nest;
               folded = true;
             }
-          in Db.insert_dir lib.db dir;
+          in
+          (* Root may have been deleted in the mean time... *)
+          if Db.exists_root lib.db root.path then
+            Db.insert_dir lib.db dir;
           dir
       in
+      (* TODO: remove missing children *)
+      dir.children <- children;
+      !queue_rescan_dir lib dir;
       Some [dir]
 
   and scan_album path nest =
     scan_dir path nest (* TODO *)
 
-  and scan_track path =
-    let stats = Unix.stat path in
-    let track : Data.track =
-      {
-        id = -1L;
-        path;
-        album = None;
-        filesize = stats.st_size;
-        filetime = stats.st_mtime;
-        fileage = Unix.gettimeofday ();
-        status = `Det;
-        format = Some (Format.read path);
-        meta = Some (Meta.load path);
-      }
-    in
-    if not (Db.exist_track lib.db path) then
-      Db.insert_track lib.db track;
-    Some []
+  and scan_track _path =
+    Some []  (* deferred to directory scan *)
 
   and scan_playlist path =
     let playlist : Data.playlist =
@@ -297,15 +339,28 @@ let rec scanner () =
     Some []
   in
 
-  Option.iter (fun dirs ->
-    assert (List.length dirs = 1);
-    root.children <- (List.hd dirs).children;
-  ) (scan_dir root.path (-1));
+  ignore (scan_dir root.path (-1))
 
+
+let queue = Safe_queue.create ()
+let completed = Atomic.make false
+
+let rec scanner () =
+  (try Safe_queue.take queue () with Sys_error _ -> ());
   Atomic.set completed true;
   scanner ()
 
 let _ = Domain.spawn scanner
+
+let rescan_root lib root = Safe_queue.add (fun () -> rescan_root lib root) queue
+let rescan_roots lib = Array.iter (rescan_root lib) lib.roots
+let rescan_dir lib dir = Safe_queue.add (fun () -> rescan_dir lib dir) queue
+let rescan_dirs lib dirs = Array.iter (rescan_dir lib) dirs
+let rescan_tracks lib tracks =
+  Safe_queue.add (fun () -> Array.iter (rescan_track lib) tracks) queue
+let rescan_done _lib = Atomic.exchange completed false
+
+let _ = queue_rescan_dir := rescan_dir
 
 
 (* Browser *)
@@ -351,6 +406,18 @@ let update_browser lib =
   restore_browser_selection lib selection
 
 
+let fold_dir lib dir status =
+  if status <> dir.folded then
+  (
+    dir.folded <- status;
+    if dir.nest = 0 then
+      Db.insert_root lib.db dir
+    else
+      Db.insert_dir lib.db dir;
+    update_browser lib;
+  )
+
+
 (* Roots *)
 
 let count_roots lib = Db.count_roots lib.db
@@ -361,6 +428,35 @@ let load_roots lib =
   Db.iter_roots lib.db (fun root -> roots := root :: !roots);
   lib.roots <- Array.of_list !roots;
   Array.sort (fun r1 r2 -> compare r1.pos r2.pos) lib.roots;
+
+  let dirs = ref !roots in
+  Db.iter_dirs lib.db (fun dir -> dirs := dir :: !dirs);
+  let dirs = Array.of_list !dirs in
+  let dirpath path = Filename.concat path "" in
+  let compare_dir (d1 : Data.dir) (d2 : Data.dir) =
+    compare (dirpath d1.path) (dirpath d2.path) in
+  Array.sort compare_dir dirs;
+
+  let rec treeify i parent children =
+    if i = Array.length dirs then
+    (
+      parent.children <- Array.of_list children;
+      array_rev parent.children;
+    )
+    else
+      let parent', children' =
+        if Filename.dirname dirs.(i).path = parent.path then
+          parent, Data.link_val dirs.(i) :: children
+        else
+        (
+          parent.children <- Array.of_list children;
+          array_rev parent.children;
+          dirs.(i), []
+        )
+      in treeify (i + 1) parent' children'
+  in
+  treeify 0 (make_all lib) [];
+
   rescan_roots lib
 
 
@@ -410,15 +506,40 @@ let add_roots lib paths pos =
           let root = lib.roots.(i - len') in
           root.pos <- i; root
       );
-    update_browser lib;
     Db.update_roots_pos lib.db pos (+len');
     Array.iter (Db.insert_root lib.db) roots';
     Array.iter (rescan_root lib) roots';
+    update_browser lib;
     true
   with Failure msg ->
     lib.error <- msg;
     lib.error_time <- Unix.gettimeofday ();
     false
+
+
+let remove_root lib path =
+  match Array.find_index (fun (r : Data.dir) -> r.path = path) lib.roots with
+  | None -> ()
+  | Some pos ->
+    let prefix = Filename.concat path "" in
+    Db.delete_root lib.db path;
+    Db.delete_dirs lib.db prefix;
+    Db.delete_albums lib.db prefix;
+    Db.delete_tracks lib.db prefix;
+    Db.delete_playlists lib.db prefix;
+    lib.roots <-
+      Array.init (Array.length lib.roots - 1) (fun i ->
+        if i < pos then
+          lib.roots.(i)
+        else
+          let root = lib.roots.(i + 1) in
+          root.pos <- i; root
+      );
+    Db.update_roots_pos lib.db pos (-1);
+    update_browser lib
+
+let remove_roots lib paths =
+  List.iter (remove_root lib) paths
 
 
 (* View *)

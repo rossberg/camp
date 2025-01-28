@@ -29,14 +29,14 @@ type album =
 {
   mutable id : id;
   path : path;  (* primary *)
-  artist  : string option;
-  title : string option;
-  tracks : int option;
-  discs : int option;
-  date : string option;
-  label : string option;
-  country : string option;
-  cover : blob option;
+  mutable artist  : string option;
+  mutable title : string option;
+  mutable tracks : int option;
+  mutable discs : int option;
+  mutable date : string option;
+  mutable label : string option;
+  mutable country : string option;
+  mutable cover : blob option;
 }
 
 type playlist =
@@ -49,11 +49,11 @@ type track =
 {
   mutable id : id;
   path : path;  (* primary *)
-  album : album link option;
-  filesize : int;
-  filetime : time;
-  fileage : time;
-  status : [`Undet | `Predet | `Det | `Invalid | `Absent];
-  format : Format.t option;
-  meta : Meta.t option;
+  mutable album : album link option;
+  mutable filesize : int;
+  mutable filetime : time;
+  mutable fileage : time;
+  mutable status : [`Undet | `Predet | `Det | `Invalid | `Absent];
+  mutable format : Format.t option;
+  mutable meta : Meta.t option;
 }

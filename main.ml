@@ -219,6 +219,8 @@ let browser_scroll = Ui.scroll_bar (2, -divider_w-scrollbar_w, margin, scrollbar
 let browser_wheel = Ui.wheel (2, margin, margin, -divider_w, -bottom_h)
 let browser_drag = Ui.drag browser_area
 
+let del_key = Ui.key ([`Command], `Delete)
+
 
 (* View Pane *)
 let view_pane = Ui.pane 3
@@ -1028,7 +1030,7 @@ let run_library (st : State.t) =
     clamp browser_min (browser_max st.library.width) st.library.browser_width;
 
   (* Background rescanning *)
-  if Library.rescan_roots_done st.library then
+  if Library.rescan_done st.library then
   (
     Library.update_browser st.library;
     Library.update_view st.library;
@@ -1101,8 +1103,7 @@ let run_library (st : State.t) =
         (
           (* CLick on triangle: fold/unfold entry *)
           let dir = brow.entries.(i) in
-          dir.folded <- not dir.folded;
-          Library.update_browser st.library;
+          Library.fold_dir st.library dir (not dir.folded);
         )
         else
         (
@@ -1171,6 +1172,17 @@ let run_library (st : State.t) =
 
   view_pane st.ui (bx + st.library.browser_width, 0,
     st.library.width - st.library.browser_width + 5, control_h + dh);
+
+  (* Keys *)
+  if del_key st.ui then
+  (
+    match Library.selected_dir st.library with
+    | Some i when st.library.browser.entries.(i).nest = 0 ->
+      Library.remove_roots st.library [st.library.browser.entries.(i).path];
+      Library.update_view st.library
+    | _ -> browser_error_box (Ui.error_color st.ui) st.ui;  (* flash *)
+  );
+
 
   (* Error display *)
   error_box st.ui;

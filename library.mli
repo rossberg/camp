@@ -51,17 +51,22 @@ val adjust_scroll : t -> int option -> unit
 val load_roots : t -> unit
 
 val add_roots : t -> path list -> int -> bool
+val remove_roots : t -> path list -> unit
 
 val count_roots : t -> int
 val iter_roots : t -> (dir -> unit) -> unit
 
 val rescan_roots : t -> unit
-val rescan_roots_done : t -> bool
+val rescan_dirs : t -> dir array -> unit
+val rescan_tracks : t -> track array -> unit
+val rescan_done : t -> bool
 
 
 (* Browser *)
 
 val update_browser : t -> unit
+
+val fold_dir : t -> dir -> bool -> unit
 
 val selected_dir : t -> int option
 val select_dir : t -> int -> unit

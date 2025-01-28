@@ -128,8 +128,8 @@ let load_ui st file =  (* assumes playlist and library already loaded *)
 let load st =
   let success = ref false in
 
-  Library.load_roots st.library;
   Playlist.load_playlist st.playlist;
+  Library.load_roots st.library;
 
   Storage.load state_file (fun file ->
     let input fmt = fscanf file fmt in
