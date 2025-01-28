@@ -1215,6 +1215,8 @@ let run_library (st : State.t) =
     (* Click on Artists button: toggle artist pane *)
     (* TODO *)
     st.library.artists_shown <- artists';
+    if not (artists' || st.library.albums_shown || st.library.tracks_shown) then
+      st.library.tracks_shown <- true;
   );
 
   let albums = st.library.albums_shown in
@@ -1226,6 +1228,8 @@ let run_library (st : State.t) =
     (* Click on Albums button: toggle artist pane *)
     (* TODO *)
     st.library.albums_shown <- albums';
+    if not (albums' || st.library.artists_shown || st.library.tracks_shown) then
+      st.library.tracks_shown <- true;
   );
 
   let tracks = st.library.tracks_shown in
@@ -1237,6 +1241,8 @@ let run_library (st : State.t) =
     (* Click on Tracks button: toggle artist pane *)
     (* TODO *)
     st.library.tracks_shown <- tracks';
+    if not (tracks' || st.library.artists_shown || st.library.albums_shown) then
+      st.library.artists_shown <- true;
   );
 
   (* Error display *)
