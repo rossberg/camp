@@ -205,17 +205,39 @@ let paste_key = Ui.key ([`Command], `Char 'V')
 (* Browser Pane *)
 let browser_pane = Ui.pane 2
 
-let browser_min = 100
+let browser_min = 120
 let view_min = 200
 let library_min = browser_min + view_min
 let browser_max pw = pw-view_min
 
 let browser_divider = Ui.divider (2, -divider_w, margin, divider_w, -bottom_h) `Horizontal
 
-let browser_area = (2, margin, margin, -scrollbar_w-divider_w, -bottom_h)
+let hier_w = 25
+let hier_h = 12
+let hier_x i = -margin-hier_w-i*(hier_w+8)-2
+let hier_y = margin+indicator_w+1
+let hier_indicator_x x = x + (hier_w - indicator_w)/2 + 1
+let hier_indicator i = Ui.indicator (2, hier_indicator_x (hier_x i), hier_y-indicator_w-1, indicator_w, indicator_w)
+let hier_button i = Ui.button (2, hier_x i, hier_y, hier_w, hier_h) ([], `None)
+let hier_label i label = Ui.label (2, hier_x i-4, hier_y+hier_h+1, hier_w+8, label_h) `Center label
+
+let artists_indicator = hier_indicator 2
+let artists_button = hier_button 2
+let artists_label = hier_label 2 "ARTISTS"
+
+let albums_indicator = hier_indicator 1
+let albums_button = hier_button 1
+let albums_label = hier_label 1 "ALBUMS"
+
+let tracks_indicator = hier_indicator 0
+let tracks_button = hier_button 0
+let tracks_label = hier_label 0 "TRACKS"
+
+let browser_y = margin+indicator_w+hier_h+label_h+10
+let browser_area = (2, margin, browser_y, -scrollbar_w-divider_w, -bottom_h)
 let browser_error_box = Ui.box browser_area
 let browser_table = Ui.table browser_area 0
-let browser_scroll = Ui.scroll_bar (2, -divider_w-scrollbar_w, margin, scrollbar_w, -bottom_h) `Vertical
+let browser_scroll = Ui.scroll_bar (2, -divider_w-scrollbar_w, browser_y, scrollbar_w, -bottom_h) `Vertical
 let browser_wheel = Ui.wheel (2, margin, margin, -divider_w, -bottom_h)
 let browser_drag = Ui.drag browser_area
 
@@ -1183,6 +1205,39 @@ let run_library (st : State.t) =
     | _ -> browser_error_box (Ui.error_color st.ui) st.ui;  (* flash *)
   );
 
+  (* Browse modes *)
+  let artists = st.library.artists_shown in
+  artists_label st.ui;
+  artists_indicator st.ui artists;
+  let artists' = artists_button st.ui (Some artists) in
+  if artists' <> artists then
+  (
+    (* Click on Artists button: toggle artist pane *)
+    (* TODO *)
+    st.library.artists_shown <- artists';
+  );
+
+  let albums = st.library.albums_shown in
+  albums_label st.ui;
+  albums_indicator st.ui albums;
+  let albums' = albums_button st.ui (Some albums) in
+  if albums' <> albums then
+  (
+    (* Click on Albums button: toggle artist pane *)
+    (* TODO *)
+    st.library.albums_shown <- albums';
+  );
+
+  let tracks = st.library.tracks_shown in
+  tracks_label st.ui;
+  tracks_indicator st.ui tracks;
+  let tracks' = tracks_button st.ui (Some tracks) in
+  if tracks' <> tracks then
+  (
+    (* Click on Tracks button: toggle artist pane *)
+    (* TODO *)
+    st.library.tracks_shown <- tracks';
+  );
 
   (* Error display *)
   error_box st.ui;

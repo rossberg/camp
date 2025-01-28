@@ -20,6 +20,9 @@ type t =
   mutable width : int;
   mutable browser_width : int;
   mutable browser : dir Table.t;
+  mutable artists_shown : bool;
+  mutable albums_shown : bool;
+  mutable tracks_shown : bool;
   mutable view : track Table.t;
   mutable error : string;
   mutable error_time : time;

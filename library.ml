@@ -26,6 +26,9 @@ type t =
   mutable width : int;
   mutable browser_width : int;
   mutable browser : dir Table.t;
+  mutable artists_shown : bool;
+  mutable albums_shown : bool;
+  mutable tracks_shown : bool;
   mutable view : track Table.t;
   mutable error : string;
   mutable error_time : time;
@@ -63,6 +66,9 @@ let make db =
     width = 600;
     browser_width = 100;
     browser = Table.make ();
+    artists_shown = false;
+    albums_shown = false;
+    tracks_shown = true;
     view = Table.make ();
     error = "";
     error_time = 0.0;
