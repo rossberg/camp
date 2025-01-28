@@ -13,6 +13,7 @@ let scrollbar_w = 10
 let divider_w = margin
 let indicator_w = 7
 
+(* Control Pane *)
 let control_pane = Ui.pane 0
 
 let control_w = 360
@@ -140,6 +141,7 @@ let loop_button = mode_button 0 'J'
 let loop_label = mode_label 0 "LOOP"
 
 
+(* Playlist Pane *)
 let playlist_pane = Ui.pane 1
 let playlist_min = 31 + 4 * row_h
 
@@ -200,6 +202,7 @@ let copy_key = Ui.key ([`Command], `Char 'C')
 let paste_key = Ui.key ([`Command], `Char 'V')
 
 
+(* Browser Pane *)
 let browser_pane = Ui.pane 2
 
 let browser_min = 100
@@ -217,6 +220,7 @@ let browser_wheel = Ui.wheel (2, margin, margin, -divider_w, -bottom_h)
 let browser_drag = Ui.drag browser_area
 
 
+(* View Pane *)
 let view_pane = Ui.pane 3
 
 let header_area rh = (3, 0, margin, -margin-scrollbar_w-1, rh)
@@ -346,6 +350,7 @@ let run_control (st : State.t) =
   (* FPS *)
   if st.control.fps then
     fps_text st.ui `Regular true (fmt "%d FPS" (Api.Window.fps win));
+  (* Press of FPS key: toggle FPS display *)
   if fps_key st.ui then st.control.fps <- not st.control.fps;
 
   (* Audio properties *)
@@ -846,6 +851,7 @@ let run_playlist (st : State.t) =
   let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
   let pos = if len = 0 then 0.0 else float tab.scroll_v /. float len in
   let pos' = playlist_scroll st.ui pos ext -. 0.05 *. playlist_wheel st.ui in
+  (* Possible scrolling activity: update scroll position *)
   tab.scroll_v <- clamp 0 (max 0 (len - tab.fit))
     (int_of_float (Float.round (pos' *. float len)));
 
@@ -1031,6 +1037,7 @@ let run_library (st : State.t) =
   (* Pane divider *)
   let browser_width' = browser_divider st.ui st.library.browser_width
     browser_min (browser_max st.library.width) in
+  (* Possible drag of divider: update pane width *)
   st.library.browser_width <- browser_width';
   browser_pane st.ui (bx, 0, st.library.browser_width, control_h + dh);
 
@@ -1143,6 +1150,7 @@ let run_library (st : State.t) =
   let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
   let pos = if len = 0 then 0.0 else float brow.scroll_v /. float len in
   let pos' = browser_scroll st.ui pos ext -. 0.05 *. browser_wheel st.ui in
+  (* Possible scrolling activity: update scroll position *)
   brow.scroll_v <- clamp 0 (max 0 (len - brow.fit))
     (int_of_float (Float.round (pos' *. float len)));
 
@@ -1253,6 +1261,7 @@ let run_library (st : State.t) =
     let i = view.scroll_v + i in
     if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
     (
+      (* Mouse button down: adjust cursor *)
       let view_area = view_area row_h in
       Api.Mouse.set_cursor win
         (if
@@ -1265,15 +1274,19 @@ let run_library (st : State.t) =
       Api.Mouse.is_pressed `Left && dragging = `None
     then
     (
+      (* Click into table *)
       if i >= len || not (Library.is_selected st.library i) then
       (
+        (* Click into empty space: deselect everything *)
         Playlist.deselect_all st.playlist;
         Library.deselect_all st.library;
       );
       if i < len then
       (
+        (* Click on track *)
         if Api.Mouse.is_doubleclick `Left then
         (
+          (* Double-click on track: clear playlist and send track to it *)
           Control.eject st.control;
           Playlist.remove_all st.playlist;
           let track = Track.make view.entries.(i).path in
@@ -1282,6 +1295,7 @@ let run_library (st : State.t) =
         )
         else
         (
+          (* Single-click on track: make it singular selection *)
           Playlist.deselect_all st.playlist;
           Library.select st.library i i;
         )
@@ -1289,6 +1303,7 @@ let run_library (st : State.t) =
     )
     else if Api.Key.are_modifiers_down [] && dragging = `Click then
     (
+      (* Click-release on playlist: deselect all except for clicked track *)
       Library.deselect_all st.library;
       if i < len then
       (
@@ -1298,9 +1313,11 @@ let run_library (st : State.t) =
     )
     else if Api.Key.are_modifiers_down [] && dragging = `Drop then
     (
+      (* Drag & drop *)
       let (_, y, _, _) as r = Ui.dim st.ui playlist_area in
       if Api.inside m r then
       (
+        (* Drag & drop onto playlist: send selection to playlist *)
         let tracks = Library.selected st.library in
         let len = Array.length st.playlist.table.entries in
         let pos = min len ((my - y) / row_h + st.playlist.table.scroll_v) in
@@ -1315,6 +1332,7 @@ let run_library (st : State.t) =
       Api.Key.are_modifiers_down [`Command] && Api.Mouse.is_pressed `Left
     then
     (
+      (* Cmd-click on playlist: toggle selection of clicked track *)
       if i < len then
       (
         if Library.is_selected st.library i then
@@ -1337,17 +1355,20 @@ let run_library (st : State.t) =
     )
     else if Api.Key.are_modifiers_down [`Shift] && Api.Mouse.is_down `Left then
     (
+      (* Shift-click/drag on playlist: adjust selection range *)
       let default = if i < len then (i, i) else (0, 0) in
       let pos1, pos2 = Option.value view.sel_range ~default in
       let i' = max 0 (min i (len - 1)) in
       if view.sel_range = None || Library.is_selected st.library pos1 then
       (
+        (* Track was already selected: deselect old range, select new range *)
         Playlist.deselect_all st.playlist;
         Library.deselect st.library pos2 i';
         Library.select st.library pos1 i';
       )
       else
       (
+        (* Track was not selected: select old range, deselect new range *)
         Playlist.deselect_all st.playlist;
         Library.select st.library pos2 i';
         Library.deselect st.library pos1 i';
@@ -1369,6 +1390,7 @@ let run_library (st : State.t) =
     in
     if min len (abs d) > 0 then
     (
+      (* Plain cursor movement: deselect all, reselect relative to range end *)
       let default = 0, if d < 0 then len else -1 in
       let _, pos2 = Option.value view.sel_range ~default in
       let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
@@ -1388,20 +1410,24 @@ let run_library (st : State.t) =
     in
     if min len (abs d) > 0 then
     (
+      (* Shift-cursor movement: adjust selection range *)
       let default = 0, if d < 0 then len else -1 in
       let pos1, pos2 = Option.value view.sel_range ~default in
       let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
       if view.sel_range = None then
       (
+        (* No selection yet: range from end of playlist *)
         Library.select st.library (len - 1) i
       )
       else if Library.is_selected st.library pos1 then
       (
+        (* Range start was already selected: deselect old range, select new *)
         Library.deselect st.library (max 0 pos2) i;
         Library.select st.library pos1 i
       )
       else
       (
+        (* Range start was not selected: select old range, deselect new *)
         Library.select st.library (max 0 pos2) i;
         Library.deselect st.library pos1 i
       );
@@ -1410,15 +1436,18 @@ let run_library (st : State.t) =
 
     if selall_key st.ui then
     (
+      (* Select-all key pressed: select all *)
       Playlist.deselect_all st.playlist;
       Library.select_all st.library;
     )
     else if selnone_key st.ui then
     (
+      (* Deselect-all key pressed: deselect all *)
       Library.deselect_all st.library;
     )
     else if selinv_key st.ui then
     (
+      (* Selection inversion key pressed: invert selection *)
       Playlist.deselect_all st.playlist;
       Library.select_invert st.library;
     )
@@ -1431,6 +1460,7 @@ let run_library (st : State.t) =
   let pos =
     if len = 0 then 0.0 else float view.scroll_v /. float len in
   let pos' = view_scroll_v st.ui pos ext -. 0.05 *. view_wheel st.ui in
+  (* Possible vertical scrolling activity: update scroll position *)
   view.scroll_v <- clamp 0 (max 0 (len - view.fit))
     (int_of_float (Float.round (pos' *. float len)));
 
@@ -1438,6 +1468,7 @@ let run_library (st : State.t) =
   let ext = if vw' = 0 then 1.0 else min 1.0 (float w /. float vw') in
   let pos = if vw' = 0 then 0.0 else float view.scroll_h /. float vw' in
   let pos' = view_scroll_h st.ui pos ext in
+  (* Possible horizontal scrolling activity: update scroll position *)
   view.scroll_h <-
     clamp 0 (max 0 (vw' - w)) (int_of_float (Float.round (pos' *. float vw')));
 
@@ -1447,16 +1478,21 @@ let run_library (st : State.t) =
   | `Click ->
     (match find_heading mx with
     | None -> ()
-    | Some attr -> Library.reorder_view st.library attr
+    | Some attr ->
+      (* Click on column header: reorder view accordingly *)
+      Library.reorder_view st.library attr
     )
   | `Drag (dx, _) ->
     (match find_gutter (mx - dx) with
     | None -> ()
     | Some i ->
+      (* Drag of gutter: resize column width *)
       let add_snd d (x, y) = (x, max 0 (y + d)) in
+      (* Drag of gutter: resize column to the left *)
       st.library.columns.(i) <- add_snd dx st.library.columns.(i);
       if i + 1 < Array.length st.library.columns
       && Api.Key.is_modifier_down `Shift then
+        (* Shift-drag of gutter: also resize column to the right inversely *)
         st.library.columns.(i + 1) <- add_snd (-dx) st.library.columns.(i + 1);
     )
   )
