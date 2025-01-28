@@ -1466,12 +1466,14 @@ let run_library (st : State.t) =
   );
 
   (* View scrolling *)
+  let shift = Api.Key.is_modifier_down `Shift in
   let h' = view.fit * row_h in
   let ext =
     if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
   let pos =
     if len = 0 then 0.0 else float view.scroll_v /. float len in
-  let pos' = view_scroll_v st.ui pos ext -. 0.05 *. view_wheel st.ui in
+  let wheel = if shift then 0.0 else view_wheel st.ui in
+  let pos' = view_scroll_v st.ui pos ext -. 0.05 *. wheel in
   (* Possible vertical scrolling activity: update scroll position *)
   view.scroll_v <- clamp 0 (max 0 (len - view.fit))
     (int_of_float (Float.round (pos' *. float len)));
@@ -1479,7 +1481,8 @@ let run_library (st : State.t) =
   let vw' = max vw (view.scroll_h + w) in
   let ext = if vw' = 0 then 1.0 else min 1.0 (float w /. float vw') in
   let pos = if vw' = 0 then 0.0 else float view.scroll_h /. float vw' in
-  let pos' = view_scroll_h st.ui pos ext in
+  let wheel = if shift then view_wheel st.ui else 0.0 in
+  let pos' = view_scroll_h st.ui pos ext -. 0.05 *. wheel in
   (* Possible horizontal scrolling activity: update scroll position *)
   view.scroll_h <-
     clamp 0 (max 0 (vw' - w)) (int_of_float (Float.round (pos' *. float vw')));
