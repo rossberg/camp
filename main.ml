@@ -1314,7 +1314,7 @@ let run_library (st : State.t) =
     | Some _ -> Api.Mouse.set_cursor win (`Resize `E_W)
   );
 
-  (* Tracks wiew *)
+  (* Tracks view *)
   let _, _, _, h = Ui.dim st.ui (tracks_area row_h) in
   tab.fit <- max 4 (int_of_float (Float.floor (float h /. float row_h)));
   let len = Array.length tab.entries in
@@ -1566,9 +1566,13 @@ let run_library (st : State.t) =
   | `Click ->
     (match find_heading mx with
     | None -> ()
-    | Some attr ->
+    | Some attr' ->
       (* Click on column header: reorder view accordingly *)
-      Library.reorder_tracks st.library attr
+      let attr, order = dir.tracks_sorting in
+      let order' = if attr' = attr then Data.rev_order order else `Asc in
+      dir.tracks_sorting <- attr', order';
+      Library.update_dir st.library dir;
+      Library.reorder_tracks st.library;
     )
   | `Drag (dx, _) ->
     (match find_gutter (mx - dx) with
@@ -1582,6 +1586,7 @@ let run_library (st : State.t) =
       && Api.Key.is_modifier_down `Shift then
         (* Shift-drag of gutter: also resize column to the right inversely *)
         dir.tracks_columns.(i + 1) <- add_snd (-dx) dir.tracks_columns.(i + 1);
+      Library.update_dir st.library dir;
     )
   )
 

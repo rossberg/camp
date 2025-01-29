@@ -317,7 +317,10 @@ let create_dirs = create_table
     divider_h INT NOT NULL,
     artists_col TEXT NOT NULL,
     albums_col TEXT NOT NULL,
-    tracks_col TEXT NOT NULL
+    tracks_col TEXT NOT NULL,
+    artists_sort TEXT NOT NULL,
+    albums_sort TEXT NOT NULL,
+    tracks_sort TEXT NOT NULL
   );
 |}
 
@@ -339,6 +342,9 @@ let to_dir data : dir =
     artists_columns = artist_columns_of_string (to_text 10 data);
     albums_columns = album_columns_of_string (to_text 11 data);
     tracks_columns = track_columns_of_string (to_text 12 data);
+    artists_sorting = artist_sorting_of_string (to_text 13 data);
+    albums_sorting = album_sorting_of_string (to_text 14 data);
+    tracks_sorting = track_sorting_of_string (to_text 15 data);
   }
 
 let bind_dir stmt _ (dir : dir) =
@@ -361,6 +367,9 @@ let bind_dir stmt _ (dir : dir) =
   let* () = bind_text stmt 10 (string_of_artist_columns dir.artists_columns) in
   let* () = bind_text stmt 11 (string_of_album_columns dir.albums_columns) in
   let* () = bind_text stmt 12 (string_of_track_columns dir.tracks_columns) in
+  let* () = bind_text stmt 13 (string_of_artist_sorting dir.artists_sorting) in
+  let* () = bind_text stmt 14 (string_of_album_sorting dir.albums_sorting) in
+  let* () = bind_text stmt 15 (string_of_track_sorting dir.tracks_sorting) in
   return
 
 
@@ -386,7 +395,7 @@ let iter_dirs = iter_table [||] to_dir @@ stmt
 
 let insert_dir = insert_into_table bind_dir (fun d id -> d.id <-id) @@ stmt
 {|
-  INSERT OR REPLACE INTO Dirs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  INSERT OR REPLACE INTO Dirs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 |}
 
 let delete_dirs = delete_from_table_prefix @@ stmt

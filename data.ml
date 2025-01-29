@@ -42,6 +42,7 @@ type album_attr = [ file_attr | format_attr | meta_attr ]
 type track_attr = [ file_attr | format_attr | meta_attr | `Pos ]
 type any_attr = [ artist_attr | album_attr | track_attr ]
 
+type 'attr sorting = 'attr * [`Asc | `Desc]
 type 'attr columns = ('attr * int) array
 
 
@@ -65,6 +66,9 @@ type dir =
   mutable artists_columns : artist_attr columns;
   mutable albums_columns : album_attr columns;
   mutable tracks_columns : track_attr columns;
+  mutable artists_sorting : artist_attr sorting;
+  mutable albums_sorting : album_attr sorting;
+  mutable tracks_sorting : track_attr sorting;
 }
 
 type file =
@@ -174,6 +178,9 @@ let make_dir path parent nest pos : dir =
     artists_columns = artists_columns;
     albums_columns = albums_columns;
     tracks_columns = tracks_columns;
+    artists_sorting = `Artist, `Asc;
+    albums_sorting = `Artist, `Asc;
+    tracks_sorting = `Artist, `Asc;
   }
 
 let make_file () : file =
@@ -221,6 +228,20 @@ let make_playlist path : playlist =
 
 (* String Conversion *)
 
+let string_of_order = function
+  | `Asc -> "+"
+  | `Desc -> "-"
+
+let order_of_char = function
+  | '+' -> `Asc
+  | '-' -> `Desc
+  | _ -> failwith ""
+
+let rev_order = function
+  | `Asc -> `Desc
+  | `Desc -> `Asc
+
+
 let attr_str =
 [
   `FilePath, "PTH";
@@ -253,33 +274,54 @@ let attr_str =
 let string_of_attr attr = List.assoc (attr :> any_attr) attr_str
 let attr_of_string s = fst (List.find (fun (_, s') -> s' = s) attr_str)
 
+let string_of_sorting (attr, order) =
+  string_of_order order ^ string_of_attr attr
+
+let sorting_of_string to_attr s =
+  to_attr (attr_of_string (String.sub s 1 (String.length s - 1))),
+  order_of_char s.[0]
+
 let string_of_column (attr, w) = string_of_attr attr ^ string_of_int w
-let column_of_string s =
-  attr_of_string (String.sub s 0 3),
+let column_of_string to_attr s =
+  to_attr (attr_of_string (String.sub s 0 3)),
   int_of_string (String.sub s 3 (String.length s - 3))
 
 let string_of_columns cs =
   String.concat " " (Array.to_list (Array.map string_of_column cs))
-let columns_of_string to_column s =
-  Array.of_list (List.map (fun s -> to_column (column_of_string s))
-    (List.filter ((<>) "") (String.split_on_char ' ' s)))
 
-let to_artist_column = function
-  | #artist_attr as attr, n -> attr, n
-  | _ -> failwith "to_artist_column"
+let columns_of_string to_attr s =
+  try
+    Array.of_list (List.map (column_of_string to_attr)
+      (List.filter ((<>) "") (String.split_on_char ' ' s)))
+  with exn ->
+    Storage.log ("malformed columns format: " ^ s);
+    raise exn
 
-let to_album_column = function
-  | #album_attr as attr, n -> attr, n
+let to_artist_attr = function
+  | #artist_attr as attr -> attr
+  | _ -> failwith "to_artist_attr"
+
+let to_album_attr = function
+  | #album_attr as attr -> attr
   | _ -> failwith "to_album_column"
 
-let to_track_column = function
-  | #track_attr as attr, n -> attr, n
+let to_track_attr = function
+  | #track_attr as attr -> attr
   | _ -> failwith "to_track_column"
+
+
+let string_of_artist_sorting (s : artist_attr sorting) = string_of_sorting s
+let string_of_album_sorting (s : album_attr sorting) = string_of_sorting s
+let string_of_track_sorting (s : track_attr sorting) = string_of_sorting s
 
 let string_of_artist_columns (cs : artist_attr columns) = string_of_columns cs
 let string_of_album_columns (cs : album_attr columns) = string_of_columns cs
 let string_of_track_columns (cs : track_attr columns) = string_of_columns cs
 
-let artist_columns_of_string s = columns_of_string to_artist_column s
-let album_columns_of_string s = columns_of_string to_album_column s
-let track_columns_of_string s = columns_of_string to_track_column s
+let artist_sorting_of_string s = sorting_of_string to_artist_attr s
+let album_sorting_of_string s = sorting_of_string to_album_attr s
+let track_sorting_of_string s = sorting_of_string to_track_attr s
+
+let artist_columns_of_string s = columns_of_string to_artist_attr s
+let album_columns_of_string s = columns_of_string to_album_attr s
+let track_columns_of_string s = columns_of_string to_track_attr s

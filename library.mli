@@ -57,6 +57,7 @@ val rescan_done : t -> bool
 (* Browser *)
 
 val update_browser : t -> unit
+val update_dir : t -> dir -> unit
 
 val fold_dir : t -> dir -> bool -> unit
 
@@ -73,7 +74,7 @@ val attr_align : [< any_attr] -> [> `Left | `Right]
 val track_attr_string : track -> track_attr -> string
 
 val update_tracks : t -> unit
-val reorder_tracks : t -> track_attr -> unit
+val reorder_tracks : t -> unit
 
 val has_selection : t -> bool
 val num_selected : t -> int

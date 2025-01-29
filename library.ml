@@ -388,6 +388,9 @@ let make_all lib =
   dir.children <- Array.map Data.link_val lib.roots;
   dir
 
+let update_dir lib dir =
+  Db.insert_dir lib.db dir
+
 let update_browser lib =
   let rec entries dir acc =
     dir :: ( if dir.folded then acc else
@@ -577,34 +580,33 @@ let restore_tracks_selection lib selection =
   Table.adjust_scroll lib.tracks (first_selected lib)
 
 
+let sort_tracks tracks (attr, order) =
+  let enriched_tracks =
+    Array.map (fun track -> track_attr_string track attr, track) tracks in
+  let sign = if order = `Asc then +1 else - 1 in
+  let cmp t1 t2 = sign * compare (fst t1) (fst t2) in
+  Array.stable_sort cmp enriched_tracks;
+  Array.map snd enriched_tracks
+
 let update_tracks lib =
   let selection = save_tracks_selection lib in
-  let tracks = ref [] in
+  let tracks' = ref [||] in
   Option.iter (fun (dir : dir) ->
     let path = Filename.concat dir.path "" in
+    let tracks = ref [] in
     Db.iter_tracks_for lib.db path (fun tr -> tracks := tr :: !tracks);
+    tracks' := sort_tracks (Array.of_list !tracks) dir.tracks_sorting;
   ) lib.current;
-  lib.tracks.entries <- array_of_list_rev !tracks;
+  lib.tracks.entries <- !tracks';
   Table.adjust_pos lib.tracks;
   restore_tracks_selection lib selection
 
-
-let array_is_sorted cmp a =
-  let rec loop i =
-    i >= Array.length a || cmp a.(i - 1) a.(i) <= 0 && loop (i + 1)
-  in loop 1
-
-let reorder_tracks lib attr =
-Printf.printf "[reorder]\n%!";
-  let selection = save_tracks_selection lib in
-  let entries' =
-    Array.map (fun track -> track_attr_string track attr, track) lib.tracks.entries in
-  let cmp_asc t1 t2 = compare (fst t1) (fst t2) in
-  let cmp_desc t1 t2 = - cmp_asc t1 t2 in
-  let cmp = if array_is_sorted cmp_asc entries' then cmp_desc else cmp_asc in
-  Array.stable_sort cmp entries';
-  lib.tracks.entries <- Array.map snd entries';
-  restore_tracks_selection lib selection
+let reorder_tracks lib =
+  Option.iter (fun (dir : dir) ->
+    let selection = save_tracks_selection lib in
+    lib.tracks.entries <- sort_tracks lib.tracks.entries dir.tracks_sorting;
+    restore_tracks_selection lib selection;
+  ) lib.current
 
 
 (* Persistance *)
