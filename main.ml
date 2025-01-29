@@ -1230,6 +1230,7 @@ let run_library (st : State.t) =
     dir.artists_shown <- artists';
     if not (artists' || dir.albums_shown || dir.tracks_shown) then
       dir.tracks_shown <- true;
+    Library.update_dir st.library dir;
   );
 
   let albums = have_dir && dir.albums_shown in
@@ -1243,6 +1244,7 @@ let run_library (st : State.t) =
     dir.albums_shown <- albums';
     if not (albums' || dir.artists_shown || dir.tracks_shown) then
       dir.tracks_shown <- true;
+    Library.update_dir st.library dir;
   );
 
   let tracks = have_dir && dir.tracks_shown in
@@ -1256,6 +1258,7 @@ let run_library (st : State.t) =
     dir.tracks_shown <- tracks';
     if not (tracks' || dir.artists_shown || dir.albums_shown) then
       dir.artists_shown <- true;
+    Library.update_dir st.library dir;
   );
 
   (* Error display *)
