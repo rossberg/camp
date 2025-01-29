@@ -19,6 +19,8 @@ let (let*) rc f =
   | Sqlite3.Rc.(OK | DONE | ROW) -> f ()
   | _ -> Sqlite3.Rc.check rc; f ()
 
+let return = Sqlite3.Rc.OK
+
 
 (* Statement Preparation *)
 
@@ -92,6 +94,113 @@ let album_id_of_link link =
   | `Val (album : album) -> album.id
 
 
+let of_status = function
+  | `Undet -> 0
+  | `Predet -> 1
+  | `Det -> 2
+  | `Invalid -> -1
+  | `Absent -> -2
+
+let to_status = function
+  | 1 -> `Predet
+  | 2 -> `Det
+  | -1 -> `Invalid
+  | -2 -> `Absent
+  | _ -> `Undet
+
+
+let file_cols = 3
+let format_cols = 7
+let meta_cols = 12
+
+let bind_file stmt i (file : file) =
+  assert (file.age > 0.0);
+  let* () = bind_int_default stmt (i + 0) file.size in
+  let* () = bind_float_default stmt (i + 1) file.time in
+  let* () = bind_float_default stmt (i + 2) file.age in
+  assert (3 = file_cols);
+  return
+
+let bind_format stmt i (format : Format.t) =
+  let* () = bind_text_default stmt (i + 0) format.codec in
+  let* () = bind_int_default stmt (i + 1) format.channels in
+  let* () = bind_int_default stmt (i + 2) format.depth in
+  let* () = bind_int_default stmt (i + 3) format.rate in
+  let* () = bind_float_default stmt (i + 4) format.bitrate in
+  let* () = bind_int_default stmt (i + 5) format.size in
+  let* () = bind_float_default stmt (i + 6) format.time in
+  assert (7 = format_cols);
+  return
+
+let bind_meta stmt i (meta : Meta.t) =
+  let* () = bind_text_default stmt (i + 0) meta.artist in
+  let* () = bind_text_default stmt (i + 1) meta.title in
+  let* () = bind_int_default stmt (i + 2) meta.track in
+  let* () = bind_int_default stmt (i + 3) meta.disc in
+  let* () = bind_text_default stmt (i + 4) meta.albumartist in
+  let* () = bind_text_default stmt (i + 5) meta.albumtitle in
+  let* () = bind_text_default stmt (i + 6) meta.date_txt in
+  let* () = bind_text_default stmt (i + 7) meta.label in
+  let* () = bind_text_default stmt (i + 8) meta.country in
+  let* () = bind_float_default stmt (i + 9) meta.length in
+  let* () = bind_int_default stmt (i + 10) meta.rating in
+  let* () = bind_null stmt (i + 11) in  (* cover *)
+  assert (12 = meta_cols);
+  return
+
+
+let rec all_null i n data =
+  n = 0 || data.(i) = Sqlite3.Data.NULL && all_null (i + 1) (n - 1) data
+
+let to_file i data : file =
+  {
+    size = to_int_default (i + 0) data;
+    time = to_float_default (i + 1) data;
+    age = to_float_default (i + 2) data;
+  }
+
+let to_format i data : Format.t option =
+  if all_null i format_cols data then None else
+  Some Format.
+  {
+    codec = to_text_default (i + 0) data;
+    channels = to_int_default (i + 1) data;
+    depth = to_int_default (i + 2) data;
+    rate = to_int_default (i + 3) data;
+    bitrate = to_float_default (i + 4) data;
+    size = to_int_default (i + 5) data;
+    time = to_float_default (i + 6) data;
+  }
+
+let to_meta i data : Meta.t option =
+  if all_null i meta_cols data then None else
+  let track = to_int_default (i + 2) data in
+  let disc = to_int_default (i + 3) data in
+  let date_txt = to_text_default (i + 6) data in
+  Some Meta.
+  {
+    loaded = true;
+    artist = to_text_default (i + 0) data;
+    title = to_text_default (i + 1) data;
+    track;
+    track_txt = if track = 0 then "" else Printf.sprintf "%02d" track;
+    tracks = 0;
+    disc;
+    disc_txt = if disc = 0 then "" else string_of_int disc;
+    discs = 0;
+    albumartist = to_text_default (i + 4) data;
+    albumtitle = to_text_default (i + 5) data;
+    date_txt;
+    date = Meta.date_of_string date_txt;
+    year = Meta.year_of_string date_txt;
+    label = to_text_default (i + 7) data;
+    country = to_text_default (i + 8) data;
+    length = to_float_default (i + 9) data;
+    rating = to_int_default (i + 10) data;
+    cover = None;
+  }
+
+
 (* Generic statements *)
 
 let create_table sql db =
@@ -125,6 +234,13 @@ let find_in_table of_data stmt db path =
   let* () = Sqlite3.iter stmt ~f in
   !result
 
+let insert_into_table bind_x f stmt db x =
+  let& () = db in
+  let stmt = prepare db stmt in
+  let* () = bind_x stmt 1 x in
+  let* () = Sqlite3.step stmt in
+  f x (Sqlite3.last_insert_rowid db)
+
 let delete_from_table stmt db path =
   let& () = db in
   let stmt = prepare db stmt in
@@ -150,26 +266,11 @@ let iter_table binds of_data stmt db f =
 
 (* Roots *)
 
-let to_root data : dir =
-  {
-    id = to_id 0 data;
-    path = to_text 1 data;
-    name = to_text 2 data;
-    children = [||];
-    pos = to_int 3 data;
-    nest = 0;
-    folded = to_bool 4 data;
-  }
-
-
 let create_roots = create_table
 {|
   CREATE TABLE IF NOT EXISTS Roots
   (
-    path TEXT NOT NULL PRIMARY KEY,
-    name TEXT NOT NULL,
-    pos INT NOT NULL,
-    folded INT NOT NULL
+    path TEXT NOT NULL PRIMARY KEY
   );
 |}
 
@@ -183,71 +284,85 @@ let exists_root = exist_in_table @@ stmt
   SELECT COUNT(*) FROM Roots WHERE path = ?;
 |}
 
-let iter_roots = iter_table [||] to_root @@ stmt
+let iter_roots = iter_table [||] (to_text 0) @@ stmt
 {|
-  SELECT rowid, * FROM Roots;
+  SELECT * FROM Roots;
 |}
 
-
-let stmt_insert_root = stmt
+let insert_root = insert_into_table bind_text (fun _ _ -> ()) @@ stmt
 {|
-  INSERT OR REPLACE INTO Roots VALUES (?, ?, ?, ?);
+  INSERT OR REPLACE INTO Roots VALUES (?);
 |}
-
-let insert_root db (root : dir) =
-  let& () = db in
-  let stmt = prepare db stmt_insert_root in
-  let* () = bind_text stmt 1 root.path in
-  let* () = bind_text stmt 2 root.name in
-  let* () = bind_int stmt 3 root.pos in
-  let* () = bind_bool stmt 4 root.folded in
-  let* () = Sqlite3.step stmt in
-  root.id <- Sqlite3.last_insert_rowid db
 
 let delete_root = delete_from_table @@ stmt
 {|
   DELETE FROM Roots WHERE path = ?;
 |}
 
-let stmt_update_roots_pos = stmt
-{|
-  UPDATE Roots SET pos = pos + (?) WHERE pos >= ?;
-|}
-
-let update_roots_pos db first delta =
-  let& () = db in
-  let stmt = prepare db stmt_update_roots_pos in
-  let* () = bind_int stmt 1 delta in
-  let* () = bind_int stmt 2 first in
-  let* () = Sqlite3.step stmt in
-  ()
-
 
 (* Dirs *)
-
-let to_dir data : dir =
-  {
-    id = to_id 0 data;
-    path = to_text 1 data;
-    name = to_text 2 data;
-    children = [||];
-    pos = to_int 3 data;
-    nest = to_int 4 data;
-    folded = to_bool 5 data;
-  }
-
 
 let create_dirs = create_table
 {|
   CREATE TABLE IF NOT EXISTS Dirs
   (
     path TEXT NOT NULL PRIMARY KEY,
+    parent TEXT,
     name TEXT NOT NULL,
     pos INT NOT NULL,
     nest INT NOT NULL,
-    folded INT NOT NULL
+    folded INT NOT NULL,
+    shown INT NOT NULL,
+    divider_w INT NOT NULL,
+    divider_h INT NOT NULL,
+    artists_col TEXT NOT NULL,
+    albums_col TEXT NOT NULL,
+    tracks_col TEXT NOT NULL
   );
 |}
+
+let to_dir data : dir =
+  {
+    id = to_id 0 data;
+    path = to_text 1 data;
+    parent = to_text_opt 2 data;
+    name = to_text 3 data;
+    children = [||];
+    pos = to_int 4 data;
+    nest = to_int 5 data;
+    folded = to_bool 6 data;
+    artists_shown = to_int 7 data land 1 <> 0;
+    albums_shown = to_int 7 data land 2 <> 0;
+    tracks_shown = to_int 7 data land 4 <> 0;
+    divider_width = to_int 8 data;
+    divider_height = to_int 9 data;
+    artists_columns = artist_columns_of_string (to_text 10 data);
+    albums_columns = album_columns_of_string (to_text 11 data);
+    tracks_columns = track_columns_of_string (to_text 12 data);
+  }
+
+let bind_dir stmt _ (dir : dir) =
+  assert ((dir.nest = 0) = (dir.parent = None));
+  let* () = bind_text stmt 1 dir.path in
+  let* () = bind_text_opt stmt 2 dir.parent in
+  let* () = bind_text stmt 3 dir.name in
+  let* () = bind_int stmt 4 dir.pos in
+  let* () = bind_int stmt 5 dir.nest in
+  let* () = bind_bool stmt 6 dir.folded in
+  let* () = bind_int stmt 7
+    Bool.(
+      to_int dir.artists_shown +
+      to_int dir.albums_shown lsl 1 +
+      to_int dir.tracks_shown lsl 2
+    )
+  in
+  let* () = bind_int stmt 8 dir.divider_width in
+  let* () = bind_int stmt 9 dir.divider_height in
+  let* () = bind_text stmt 10 (string_of_artist_columns dir.artists_columns) in
+  let* () = bind_text stmt 11 (string_of_album_columns dir.albums_columns) in
+  let* () = bind_text stmt 12 (string_of_track_columns dir.tracks_columns) in
+  return
+
 
 let count_dirs = count_table @@ stmt
 {|
@@ -269,27 +384,30 @@ let iter_dirs = iter_table [||] to_dir @@ stmt
   SELECT rowid, * FROM Dirs;
 |}
 
-
-let stmt_insert_dir = stmt
+let insert_dir = insert_into_table bind_dir (fun d id -> d.id <-id) @@ stmt
 {|
-  INSERT OR REPLACE INTO Dirs VALUES (?, ?, ?, ?, ?);
+  INSERT OR REPLACE INTO Dirs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 |}
-
-let insert_dir db (dir : dir) =
-  let& () = db in
-  let stmt = prepare db stmt_insert_dir in
-  let* () = bind_text stmt 1 dir.path in
-  let* () = bind_text stmt 2 dir.name in
-  let* () = bind_int stmt 3 dir.pos in
-  let* () = bind_int stmt 4 dir.nest in
-  let* () = bind_bool stmt 5 dir.folded in
-  let* () = Sqlite3.step stmt in
-  dir.id <- Sqlite3.last_insert_rowid db
 
 let delete_dirs = delete_from_table_prefix @@ stmt
 {|
   DELETE FROM Dirs WHERE path LIKE ?;
 |}
+
+
+let stmt_update_dirs_pos = stmt
+{|
+  UPDATE Dirs SET pos = pos + (?) WHERE parent = ? AND pos >= ?;
+|}
+
+let update_dirs_pos db parent first delta =
+  let& () = db in
+  let stmt = prepare db stmt_update_dirs_pos in
+  let* () = bind_int stmt 1 delta in
+  let* () = bind_text_opt stmt 2 parent in
+  let* () = bind_int stmt 3 first in
+  let* () = Sqlite3.step stmt in
+  ()
 
 
 (* Albums *)
@@ -299,16 +417,47 @@ let create_albums = create_table
   CREATE TABLE IF NOT EXISTS Albums
   (
     path TEXT NOT NULL PRIMARY KEY,
+    filesize INT,
+    filetime REAL,
+    fileage REAL,
+    codec TEXT,
+    channels INT,
+    depth INT,
+    rate INT,
+    bitrate REAL,
+    size INT,
+    time REAL,
     artist TEXT,
     title TEXT,
-    tracks INT,
-    discs INT,
+    track INT,
+    disc INT,
+    albumartist TEXT,
+    albumtitle TEXT,
     date TEXT,
     label TEXT,
     country TEXT,
+    length REAL,
+    rating INT,
     cover BLOB
   );
 |}
+
+let to_album data : album =
+  {
+    id = to_id 0 data;
+    path = to_text 1 data;
+    file = to_file 2 data;
+    format = to_format (2 + file_cols) data;
+    meta = to_meta (2 + file_cols + format_cols) data;
+  }
+
+let bind_album stmt _ (album : album) =
+  let* () = bind_text stmt 1 album.path in
+  let* () = bind_file stmt 2 album.file in
+  let* () = bind_opt bind_format stmt (2 + file_cols) album.format in
+  let* () = bind_opt bind_meta stmt (2 + file_cols + format_cols) album.meta in
+  return
+
 
 let count_albums = count_table @@ stmt
 {|
@@ -320,26 +469,16 @@ let exist_album = exist_in_table @@ stmt
   SELECT COUNT(*) FROM Albums WHERE path = ?;
 |}
 
-
-let stmt_insert_album = stmt
+let find_album = find_in_table to_album @@ stmt
 {|
-  INSERT OR REPLACE INTO Albums VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+  SELECT rowid, * FROM Tracks WHERE path = ?;
 |}
 
-let insert_album db (album : album) =
-  let& () = db in
-  let stmt = prepare db stmt_insert_album in
-  let* () = bind_text stmt 1 album.path in
-  let* () = bind_text_opt stmt 2 album.artist in
-  let* () = bind_text_opt stmt 3 album.title in
-  let* () = bind_int_opt stmt 4 album.tracks in
-  let* () = bind_int_opt stmt 5 album.discs in
-  let* () = bind_text_opt stmt 6 album.date in
-  let* () = bind_text_opt stmt 7 album.label in
-  let* () = bind_text_opt stmt 8 album.country in
-  let* () = bind_null stmt 9 in
-  let* () = Sqlite3.step stmt in
-  album.id <- Sqlite3.last_insert_rowid db
+let insert_album = insert_into_table bind_album (fun a id -> a.id <- id) @@ stmt
+{|
+  INSERT OR REPLACE INTO Albums
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+|}
 
 let delete_albums = delete_from_table_prefix @@ stmt
 {|
@@ -349,81 +488,11 @@ let delete_albums = delete_from_table_prefix @@ stmt
 
 (* Tracks *)
 
-let all_null is data =
-  Array.for_all (fun i -> data.(i) = Sqlite3.Data.NULL) is
-
-let format_fields = [|6; 7; 8; 9; 10; 11; 12|]
-let meta_fields = [|13; 14; 15; 16; 17; 18; 19; 20; 21; 22; 23|]
-
-let of_status = function
-  | `Undet -> 0
-  | `Predet -> 1
-  | `Det -> 2
-  | `Invalid -> -1
-  | `Absent -> -2
-
-let to_status = function
-  | 1 -> `Predet
-  | 2 -> `Det
-  | -1 -> `Invalid
-  | -2 -> `Absent
-  | _ -> `Undet
-
-let to_track data : track =
-  {
-    id = to_id 0 data;
-    path = to_text 1 data;
-    album = to_link_opt 2 data;
-    filesize = to_int_default 3 data;
-    filetime = to_float_default 4 data;
-    fileage = to_float_default 5 data;
-    status = to_status (to_int 25 data);
-    format = if all_null format_fields data then None else
-      Some Format.
-      {
-        codec = to_text_default 6 data;
-        channels = to_int_default 7 data;
-        depth = to_int_default 8 data;
-        rate = to_int_default 9 data;
-        bitrate = to_float_default 10 data;
-        size = to_int_default 11 data;
-        time = to_float_default 12 data;
-      };
-    meta = if all_null meta_fields data then None else
-      let track = to_int_default 15 data in
-      let disc = to_int_default 16 data in
-      let date_txt = to_text_default 19 data in
-      Some Meta.
-      {
-        loaded = true;
-        artist = to_text_default 13 data;
-        title = to_text_default 14 data;
-        track;
-        track_txt = if track = 0 then "" else string_of_int track;
-        tracks = 0;
-        disc;
-        disc_txt = if disc = 0 then "" else string_of_int disc;
-        discs = 0;
-        albumartist = to_text_default 17 data;
-        albumtitle = to_text_default 18 data;
-        date_txt;
-        date = Meta.date_of_string date_txt;
-        year = Meta.year_of_string date_txt;
-        label = to_text_default 20 data;
-        country = to_text_default 21 data;
-        length = to_float_default 22 data;
-        rating = to_int_default 23 data;
-        cover = None;
-      };
-  }
-
-
 let create_tracks = create_table
 {|
   CREATE TABLE IF NOT EXISTS Tracks
   (
     path TEXT NOT NULL PRIMARY KEY,
-    album_id INT,
     filesize INT,
     filetime REAL,
     fileage REAL,
@@ -446,16 +515,41 @@ let create_tracks = create_table
     length REAL,
     rating INT,
     cover BLOB,
+    album_id INT,
+    pos INT,
     status INT NOT NULL
   );
 |}
+
+let to_track data : track =
+  {
+    id = to_id 0 data;
+    path = to_text 1 data;
+    file = to_file 2 data;
+    format = to_format (2 + file_cols) data;
+    meta = to_meta (2 + file_cols + format_cols) data;
+    album = to_link_opt (2 + file_cols + format_cols + meta_cols) data;
+    pos = to_int (3 + file_cols + format_cols + meta_cols) data;
+    status = to_status (to_int (4 + file_cols + format_cols + meta_cols) data);
+  }
+
+let bind_track stmt _ (track : track) =
+  let* () = bind_text stmt 1 track.path in
+  let* () = bind_file stmt 2 track.file in
+  let* () = bind_opt bind_format stmt (2 + file_cols) track.format in
+  let* () = bind_opt bind_meta stmt (2 + file_cols + format_cols) track.meta in
+  let* () = bind_id_opt stmt (2 + file_cols + format_cols + meta_cols) (Option.map album_id_of_link track.album) in
+  let* () = bind_int stmt (3 + file_cols + format_cols + meta_cols) track.pos in
+  let* () = bind_int stmt (4 + file_cols + format_cols + meta_cols) (of_status track.status) in
+  assert (4 + file_cols + format_cols + meta_cols = 26);
+  return
 
 let count_tracks = count_table @@ stmt
 {|
   SELECT COUNT(*) FROM Tracks;
 |}
 
-let exist_track = exist_in_table @@ stmt
+let exists_track = exist_in_table @@ stmt
 {|
   SELECT COUNT(*) FROM Tracks WHERE path = ?;
 |}
@@ -475,50 +569,11 @@ let iter_tracks_for db path = db |> iter_table [|of_text (path ^ "%")|] to_track
   SELECT rowid, * FROM Tracks WHERE path LIKE ?;
 |}
 
-
-let stmt_insert_track = stmt
+let insert_track = insert_into_table bind_track (fun t id -> t.id <- id) @@ stmt
 {|
   INSERT OR REPLACE INTO Tracks
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 |}
-
-let insert_track db (track : track) =
-  assert (track.fileage > 0.0);
-  let& () = db in
-  let stmt = prepare db stmt_insert_track in
-  let* () = bind_text stmt 1 track.path in
-  let* () = bind_id_opt stmt 2 (Option.map album_id_of_link track.album) in
-  let* () = bind_int_default stmt 3 track.filesize in
-  let* () = bind_float_default stmt 4 track.filetime in
-  let* () = bind_float_default stmt 5 track.fileage in
-  let* () = bind_int stmt 25 (of_status track.status) in
-  Option.iter (fun (format : Format.t) ->
-    let* () = bind_text_default stmt 6 format.codec in
-    let* () = bind_int_default stmt 7 format.channels in
-    let* () = bind_int_default stmt 8 format.depth in
-    let* () = bind_int_default stmt 9 format.rate in
-    let* () = bind_float_default stmt 10 format.bitrate in
-    let* () = bind_int_default stmt 11 format.size in
-    let* () = bind_float_default stmt 12 format.time in
-    ()
-  ) track.format;
-  Option.iter (fun (meta : Meta.t) ->
-    let* () = bind_text_default stmt 13 meta.artist in
-    let* () = bind_text_default stmt 14 meta.title in
-    let* () = bind_int_default stmt 15 meta.track in
-    let* () = bind_int_default stmt 16 meta.disc in
-    let* () = bind_text_default stmt 17 meta.albumartist in
-    let* () = bind_text_default stmt 18 meta.albumtitle in
-    let* () = bind_text_default stmt 19 meta.date_txt in
-    let* () = bind_text_default stmt 20 meta.label in
-    let* () = bind_text_default stmt 21 meta.country in
-    let* () = bind_float_default stmt 22 meta.length in
-    let* () = bind_int_default stmt 23 meta.rating in
-    let* () = bind_null stmt 24 in
-    ()
-  ) track.meta;
-  let* () = Sqlite3.step stmt in
-  track.id <- Sqlite3.last_insert_rowid db
 
 let delete_tracks = delete_from_table_prefix @@ stmt
 {|
@@ -536,28 +591,36 @@ let create_playlists = create_table
   );
 |}
 
+let to_playlist data : playlist =
+  {
+    id = to_id 0 data;
+    path = to_text 1 data;
+  }
+
+let bind_playlist stmt _ (playlist : playlist) =
+  let* () = bind_text stmt 1 playlist.path in
+  return
+
+
 let count_playlists = count_table @@ stmt
 {|
   SELECT COUNT(*) FROM Playlists;
 |}
 
-let exist_playlist = exist_in_table @@ stmt
+let exists_playlist = exist_in_table @@ stmt
 {|
   SELECT COUNT(*) FROM Playlists WHERE path = ?;
 |}
 
+let find_playlist = find_in_table to_playlist @@ stmt
+{|
+  SELECT rowid, * FROM Playlists WHERE path = ?;
+|}
 
-let stmt_insert_playlist = stmt
+let insert_playlist = insert_into_table bind_playlist (fun p id -> p.id <- id) @@ stmt
 {|
   INSERT OR REPLACE INTO Playlists VALUES (?);
 |}
-
-let insert_playlist db (playlist : playlist) =
-  let& () = db in
-  let stmt = prepare db stmt_insert_playlist in
-  let* () = bind_text stmt 1 playlist.path in
-  let* () = Sqlite3.step stmt in
-  playlist.id <- Sqlite3.last_insert_rowid db
 
 let delete_playlists = delete_from_table_prefix @@ stmt
 {|

@@ -298,7 +298,7 @@ let picture_tag_field path tag : picture option =
         data = pic.Vorbis.data;
       }
 
-let meta path tag =
+let meta ?(with_cover = true) path tag =
   try
     {
       loaded = tag <> None;
@@ -319,7 +319,7 @@ let meta path tag =
       country = text_tag_field ("COUNTRY", "COUNTRY") path tag;
       length = time_tag_field ("TLEN", "???") path tag;
       rating = rating_tag_field ("POPM", "RATING WMP") path tag;
-      cover = picture_tag_field path tag;
+      cover = if with_cover then picture_tag_field path tag else None;
     }
   with exn ->
     let bt = Printexc.get_raw_backtrace () in
@@ -327,4 +327,4 @@ let meta path tag =
     Printexc.raise_with_backtrace exn bt
 
 
-let load path = meta path (load_tag path)
+let load ?with_cover path = meta ?with_cover path (load_tag path)

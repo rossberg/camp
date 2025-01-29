@@ -57,7 +57,7 @@ let make_from_data (track : Data.track) =
       | None -> 0.0
       );
     status = track.status;
-    last_update = track.fileage;
+    last_update = track.file.age;
   }
 
 

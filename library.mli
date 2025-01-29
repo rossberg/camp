@@ -3,31 +3,21 @@
 open Data
 type db = Db.t
 
-type attr =
-[
-  | `FilePath | `FileSize | `FileTime
-  | `Codec | `Channels | `Depth | `SampleRate | `Bitrate | `Rate
-  | `Artist | `Title | `Length | `Rating
-  | `AlbumArtist | `AlbumTitle | `Track | `Disc
-  | `Date | `Year | `Country | `Label
-]
-
 type t =
 {
   db : db;
+  mutable roots : dir array;
   mutable shown : bool;
   mutable side : Api.side;
   mutable width : int;
   mutable browser_width : int;
+  mutable current : dir option;
   mutable browser : dir Table.t;
-  mutable artists_shown : bool;
-  mutable albums_shown : bool;
-  mutable tracks_shown : bool;
-  mutable view : track Table.t;
+  mutable artists : artist Table.t;
+  mutable albums : album Table.t;
+  mutable tracks : track Table.t;
   mutable error : string;
   mutable error_time : time;
-  mutable roots : dir array;
-  mutable columns : (attr * int) array;
 }
 
 
@@ -56,12 +46,11 @@ val load_roots : t -> unit
 val add_roots : t -> path list -> int -> bool
 val remove_roots : t -> path list -> unit
 
-val count_roots : t -> int
-val iter_roots : t -> (dir -> unit) -> unit
-
 val rescan_roots : t -> unit
 val rescan_dirs : t -> dir array -> unit
 val rescan_tracks : t -> track array -> unit
+
+val rescan_busy : t -> bool
 val rescan_done : t -> bool
 
 
@@ -78,12 +67,13 @@ val deselect_dir : t -> unit
 
 (* View *)
 
-val attr_name : attr -> string
-val attr_align : attr -> [> `Left | `Right]
-val attr_string : track -> attr -> string
+val attr_name : [< any_attr] -> string
+val attr_align : [< any_attr] -> [> `Left | `Right]
 
-val update_view : t -> unit
-val reorder_view : t -> attr -> unit
+val track_attr_string : track -> track_attr -> string
+
+val update_tracks : t -> unit
+val reorder_tracks : t -> track_attr -> unit
 
 val has_selection : t -> bool
 val num_selected : t -> int

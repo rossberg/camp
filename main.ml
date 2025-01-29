@@ -205,35 +205,41 @@ let paste_key = Ui.key ([`Command], `Char 'V')
 (* Browser Pane *)
 let browser_pane = Ui.pane 2
 
-let browser_min = 120
-let view_min = 200
-let library_min = browser_min + view_min
-let browser_max pw = pw-view_min
+let browser_min = 150
+let views_min = 200
+let library_min = browser_min + views_min
+let browser_max pw = pw-views_min
 
 let browser_divider = Ui.divider (2, -divider_w, margin, divider_w, -bottom_h) `Horizontal
 
-let hier_w = 25
-let hier_h = 12
-let hier_x i = -margin-hier_w-i*(hier_w+8)-2
-let hier_y = margin+indicator_w+1
-let hier_indicator_x x = x + (hier_w - indicator_w)/2 + 1
-let hier_indicator i = Ui.indicator (2, hier_indicator_x (hier_x i), hier_y-indicator_w-1, indicator_w, indicator_w)
-let hier_button i = Ui.button (2, hier_x i, hier_y, hier_w, hier_h) ([], `None)
-let hier_label i label = Ui.label (2, hier_x i-4, hier_y+hier_h+1, hier_w+8, label_h) `Center label
+let scan_w = 32
+let scan_y = margin
+let scan_indicator_w = indicator_w+5
+let scan_indicator = Ui.indicator (2, margin+(scan_w-scan_indicator_w)/2, scan_y+label_h+2, scan_indicator_w, scan_indicator_w)
+let scan_label = Ui.label (2, margin, scan_y, scan_w, label_h) `Center "SCANNING"
 
-let artists_indicator = hier_indicator 2
-let artists_button = hier_button 2
-let artists_label = hier_label 2 "ARTISTS"
+let view_w = 25
+let view_h = 12
+let view_x i = -margin-view_w-i*(view_w+8)-2
+let view_y = margin+indicator_w+1
+let view_indicator_x x = x + (view_w - indicator_w)/2 + 1
+let view_indicator i = Ui.indicator (2, view_indicator_x (view_x i), view_y-indicator_w-1, indicator_w, indicator_w)
+let view_button i = Ui.button (2, view_x i, view_y, view_w, view_h) ([], `None)
+let view_label i label = Ui.label (2, view_x i-4, view_y+view_h+1, view_w+8, label_h) `Center label
 
-let albums_indicator = hier_indicator 1
-let albums_button = hier_button 1
-let albums_label = hier_label 1 "ALBUMS"
+let artists_indicator = view_indicator 2
+let artists_button = view_button 2
+let artists_label = view_label 2 "ARTISTS"
 
-let tracks_indicator = hier_indicator 0
-let tracks_button = hier_button 0
-let tracks_label = hier_label 0 "TRACKS"
+let albums_indicator = view_indicator 1
+let albums_button = view_button 1
+let albums_label = view_label 1 "ALBUMS"
 
-let browser_y = margin+indicator_w+hier_h+label_h+10
+let tracks_indicator = view_indicator 0
+let tracks_button = view_button 0
+let tracks_label = view_label 0 "TRACKS"
+
+let browser_y = margin+indicator_w+view_h+label_h+10
 let browser_area = (2, margin, browser_y, -scrollbar_w-divider_w, -bottom_h)
 let browser_error_box = Ui.box browser_area
 let browser_table = Ui.table browser_area 0
@@ -244,20 +250,20 @@ let browser_drag = Ui.drag browser_area
 let del_key = Ui.key ([`Command], `Delete)
 
 
-(* View Pane *)
-let view_pane = Ui.pane 3
+(* Tracks view Pane *)
+let tracks_pane = Ui.pane 3
 
 let header_area rh = (3, 0, margin, -margin-scrollbar_w-1, rh)
 let header_table rh = Ui.table (header_area rh) gutter_w rh
 let header_drag rh = Ui.drag (header_area rh)
 let header_margin = 2
 
-let view_area rh = (3, 0, margin+rh+header_margin, -margin-scrollbar_w-1, -bottom_h-scrollbar_w-1)
-let view_table rh = Ui.table (view_area rh) gutter_w rh
-let view_scroll_v = Ui.scroll_bar (3, -margin-scrollbar_w, margin, scrollbar_w, -bottom_h) `Vertical
-let view_scroll_h = Ui.scroll_bar (3, 0, -bottom_h-scrollbar_w, -margin-scrollbar_w-1, scrollbar_w) `Horizontal
-let view_wheel = Ui.wheel (3, 0, margin, -margin, -bottom_h-scrollbar_w-1)
-let view_drag rh = Ui.drag (view_area rh)
+let tracks_area rh = (3, 0, margin+rh+header_margin, -margin-scrollbar_w-1, -bottom_h-scrollbar_w-1)
+let tracks_table rh = Ui.table (tracks_area rh) gutter_w rh
+let tracks_scroll_v = Ui.scroll_bar (3, -margin-scrollbar_w, margin, scrollbar_w, -bottom_h) `Vertical
+let tracks_scroll_h = Ui.scroll_bar (3, 0, -bottom_h-scrollbar_w, -margin-scrollbar_w-1, scrollbar_w) `Horizontal
+let tracks_wheel = Ui.wheel (3, 0, margin, -margin, -bottom_h-scrollbar_w-1)
+let tracks_drag rh = Ui.drag (tracks_area rh)
 
 let error_x = 0
 let error_w = -margin
@@ -1055,7 +1061,7 @@ let run_library (st : State.t) =
   if Library.rescan_done st.library then
   (
     Library.update_browser st.library;
-    Library.update_view st.library;
+    Library.update_tracks st.library;
   );
 
   (* Pane divider *)
@@ -1066,13 +1072,13 @@ let run_library (st : State.t) =
   browser_pane st.ui (bx, 0, st.library.browser_width, control_h + dh);
 
   (* Browser *)
-  let brow = st.library.browser in
-  let len = Array.length brow.entries in
+  let browser = st.library.browser in
+  let len = Array.length browser.entries in
   let (x, y, w, h) as r = Ui.dim st.ui browser_area in
   st.library.browser.fit <-
     max 4 (int_of_float (Float.floor (float h /. float row_h)));
   (* Correct scrolling position for possible resize *)
-  brow.scroll_v <- clamp 0 (max 0 (len - brow.fit)) brow.scroll_v;
+  browser.scroll_v <- clamp 0 (max 0 (len - browser.fit)) browser.scroll_v;
   let cols = [|w, `Left|] in
   let c = Ui.text_color st.ui in
   let sel = Library.selected_dir st.library in
@@ -1083,19 +1089,19 @@ let run_library (st : State.t) =
         if dir.folded then symbol_folded else symbol_unfolded
       in
       if dir.nest = -1 then "" else String.make (2 * dir.nest) ' ' ^ sym ^ " "
-    ) brow.entries
+    ) browser.entries
   in
   let rows =
     Array.mapi (fun i (dir : Data.dir) ->
       let inv = if Some i = sel then `Inverted else `Regular in
       c, inv, [|pres.(i) ^ dir.name|]
-    ) brow.entries
+    ) browser.entries
   in
   let dragging = browser_drag st.ui (max_int, row_h) in
   (match browser_table row_h st.ui cols rows 0 with
   | None -> ()
   | Some i ->
-    let i = brow.scroll_v + i in
+    let i = browser.scroll_v + i in
     if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
     (
       (* Mouse button down: adjust cursor *)
@@ -1116,7 +1122,7 @@ let run_library (st : State.t) =
         (* Click into empty space: deselect everything *)
         Library.deselect_dir st.library;
         Library.deselect_all st.library;
-        Library.update_view st.library;
+        Library.update_tracks st.library;
       )
       else
       (
@@ -1124,7 +1130,7 @@ let run_library (st : State.t) =
         if mx < x + tw then
         (
           (* CLick on triangle: fold/unfold entry *)
-          let dir = brow.entries.(i) in
+          let dir = browser.entries.(i) in
           Library.fold_dir st.library dir (not dir.folded);
         )
         else
@@ -1134,14 +1140,14 @@ let run_library (st : State.t) =
           (
             Library.select_dir st.library i;
             Library.deselect_all st.library;
-            Library.update_view st.library;
+            Library.update_tracks st.library;
           );
           if Api.Mouse.is_doubleclick `Left then
           (
             (* Double-click on directory name: send track view to playlist *)
             Control.eject st.control;
             Playlist.remove_all st.playlist;
-            let tracks = Array.map Track.make_from_data st.library.view.entries in
+            let tracks = Array.map Track.make_from_data st.library.tracks.entries in
             Playlist.insert st.playlist 0 tracks;
             if tracks <> [||] then
               Control.switch st.control tracks.(0) true;
@@ -1156,7 +1162,7 @@ let run_library (st : State.t) =
       if Api.inside m r then
       (
         (* Drag & drop onto playlist: send directory contents to playlist *)
-        let tracks = Array.map Track.make_from_data st.library.view.entries in
+        let tracks = Array.map Track.make_from_data st.library.tracks.entries in
         let len = Array.length st.playlist.table.entries in
         let pos = min len ((my - y) / row_h + st.playlist.table.scroll_v) in
         Playlist.insert st.playlist pos tracks;
@@ -1169,80 +1175,87 @@ let run_library (st : State.t) =
   );
 
   (* Browser scrolling *)
-  let h' = brow.fit * row_h in
+  let h' = browser.fit * row_h in
   let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
-  let pos = if len = 0 then 0.0 else float brow.scroll_v /. float len in
+  let pos = if len = 0 then 0.0 else float browser.scroll_v /. float len in
   let pos' = browser_scroll st.ui pos ext -. 0.05 *. browser_wheel st.ui in
   (* Possible scrolling activity: update scroll position *)
-  brow.scroll_v <- clamp 0 (max 0 (len - brow.fit))
+  browser.scroll_v <- clamp 0 (max 0 (len - browser.fit))
     (int_of_float (Float.round (pos' *. float len)));
 
   (* Browser drag & drop *)
   let dropped = Api.File.dropped win in
   if dropped <> [] && Api.inside m r then
   (
-    let pos = min len ((my - y) / row_h + brow.scroll_v) in
+    let pos = min len ((my - y) / row_h + browser.scroll_v) in
     let rec find_root_pos i j =
       if i = pos then j else
-      find_root_pos (i + 1) (if brow.entries.(i).nest = 0 then j + 1 else j)
+      find_root_pos (i + 1) (if browser.entries.(i).nest = 0 then j + 1 else j)
     in
     if Library.add_roots st.library dropped (find_root_pos 0 0) then
-      Library.update_view st.library
+      Library.update_tracks st.library
     else
       browser_error_box (Ui.error_color st.ui) st.ui;  (* flash *)
   );
 
-  view_pane st.ui (bx + st.library.browser_width, 0,
+  tracks_pane st.ui (bx + st.library.browser_width, 0,
     st.library.width - st.library.browser_width + 5, control_h + dh);
 
   (* Keys *)
   if del_key st.ui then
   (
     match Library.selected_dir st.library with
-    | Some i when st.library.browser.entries.(i).nest = 0 ->
-      Library.remove_roots st.library [st.library.browser.entries.(i).path];
-      Library.update_view st.library
+    | Some i when browser.entries.(i).parent = None ->
+      Library.remove_roots st.library [browser.entries.(i).path];
+      Library.update_tracks st.library
     | _ -> browser_error_box (Ui.error_color st.ui) st.ui;  (* flash *)
   );
 
+  (* Scanning indicator *)
+  scan_label st.ui;
+  scan_indicator st.ui (Library.rescan_busy st.library);
+
   (* Browse modes *)
-  let artists = st.library.artists_shown in
+  let have_dir = st.library.current <> None in
+  let dir = Option.value st.library.current ~default: browser.entries.(0) in
+
+  let artists = have_dir && dir.artists_shown in
   artists_label st.ui;
   artists_indicator st.ui artists;
-  let artists' = artists_button st.ui (Some artists) in
-  if artists' <> artists then
+  let artists' = artists_button st.ui (if have_dir then Some artists else None) in
+  if have_dir && artists' <> artists then
   (
     (* Click on Artists button: toggle artist pane *)
     (* TODO *)
-    st.library.artists_shown <- artists';
-    if not (artists' || st.library.albums_shown || st.library.tracks_shown) then
-      st.library.tracks_shown <- true;
+    dir.artists_shown <- artists';
+    if not (artists' || dir.albums_shown || dir.tracks_shown) then
+      dir.tracks_shown <- true;
   );
 
-  let albums = st.library.albums_shown in
+  let albums = have_dir && dir.albums_shown in
   albums_label st.ui;
   albums_indicator st.ui albums;
-  let albums' = albums_button st.ui (Some albums) in
-  if albums' <> albums then
+  let albums' = albums_button st.ui (if have_dir then Some albums else None) in
+  if have_dir && albums' <> albums then
   (
     (* Click on Albums button: toggle artist pane *)
     (* TODO *)
-    st.library.albums_shown <- albums';
-    if not (albums' || st.library.artists_shown || st.library.tracks_shown) then
-      st.library.tracks_shown <- true;
+    dir.albums_shown <- albums';
+    if not (albums' || dir.artists_shown || dir.tracks_shown) then
+      dir.tracks_shown <- true;
   );
 
-  let tracks = st.library.tracks_shown in
+  let tracks = have_dir && dir.tracks_shown in
   tracks_label st.ui;
   tracks_indicator st.ui tracks;
-  let tracks' = tracks_button st.ui (Some tracks) in
-  if tracks' <> tracks then
+  let tracks' = tracks_button st.ui (if have_dir then Some tracks else None) in
+  if have_dir && tracks' <> tracks then
   (
     (* Click on Tracks button: toggle artist pane *)
     (* TODO *)
-    st.library.tracks_shown <- tracks';
-    if not (tracks' || st.library.artists_shown || st.library.albums_shown) then
-      st.library.artists_shown <- true;
+    dir.tracks_shown <- tracks';
+    if not (tracks' || dir.artists_shown || dir.albums_shown) then
+      dir.artists_shown <- true;
   );
 
   (* Error display *)
@@ -1251,23 +1264,23 @@ let run_library (st : State.t) =
   if now -. st.library.error_time < 10.0 then
     error_text st.ui (Ui.error_color st.ui) `Regular true st.library.error;
 
-  (* View header *)
-  let view = st.library.view in
+  (* Tracks view header *)
+  let tab = st.library.tracks in
   let (x, y, w, h) = Ui.dim st.ui (header_area row_h) in
   let cols =
-    Array.map (fun (attr, cw) -> cw, Library.attr_align attr) st.library.columns
+    Array.map (fun (attr, cw) -> cw, Library.attr_align attr) dir.tracks_columns
   and headings =
-    Array.map (fun (attr, _) -> Library.attr_name attr) st.library.columns
+    Array.map (fun (attr, _) -> Library.attr_name attr) dir.tracks_columns
   in
   let rows = [|Ui.text_color st.ui, `Inverted, headings|] in
-  ignore (header_table row_h st.ui cols rows view.scroll_h);
+  ignore (header_table row_h st.ui cols rows tab.scroll_h);
 
   (* Header column dividers (HACK) *)
   let margin_w = (gutter_w + 1)/2 in  (* match mw in Ui.table *)
   Api.Draw.clip win x y w h;
   let vw =
     Array.fold_left (fun cx (cw, _) ->
-      Api.Draw.fill win (cx + cw + gutter_w/2 - view.scroll_h) y 1 h `Black;
+      Api.Draw.fill win (cx + cw + gutter_w/2 - tab.scroll_h) y 1 h `Black;
       cx + cw + gutter_w;
     ) (x + margin_w) cols - x - margin_w
   in
@@ -1282,17 +1295,17 @@ let run_library (st : State.t) =
     None
   in
   let find_gutter mx =
-    find_gutter' mx 0 (x + margin_w - view.scroll_h) in
+    find_gutter' mx 0 (x + margin_w - tab.scroll_h) in
 
   let rec find_heading' mx i cx =
     if i = Array.length cols then None else
     let cx' = cx + fst cols.(i) in
-    if mx >= cx && mx < cx' then Some (fst st.library.columns.(i)) else
+    if mx >= cx && mx < cx' then Some (fst dir.tracks_columns.(i)) else
     if mx >= cx' then find_heading' mx (i + 1) (cx' + gutter_w) else
     None
   in
   let find_heading mx =
-    find_heading' mx 0 (x + margin_w - view.scroll_h) in
+    find_heading' mx 0 (x + margin_w - tab.scroll_h) in
 
   if Api.inside m (Ui.dim st.ui (header_area row_h)) then
   (
@@ -1301,20 +1314,19 @@ let run_library (st : State.t) =
     | Some _ -> Api.Mouse.set_cursor win (`Resize `E_W)
   );
 
-  (* View *)
-  let _, _, _, h = Ui.dim st.ui (view_area row_h) in
-  st.library.view.fit <-
-    max 4 (int_of_float (Float.floor (float h /. float row_h)));
-  let len = Array.length st.library.view.entries in
+  (* Tracks wiew *)
+  let _, _, _, h = Ui.dim st.ui (tracks_area row_h) in
+  tab.fit <- max 4 (int_of_float (Float.floor (float h /. float row_h)));
+  let len = Array.length tab.entries in
   let current =
     match st.control.current with Some track -> track.path | None -> "" in
   let rows =
-    Array.init (min view.fit len) (fun i ->
-      let i = i + view.scroll_v in
-      let track = view.entries.(i) in
+    Array.init (min tab.fit len) (fun i ->
+      let i = i + tab.scroll_v in
+      let track = tab.entries.(i) in
       let values =
-        Array.map (fun (attr, _) -> Library.attr_string track attr)
-          st.library.columns
+        Array.map (fun (attr, _) -> Library.track_attr_string track attr)
+          dir.tracks_columns
       and c =
         match track.status with
         | _ when track.path = current -> `White
@@ -1327,18 +1339,18 @@ let run_library (st : State.t) =
       c, inv, values
     )
   in
-  let dragging = view_drag row_h st.ui (max_int, row_h) in
-  (match view_table row_h st.ui cols rows view.scroll_h with
+  let dragging = tracks_drag row_h st.ui (max_int, row_h) in
+  (match tracks_table row_h st.ui cols rows tab.scroll_h with
   | None -> ()
   | Some i ->
-    let i = view.scroll_v + i in
+    let i = tab.scroll_v + i in
     if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
     (
       (* Mouse button down: adjust cursor *)
-      let view_area = view_area row_h in
+      let tracks_area = tracks_area row_h in
       Api.Mouse.set_cursor win
         (if
-          Api.inside m (Ui.dim st.ui view_area) ||
+          Api.inside m (Ui.dim st.ui tracks_area) ||
           Api.inside m (Ui.dim st.ui playlist_area)
         then `Point else `Blocked)
     );
@@ -1362,7 +1374,7 @@ let run_library (st : State.t) =
           (* Double-click on track: clear playlist and send track to it *)
           Control.eject st.control;
           Playlist.remove_all st.playlist;
-          let track = Track.make view.entries.(i).path in
+          let track = Track.make tab.entries.(i).path in
           Playlist.insert st.playlist 0 [|track|];
           Control.switch st.control track true;
         )
@@ -1430,9 +1442,9 @@ let run_library (st : State.t) =
     (
       (* Shift-click/drag on playlist: adjust selection range *)
       let default = if i < len then (i, i) else (0, 0) in
-      let pos1, pos2 = Option.value view.sel_range ~default in
+      let pos1, pos2 = Option.value tab.sel_range ~default in
       let i' = max 0 (min i (len - 1)) in
-      if view.sel_range = None || Library.is_selected st.library pos1 then
+      if tab.sel_range = None || Library.is_selected st.library pos1 then
       (
         (* Track was already selected: deselect old range, select new range *)
         Playlist.deselect_all st.playlist;
@@ -1449,14 +1461,14 @@ let run_library (st : State.t) =
     )
   );
 
-  (* View selection *)
+  (* Tracks view selection *)
   if Library.has_selection st.library then
   (
     let d =
       if begin_key st.ui then -len else
       if end_key st.ui then +len else
-      if pageup_key st.ui then -view.fit else
-      if pagedown_key st.ui then +view.fit else
+      if pageup_key st.ui then -tab.fit else
+      if pagedown_key st.ui then +tab.fit else
       if up_key st.ui then -1 else
       if down_key st.ui then +1 else
       0
@@ -1465,7 +1477,7 @@ let run_library (st : State.t) =
     (
       (* Plain cursor movement: deselect all, reselect relative to range end *)
       let default = 0, if d < 0 then len else -1 in
-      let _, pos2 = Option.value view.sel_range ~default in
+      let _, pos2 = Option.value tab.sel_range ~default in
       let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
       Library.deselect_all st.library;
       Library.select st.library i i;
@@ -1475,8 +1487,8 @@ let run_library (st : State.t) =
     let d =
       if selbegin_key st.ui then -len else
       if selend_key st.ui then +len else
-      if selpageup_key st.ui then -view.fit else
-      if selpagedown_key st.ui then +view.fit else
+      if selpageup_key st.ui then -tab.fit else
+      if selpagedown_key st.ui then +tab.fit else
       if selup_key st.ui then -1 else
       if seldown_key st.ui then +1 else
       0
@@ -1485,9 +1497,9 @@ let run_library (st : State.t) =
     (
       (* Shift-cursor movement: adjust selection range *)
       let default = 0, if d < 0 then len else -1 in
-      let pos1, pos2 = Option.value view.sel_range ~default in
+      let pos1, pos2 = Option.value tab.sel_range ~default in
       let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
-      if view.sel_range = None then
+      if tab.sel_range = None then
       (
         (* No selection yet: range from end of playlist *)
         Library.select st.library (len - 1) i
@@ -1526,29 +1538,29 @@ let run_library (st : State.t) =
     )
   );
 
-  (* View scrolling *)
+  (* Tracks view scrolling *)
   let shift = Api.Key.is_modifier_down `Shift in
-  let h' = view.fit * row_h in
+  let h' = tab.fit * row_h in
   let ext =
     if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
   let pos =
-    if len = 0 then 0.0 else float view.scroll_v /. float len in
-  let wheel = if shift then 0.0 else view_wheel st.ui in
-  let pos' = view_scroll_v st.ui pos ext -. 0.05 *. wheel in
+    if len = 0 then 0.0 else float tab.scroll_v /. float len in
+  let wheel = if shift then 0.0 else tracks_wheel st.ui in
+  let pos' = tracks_scroll_v st.ui pos ext -. 0.05 *. wheel in
   (* Possible vertical scrolling activity: update scroll position *)
-  view.scroll_v <- clamp 0 (max 0 (len - view.fit))
+  tab.scroll_v <- clamp 0 (max 0 (len - tab.fit))
     (int_of_float (Float.round (pos' *. float len)));
 
-  let vw' = max vw (view.scroll_h + w) in
+  let vw' = max vw (tab.scroll_h + w) in
   let ext = if vw' = 0 then 1.0 else min 1.0 (float w /. float vw') in
-  let pos = if vw' = 0 then 0.0 else float view.scroll_h /. float vw' in
-  let wheel = if shift then view_wheel st.ui else 0.0 in
-  let pos' = view_scroll_h st.ui pos ext -. 0.05 *. wheel in
+  let pos = if vw' = 0 then 0.0 else float tab.scroll_h /. float vw' in
+  let wheel = if shift then tracks_wheel st.ui else 0.0 in
+  let pos' = tracks_scroll_h st.ui pos ext -. 0.05 *. wheel in
   (* Possible horizontal scrolling activity: update scroll position *)
-  view.scroll_h <-
+  tab.scroll_h <-
     clamp 0 (max 0 (vw' - w)) (int_of_float (Float.round (pos' *. float vw')));
 
-  (* View row sorting & column resizing *)
+  (* Tracks view row sorting & column resizing *)
   (match header_drag row_h st.ui (1, max_int) with
   | `None | `Drop -> ()
   | `Click ->
@@ -1556,7 +1568,7 @@ let run_library (st : State.t) =
     | None -> ()
     | Some attr ->
       (* Click on column header: reorder view accordingly *)
-      Library.reorder_view st.library attr
+      Library.reorder_tracks st.library attr
     )
   | `Drag (dx, _) ->
     (match find_gutter (mx - dx) with
@@ -1565,11 +1577,11 @@ let run_library (st : State.t) =
       (* Drag of gutter: resize column width *)
       let add_snd d (x, y) = (x, max 0 (y + d)) in
       (* Drag of gutter: resize column to the left *)
-      st.library.columns.(i) <- add_snd dx st.library.columns.(i);
-      if i + 1 < Array.length st.library.columns
+      dir.tracks_columns.(i) <- add_snd dx dir.tracks_columns.(i);
+      if i + 1 < Array.length dir.tracks_columns
       && Api.Key.is_modifier_down `Shift then
         (* Shift-drag of gutter: also resize column to the right inversely *)
-        st.library.columns.(i + 1) <- add_snd (-dx) st.library.columns.(i + 1);
+        dir.tracks_columns.(i + 1) <- add_snd (-dx) dir.tracks_columns.(i + 1);
     )
   )
 
@@ -1649,7 +1661,7 @@ let startup () =
   let st = if State.load !rst then !rst else State.make ui audio db in
   st.library.browser_width <-
     clamp browser_min (browser_max st.library.width) st.library.browser_width;
-  Library.update_view st.library;
+  Library.update_tracks st.library;
   Playlist.adjust_scroll st.playlist st.playlist.table.pos;
   at_exit (fun () -> State.save st; Storage.clear_temp (); Db.exit db);
   st
