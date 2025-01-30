@@ -14,10 +14,9 @@ type 'a undo =
 type 'a t =
 {
   mutable entries : 'a array;
-  mutable pos : int option;
-  mutable fit : int;       (* number of rows currently fitting view *)
-  mutable vscroll : int;  (* in number of rows *)
-  mutable hscroll : int;  (* in pixels *)
+  mutable pos : int option;                (* current position in table *)
+  mutable vscroll : int;                   (* in number of rows *)
+  mutable hscroll : int;                   (* in pixels *)
   mutable sel_range : (int * int) option;  (* primary and secondary pos *)
   mutable selected : IntSet.t;
   mutable undos : 'a undo list ref;
@@ -32,7 +31,6 @@ let make () =
   {
     entries = [||];
     pos = None;
-    fit = 4;
     vscroll = 0;
     hscroll = 0;
     sel_range = None;
@@ -55,11 +53,11 @@ let adjust_pos tab =
   else if tab.pos <> None && len = 0 then
     tab.pos <- None
 
-let adjust_scroll tab pos =
+let adjust_scroll tab pos fit =
   let i = Option.value pos ~default: 0 in
-  if i < tab.vscroll || i >= tab.vscroll + tab.fit then
-    tab.vscroll <- max 0 (min (Array.length tab.entries - tab.fit)
-      (i - (tab.fit - 2)/2))
+  if i < tab.vscroll || i >= tab.vscroll + fit then
+    tab.vscroll <- max 0 (min (Array.length tab.entries - fit)
+      (i - (fit - 2)/2))
 
 
 (* Validation *)
@@ -76,7 +74,6 @@ let ok name tab =
     tab.pos = None && len = 0 ||
     tab.pos <> None && Option.get tab.pos >= 0 && Option.get tab.pos < len
   ) @
-  check name "fit in range" (tab.fit >= 1) @
   check name "vertical scroll position in range"
     (tab.vscroll = 0 || tab.vscroll > 0 && tab.vscroll < len) @
   check name "horizontal scroll position in range"

@@ -76,7 +76,7 @@ let ok pl =
 let current_opt pl = Table.current_opt pl.table
 let current pl = Table.current pl.table
 
-let adjust_scroll pl pos = Table.adjust_scroll pl.table pos
+let adjust_scroll pl pos fit = Table.adjust_scroll pl.table pos fit
 
 
 (* Total *)
@@ -409,7 +409,6 @@ let to_string pl =
   let buf = Buffer.create 1024 in
   let output fmt = Printf.bprintf buf fmt in
   output "play_length = %d\n" (length pl);
-  output "play_fit = %d\n" pl.table.fit;
   output "play_selected = %d" (Table.IntSet.cardinal pl.table.selected);
   if pl.table.selected <> Table.IntSet.empty then
     Table.IntSet.(output " (%d-%d)"

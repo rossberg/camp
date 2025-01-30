@@ -484,6 +484,8 @@ let run_control (st : State.t) =
 
   (* Play controls *)
   let len = Playlist.length st.playlist in
+  let _, _, _, h = Ui.dim st.ui playlist_area in
+  let fit = max 4 (int_of_float (Float.floor (float h /. float row_h))) in
   let bwd = if bwd_button st.ui (Some false) then -1 else 0 in
   let fwd = if fwd_button st.ui (Some false) then +1 else 0 in
   let off = if len = 0 then 0 else bwd + fwd in
@@ -492,7 +494,7 @@ let run_control (st : State.t) =
     (* Click on one of the skip buttons: jump to track *)
     let more = Playlist.skip st.playlist off (st.control.repeat <> `None) in
     Control.switch st.control (Playlist.current st.playlist) more;
-    Playlist.adjust_scroll st.playlist st.playlist.table.pos;
+    Playlist.adjust_scroll st.playlist st.playlist.table.pos fit;
   );
 
   let playing' = play_button st.ui (Some playing) in
@@ -500,7 +502,7 @@ let run_control (st : State.t) =
   (
     (* Click on play button: start track *)
     Control.switch st.control (Playlist.current st.playlist) true;
-    Playlist.adjust_scroll st.playlist st.playlist.table.pos;
+    Playlist.adjust_scroll st.playlist st.playlist.table.pos fit;
   );
 
   let paused' = pause_button st.ui (Some paused) in
@@ -523,7 +525,7 @@ let run_control (st : State.t) =
     | None -> Control.eject st.control
     | Some track -> Control.switch st.control track false
     );
-    Playlist.adjust_scroll st.playlist st.playlist.table.pos;
+    Playlist.adjust_scroll st.playlist st.playlist.table.pos fit;
   );
 
   if eject_button st.ui (Some false) then
@@ -542,7 +544,7 @@ let run_control (st : State.t) =
       Api.Audio.resume st.control.audio st.control.sound
     else if stopped && len > 0 then
       Control.switch st.control (Playlist.current st.playlist) true;
-    Playlist.adjust_scroll st.playlist st.playlist.table.pos;
+    Playlist.adjust_scroll st.playlist st.playlist.table.pos fit;
   );
 
   (* End of track *)
@@ -563,7 +565,7 @@ let run_control (st : State.t) =
       else Playlist.current st.playlist
     in
     Control.switch st.control next_track more;
-    Playlist.adjust_scroll st.playlist st.playlist.table.pos;
+    Playlist.adjust_scroll st.playlist st.playlist.table.pos fit;
   );
 
   (* Play modes *)
@@ -580,7 +582,7 @@ let run_control (st : State.t) =
         (if stopped then None else st.playlist.table.pos);
       if stopped && st.playlist.table.pos <> None then
         Control.switch st.control (Playlist.current st.playlist) false;
-      Playlist.adjust_scroll st.playlist st.playlist.table.pos;
+      Playlist.adjust_scroll st.playlist st.playlist.table.pos fit;
     )
     else
       Playlist.unshuffle st.playlist
@@ -677,12 +679,11 @@ let run_playlist (st : State.t) =
   let cw1 = Api.Draw.text_width win row_h font smax1 + 1 in
   let cw3 = ref 16 in
   let (_, y, w, h) as r = Ui.dim st.ui playlist_area in
-  st.playlist.table.fit <-
-    max 4 (int_of_float (Float.floor (float h /. float row_h)));
+  let fit = max 4 (int_of_float (Float.floor (float h /. float row_h))) in
   (* Correct scrolling position for possible resize *)
-  tab.vscroll <- clamp 0 (max 0 (len - tab.fit)) tab.vscroll;
+  tab.vscroll <- clamp 0 (max 0 (len - fit)) tab.vscroll;
   let rows =
-    Array.init (min tab.fit len) (fun i ->
+    Array.init (min fit len) (fun i ->
       let i = i + tab.vscroll in
       let track = tab.entries.(i) in
       if now -. track.last_update > st.config.delay_track_update then
@@ -802,8 +803,8 @@ let run_playlist (st : State.t) =
     let d =
       if begin_key st.ui then -len else
       if end_key st.ui then +len else
-      if pageup_key st.ui then -tab.fit else
-      if pagedown_key st.ui then +tab.fit else
+      if pageup_key st.ui then -fit else
+      if pagedown_key st.ui then +fit else
       if up_key st.ui then -1 else
       if down_key st.ui then +1 else
       0
@@ -816,14 +817,14 @@ let run_playlist (st : State.t) =
       let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
       Playlist.deselect_all st.playlist;
       Playlist.select st.playlist i i;
-      Playlist.adjust_scroll st.playlist (Some i);
+      Playlist.adjust_scroll st.playlist (Some i) fit;
     );
 
     let d =
       if selbegin_key st.ui then -len else
       if selend_key st.ui then +len else
-      if selpageup_key st.ui then -tab.fit else
-      if selpagedown_key st.ui then +tab.fit else
+      if selpageup_key st.ui then -fit else
+      if selpagedown_key st.ui then +fit else
       if selup_key st.ui then -1 else
       if seldown_key st.ui then +1 else
       0
@@ -851,7 +852,7 @@ let run_playlist (st : State.t) =
         Playlist.select st.playlist (max 0 pos2) i;
         Playlist.deselect st.playlist pos1 i
       );
-      Playlist.adjust_scroll st.playlist (Some i);
+      Playlist.adjust_scroll st.playlist (Some i) fit;
     );
 
     if selall_key st.ui then
@@ -882,8 +883,8 @@ let run_playlist (st : State.t) =
   let d = d0 +
     if movebegin_key st.ui then -len else
     if moveend_key st.ui then +len else
-    if movepageup_key st.ui then -tab.fit else
-    if movepagedown_key st.ui then +tab.fit else
+    if movepageup_key st.ui then -fit else
+    if movepagedown_key st.ui then +fit else
     if moveup_key st.ui then -1 else
     if movedown_key st.ui then +1 else
     0
@@ -898,16 +899,16 @@ let run_playlist (st : State.t) =
     in
     Playlist.move_selected st.playlist d';
     if d0 = 0 then
-      tab.vscroll <- clamp 0 (max 0 (len - tab.fit)) (tab.vscroll + d);
+      tab.vscroll <- clamp 0 (max 0 (len - fit)) (tab.vscroll + d);
   );
 
   (* Playlist scrolling *)
-  let h' = tab.fit * row_h in
+  let h' = fit * row_h in
   let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
   let pos = if len = 0 then 0.0 else float tab.vscroll /. float len in
   let pos' = playlist_scroll st.ui pos ext -. 0.05 *. playlist_wheel st.ui in
   (* Possible scrolling activity: update scroll position *)
-  tab.vscroll <- clamp 0 (max 0 (len - tab.fit))
+  tab.vscroll <- clamp 0 (max 0 (len - fit))
     (int_of_float (Float.round (pos' *. float len)));
 
   (* Playlist buttons *)
@@ -1100,10 +1101,9 @@ let run_library (st : State.t) =
   let browser = st.library.browser in
   let len = Array.length browser.entries in
   let (x, y, w, h) as r = Ui.dim st.ui browser_area in
-  st.library.browser.fit <-
-    max 4 (int_of_float (Float.floor (float h /. float row_h)));
+  let fit = max 4 (int_of_float (Float.floor (float h /. float row_h))) in
   (* Correct scrolling position for possible resize *)
-  browser.vscroll <- clamp 0 (max 0 (len - browser.fit)) browser.vscroll;
+  browser.vscroll <- clamp 0 (max 0 (len - fit)) browser.vscroll;
   let cols = [|w, `Left|] in
   let c = Ui.text_color st.ui in
   let sel = Library.selected_dir st.library in
@@ -1200,12 +1200,12 @@ let run_library (st : State.t) =
   );
 
   (* Browser scrolling *)
-  let h' = browser.fit * row_h in
+  let h' = fit * row_h in
   let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
   let pos = if len = 0 then 0.0 else float browser.vscroll /. float len in
   let pos' = browser_scroll st.ui pos ext -. 0.05 *. browser_wheel st.ui in
   (* Possible scrolling activity: update scroll position *)
-  browser.vscroll <- clamp 0 (max 0 (len - browser.fit))
+  browser.vscroll <- clamp 0 (max 0 (len - fit))
     (int_of_float (Float.round (pos' *. float len)));
 
   (* Browser drag & drop *)
@@ -1301,14 +1301,14 @@ let run_library (st : State.t) =
   (* Tracks view *)
   let tab = st.library.tracks in
   let _, _, _, h = Ui.dim st.ui (tracks_area row_h) in
-  tab.fit <- max 4 (int_of_float (Float.floor (float h /. float row_h)));
+  let fit = max 4 (int_of_float (Float.floor (float h /. float row_h))) in
   let len = Array.length tab.entries in
   let current =
     match st.control.current with Some track -> track.path | None -> "" in
   let cols =
     Array.map (fun (attr, cw) -> cw, Library.attr_align attr) dir.tracks_columns
   and rows =
-    Array.init (min tab.fit len) (fun i ->
+    Array.init (min fit len) (fun i ->
       let i = i + tab.vscroll in
       let track = tab.entries.(i) in
       let values =
@@ -1454,8 +1454,8 @@ let run_library (st : State.t) =
     let d =
       if begin_key st.ui then -len else
       if end_key st.ui then +len else
-      if pageup_key st.ui then -tab.fit else
-      if pagedown_key st.ui then +tab.fit else
+      if pageup_key st.ui then -fit else
+      if pagedown_key st.ui then +fit else
       if up_key st.ui then -1 else
       if down_key st.ui then +1 else
       0
@@ -1468,14 +1468,14 @@ let run_library (st : State.t) =
       let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
       Library.deselect_all st.library;
       Library.select st.library i i;
-      Library.adjust_scroll st.library (Some i);
+      Library.adjust_scroll st.library (Some i) fit;
     );
 
     let d =
       if selbegin_key st.ui then -len else
       if selend_key st.ui then +len else
-      if selpageup_key st.ui then -tab.fit else
-      if selpagedown_key st.ui then +tab.fit else
+      if selpageup_key st.ui then -fit else
+      if selpagedown_key st.ui then +fit else
       if selup_key st.ui then -1 else
       if seldown_key st.ui then +1 else
       0
@@ -1503,7 +1503,7 @@ let run_library (st : State.t) =
         Library.select st.library (max 0 pos2) i;
         Library.deselect st.library pos1 i
       );
-      Library.adjust_scroll st.library (Some i);
+      Library.adjust_scroll st.library (Some i) fit;
     );
 
     if selall_key st.ui then
@@ -1527,7 +1527,7 @@ let run_library (st : State.t) =
 
   (* Tracks view scrolling *)
   let shift = Api.Key.is_modifier_down `Shift in
-  let h' = tab.fit * row_h in
+  let h' = fit * row_h in
   let ext =
     if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
   let pos =
@@ -1535,7 +1535,7 @@ let run_library (st : State.t) =
   let wheel = if shift then 0.0 else tracks_wheel st.ui in
   let pos' = tracks_vscroll st.ui pos ext -. 0.05 *. wheel in
   (* Possible vertical scrolling activity: update scroll position *)
-  tab.vscroll <- clamp 0 (max 0 (len - tab.fit))
+  tab.vscroll <- clamp 0 (max 0 (len - fit))
     (int_of_float (Float.round (pos' *. float len)));
 
   let _, _, w, _ = Ui.dim st.ui (tracks_area row_h) in
@@ -1646,7 +1646,7 @@ let startup () =
   st.library.browser_width <-
     clamp browser_min (browser_max st.library.width) st.library.browser_width;
   Library.update_tracks st.library;
-  Playlist.adjust_scroll st.playlist st.playlist.table.pos;
+  Playlist.adjust_scroll st.playlist st.playlist.table.pos 4;
   at_exit (fun () -> State.save st; Storage.clear_temp (); Db.exit db);
   st
 

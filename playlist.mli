@@ -47,7 +47,7 @@ val playlist_of_string : string -> track array
 val current : t -> track
 val current_opt : t -> track option
 
-val adjust_scroll : t -> int option -> unit
+val adjust_scroll : t -> int option -> int -> unit
 
 
 (* Total *)

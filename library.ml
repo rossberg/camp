@@ -379,7 +379,7 @@ let restore_browser_selection lib selection =
     (fun i (d : Data.dir) ->
       if selection = Some d.path then Table.select lib.browser i i
     ) lib.browser.entries;
-  Table.adjust_scroll lib.browser (Table.first_selected lib.browser)
+  Table.adjust_scroll lib.browser (Table.first_selected lib.browser) 4
 
 
 let make_all lib =
@@ -564,8 +564,8 @@ let deselect lib i j =
   Table.deselect lib.tracks i j
 
 
-let adjust_scroll lib pos =
-  Table.adjust_scroll lib.tracks pos
+let adjust_scroll lib pos fit =
+  Table.adjust_scroll lib.tracks pos fit
 
 
 let save_tracks_selection lib =
@@ -577,7 +577,7 @@ let restore_tracks_selection lib selection =
   let set = Array.fold_right (fun t -> Set.add t.path) selection Set.empty in
   Array.iteri (fun i t -> if Set.mem t.path set then select lib i i)
     lib.tracks.entries;
-  Table.adjust_scroll lib.tracks (first_selected lib)
+  Table.adjust_scroll lib.tracks (first_selected lib) 4
 
 
 let sort_tracks tracks (attr, order) =
@@ -625,10 +625,8 @@ let to_string lib =
   to_string' lib ^
   let buf = Buffer.create 1024 in
   let output fmt = Printf.bprintf buf fmt in
-  output "lib_browser_fit = %d\n" lib.browser.fit;
   output "lib_browser_pos = %d\n" (Option.value lib.browser.pos ~default: (-1));
   output "lib_browser_length = %d\n" (Array.length lib.browser.entries);
-  output "lib_tracks_fit = %d\n" lib.tracks.fit;
   output "lib_tracks_pos = %d\n" (Option.value lib.tracks.pos ~default: (-1));
   output "lib_tracks_vscroll = %d\n" lib.tracks.vscroll;
   output "lib_tracks_hscroll = %d\n" lib.tracks.hscroll;

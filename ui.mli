@@ -76,3 +76,5 @@ type column = int * align
 type row = color * inversion * string array
 val table : area -> int -> int -> t -> column array -> row array -> int -> int option
 val header : area -> int -> int -> t -> column array -> string array -> int -> [`Click of int | `Resize | `None]
+val rich_table : area -> int -> int -> int -> t -> column array -> string array option -> row array -> int ->
+  [`HeaderClick of int | `RowClick of int | `Scroll of float * float | `Resize | `None]

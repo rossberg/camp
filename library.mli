@@ -36,7 +36,7 @@ val save : t -> out_channel -> unit
 
 (* Accessors *)
 
-val adjust_scroll : t -> int option -> unit
+val adjust_scroll : t -> int option -> int -> unit
 
 
 (* Roots *)
