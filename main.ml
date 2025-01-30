@@ -1538,6 +1538,7 @@ let run_library (st : State.t) =
   tab.vscroll <- clamp 0 (max 0 (len - tab.fit))
     (int_of_float (Float.round (pos' *. float len)));
 
+  let _, _, w, _ = Ui.dim st.ui (tracks_area row_h) in
   let vw =
     Array.fold_left (fun w (_, cw) -> w + cw + gutter_w) 0 dir.tracks_columns in
   let vw' = max vw (tab.hscroll + w) in
