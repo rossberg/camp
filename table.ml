@@ -6,7 +6,7 @@ type 'a undo =
 {
   undo_entries : 'a array;
   undo_pos : int option;
-  undo_scroll : int;
+  undo_vscroll : int;
   undo_sel_range : (int * int) option;
   undo_selected : IntSet.t;
 }
@@ -16,8 +16,8 @@ type 'a t =
   mutable entries : 'a array;
   mutable pos : int option;
   mutable fit : int;       (* number of rows currently fitting view *)
-  mutable scroll_v : int;  (* in number of rows *)
-  mutable scroll_h : int;  (* in pixels *)
+  mutable vscroll : int;  (* in number of rows *)
+  mutable hscroll : int;  (* in pixels *)
   mutable sel_range : (int * int) option;  (* primary and secondary pos *)
   mutable selected : IntSet.t;
   mutable undos : 'a undo list ref;
@@ -33,8 +33,8 @@ let make () =
     entries = [||];
     pos = None;
     fit = 4;
-    scroll_v = 0;
-    scroll_h = 0;
+    vscroll = 0;
+    hscroll = 0;
     sel_range = None;
     selected = IntSet.empty;
     undos = ref [];
@@ -57,8 +57,8 @@ let adjust_pos tab =
 
 let adjust_scroll tab pos =
   let i = Option.value pos ~default: 0 in
-  if i < tab.scroll_v || i >= tab.scroll_v + tab.fit then
-    tab.scroll_v <- max 0 (min (Array.length tab.entries - tab.fit)
+  if i < tab.vscroll || i >= tab.vscroll + tab.fit then
+    tab.vscroll <- max 0 (min (Array.length tab.entries - tab.fit)
       (i - (tab.fit - 2)/2))
 
 
@@ -78,9 +78,9 @@ let ok name tab =
   ) @
   check name "fit in range" (tab.fit >= 1) @
   check name "vertical scroll position in range"
-    (tab.scroll_v = 0 || tab.scroll_v > 0 && tab.scroll_v < len) @
+    (tab.vscroll = 0 || tab.vscroll > 0 && tab.vscroll < len) @
   check name "horizontal scroll position in range"
-    (tab.scroll_h >= 0) @
+    (tab.hscroll >= 0) @
   check name "selections in range"
     (IntSet.max_elt_opt tab.selected <= Some (len - 1)) @
   check name "selection range when selection" (
@@ -156,7 +156,7 @@ let deselect tab i0 j0 =
 let make_undo tab =
   { undo_entries = Array.map Fun.id tab.entries;
     undo_pos = tab.pos;
-    undo_scroll = tab.scroll_v;
+    undo_vscroll = tab.vscroll;
     undo_sel_range = tab.sel_range;
     undo_selected = tab.selected;
   }
@@ -181,7 +181,7 @@ let pop_unredo tab undos redos =
     deselect_all tab;
     tab.entries <- undo.undo_entries;
     tab.pos <- undo.undo_pos;
-    tab.scroll_v <- undo.undo_scroll;
+    tab.vscroll <- undo.undo_vscroll;
     tab.sel_range <- undo.undo_sel_range;
     tab.selected <- undo.undo_selected
 
@@ -248,7 +248,7 @@ let remove_all tab =
     deselect_all tab;
     tab.entries <- [||];
     tab.pos <- None;
-    tab.scroll_v <- 0;
+    tab.vscroll <- 0;
   )
 
 let remove_if p tab n =
@@ -285,7 +285,7 @@ let remove_if p tab n =
     tab.entries <- entries';
     if len' = 0 then tab.pos <- None;
     tab.sel_range <- max_sel_range tab;
-    tab.scroll_v <- max 0 (min (len' - 1) tab.scroll_v);
+    tab.vscroll <- max 0 (min (len' - 1) tab.vscroll);
     js
   )
 

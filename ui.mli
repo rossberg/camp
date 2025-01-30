@@ -75,3 +75,4 @@ val divider : area -> Api.orientation -> t -> int -> int -> int -> int
 type column = int * align
 type row = color * inversion * string array
 val table : area -> int -> int -> t -> column array -> row array -> int -> int option
+val header : area -> int -> int -> t -> column array -> string array -> int -> [`Click of int | `Resize | `None]

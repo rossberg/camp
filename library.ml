@@ -618,7 +618,7 @@ let to_string' lib =
   output "lib_side = %d\n" (Bool.to_int (lib.side = `Right));
   output "lib_width = %d\n" lib.width;
   output "lib_browser_width = %d\n" lib.browser_width;
-  output "lib_browser_scroll = %d\n" lib.browser.scroll_v;
+  output "lib_browser_scroll = %d\n" lib.browser.vscroll;
   Buffer.contents buf
 
 let to_string lib =
@@ -630,8 +630,8 @@ let to_string lib =
   output "lib_browser_length = %d\n" (Array.length lib.browser.entries);
   output "lib_tracks_fit = %d\n" lib.tracks.fit;
   output "lib_tracks_pos = %d\n" (Option.value lib.tracks.pos ~default: (-1));
-  output "lib_tracks_scroll_v = %d\n" lib.tracks.scroll_v;
-  output "lib_tracks_scroll_h = %d\n" lib.tracks.scroll_h;
+  output "lib_tracks_vscroll = %d\n" lib.tracks.vscroll;
+  output "lib_tracks_hscroll = %d\n" lib.tracks.hscroll;
   output "lib_tracks_length = %d\n" (Array.length lib.tracks.entries);
   output "lib_root_length = %d\n" (Array.length lib.roots);
   output "lib_error = %s\n" lib.error;
@@ -660,5 +660,5 @@ let load lib file =
   lib.browser_width <- input " lib_browser_width = %d "
     (num 40 (lib.width - 60));
   update_browser lib;
-  lib.browser.scroll_v <- input " lib_browser_scroll = %d "
+  lib.browser.vscroll <- input " lib_browser_scroll = %d "
     (num 0 (max 0 (Array.length lib.roots - 1)))

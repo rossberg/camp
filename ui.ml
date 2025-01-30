@@ -638,7 +638,7 @@ type inversion = [`Regular | `Inverted]
 type column = int * align
 type row = color * inversion * string array
 
-let table r gw ch ui cols rows scroll =
+let table r gw ch ui cols rows hscroll =
   let (x, y, w, h), status = element r no_modkey ui in
   let font = font ui ch in
   Draw.fill ui.win x y w h `Black;
@@ -648,7 +648,7 @@ let table r gw ch ui cols rows scroll =
     let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
     if bg <> `Black then Draw.fill ui.win x cy w ch bg;
     let mw = (gw + 1)/2 in
-    let cx = ref (x + mw - scroll) in
+    let cx = ref (x + mw - hscroll) in
     Array.iteri (fun i (cw, align) ->
       let tw = Draw.text_width ui.win ch font texts.(i) in
       let dx =
@@ -676,6 +676,59 @@ let table r gw ch ui cols rows scroll =
     Some ((my - y) / ch)
   else
     None
+
+
+(* Table Headers *)
+
+let header r gw ch ui cols titles hscroll =
+  ignore (table r gw ch ui cols [|text_color ui, `Inverted, titles|] hscroll);
+
+  let (x, y, w, h) as r, status = element r no_modkey ui in
+  let mw = (gw + 1)/2 in  (* match mw in table *)
+  Draw.clip ui.win x y w h;
+  ignore (
+    Array.fold_left (fun cx (cw, _) ->
+      Api.Draw.fill ui.win (cx + cw + gw/2 - hscroll) y 1 h `Black;
+      cx + cw + gw;
+    ) (x + mw) cols - x - mw
+  );
+  Draw.unclip ui.win;
+
+  let gutter_tolerance = 5 in
+  let rec find_gutter' mx i cx =
+    if i = Array.length cols then None else
+    let cx' = cx + fst cols.(i) in
+    if abs (cx' + gw/2 - mx) < gutter_tolerance then Some i else
+    if cx' + gw/2 < mx then find_gutter' mx (i + 1) (cx' + gw) else
+    None
+  in
+  let find_gutter mx = find_gutter' mx 0 (x + mw - hscroll) in
+
+  let rec find_heading' mx i cx =
+    if i = Array.length cols then `None else
+    let cx' = cx + fst cols.(i) in
+    if mx >= cx && mx < cx' then `Click i else
+    if mx >= cx' then find_heading' mx (i + 1) (cx' + gw) else
+    `None
+  in
+  let find_heading mx = find_heading' mx 0 (x + mw - hscroll) in
+
+  let mx, _ = Mouse.pos ui.win in
+  if status <> `Untouched && find_gutter mx <> None then
+    Mouse.set_cursor ui.win (`Resize `E_W);
+
+  match drag_status ui r (1, max_int) with
+  | `None | `Drop -> `None
+  | `Click -> find_heading mx
+  | `Drag (dx, _) ->
+    match find_gutter (mx - dx) with
+    | None -> `None
+    | Some i ->
+      let add_fst d (x, y) = (max 0 (x + d), y) in
+      cols.(i) <- add_fst dx cols.(i);
+      if i + 1 < Array.length cols && Key.is_modifier_down `Shift then
+        cols.(i + 1) <- add_fst (-dx) cols.(i + 1);
+      `Resize
 
 
 (* Dividers *)

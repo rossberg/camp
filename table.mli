@@ -9,8 +9,8 @@ type 'a t =
   mutable entries : 'a array;
   mutable pos : int option;
   mutable fit : int;       (* number of rows currently fitting view *)
-  mutable scroll_v : int;  (* in number of rows *)
-  mutable scroll_h : int;  (* in pixels *)
+  mutable vscroll : int;  (* in number of rows *)
+  mutable hscroll : int;  (* in pixels *)
   mutable sel_range : (int * int) option;  (* primary and secondary pos *)
   mutable selected : IntSet.t;
   mutable undos : 'a undo list ref;

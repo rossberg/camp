@@ -401,7 +401,7 @@ let to_string' pl =
   output "play_open = %d\n" (Bool.to_int pl.shown);
   output "play_height = %d\n" pl.height;
   output "play_pos = %d\n" (Option.value pl.table.pos ~default: (-1));
-  output "play_scroll = %d\n" pl.table.scroll_v;
+  output "play_scroll = %d\n" pl.table.vscroll;
   Buffer.contents buf
 
 let to_string pl =
@@ -444,6 +444,6 @@ let load pl file =
   pl.height <- input " play_height = %d " (num 20 max_int);  (* clamped later *)
   pl.table.pos <- input " play_pos = %d " (num_opt 0 (len - 1));
   Table.adjust_pos pl.table;
-  pl.table.scroll_v <- input " play_scroll = %d " (num 0 (len - 1));
+  pl.table.vscroll <- input " play_scroll = %d " (num 0 (len - 1));
   if shuffled then shuffle pl pl.table.pos;
   update_total pl
