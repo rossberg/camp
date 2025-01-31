@@ -145,7 +145,7 @@ let loop_label = mode_label 0 "LOOP"
 let playlist_pane = Ui.pane 1
 let playlist_min = 31 + 4 * row_h
 
-let playlist_area = (1, margin, margin, -margin-scrollbar_w, -bottom_h)
+let playlist_area = (1, margin, margin, -margin, -bottom_h)
 let playlist_table rh = Ui.rich_table playlist_area gutter_w rh scrollbar_w 0
 let playlist_drop = Ui.drop playlist_area
 
@@ -222,7 +222,7 @@ let del_key = Ui.key ([`Command], `Delete)
 
 
 (* View Panes *)
-let view_area p = (p, 0, margin, -1, -1)
+let view_area p = (p, 0, margin, -divider_w, -1)
 let view_table p rh = Ui.rich_table (view_area p) gutter_w rh scrollbar_w scrollbar_w
 
 let _artists_pane = Ui.pane 3
@@ -856,7 +856,7 @@ let run_library (st : State.t) =
   let (mx, my) as m = Api.Mouse.pos win in
   let row_h = st.config.row_height in
 
-  let bx = if st.library.side = `Left then 0 else control_w - 5 in
+  let bx = if st.library.side = `Left then 0 else control_w - margin/2 in
   browser_pane st.ui (bx, 0, st.library.browser_width, wh);
 
   (* Update geometry after possible window resize *)
