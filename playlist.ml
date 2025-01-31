@@ -50,10 +50,6 @@ let ok pl =
     (fst pl.total >= 0.0 && snd pl.total <= len) @
   check "playlist selection total in range"
     (fst pl.total_selected >= 0.0 && snd pl.total_selected <= len) @
-  check "playlist selection total consistent" (
-    (fst pl.total_selected <= fst pl.total || snd pl.total > 0) &&
-    snd pl.total_selected <= snd pl.total
-  ) @
   (match pl.shuffle with
   | None -> []
   | Some shuffle ->
@@ -73,10 +69,12 @@ let ok pl =
 
 (* Accessors *)
 
-let current_opt pl = Table.current_opt pl.table
+let length pl = Table.length pl.table
 let current pl = Table.current pl.table
+let current_opt pl = Table.current_opt pl.table
 
-let adjust_scroll pl pos fit = Table.adjust_scroll pl.table pos fit
+let focus pl b = pl.table.focus <- b
+let adjust_scroll pl fit = Table.adjust_scroll pl.table pl.table.pos fit
 
 
 (* Total *)
@@ -105,10 +103,14 @@ let update_total pl =
   pl.total <- total;
   pl.total_selected <- total_sel
 
+let update_total_selected pl =
+  pl.total_selected <-
+    Table.IntSet.fold (fun i total ->
+      add_total total (track_total pl.table.entries.(i))
+    ) pl.table.selected (0.0, 0)
+
 
 (* Navigation *)
-
-let length pl = Array.length pl.table.entries
 
 let modulo n m = let k = n mod m in if k < 0 then k + m else k
 
@@ -202,7 +204,7 @@ let deselect_all pl =
 
 let select_invert pl =
   Table.select_invert pl.table;
-  update_total pl
+  update_total_selected pl
 
 let select pl i0 j0 =
   let i, j = min i0 j0, max i0 j0 in
@@ -252,6 +254,7 @@ let insert pl pos tracks =
           if j < pos then j else j + len'
         );
       reshuffle pl;
+      if shuffle.pos = None then shuffle.pos <- Some 0;
       if len = 0 then shuffle.unobserved <- 1;
     ) pl.shuffle;
   )
@@ -294,9 +297,9 @@ let insert_paths pl pos paths audio =
 let remove_all pl =
   if pl.table.entries <> [||] then
   (
-    deselect_all pl;
     Table.remove_all pl.table;
     pl.total <- 0.0, 0;
+    pl.total_selected <- 0.0, 0;
     Option.iter (fun shuffle ->
       shuffle.unobserved <- 0;
       shuffle.pos <- None;
@@ -408,7 +411,7 @@ let to_string pl =
   to_string' pl ^
   let buf = Buffer.create 1024 in
   let output fmt = Printf.bprintf buf fmt in
-  output "play_length = %d\n" (length pl);
+  output "play_length = %d\n" (Table.length pl.table);
   output "play_selected = %d" (Table.IntSet.cardinal pl.table.selected);
   if pl.table.selected <> Table.IntSet.empty then
     Table.IntSet.(output " (%d-%d)"

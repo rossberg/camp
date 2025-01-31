@@ -75,6 +75,13 @@ val divider : area -> Api.orientation -> t -> int -> int -> int -> int
 type column = int * align
 type row = color * inversion * string array
 val table : area -> int -> int -> t -> column array -> row array -> int -> int option
-val header : area -> int -> int -> t -> column array -> string array -> int -> [`Click of int | `Resize | `None]
-val rich_table : area -> int -> int -> int -> t -> column array -> string array option -> row array -> int ->
-  [`HeaderClick of int | `RowClick of int | `Scroll of float * float | `Resize | `None]
+val header : area -> int -> t -> column array -> string array -> int -> [`Click of int | `Arrange | `None]
+
+val rich_table :
+  area ->
+  int ->  (* gutter width *)
+  int ->  (* row height *)
+  int ->  (* vertical scroll bar width *)
+  int ->  (* horizontal scroll bar height (can be 0) *)
+  t -> column array -> string array option -> 'a Table.t -> (int -> color * string array) ->
+    [`Click of int option | `Select | `Scroll | `Sort of int | `Arrange | `Move of int | `Drop | `None]

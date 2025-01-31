@@ -358,6 +358,8 @@ let _ = queue_rescan_dir := rescan_dir
 
 (* Browser *)
 
+let length_browser lib = Table.length lib.browser
+
 let selected_dir lib = Table.first_selected lib.browser
 let deselect_dir lib = Table.deselect_all lib.browser; lib.current <- None
 let select_dir lib i =
@@ -540,6 +542,8 @@ let remove_roots lib paths =
 
 
 (* Tracks View *)
+
+let focus lib b = lib.tracks.focus <- b
 
 let has_selection lib = Table.has_selection lib.tracks
 let num_selected lib = Table.num_selected lib.tracks

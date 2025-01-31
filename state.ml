@@ -38,8 +38,8 @@ let rec ok st =
     check "playlist empty when no current track"
       (st.control.current <> None || st.playlist.table.entries = [||]) @
     check "at most one selection"
-      (not (Playlist.has_selection st.playlist &&
-        Library.has_selection st.library)) @
+      (not (Table.has_selection st.playlist.table &&
+        Table.has_selection st.library.tracks)) @
     []
   with
   | errors when errors <> [] ->
@@ -141,7 +141,7 @@ let load st =
     Library.load st.library file;
     load_ui st file;
 
-    if st.control.current = None && Playlist.length st.playlist > 0 then
+    if st.control.current = None && Table.length st.playlist.table > 0 then
     (
       st.control.current <- Table.current_opt st.playlist.table;
       Control.switch st.control (Option.get st.control.current) false;

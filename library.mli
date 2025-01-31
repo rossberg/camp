@@ -56,6 +56,8 @@ val rescan_done : t -> bool
 
 (* Browser *)
 
+val length_browser : t -> int
+
 val update_browser : t -> unit
 val update_dir : t -> dir -> unit
 
@@ -75,6 +77,8 @@ val track_attr_string : track -> track_attr -> string
 
 val update_tracks : t -> unit
 val reorder_tracks : t -> unit
+
+val focus : t -> bool -> unit
 
 val has_selection : t -> bool
 val num_selected : t -> int

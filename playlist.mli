@@ -44,20 +44,21 @@ val playlist_of_string : string -> track array
 
 (* Accessors *)
 
+val length : t -> int
 val current : t -> track
 val current_opt : t -> track option
 
-val adjust_scroll : t -> int option -> int -> unit
+val focus : t -> bool -> unit
+val adjust_scroll : t -> int -> unit
 
 
 (* Total *)
 
 val update_total : t -> unit
+val update_total_selected : t -> unit
 
 
 (* Navigation *)
-
-val length : t -> int
 
 val skip : t -> int (* delta *) -> bool (* repeat *) -> bool
 

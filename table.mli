@@ -8,6 +8,7 @@ type 'a t =
 {
   mutable entries : 'a array;
   mutable pos : int option;                (* current position in table *)
+  mutable focus : bool;
   mutable vscroll : int;                   (* in number of rows *)
   mutable hscroll : int;                   (* in pixels *)
   mutable sel_range : (int * int) option;  (* primary and secondary pos *)
@@ -32,6 +33,7 @@ val ok : string -> 'a t -> error list
 
 (* Accessors *)
 
+val length : 'a t -> int
 val current : 'a t -> 'a
 val current_opt : 'a t -> 'a option
 

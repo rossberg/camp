@@ -15,6 +15,7 @@ type 'a t =
 {
   mutable entries : 'a array;
   mutable pos : int option;                (* current position in table *)
+  mutable focus : bool;
   mutable vscroll : int;                   (* in number of rows *)
   mutable hscroll : int;                   (* in pixels *)
   mutable sel_range : (int * int) option;  (* primary and secondary pos *)
@@ -31,6 +32,7 @@ let make () =
   {
     entries = [||];
     pos = None;
+    focus = false;
     vscroll = 0;
     hscroll = 0;
     sel_range = None;
@@ -43,6 +45,7 @@ let make () =
 
 (* Accessors *)
 
+let length tab = Array.length tab.entries
 let current_opt tab = Option.map (fun i -> tab.entries.(i)) tab.pos
 let current tab = Option.get (current_opt tab)
 
@@ -292,6 +295,11 @@ let move_selected tab d =
   (
     push_undo tab;
     let len = Array.length tab.entries in
+    let d =
+      if d < 0
+      then max d (- Option.value (first_selected tab) ~default: (len - 1))
+      else min d (len - Option.value (last_selected tab) ~default: 0 - 1)
+    in
     let js = Array.init len Fun.id in
     if d < 0 then
       for i = 0 to len - 1 do
