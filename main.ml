@@ -147,6 +147,7 @@ let playlist_min = 31 + 4 * row_h
 
 let playlist_area = (1, margin, margin, -margin-scrollbar_w, -bottom_h)
 let playlist_table rh = Ui.rich_table playlist_area gutter_w rh scrollbar_w 0
+let playlist_drop = Ui.drop playlist_area
 
 let total_w = -margin-scrollbar_w
 let total_x = total_w-100
@@ -212,15 +213,10 @@ let tracks_button = view_button 0
 let tracks_label = view_label 0 "TRACKS"
 
 let browser_y = margin+indicator_w+view_h+label_h+10
-let browser_area = (2, margin, browser_y, -scrollbar_w-divider_w, -bottom_h)
+let browser_area = (2, margin, browser_y, -divider_w, -bottom_h)
+let browser_table rh = Ui.rich_table browser_area 0 rh scrollbar_w 0
+let browser_drop = Ui.drop browser_area
 let browser_error_box = Ui.box browser_area
-let browser_table = Ui.table browser_area 0
-(*
-let browser_table rh = Ui.rich_table browser_area 0 rh scrollbar_w scrollbar_w
-*)
-let browser_scroll = Ui.scroll_bar (2, -divider_w-scrollbar_w, browser_y, scrollbar_w, -bottom_h) `Vertical
-let browser_wheel = Ui.wheel (2, margin, margin, -divider_w, -bottom_h)
-let browser_drag = Ui.drag browser_area
 
 let del_key = Ui.key ([`Command], `Delete)
 
@@ -628,7 +624,7 @@ let run_playlist (st : State.t) =
   playlist_pane st.ui (x, control_h, control_w, st.playlist.height);
 
   (* Playlist table *)
-  let (_, y, _, h) as r = Ui.dim st.ui playlist_area in
+  let _, y, _, h = Ui.dim st.ui playlist_area in
   let page = int_of_float (Float.floor (float h /. float row_h)) in
   let digits_pos = log10 (len + 1) + 1 in
   let digits_time = ref 1 in
@@ -692,246 +688,6 @@ let run_playlist (st : State.t) =
     );
     Playlist.move_selected st.playlist delta
   );
-
-(*
-  (* Playlist table *)
-  let tab = st.playlist.table in
-  let digits = log10 (len + 1) + 1 in
-  let font = Ui.font st.ui row_h in
-  let smax1 = String.make digits '0' ^ "." in
-  let cw1 = Api.Draw.text_width win row_h font smax1 + 1 in
-  let cw3 = ref 16 in
-  let (_, y, _, h) as r = Ui.dim st.ui playlist_area in
-  let page = max 4 (int_of_float (Float.floor (float h /. float row_h))) in
-  (* Correct scrolling position for possible resize *)
-  tab.vscroll <- clamp 0 (max 0 (len - page)) tab.vscroll;
-  let rows =
-    Array.init (min page len) (fun i ->
-      let i = i + tab.vscroll in
-      let track = tab.entries.(i) in
-      if now -. track.last_update > st.config.delay_track_update then
-        Track.update st.control.audio track;
-      let c =
-        match track.status with
-        | _ when Some i = tab.pos ->
-          if track.path = (Option.get st.control.current).path then `White else `Gray 0xc0
-        | _ when Track.is_separator track -> Ui.text_color st.ui
-        | `Absent -> Ui.error_color st.ui
-        | `Invalid -> Ui.warn_color st.ui
-        | `Undet -> Ui.semilit_color (Ui.text_color st.ui)
-        | `Predet | `Det -> Ui.text_color st.ui
-      in
-      let inv = if Table.is_selected tab i then `Inverted else `Regular in
-      let time = if track.time = 0.0 then "" else fmt_time track.time in
-      cw3 := max !cw3 (Api.Draw.text_width win row_h font time + 1);
-      c, inv, [|fmt "%0*d." digits (i + 1); track.name; time|]
-    )
-  in
-  let cols = [|cw1, `Right; -1, `Left; !cw3, `Right|] in
-  let dragging = playlist_drag st.ui (max_int, row_h) in
-  (match playlist_table row_h st.ui cols rows 0 with
-  | None -> ()
-  | Some i ->
-    let i = tab.vscroll + i in
-    if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
-      Api.Mouse.set_cursor win `Point;
-    if
-      Api.Key.are_modifiers_down [] &&
-      Api.Mouse.is_pressed `Left && dragging = `None
-    then
-    (
-      (* Click on playlist *)
-      if i >= len || not (Playlist.is_selected st.playlist i) then
-      (
-        (* Click on empty space: deselect all *)
-        Library.deselect_all st.library;
-        Playlist.deselect_all st.playlist;
-      );
-      if i < len then
-      (
-        (* Click on track *)
-        if Api.Mouse.is_doubleclick `Left then
-        (
-          (* Double-click on track: switch to track *)
-          tab.pos <- Some i;
-          Control.switch st.control tab.entries.(i) true;
-          if st.playlist.shuffle <> None then 
-            Playlist.shuffle_next st.playlist i;
-        )
-        else
-        (
-          (* Single-click on track: make it singular selection *)
-          Library.deselect_all st.library;
-          Playlist.select st.playlist i i;
-        )
-      )
-    )
-    else if
-      Api.Key.are_modifiers_down [] &&
-      not (Api.Mouse.is_pressed `Left) && dragging = `Click
-    then
-    (
-      (* Click-release on playlist: deselect all except for clicked track *)
-      Playlist.deselect_all st.playlist;
-      if i < len then
-      (
-        Library.deselect_all st.library;
-        Playlist.select st.playlist i i;
-      )
-    )
-    else if
-      Api.Key.are_modifiers_down [`Command] && Api.Mouse.is_pressed `Left
-    then
-    (
-      (* Cmd-click on playlist: toggle selection of clicked track *)
-      if i < len then
-      (
-        if Playlist.is_selected st.playlist i then
-          Playlist.deselect st.playlist i i
-        else
-        (
-          Library.deselect_all st.library;
-          Playlist.select st.playlist i i;
-        )
-      )
-    )
-    else if Api.Key.are_modifiers_down [`Shift] && Api.Mouse.is_down `Left then
-    (
-      (* Shift-click/drag on playlist: adjust selection range *)
-      let default = if i < len then (i, i) else (0, 0) in
-      let pos1, pos2 = Option.value tab.sel_range ~default in
-      let i' = max 0 (min i (len - 1)) in
-      if tab.sel_range = None || Playlist.is_selected st.playlist pos1 then
-      (
-        (* Track was already selected: deselect old range, select new range *)
-        Library.deselect_all st.library;
-        Playlist.deselect st.playlist pos2 i';
-        Playlist.select st.playlist pos1 i'
-      )
-      else
-      (
-        (* Track was not selected: select old range, deselect new range *)
-        Library.deselect_all st.library;
-        Playlist.select st.playlist pos2 i';
-        Playlist.deselect st.playlist pos1 i'
-      )
-    )
-  );
-
-  (* Playlist selection *)
-  if not (Library.has_selection st.library) then
-  (
-    let d =
-      if begin_key st.ui then -len else
-      if end_key st.ui then +len else
-      if pageup_key st.ui then -page else
-      if pagedown_key st.ui then +page else
-      if up_key st.ui then -1 else
-      if down_key st.ui then +1 else
-      0
-    in
-    if min len (abs d) > 0 then
-    (
-      (* Plain cursor movement: deselect all, reselect relative to range end *)
-      let default = 0, if d < 0 then len else -1 in
-      let _, pos2 = Option.value tab.sel_range ~default in
-      let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
-      Playlist.deselect_all st.playlist;
-      Playlist.select st.playlist i i;
-      Playlist.adjust_scroll st.playlist (Some i) page;
-    );
-
-    let d =
-      if selbegin_key st.ui then -len else
-      if selend_key st.ui then +len else
-      if selpageup_key st.ui then -page else
-      if selpagedown_key st.ui then +page else
-      if selup_key st.ui then -1 else
-      if seldown_key st.ui then +1 else
-      0
-    in
-    if min len (abs d) > 0 then
-    (
-      (* Shift-cursor movement: adjust selection range *)
-      let default = 0, if d < 0 then len else -1 in
-      let pos1, pos2 = Option.value tab.sel_range ~default in
-      let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
-      if tab.sel_range = None then
-      (
-        (* No selection yet: range from end of playlist *)
-        Playlist.select st.playlist (len - 1) i
-      )
-      else if Playlist.is_selected st.playlist pos1 then
-      (
-        (* Range start was already selected: deselect old range, select new *)
-        Playlist.deselect st.playlist (max 0 pos2) i;
-        Playlist.select st.playlist pos1 i
-      )
-      else
-      (
-        (* Range start was not selected: select old range, deselect new *)
-        Playlist.select st.playlist (max 0 pos2) i;
-        Playlist.deselect st.playlist pos1 i
-      );
-      Playlist.adjust_scroll st.playlist (Some i) page;
-    );
-
-    if selall_key st.ui then
-    (
-      (* Select-all key pressed: select all *)
-      Library.deselect_all st.library;
-      Playlist.select_all st.playlist;
-    )
-    else if selnone_key st.ui then
-    (
-      (* Deselect-all key pressed: deselect all *)
-      Playlist.deselect_all st.playlist;
-    )
-    else if selinv_key st.ui then
-    (
-      (* Selection inversion key pressed: invert selection *)
-      Library.deselect_all st.library;
-      Playlist.select_invert st.playlist;
-    )
-  );
-
-  (* Playlist dragging *)
-  let d0 =
-    match dragging with
-    | `Drag (_, dy) when Api.Key.are_modifiers_down [] -> dy
-    | _ -> 0
-  in
-  let d = d0 +
-    if movebegin_key st.ui then -len else
-    if moveend_key st.ui then +len else
-    if movepageup_key st.ui then -page else
-    if movepagedown_key st.ui then +page else
-    if moveup_key st.ui then -1 else
-    if movedown_key st.ui then +1 else
-    0
-  in
-  if min len (abs d) > 0 then
-  (
-    (* Drag or Cmd-cursor movement: move selection *)
-    let d' =
-      if d < 0
-      then max d (- Option.value (Playlist.first_selected st.playlist) ~default: (len - 1))
-      else min d (len - Option.value (Playlist.last_selected st.playlist) ~default: 0 - 1)
-    in
-    Playlist.move_selected st.playlist d';
-    if d0 = 0 then
-      tab.vscroll <- clamp 0 (max 0 (len - page)) (tab.vscroll + d);
-  );
-
-  (* Playlist scrolling *)
-  let h' = page * row_h in
-  let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
-  let pos = if len = 0 then 0.0 else float tab.vscroll /. float len in
-  let pos' = playlist_scroll st.ui pos ext -. 0.05 *. playlist_wheel st.ui in
-  (* Possible scrolling activity: update scroll position *)
-  tab.vscroll <- clamp 0 (max 0 (len - page))
-    (int_of_float (Float.round (pos' *. float len)));
-*)
 
   (* Playlist buttons *)
   if save_button st.ui None then
@@ -1064,11 +820,11 @@ let run_playlist (st : State.t) =
   );
 
   (* Playlist drag & drop *)
-  let _, my as m = Api.Mouse.pos win in
-  let dropped = Api.File.dropped win in
-  if dropped <> [] && Api.inside m r then
+  let dropped = playlist_drop st.ui in
+  if dropped <> [] then
   (
     (* Files drop on playlist: insertion paths at pointed position *)
+    let _, my = Api.Mouse.pos win in
     let pos = min len ((my - y) / row_h + tab.vscroll) in
     Playlist.deselect_all st.playlist;
     Playlist.insert_paths st.playlist pos dropped st.control.audio;
@@ -1123,11 +879,10 @@ let run_library (st : State.t) =
 
   (* Browser *)
   let browser = st.library.browser in
+  let len = Table.length browser in
 
-(*
   let cols = [|-1, `Left|] in
   let c = Ui.text_color st.ui in
-  let sel = Library.selected_dir st.library in
   let pre =
     Array.map (fun (dir : Data.dir) ->
       let sym =
@@ -1137,145 +892,95 @@ let run_library (st : State.t) =
       if dir.nest = -1 then "" else String.make (2 * dir.nest) ' ' ^ sym ^ " "
     ) browser.entries
   in
-  let rows =
-    Array.mapi (fun i (dir : Data.dir) ->
-      c, [|pre.(i) ^ dir.name|]
-    ) browser.entries
-  in
+  let pp_row i = c, [|pre.(i) ^ browser.entries.(i).name|]in
 
+  let dir = Library.selected_dir st.library in
+  let selected = browser.selected in
   (match browser_table row_h st.ui cols None browser pp_row with
-  | `None | `Scroll | `Drop -> ()
-  | `Select -> Playlist.update_total_selected st.playlist
+  | `None | `Scroll -> ()
   | `Sort _ | `Arrange -> assert false
-  | `Click (Some i) when Api.Mouse.is_doubleclick `Left ->
-    (* Double-click on track: switch to track *)
-    tab.pos <- Some i;
-    Control.switch st.control tab.entries.(i) true;
-    if st.playlist.shuffle <> None then 
-      Playlist.shuffle_next st.playlist i;
-  | `Click _ ->
-    (* Single-click: grab focus *)
-    Playlist.update_total_selected st.playlist;
+
+  | `Select ->
+    (* TODO: allow multiple selections and keys *)
+    browser.selected <- selected;  (* override *)
+
+  | `Click (Some i) ->
+    (* Click on dir: fold/unfold or switch view *)
+    let x, _, _, _ = Ui.dim st.ui browser_area in
+    let tw = Api.Draw.text_width win row_h (Ui.font st.ui row_h) pre.(i) in
+    if mx < x + tw && (Api.Mouse.is_down `Left || Api.Mouse.is_released `Left) then
+    (
+      (* CLick on triangle: fold/unfold entry *)
+      let dir = browser.entries.(i) in
+      browser.selected <- selected;  (* override selection change *)
+      if Api.Mouse.is_pressed `Left then
+        Library.fold_dir st.library dir (not dir.folded);
+    )
+    else
+    (
+      (* Click on directory name: change view if necessary *)
+      (* TODO: allow multiple selections *)
+      if Table.num_selected browser > 1 then
+        browser.selected <- selected  (* override *)
+      else if Library.selected_dir st.library <> dir then
+      (
+        Library.select_dir st.library i;  (* do bureaucracy *)
+        Library.deselect_all st.library;
+        Library.update_tracks st.library;
+      );
+      if Api.Mouse.is_doubleclick `Left then
+      (
+        (* Double-click on directory name: send track view to playlist *)
+        Control.eject st.control;
+        Playlist.remove_all st.playlist;
+        let tracks = Array.map Track.make_from_data st.library.tracks.entries in
+        Playlist.insert st.playlist 0 tracks;
+        if tracks <> [||] then
+          Control.switch st.control tracks.(0) true;
+      )
+    )
+
+  | `Click None ->
+    (* Click into empty space: deselect everything *)
+    Library.deselect_dir st.library;
     Library.deselect_all st.library;
-  | `Move delta ->
-    (* Drag or Cmd-cursor movement: move selection *)
-    Playlist.move_selected st.playlist delta
-  );
-*)
-(* *)
-  let len = Table.length browser in
-  let (x, y, _, h) as r = Ui.dim st.ui browser_area in
-  let page = max 4 (int_of_float (Float.floor (float h /. float row_h))) in
-  (* Correct scrolling position for possible resize *)
-  browser.vscroll <- clamp 0 (max 0 (len - page)) browser.vscroll;
-  let cols = [|-1, `Left|] in
-  let c = Ui.text_color st.ui in
-  let sel = Library.selected_dir st.library in
-  let pres =
-    Array.map (fun (dir : Data.dir) ->
-      let sym =
-        if dir.children = [||] then symbol_empty else
-        if dir.folded then symbol_folded else symbol_unfolded
-      in
-      if dir.nest = -1 then "" else String.make (2 * dir.nest) ' ' ^ sym ^ " "
-    ) browser.entries
-  in
-  let rows =
-    Array.mapi (fun i (dir : Data.dir) ->
-      let inv = if Some i = sel then `Inverted else `Regular in
-      c, inv, [|pres.(i) ^ dir.name|]
-    ) browser.entries
-  in
-  let dragging = browser_drag st.ui (max_int, row_h) in
-  (match browser_table row_h st.ui cols rows 0 with
-  | None -> ()
-  | Some i ->
-    let i = browser.vscroll + i in
+    Library.update_tracks st.library;
+
+  | `Move _ ->
+    (* Drag or Cmd-cursor movement: adjust cursor *)
     if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
     (
-      (* Mouse button down: adjust cursor *)
+      (* Actual drag *)
       Api.Mouse.set_cursor win
         (if
           Api.inside m (Ui.dim st.ui browser_area) ||
           Api.inside m (Ui.dim st.ui playlist_area)
         then `Point else `Blocked)
     );
-    if
-      Api.Key.are_modifiers_down [] &&
-      Api.Mouse.is_pressed `Left && dragging = `None
-    then
+
+  | `Drop ->
+    (* Drag & drop originating from tracks *)
+    let (_, y, _, _) as r = Ui.dim st.ui playlist_area in
+    if Api.inside m r then
     (
-      (* Click into browser table *)
-      if i >= len then
-      (
-        (* Click into empty space: deselect everything *)
-        Library.deselect_dir st.library;
-        Library.deselect_all st.library;
-        Library.update_tracks st.library;
-      )
-      else
-      (
-        let tw = Api.Draw.text_width win row_h (Ui.font st.ui row_h) pres.(i) in
-        if mx < x + tw then
-        (
-          (* CLick on triangle: fold/unfold entry *)
-          let dir = browser.entries.(i) in
-          Library.fold_dir st.library dir (not dir.folded);
-        )
-        else
-        (
-          (* Click on directory name: change view if necessary *)
-          if Some i <> Library.selected_dir st.library then
-          (
-            Library.select_dir st.library i;
-            Library.deselect_all st.library;
-            Library.update_tracks st.library;
-          );
-          if Api.Mouse.is_doubleclick `Left then
-          (
-            (* Double-click on directory name: send track view to playlist *)
-            Control.eject st.control;
-            Playlist.remove_all st.playlist;
-            let tracks = Array.map Track.make_from_data st.library.tracks.entries in
-            Playlist.insert st.playlist 0 tracks;
-            if tracks <> [||] then
-              Control.switch st.control tracks.(0) true;
-          )
-        )
-      )
-    )
-    else if Api.Key.are_modifiers_down [] && dragging = `Drop then
-    (
-      (* Drag & drop *)
-      let (_, y, _, _) as r = Ui.dim st.ui playlist_area in
-      if Api.inside m r then
-      (
-        (* Drag & drop onto playlist: send directory contents to playlist *)
-        let tracks = Array.map Track.make_from_data st.library.tracks.entries in
-        let len = Playlist.length st.playlist in
-        let pos = min len ((my - y) / row_h + st.playlist.table.vscroll) in
-        Playlist.insert st.playlist pos tracks;
-        Library.deselect_all st.library;
-        Playlist.deselect_all st.playlist;
-        Playlist.select st.playlist pos (pos + Array.length tracks - 1);
-        Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
-      )
+      (* Drag & drop onto playlist: send directory contents to playlist *)
+      let tracks = Array.map Track.make_from_data st.library.tracks.entries in
+      let len = Playlist.length st.playlist in
+      let pos = min len ((my - y) / row_h + st.playlist.table.vscroll) in
+      Playlist.insert st.playlist pos tracks;
+      Library.deselect_all st.library;
+      Playlist.deselect_all st.playlist;
+      Playlist.select st.playlist pos (pos + Array.length tracks - 1);
+      Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
     )
   );
 
-  (* Browser scrolling *)
-  let h' = page * row_h in
-  let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * row_h)) in
-  let pos = if len = 0 then 0.0 else float browser.vscroll /. float len in
-  let pos' = browser_scroll st.ui pos ext -. 0.05 *. browser_wheel st.ui in
-  (* Possible scrolling activity: update scroll position *)
-  browser.vscroll <- clamp 0 (max 0 (len - page))
-    (int_of_float (Float.round (pos' *. float len)));
-
   (* Browser drag & drop *)
-  let dropped = Api.File.dropped win in
-  if dropped <> [] && Api.inside m r then
+  let dropped = browser_drop st.ui in
+  if dropped <> [] then
   (
+    let _, my = Api.Mouse.pos win in
+    let _, y, _, _ = Ui.dim st.ui browser_area in
     let pos = min len ((my - y) / row_h + browser.vscroll) in
     let rec find_root_pos i j =
       if i = pos then j else
@@ -1286,7 +991,6 @@ let run_library (st : State.t) =
     else
       browser_error_box (Ui.error_color st.ui) st.ui;  (* flash *)
   );
-(* *)
 
   (* Keys *)
   if del_key st.ui then
@@ -1446,6 +1150,7 @@ let run_library (st : State.t) =
       Playlist.insert st.playlist pos (Array.map Track.make_from_data tracks);
       Library.focus st.library false;
       Library.deselect_all st.library;
+      Playlist.focus st.playlist true;
       Playlist.deselect_all st.playlist;
       Playlist.select st.playlist pos (pos + Array.length tracks - 1);
       Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
@@ -1530,6 +1235,7 @@ let startup () =
     clamp browser_min (browser_max st.library.width) st.library.browser_width;
   Library.update_tracks st.library;
   Playlist.adjust_scroll st.playlist 4;
+  Playlist.focus st.playlist true;
   at_exit (fun () -> State.save st; Storage.clear_temp (); Db.exit db);
   st
 

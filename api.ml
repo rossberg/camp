@@ -594,12 +594,17 @@ end
 
 module File =
 struct
+  let paths = ref []
+
   let dropped () =
+    if !paths <> [] then !paths else
     if not (Raylib.is_file_dropped ()) then [] else
     let list = Raylib.load_dropped_files () in
-    let paths = Raylib.FilePathList.files list in
+    paths := Raylib.FilePathList.files list;
     Raylib.unload_dropped_files list;
-    paths
+    !paths
+
+  let _ = before_frame_finish := (fun () -> paths := []) :: !before_frame_finish
 end
 
 

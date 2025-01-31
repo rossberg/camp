@@ -45,6 +45,7 @@ val key : modifier list * key -> t -> bool
 val mouse : area -> side -> t -> bool
 val drag : area -> t -> size -> [`Drag of size | `Drop | `Click | `None]
 val wheel : area -> t -> float
+val drop : area -> t -> string list
 
 (* UI elements *)
 

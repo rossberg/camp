@@ -340,10 +340,14 @@ let drag_status ui r (stepx, stepy) =
 let wheel_status ui r =
   if inside (Mouse.pos ui.win) r then snd (Mouse.wheel ui.win) else 0.0
 
+let drop_status ui r =
+  if Api.inside (Mouse.pos ui.win) r then Api.File.dropped ui.win else []
+
 let key modkey ui = (key_status ui modkey = `Pressed)
 let mouse r side ui = (mouse_status ui (dim ui r) side = `Released)
 let wheel r ui = wheel_status ui (dim ui r)
 let drag r ui eps = drag_status ui (dim ui r) eps
+let drop r ui = drop_status ui (dim ui r)
 
 
 (* Auxiliary UI elements *)
@@ -910,7 +914,7 @@ let rich_table area gw ch sw sh ui cols headings_opt (tab : _ Table.t) pp_row =
   let wheel = if not shift then wheel_status ui r else 0.0 in
   let pos' = scroll_bar vscroll_area `Vertical ui pos ext -. 0.05 *. wheel in
   let result =
-    if result <> `None && pos = pos' then result else
+    if result <> `None || pos = pos' then result else
     (
       tab.vscroll <- clamp 0 (max 0 (len - page))
         (int_of_float (Float.round (pos' *. float len)));
@@ -927,7 +931,7 @@ let rich_table area gw ch sw sh ui cols headings_opt (tab : _ Table.t) pp_row =
     let pos = if vw' = 0 then 0.0 else float tab.hscroll /. float vw' in
     let wheel = if shift then wheel_status ui r else 0.0 in
     let pos' = scroll_bar hscroll_area `Horizontal ui pos ext -. 0.05 *. wheel in
-    if result <> `None && pos = pos' then result else
+    if result <> `None || pos = pos' then result else
     (
       tab.hscroll <-
         clamp 0 (max 0 (vw' - w)) (int_of_float (Float.round (pos' *. float vw')));
@@ -989,31 +993,31 @@ let rich_table area gw ch sw sh ui cols headings_opt (tab : _ Table.t) pp_row =
       )
       else if command then
       (
-        if key_status' ui (`Char 'A') = `Pressed then
-        (
-          (* Select-all key pressed: select all *)
-          Table.select_all tab;
-          `Select
-        )
-        else if key_status' ui (`Char 'N') = `Pressed then
-        (
-          (* Deselect-all key pressed: deselect all *)
-          Table.deselect_all tab;
-          `Select
-        )
-        else if key_status' ui (`Char 'I') = `Pressed then
-        (
-          (* Selection inversion key pressed: invert selection *)
-          Table.select_invert tab;
-          `Select
-        )
-        else if min len (abs d) > 0 then
-        (
-          (* Cmd-cursor movement: move selection *)
-          Table.adjust_scroll tab (Some i) page;
-          `Move d
-        )
-        else `None
+        (* Cmd-cursor movement: move selection *)
+        Table.adjust_scroll tab (Some i) page;
+        `Move d
+      )
+      else `None
+    )
+    else if command then
+    (
+      if key_status' ui (`Char 'A') = `Pressed then
+      (
+        (* Select-all key pressed: select all *)
+        Table.select_all tab;
+        `Select
+      )
+      else if key_status' ui (`Char 'N') = `Pressed then
+      (
+        (* Deselect-all key pressed: deselect all *)
+        Table.deselect_all tab;
+        `Select
+      )
+      else if key_status' ui (`Char 'I') = `Pressed then
+      (
+        (* Selection inversion key pressed: invert selection *)
+        Table.select_invert tab;
+        `Select
       )
       else `None
     )
