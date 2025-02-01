@@ -564,9 +564,14 @@ let run_control (st : State.t) =
     | `A t1, false when t1 > elapsed -> `A elapsed
     | `A t1, false -> `AB (t1, elapsed)
     | `AB (t1, t2), true -> `AB (t1, t2)
-    );
+    )
 
-  (* Pane Activation *)
+
+(* Pane Activation *)
+
+let run_toggle_panes (st : State.t) =
+  let win = Ui.window st.ui in
+
   playlist_label st.ui;
   playlist_indicator st.ui st.playlist.shown;
   let playlist_shown' = playlist_button st.ui (Some st.playlist.shown) in
@@ -827,8 +832,11 @@ let run_playlist (st : State.t) =
     let _, my = Api.Mouse.pos win in
     let pos = min len ((my - y) / row_h + tab.vscroll) in
     Playlist.deselect_all st.playlist;
+    let len = Playlist.length st.playlist in
     Playlist.insert_paths st.playlist pos dropped st.control.audio;
-    Playlist.select st.playlist pos (pos + List.length dropped - 1);
+    let len' = Playlist.length st.playlist in
+    if pos > 0 && pos < len then
+      Playlist.select st.playlist pos (pos + len' - len - 1);
     Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
   );
 
@@ -844,7 +852,7 @@ let run_playlist (st : State.t) =
   playlist_total_text st.ui `Regular true (s1 ^ s2)
 
 
-(* Library Pane *)
+(* Library Panes *)
 
 let symbol_empty = "○"
 let symbol_folded = "►" (* "▸" *)
@@ -1186,6 +1194,7 @@ let rec run (st : State.t) =
     if playlist_shown then run_playlist st;
     if library_shown then run_library st;
   );
+  run_toggle_panes st;
 
   (* Adjust font size *)
   let row_height' = st.config.row_height +
@@ -1193,6 +1202,11 @@ let rec run (st : State.t) =
     (if reduce_key st.ui then -1 else 0)
   in
   st.config.row_height <- clamp 8 64 row_height';
+
+  (* Adjust window size *)
+  Api.Window.set_size win
+    (control_w + (if st.library.shown then st.library.width else 0))
+    (control_h + (if st.playlist.shown then st.playlist.height else 0));
 
   (* Adjust window position after opening/closing library *)
   let dx =
