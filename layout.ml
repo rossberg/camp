@@ -17,10 +17,10 @@ type t =
   mutable library_width : int;
   mutable library_side : Api.side;
   mutable browser_width : int;
+  mutable left_width : int;
   mutable right_shown : bool;
-  mutable right_width : int;
+  mutable upper_height : int;
   mutable lower_shown : bool;
-  mutable lower_height : int;
 }
 
 let make ui =
@@ -37,10 +37,10 @@ let make ui =
     library_width = 600;
     library_side = `Left;
     browser_width = 100;
+    left_width = 200;
     right_shown = false;
-    right_width = 200;
+    upper_height = 200;
     lower_shown = false;
-    lower_height = 200;
   }
 
 
@@ -291,30 +291,39 @@ let del_key g = Ui.key g.ui ([`Command], `Delete)
 
 (* View Panes *)
 
-let right_w g = if g.right_shown then g.right_width else 0
-let lower_h g = if g.lower_shown then g.lower_height else 0
+let left_x g = library_x g + g.browser_width
+let left_w g = if g.right_shown then g.left_width else library_w g - g.browser_width
+let right_w g = if g.right_shown then library_w g - g.browser_width - g.left_width else 0
+let upper_h g = if g.lower_shown then g.upper_height else - bottom_h g
+let lower_h g = - bottom_h g
 
 (* Upper left view *)
-let left_pane g = Ui.pane g.ui 3 (library_x g + g.browser_width, 0, library_w g - g.browser_width - right_w g, - bottom_h g - lower_h g)
+let left_pane g = Ui.pane g.ui 3 (left_x g, 0, left_w g, upper_h g)
 
 let left_area g = (3, 0, margin g, -1, -1)
 let left_table g = Ui.rich_table g.ui (left_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g)
 
+let left_view = left_pane, left_area, left_table
+
 (* Upper right view (optional) *)
-let right_pane g = Ui.pane g.ui 4 (library_x g + g.library_width - g.right_width, 0, g.right_width, - bottom_h g - lower_h g)
+let right_pane g = Ui.pane g.ui 4 (left_x g + g.left_width, 0, right_w g, upper_h g)
 
 let right_divider g = Ui.divider g.ui (4, 0, 0, divider_w g, -1) `Horizontal
 
 let right_area g = (4, divider_w g, margin g, -1, -1)
 let right_table g = Ui.rich_table g.ui (right_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g)
 
+let right_view = right_pane, right_area, right_table
+
 (* Lower view (optional) *)
-let lower_pane g = Ui.pane g.ui 5 (library_x g + g.browser_width, 0, library_w g - g.browser_width, lower_h g)
+let lower_pane g = Ui.pane g.ui 5 (left_x g, g.upper_height, library_w g - g.browser_width, lower_h g)
 
 let lower_divider g = Ui.divider g.ui (5, 0, 0, -1, divider_w g) `Vertical
 
 let lower_area g = (5, 0, divider_w g, -1, -1)
 let lower_table g = Ui.rich_table g.ui (lower_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g)
+
+let lower_view = lower_pane, lower_area, lower_table
 
 
 (* Info Pane *)
@@ -335,10 +344,11 @@ let right_min _g = 100
 let views_min g = left_min g + right_min g
 let library_min g = browser_min g + views_min g
 
-let upper_min g = margin g + 2 * (text_h g) + scrollbar_w g + 3
-let lower_min g = divider_w g + 2 * (text_h g) + scrollbar_w g + 3
-let playlist_min g = bottom_h g + max (margin g + 4 * (text_h g)) (upper_min g + lower_min g)
+let upper_min g = margin g + 5 * (text_h g) + scrollbar_w g + 3
+let lower_min g = divider_w g + 5 * (text_h g) + scrollbar_w g + 3
 
 let browser_max g = g.library_width - views_min g
-let right_max g = g.library_width - g.browser_width - left_min g
-let lower_max g = control_h g + g.playlist_height - bottom_h g - upper_min g
+let left_max g = g.library_width - g.browser_width - right_min g
+let upper_max g = control_h g + g.playlist_height - bottom_h g - lower_min g
+
+let playlist_min g = bottom_h g + max (margin g + 4 * (text_h g)) (upper_min g + lower_min g - control_h g)

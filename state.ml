@@ -93,8 +93,8 @@ let layout_to_map lay =
     "lib_side", fmt "%d" (Bool.to_int (lay.library_side = `Right));
     "lib_width", fmt "%d" lay.library_width;
     "browser_width", fmt "%d" lay.browser_width;
-    "lower_height", fmt "%d" lay.lower_height;
-    "right_width", fmt "%d" lay.right_width;
+    "upper_height", fmt "%d" lay.upper_height;
+    "left_width", fmt "%d" lay.left_width;
   ]
 
 let layout_of_map lay m =  (* assumes playlist and library already loaded *)
@@ -119,10 +119,10 @@ let layout_of_map lay m =  (* assumes playlist and library already loaded *)
     lay.library_width <- scan s "%d" (num (library_min lay) (sw - ww)));
   read_map m "browser_width" (fun s ->
     lay.browser_width <- scan s "%d" (num (browser_min lay) (browser_max lay)));
-  read_map m "right_width" (fun s ->
-    lay.right_width <- scan s "%d" (num (right_min lay) (right_max lay)));
-  read_map m "lower_height" (fun s ->
-    lay.lower_height <- scan s "%d" (num (lower_min lay) (lower_max lay)));
+  read_map m "left_width" (fun s ->
+    lay.left_width <- scan s "%d" (num (left_min lay) (left_max lay)));
+  read_map m "upper_height" (fun s ->
+    lay.upper_height <- scan s "%d" (num (upper_min lay) (upper_max lay)));
   Api.Draw.start win `Black;
   Option.iter (fun (x, y) -> Api.Window.set_pos win x y) !xy;
   Api.Window.set_size win (ww + lay.library_width) (wh + lay.playlist_height);

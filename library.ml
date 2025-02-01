@@ -154,17 +154,17 @@ let meta_attr_string (meta : Meta.t) = function
     String.init (meta.rating * len) (fun i -> star.[i mod len])
 
 
-let _artist_attr_string artist = function
+let artist_attr_string (artist : artist) = function
   | `Artist -> artist.name
   | `Tracks -> string_of_int artist.tracks
   | `Albums -> string_of_int artist.albums
 
-let _album_attr_string album = function
+let album_attr_string (album : album) = function
   | #file_attr as attr -> file_attr_string album.path album.file attr
   | #format_attr as attr -> nonempty format_attr_string album.format attr
   | #meta_attr as attr -> nonempty meta_attr_string album.meta attr
 
-let track_attr_string track = function
+let track_attr_string (track : track) = function
   | #file_attr as attr -> file_attr_string track.path track.file attr
   | #format_attr as attr -> nonempty format_attr_string track.format attr
   | #meta_attr as attr -> nonempty meta_attr_string track.meta attr

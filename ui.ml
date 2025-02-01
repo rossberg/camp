@@ -56,7 +56,11 @@ let pane ui i r =
   let y = if y >= 0 then y else wh + y in
   let w = if w >= 0 then w else ww - x + w in
   let h = if h >= 0 then h else wh - y + h in
-  assert (x >= 0 && y >= 0 && x + w <= ww && y + h <= wh);
+  if not (x >= 0 && y >= 0 && x + w <= ww && y + h <= wh) then
+    Storage.log (Printf.sprintf
+      "invalid element geometry: x=%d y=%d w=%d h=%d winw=%d winh=%d"
+      x y w h ww wh
+    );
 
   let n = Array.length ui.panes in
   if i >= n then

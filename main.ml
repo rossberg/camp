@@ -639,6 +639,15 @@ let run_library (st : State.t) =
   let win = Ui.window lay.ui in
   let (mx, my) as m = Api.Mouse.pos win in
 
+  (* Update after possible window resize *)
+  lay.browser_width <-
+    clamp (Layout.browser_min lay) (Layout.browser_max lay) lay.browser_width;
+  lay.left_width <-
+    clamp (Layout.left_min lay) (Layout.left_max lay) lay.left_width;
+  lay.upper_height <-
+    clamp (Layout.upper_min lay) (Layout.upper_max lay) lay.upper_height;
+
+
   Layout.browser_pane lay;
 
   (* Background rescanning *)
@@ -647,17 +656,6 @@ let run_library (st : State.t) =
     Library.update_browser lib;
     Library.update_tracks lib;
   );
-
-  (* Pane divider *)
-  (* Update after possible window resize *)
-  lay.browser_width <- clamp (Layout.browser_min lay) (Layout.browser_max lay)
-    lay.browser_width;
-
-  let browser_width' = Layout.browser_divider lay lay.browser_width
-    (Layout.browser_min lay) (Layout.browser_max lay) in
-  (* Possible drag of divider: update pane width *)
-  lay.browser_width <- browser_width';
-  Layout.browser_pane lay;
 
   (* Browser *)
   let browser = lib.browser in
@@ -837,10 +835,16 @@ let run_library (st : State.t) =
     Library.update_dir lib dir;
   );
 
+  let show_artists = have_dir && dir.artists_shown && lay.playlist_shown in
+  let show_albums = have_dir && dir.albums_shown && lay.playlist_shown in
+  let show_tracks = not have_dir || dir.tracks_shown || not lay.playlist_shown in
+  lay.right_shown <- show_artists && show_albums;
+  lay.lower_shown <- show_tracks && (show_artists || show_albums);
+
+
+  (* Error pane *)
 
   Layout.info_pane lay;
-
-  (* Error display *)
 
   Layout.error_box lay;
   let now = Unix.gettimeofday () in
@@ -849,99 +853,183 @@ let run_library (st : State.t) =
       lib.error;
 
 
-  let tracks_pane, tracks_area, tracks_table =
-    Layout.(left_pane, left_area, left_table) in
-  tracks_pane lay;
+  (* Artists view *)
 
-  (* Tracks view *)
-  let tab = lib.tracks in
-  let cols =
-    Array.map (fun (attr, cw) -> cw, Library.attr_align attr) dir.tracks_columns
-  and headings =
-    Array.map (fun (attr, _) -> Library.attr_name attr) dir.tracks_columns
-  and current =
-    match st.control.current with Some track -> track.path | None -> ""
-  in
+  if show_artists then
+  (
+    let artists_pane, _artists_area, artists_table = Layout.left_view in
+    artists_pane lay;
 
-  let pp_row i =
-      let track = tab.entries.(i) in
-      let c =
-        match track.status with
-        | _ when track.path = current -> `White
-        | `Absent -> Ui.error_color lay.ui
-        | `Invalid -> Ui.warn_color lay.ui
-        | `Undet -> Ui.semilit_color (Ui.text_color lay.ui)
-        | `Predet | `Det -> Ui.text_color lay.ui
-      in
-      c,
-      Array.map (fun (attr, _) -> Library.track_attr_string track attr)
-        dir.tracks_columns
-  in
-
-  (match tracks_table lay cols (Some headings) tab pp_row with
-  | `None | `Select | `Scroll -> ()
-
-  | `Sort i ->
-    (* Click on column header: reorder view accordingly *)
-    let attr, order = dir.tracks_sorting in
-    let attr' = fst dir.tracks_columns.(i) in
-    let order' = if attr' = attr then Data.rev_order order else `Asc in
-    dir.tracks_sorting <- attr', order';
-    Library.update_dir lib dir;
-    Library.reorder_tracks lib;
-
-  | `Arrange ->
-    (* Column resizing: update column widths *)
-    Array.mapi_inplace (fun i (a, _) -> a, fst cols.(i)) dir.tracks_columns;
-    if have_dir then Library.update_dir lib dir;
-
-  | `Click (Some i) when Api.Mouse.is_doubleclick `Left ->
-    (* Double-click on track: clear playlist and send tracks to it *)
-    Control.eject st.control;
-    Playlist.remove_all pl;
-    let tracks =
-      if Api.Key.are_modifiers_down [`Command]
-      then Library.selected lib
-      else [|tab.entries.(i)|]
+    let tab = lib.artists in
+    let cols =
+      Array.map (fun (attr, cw) -> cw, Library.attr_align attr) dir.artists_columns
+    and headings =
+      Array.map (fun (attr, _) -> Library.attr_name attr) dir.artists_columns
     in
-    Playlist.insert pl 0 (Array.map Track.make_from_data tracks);
-    Control.switch st.control (Playlist.current pl) true;
 
-  | `Click _ ->
-    (* Single-click: grab focus *)
-    Playlist.focus pl false;
-    Playlist.deselect_all pl;
+    let pp_row i =
+        let artist = tab.entries.(i) in
+        Ui.text_color lay.ui,
+        Array.map (fun (attr, _) -> Library.artist_attr_string artist attr)
+          dir.artists_columns
+    in
 
-  | `Move _ ->
-    (* Drag or Cmd-cursor movement: adjust cursor *)
-    if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
-    (
-      (* Actual drag *)
-      Api.Mouse.set_cursor win
-        (if
-          Api.inside m (Ui.dim lay.ui (tracks_area lay))          ||
-          Api.inside m (Ui.dim lay.ui (Layout.playlist_area lay))
-        then `Point else `Blocked)
+    (match artists_table lay cols (Some headings) tab pp_row with
+    | _ -> ()  (* TODO *)
+    );
+  );
+
+
+  (* Albums view *)
+
+  if show_albums then
+  (
+    let albums_pane, _albums_area, albums_table =
+      Layout.(if lay.right_shown then right_view else left_view) in
+    albums_pane lay;
+
+    let tab = lib.albums in
+    let cols =
+      Array.map (fun (attr, cw) -> cw, Library.attr_align attr) dir.albums_columns
+    and headings =
+      Array.map (fun (attr, _) -> Library.attr_name attr) dir.albums_columns
+    in
+
+    let pp_row i =
+        let album = tab.entries.(i) in
+        Ui.text_color lay.ui,
+        Array.map (fun (attr, _) -> Library.album_attr_string album attr)
+          dir.albums_columns
+    in
+
+    (match albums_table lay cols (Some headings) tab pp_row with
+    | _ -> ()  (* TODO *)
     );
 
-  | `Drop ->
-    (* Drag & drop originating from tracks *)
-    let (_, y, _, _) as r = Ui.dim lay.ui (Layout.playlist_area lay) in
-    if Api.inside m r then
+    (* Divider *)
+    if lay.right_shown then
     (
-      (* Drag & drop onto playlist: send selection to playlist *)
-      let tracks = Library.selected lib in
-      let len = Playlist.length pl in
-      let pos = min len ((my - y) / lay.text + pl.table.vscroll) in
-      Playlist.insert pl pos (Array.map Track.make_from_data tracks);
-      Library.focus lib false;
-      Library.deselect_all lib;
-      Playlist.focus pl true;
+      let left_width' = Layout.right_divider lay lay.left_width
+        (Layout.left_min lay) (Layout.left_max lay) in
+      (* Possible drag of divider: update pane width *)
+      lay.left_width <- left_width';
+    );
+  );
+
+
+  (* Tracks view *)
+
+  if show_tracks then
+  (
+    let tracks_pane, tracks_area, tracks_table =
+      Layout.(if lay.lower_shown then lower_view else left_view) in
+    tracks_pane lay;
+
+    let tab = lib.tracks in
+    let cols =
+      Array.map (fun (attr, cw) -> cw, Library.attr_align attr) dir.tracks_columns
+    and headings =
+      Array.map (fun (attr, _) -> Library.attr_name attr) dir.tracks_columns
+    and current =
+      match st.control.current with Some track -> track.path | None -> ""
+    in
+
+    let pp_row i =
+        let track = tab.entries.(i) in
+        let c =
+          match track.status with
+          | _ when track.path = current -> `White
+          | `Absent -> Ui.error_color lay.ui
+          | `Invalid -> Ui.warn_color lay.ui
+          | `Undet -> Ui.semilit_color (Ui.text_color lay.ui)
+          | `Predet | `Det -> Ui.text_color lay.ui
+        in
+        c,
+        Array.map (fun (attr, _) -> Library.track_attr_string track attr)
+          dir.tracks_columns
+    in
+
+    (match tracks_table lay cols (Some headings) tab pp_row with
+    | `None | `Select | `Scroll -> ()
+
+    | `Sort i ->
+      (* Click on column header: reorder view accordingly *)
+      let attr, order = dir.tracks_sorting in
+      let attr' = fst dir.tracks_columns.(i) in
+      let order' = if attr' = attr then Data.rev_order order else `Asc in
+      dir.tracks_sorting <- attr', order';
+      Library.update_dir lib dir;
+      Library.reorder_tracks lib;
+
+    | `Arrange ->
+      (* Column resizing: update column widths *)
+      Array.mapi_inplace (fun i (a, _) -> a, fst cols.(i)) dir.tracks_columns;
+      if have_dir then Library.update_dir lib dir;
+
+    | `Click (Some i) when Api.Mouse.is_doubleclick `Left ->
+      (* Double-click on track: clear playlist and send tracks to it *)
+      Control.eject st.control;
+      Playlist.remove_all pl;
+      let tracks =
+        if Api.Key.are_modifiers_down [`Command]
+        then Library.selected lib
+        else [|tab.entries.(i)|]
+      in
+      Playlist.insert pl 0 (Array.map Track.make_from_data tracks);
+      Control.switch st.control (Playlist.current pl) true;
+
+    | `Click _ ->
+      (* Single-click: grab focus *)
+      Playlist.focus pl false;
       Playlist.deselect_all pl;
-      Playlist.select pl pos (pos + Array.length tracks - 1);
-      Control.switch_if_empty st.control (Playlist.current_opt pl);
-    )
-  )
+
+    | `Move _ ->
+      (* Drag or Cmd-cursor movement: adjust cursor *)
+      if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
+      (
+        (* Actual drag *)
+        Api.Mouse.set_cursor win
+          (if
+            Api.inside m (Ui.dim lay.ui (tracks_area lay))          ||
+            Api.inside m (Ui.dim lay.ui (Layout.playlist_area lay))
+          then `Point else `Blocked)
+      );
+
+    | `Drop ->
+      (* Drag & drop originating from tracks *)
+      let (_, y, _, _) as r = Ui.dim lay.ui (Layout.playlist_area lay) in
+      if Api.inside m r then
+      (
+        (* Drag & drop onto playlist: send selection to playlist *)
+        let tracks = Library.selected lib in
+        let len = Playlist.length pl in
+        let pos = min len ((my - y) / lay.text + pl.table.vscroll) in
+        Playlist.insert pl pos (Array.map Track.make_from_data tracks);
+        Library.focus lib false;
+        Library.deselect_all lib;
+        Playlist.focus pl true;
+        Playlist.deselect_all pl;
+        Playlist.select pl pos (pos + Array.length tracks - 1);
+        Control.switch_if_empty st.control (Playlist.current_opt pl);
+      )
+    );
+
+    (* Divider *)
+    if lay.lower_shown then
+    (
+      let upper_height' = Layout.lower_divider lay lay.upper_height
+        (Layout.upper_min lay) (Layout.upper_max lay) in
+      (* Possible drag of divider: update pane width *)
+      lay.upper_height <- upper_height';
+    );
+  );
+
+  (* Pane divider *)
+
+  let browser_width' = Layout.browser_divider lay lay.browser_width
+    (Layout.browser_min lay) (Layout.browser_max lay) in
+  (* Possible drag of divider: update pane width *)
+  lay.browser_width <- browser_width'
 
 
 (* Runner *)
@@ -1024,9 +1112,6 @@ let startup () =
   let audio = Api.Audio.init () in
   let rst = ref (State.make ui audio db) in
   let st = if State.load !rst then !rst else State.make ui audio db in
-  st.layout.browser_width <-
-    clamp (Layout.browser_min st.layout) (Layout.browser_max st.layout)
-      st.layout.browser_width;
   Library.update_tracks st.library;
   Playlist.adjust_scroll st.playlist 4;
   Playlist.focus st.playlist true;
