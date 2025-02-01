@@ -104,74 +104,73 @@ let switch_if_empty ctl track_opt =
 
 (* Persistance *)
 
-let to_string' ctl =
-  let buf = Buffer.create 1024 in
-  let output fmt  = Printf.bprintf buf fmt in
-  output "volume = %.2f\n" ctl.volume;
-  output "mute = %d\n" (Bool.to_int ctl.mute);
-  output "play = %s\n" (match ctl.current with Some s -> s.path | None -> "");
-  let length = Api.Audio.length ctl.audio ctl.sound in
-  let played = Api.Audio.played ctl.audio ctl.sound in
-  output "seek = %.4f\n" (if length > 0.0 then played /. length else 0.0);
-  output "timemode = %d\n" (Bool.to_int (ctl.timemode = `Remain));
-  output "repeat = %d\n"
-    (match ctl.repeat with
-    | `None -> 0
-    | `One -> 1
-    | `All -> 2
-    );
-  let a, b =
-    match ctl.loop with
-    | `None -> -1.0, -1.0
-    | `A t1 -> t1, -1.0
-    | `AB tt -> tt
-  in
-  output "loop = %.4f, %.4f\n" a b;
-  Buffer.contents buf
-
-let to_string ctl =
-  to_string' ctl ^
-  let buf = Buffer.create 1024 in
-  let output fmt = Printf.bprintf buf fmt in
-  output "fps = %d\n" (Bool.to_int ctl.fps);
-  Buffer.contents buf
-
-
-let save ctl file =
-  Out_channel.output_string file (to_string' ctl)
-
-
-let fscanf file =
-  match In_channel.input_line file with
-  | None -> raise End_of_file
-  | Some s -> Scanf.sscanf s
+open Storage
+let fmt = Printf.sprintf
+let scan = Scanf.sscanf
 
 let value = Fun.id
 let bool x = x <> 0
 let num l h x = max l (min h x)
 let pair x y = x, y
 
-let load ctl file =
-  let input fmt = fscanf file fmt in
-  ctl.volume <- input " volume = %f " (num 0.0 1.0);
-  ctl.mute <- input " mute = %d " bool;
-  let current = input " play = %[\x20-\xff]" String.trim in
-  ctl.current <-
-    if current = "" then None else Some (Track.make current);
-  let seek' = input " seek = %f " (num 0.0 1.0) in
-  ctl.timemode <-
-    if input " timemode = %d " bool then `Remain else `Elapse;
-  ctl.repeat <-
-    (match input " repeat = %d " value with
-    | 1 -> `One
-    | 2 -> `All
-    | _ -> `None
-    );
-  ctl.loop <-
-    (match input " loop = %f, %f " pair with
-    | t1, _t2 when t1 < 0.0 -> `None
-    | t1, t2 when t2 < 0.0 -> `A t1
-    | t1, t2 -> `AB (t1, max t1 t2)
-    );
-  if ctl.current <> None then switch ctl (Option.get ctl.current) false;
-  seek ctl seek'
+
+let to_map ctl =
+  let length = Api.Audio.length ctl.audio ctl.sound in
+  let played = Api.Audio.played ctl.audio ctl.sound in
+  Map.of_list
+  [
+    "volume", fmt "%.2f" ctl.volume;
+    "mute", fmt "%d" (Bool.to_int ctl.mute);
+    "play", fmt "%s" (match ctl.current with Some s -> s.path | None -> "");
+    "seek", fmt "%.4f" (if length > 0.0 then played /. length else 0.0);
+    "timemode", fmt "%d" (Bool.to_int (ctl.timemode = `Remain));
+    "repeat", fmt "%d"
+      (match ctl.repeat with
+      | `None -> 0
+      | `One -> 1
+      | `All -> 2
+      );
+    let a, b =
+      match ctl.loop with
+      | `None -> -1.0, -1.0
+      | `A t1 -> t1, -1.0
+      | `AB tt -> tt
+    in
+    "loop", fmt "%.4f, %.4f" a b;
+  ]
+
+let to_map_extra ctl =
+  Map.of_list
+  [
+    "fps", fmt "%d" (Bool.to_int ctl.fps);
+  ]
+
+
+let of_map ctl m =
+  read_map m "volume" (fun s -> ctl.volume <- scan s "%f" (num 0.0 1.0));
+  read_map m "mute" (fun s -> ctl.mute <- scan s "%d" bool);
+  read_map m "play" (fun s ->
+    if s <> "" then
+    let track = Track.make s in
+    ctl.current <- Some track;
+    switch ctl track false
+  );
+  read_map m "seek" (fun s -> seek ctl (scan s "%f" (num 0.0 1.0)));
+  read_map m "repeat" (fun s ->
+    ctl.repeat <-
+      (match scan s "%d" value with
+      | 1 -> `One
+      | 2 -> `All
+      | _ -> `None
+      )
+  );
+  read_map m "loop" (fun s ->
+    ctl.loop <-
+      (match scan s "%f, %f" pair with
+      | t1, _t2 when t1 < 0.0 -> `None
+      | t1, t2 when t2 < 0.0 -> `A t1
+      | t1, t2 -> `AB (t1, max t1 t2)
+      )
+  );
+  read_map m "timemode" (fun s ->
+    ctl.timemode <- if scan s "%d" bool then `Remain else `Elapse)

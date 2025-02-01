@@ -8,8 +8,6 @@ type shuffle
 type t =
 {
   table : track Table.t;
-  mutable shown : bool;
-  mutable height : int;
   mutable total : time * int;
   mutable total_selected : time * int;
   mutable shuffle : shuffle option;
@@ -30,10 +28,10 @@ val ok : t -> error list
 
 (* Persistance *)
 
-val to_string : t -> string
+val to_map : t -> Storage.map
+val of_map : t -> Storage.map -> unit  (* assumes roots already set *)
 
-val load : t -> in_channel -> unit  (* assumes tracks already set *)
-val save : t -> out_channel -> unit
+val to_map_extra : t -> Storage.map
 
 val load_playlist : t -> unit
 val save_playlist : t -> unit

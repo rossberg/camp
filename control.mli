@@ -30,10 +30,10 @@ val ok : t -> error list
 
 (* Persistance *)
 
-val to_string : t -> string
+val to_map : t -> Storage.map
+val of_map : t -> Storage.map -> unit
 
-val load : t -> in_channel -> unit
-val save : t -> out_channel -> unit
+val to_map_extra : t -> Storage.map
 
 
 (* Track Control *)

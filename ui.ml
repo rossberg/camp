@@ -49,16 +49,20 @@ let window ui = ui.win
 
 type pane = int
 
-let pane i ui r =
+let pane ui i r =
   let x, y, w, h = r in
   let ww, wh = Api.Window.size ui.win in
+  let x = if x >= 0 then x else ww + x in
+  let y = if y >= 0 then y else wh + y in
+  let w = if w >= 0 then w else ww - x + w in
+  let h = if h >= 0 then h else wh - y + h in
   assert (x >= 0 && y >= 0 && x + w <= ww && y + h <= wh);
 
   let n = Array.length ui.panes in
   if i >= n then
     ui.panes <-
       Array.init (2*n) (fun i -> if i < n then ui.panes.(i) else (0, 0, 0, 0));
-  ui.panes.(i) <- r
+  ui.panes.(i) <- (x, y, w, h)
 
 
 (* Areas *)
@@ -343,16 +347,16 @@ let wheel_status ui r =
 let drop_status ui r =
   if Api.inside (Mouse.pos ui.win) r then Api.File.dropped ui.win else []
 
-let key modkey ui = (key_status ui modkey = `Pressed)
-let mouse r side ui = (mouse_status ui (dim ui r) side = `Released)
-let wheel r ui = wheel_status ui (dim ui r)
-let drag r ui eps = drag_status ui (dim ui r) eps
-let drop r ui = drop_status ui (dim ui r)
+let key ui modkey = (key_status ui modkey = `Pressed)
+let mouse ui r side = (mouse_status ui (dim ui r) side = `Released)
+let wheel ui r = wheel_status ui (dim ui r)
+let drag ui r eps = drag_status ui (dim ui r) eps
+let drop ui r = drop_status ui (dim ui r)
 
 
 (* Auxiliary UI elements *)
 
-let label' c r align s ui =
+let colored_label ui c r align s =
   let x, y, w, h = dim ui r in
   let font = font ui h in
   let tw = Api.Draw.text_width ui.win h font s in
@@ -363,9 +367,10 @@ let label' c r align s ui =
     | `Right -> w - tw
   in Api.Draw.text ui.win (x + dx) y h c font s
 
-let label = label' `White
+let label ui r align s =
+  colored_label ui `White r align s
 
-let indicator r ui on =
+let indicator ui r on =
   let x, y, w, h = dim ui r in
   Draw.fill_circ ui.win x y w h (if on then `Green else unlit_color `Green);
   Draw.fill_circ ui.win (x + w/4) (y + h/4) (min 2 (w/3)) (min 2 (h/3))
@@ -402,7 +407,7 @@ let lcd' ui r' c elem =
     rect ui.win x (y + h / 4) 2 2 c;
     rect ui.win x (y + 3 * h / 4) 2 2 c
 
-let lcd r ui d =
+let lcd ui r d =
   let c = text_color ui in
   if d = '-' || d = '+' then
     lcd' ui (dim ui r) c `C
@@ -442,7 +447,7 @@ let lcd r ui d =
 
 (* Passive UI Elements *)
 
-let element r modkey ui =
+let element ui r modkey =
   let r' = dim ui r in
   r',
   match mouse_status ui r' `Left, key_status ui modkey with
@@ -452,12 +457,12 @@ let element r modkey ui =
   | _, _ -> `Untouched
 
 
-let box r c ui =
-  let (x, y, w, h), _ = element r no_modkey ui in
+let box ui r c =
+  let (x, y, w, h), _ = element ui r no_modkey in
   Draw.fill ui.win x y w h c
 
-let color_text r align ui c inv active s =
-  let (x, y, w, h), _status = element r no_modkey ui in
+let color_text ui r align c inv active s =
+  let (x, y, w, h), _status = element ui r no_modkey in
   let fg = modal c active in
   let bg = `Black in
   let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
@@ -471,10 +476,11 @@ let color_text r align ui c inv active s =
   in
   Draw.text ui.win (x + dx) y h fg (font ui h) s
 
-let text r align ui = color_text r align ui (text_color ui)
+let text ui r align =
+  color_text ui r align (text_color ui)
 
-let ticker r ui s =
-  let (x, y, w, h), _status = element r no_modkey ui in
+let ticker ui r s =
+  let (x, y, w, h), _status = element ui r no_modkey in
   Draw.fill ui.win x y w h `Black;
   let tw = Draw.text_width ui.win h (font ui h) s in
   Draw.clip ui.win x y w h;
@@ -485,8 +491,8 @@ let ticker r ui s =
 
 (* Buttons *)
 
-let button r ?(protrude=true) modkey ui active =
-  let (x, y, w, h), status = element r modkey ui in
+let button ui r ?(protrude=true) modkey active =
+  let (x, y, w, h), status = element ui r modkey in
   let img = get_img ui ui.img_button in
   let sx, sy = if status = `Pressed then 800, 400 else 0, 200 in
   Draw.clip ui.win x y w h;
@@ -503,9 +509,9 @@ let button r ?(protrude=true) modkey ui active =
   | Some active -> if status = `Released then not active else active
 
 
-let labeled_button r ?(protrude=true) hsym txt modkey ui active =
-  let (x, y, w, h), status = element r modkey ui in
-  let result = button r ~protrude modkey ui active in
+let labeled_button ui r ?(protrude=true) hsym txt modkey active =
+  let (x, y, w, h), status = element ui r modkey in
+  let result = button ui r ~protrude modkey active in
   let c =
     match active with
     | None -> `Gray 0x60
@@ -534,15 +540,15 @@ let labeled_button r ?(protrude=true) hsym txt modkey ui active =
     Draw.fill ui.win xsym (ysym + hsym - hsym/3) hsym (hsym/3) c;
   | s ->
     let (i, x', y', w', _) = r in
-    label' c (i, x' + 1, y' + (h - hsym)/2, w' - 1, hsym) `Center s ui
+    colored_label ui c (i, x' + 1, y' + (h - hsym)/2, w' - 1, hsym) `Center s
   );
   result
 
 
 (* Bars *)
 
-let progress_bar r ui v =
-  let (x, y, w, h), status = element r no_modkey ui in
+let progress_bar ui r v =
+  let (x, y, w, h), status = element ui r no_modkey in
   Draw.fill ui.win x y w h (fill ui false);
   Draw.fill ui.win x y (int_of_float (v *. float w)) h (fill ui true);
   for i = 0 to w / 2 - 1 do
@@ -554,8 +560,8 @@ let progress_bar r ui v =
   clamp 0.0 1.0 (float (mx - x) /. float w)
 
 
-let volume_bar r ui v =
-  let (x, y, w, h), status = element r no_modkey ui in
+let volume_bar ui r v =
+  let (x, y, w, h), status = element ui r no_modkey in
   let h' = int_of_float ((1.0 -. v) *. float h) in
   Draw.fill ui.win (x + w - 2) y 2 h (fill ui true);
   Draw.tri ui.win x y (w - 2) h (fill ui true) `NE;
@@ -567,7 +573,7 @@ let volume_bar r ui v =
   let _, my = Mouse.pos ui.win in
   clamp 0.0 1.0 (float (y + h - my) /. float h)
 (*
-  let (x, y, w, h), status = element r no_modkey ui in
+  let (x, y, w, h), status = element ui r no_modkey in
   let h' = int_of_float (v *. float (h - 2)) in
   Draw.fill ui.win x y w h (fill ui false);
   Draw.fill ui.win x (y + h - h' - 1) w h' (fill true);
@@ -581,9 +587,9 @@ let volume_bar r ui v =
 type drag += Scroll_bar_page of {last_repeat : time}
 type drag += Scroll_bar_drag of {value : float; mx : int; my : int}
 
-let scroll_bar r orient ui v len =
+let scroll_bar ui r orient v len =
   assert (v +. len <= 1.0);
-  let (x, y, w, h), status = element r no_modkey ui in
+  let (x, y, w, h), status = element ui r no_modkey in
   Draw.fill ui.win x y w h (fill ui false);
   let x', y', w', h' as r' =
     match orient with
@@ -645,8 +651,8 @@ let scroll_bar r orient ui v len =
 
 type drag += Divide of {overshoot : size}
 
-let divider r orient ui v minv maxv =
-  let (x, y, w, h), status = element r no_modkey ui in
+let divider ui r orient v minv maxv =
+  let (x, y, w, h), status = element ui r no_modkey in
   let proj = match orient with `Horizontal -> fst | `Vertical -> snd in
   let inj v = match orient with `Horizontal -> v, y | `Vertical -> x, v in
   let cursor = match orient with `Horizontal -> `E_W | `Vertical -> `N_S in
@@ -685,8 +691,8 @@ type inversion = [`Regular | `Inverted]
 type column = int * align
 type row = color * inversion * string array
 
-let table r gw ch ui cols rows hscroll =
-  let (x, y, w, h), status = element r no_modkey ui in
+let table ui r gw ch cols rows hscroll =
+  let (x, y, w, h), status = element ui r no_modkey in
   Draw.fill ui.win x y w h `Black;
   let mw = (gw + 1)/2 in
   let flex = max 0
@@ -733,9 +739,9 @@ let table r gw ch ui cols rows hscroll =
 
 (* Table Headers *)
 
-let header area gw ui cols titles hscroll =
-  let (x, y, w, h) as r, status = element area no_modkey ui in
-  ignore (table area gw h ui cols [|text_color ui, `Inverted, titles|] hscroll);
+let header ui area gw cols titles hscroll =
+  let (x, y, w, h) as r, status = element ui area no_modkey in
+  ignore (table ui area gw h cols [|text_color ui, `Inverted, titles|] hscroll);
 
   let mw = (gw + 1)/2 in  (* match mw in table *)
   Draw.clip ui.win x y w h;
@@ -786,7 +792,7 @@ let header area gw ui cols titles hscroll =
 
 (* Rich Tables *)
 
-let rich_table area gw ch sw sh ui cols headings_opt (tab : _ Table.t) pp_row =
+let rich_table ui area gw ch sw sh cols headings_opt (tab : _ Table.t) pp_row =
   let (p, ax, ay, aw, ah) = area in
   let ty = if headings_opt = None then ay else ay + ch + 2 in
   let th = ah - (if ah < 0 then 0 else ty - ay) - (if sh = 0 then 0 else sh + 1) in
@@ -814,7 +820,7 @@ let rich_table area gw ch sw sh ui cols headings_opt (tab : _ Table.t) pp_row =
     )
   in
   let result =
-    match table table_area gw ch ui cols rows tab.hscroll with
+    match table ui table_area gw ch cols rows tab.hscroll with
     | None -> `None
     | Some i ->
       let i = tab.vscroll + i in
@@ -901,7 +907,7 @@ let rich_table area gw ch sw sh ui cols headings_opt (tab : _ Table.t) pp_row =
     match headings_opt with
     | None -> result
     | Some headings ->
-      match header header_area gw ui cols headings tab.hscroll with
+      match header ui header_area gw cols headings tab.hscroll with
       | `Click i -> `Sort i
       | `Arrange -> `Arrange
       | `None -> result
@@ -912,7 +918,7 @@ let rich_table area gw ch sw sh ui cols headings_opt (tab : _ Table.t) pp_row =
   let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * ch)) in
   let pos = if len = 0 then 0.0 else float tab.vscroll /. float len in
   let wheel = if not shift then wheel_status ui r else 0.0 in
-  let pos' = scroll_bar vscroll_area `Vertical ui pos ext -. 0.05 *. wheel in
+  let pos' = scroll_bar ui vscroll_area `Vertical pos ext -. 0.05 *. wheel in
   let result =
     if result <> `None || pos = pos' then result else
     (
@@ -930,7 +936,7 @@ let rich_table area gw ch sw sh ui cols headings_opt (tab : _ Table.t) pp_row =
     let ext = if vw' = 0 then 1.0 else min 1.0 (float w /. float vw') in
     let pos = if vw' = 0 then 0.0 else float tab.hscroll /. float vw' in
     let wheel = if shift then wheel_status ui r else 0.0 in
-    let pos' = scroll_bar hscroll_area `Horizontal ui pos ext -. 0.05 *. wheel in
+    let pos' = scroll_bar ui hscroll_area `Horizontal pos ext -. 0.05 *. wheel in
     if result <> `None || pos = pos' then result else
     (
       tab.hscroll <-

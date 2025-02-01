@@ -2,11 +2,11 @@
 
 type t =
 {
-  ui : Ui.t;
+  config : Config.t;
+  layout : Layout.t;
   control : Control.t;
   playlist : Playlist.t;
   library : Library.t;
-  config : Config.t;
 }
 
 
@@ -14,11 +14,11 @@ type t =
 
 let make ui audio db =
   {
-    ui;
+    config = Config.make ();
+    layout = Layout.make ui;
     control = Control.make audio;
     playlist = Playlist.make ();
     library = Library.make db;
-    config = Config.make ();
   }
 
 
@@ -29,9 +29,18 @@ let to_string_fwd = ref (fun _ -> assert false)
 
 let check msg b = if b then [] else [msg]
 
+let layout_ok layout =
+  let open Layout in
+  check "text size in range" (layout.text >= 6 && layout.text <= 64) @
+  check "playlist height positive" (layout.playlist_height > 0) @
+  check "library width positive" (layout.library_width > 0) @
+  check "browser width in range" (layout.browser_width <= layout.library_width - 40) @
+  []
+
 let rec ok st =
   match
     Config.ok st.config @
+    layout_ok st.layout @
     Control.ok st.control @
     Playlist.ok st.playlist @
     Library.ok st.library @
@@ -59,95 +68,114 @@ and dump st errors =
   )
 
 
+(* Layout Persistance *)
+
+open Storage
+let fmt = Printf.sprintf
+let scan = Scanf.sscanf
+
+let value = Fun.id
+let bool x = x <> 0
+let num l h x = max l (min h x)
+let num_pair lx ly hx hy x y = num lx hx x, num ly hy y
+
+let layout_to_map lay =
+  let open Layout in
+  let x, y = Api.Window.pos (Ui.window lay.ui) in
+  Map.of_list
+  [
+    "win_pos", fmt "%d, %d" x y;
+    "color_palette", fmt "%d" (Ui.get_palette lay.ui);
+    "text_size", fmt "%d" lay.text;
+    "play_open", fmt "%d" (Bool.to_int lay.playlist_shown);
+    "play_height", fmt "%d" lay.playlist_height;
+    "lib_open", fmt "%d" (Bool.to_int lay.library_shown);
+    "lib_side", fmt "%d" (Bool.to_int (lay.library_side = `Right));
+    "lib_width", fmt "%d" lay.library_width;
+    "browser_width", fmt "%d" lay.browser_width;
+    "lower_height", fmt "%d" lay.lower_height;
+    "right_width", fmt "%d" lay.right_width;
+  ]
+
+let layout_of_map lay m =  (* assumes playlist and library already loaded *)
+  let open Layout in
+  let win = Ui.window lay.ui in
+  let ww, wh = Api.Window.size win in
+  let sx, sy = Api.Window.min_pos win in
+  let sw, sh = Api.Window.max_size win in
+  let xy = ref None in
+  read_map m "win_pos" (fun s -> xy :=
+    Some (scan s "%d , %d" (num_pair sx sy (sx + sw - 20) (sy + sh - 20))));
+  read_map m "color_palette" (fun s ->
+    Ui.set_palette lay.ui (scan s "%d" (num 0 (Ui.num_palette lay.ui - 1))));
+  read_map m "text" (fun s -> lay.text <- scan s "%d" (num 6 64));
+  read_map m "play_open" (fun s -> lay.playlist_shown <- scan s "%d" bool);
+  read_map m "play_height" (fun s ->
+    lay.playlist_height <- scan s "%d" (num (playlist_min lay) (sh - sy)));
+  read_map m "lib_open" (fun s -> lay.library_shown <- scan s "%d" bool);
+  read_map m "lib_side" (fun s ->
+    lay.library_side <- if scan s "%d" bool then `Right else `Left);
+  read_map m "lib_width" (fun s ->
+    lay.library_width <- scan s "%d" (num (library_min lay) (sw - ww)));
+  read_map m "browser_width" (fun s ->
+    lay.browser_width <- scan s "%d" (num (browser_min lay) (browser_max lay)));
+  read_map m "right_width" (fun s ->
+    lay.right_width <- scan s "%d" (num (right_min lay) (right_max lay)));
+  read_map m "lower_height" (fun s ->
+    lay.lower_height <- scan s "%d" (num (lower_min lay) (lower_max lay)));
+  Api.Draw.start win `Black;
+  Option.iter (fun (x, y) -> Api.Window.set_pos win x y) !xy;
+  Api.Window.set_size win (ww + lay.library_width) (wh + lay.playlist_height);
+  Api.Draw.finish win
+
+
 (* Persistance *)
 
 let state_file = "state.conf"
 let state_header = App.name
 
+let to_map st =
+  List.fold_left combine_map Map.empty
+  [
+    layout_to_map st.layout;
+    Config.to_map st.config;
+    Control.to_map st.control;
+    Playlist.to_map st.playlist;
+    Library.to_map st.library;
+  ]
 
-let ui_to_string st =
-  let buf = Buffer.create 1024 in
-  let output fmt  = Printf.bprintf buf fmt in
-  let x, y = Api.Window.pos (Ui.window st.ui) in
-  output "win_pos = %d, %d\n" x y;
-  output "palette = %d\n" (Ui.get_palette st.ui);
-  Buffer.contents buf
+let to_map_extra st =
+  List.fold_left combine_map Map.empty
+  [
+    to_map st;
+    Control.to_map_extra st.control;
+    Playlist.to_map_extra st.playlist;
+    Library.to_map_extra st.library;
+  ]
 
-let save_ui st file =
-  Out_channel.output_string file (ui_to_string st)
-
-
-let to_string st =
-  Config.to_string st.config ^
-  Control.to_string st.control ^
-  Playlist.to_string st.playlist ^
-  Library.to_string st.library ^
-  ui_to_string st
-
+let to_string st = string_of_map (to_map_extra st)
 let _ = to_string_fwd := to_string
 
 let save st =
   Playlist.save_playlist st.playlist;
-  Storage.save state_file (fun file ->
-    Printf.fprintf file "[%s]\n" state_header;
-    Config.save st.config file;
-    Control.save st.control file;
-    Playlist.save st.playlist file;
-    Library.save st.library file;
-    save_ui st file;
-  )
-
-
-let fscanf file =
-  match In_channel.input_line file with
-  | None -> raise End_of_file
-  | Some s -> Scanf.sscanf s
-
-let value = Fun.id
-let num l h x = max l (min h x)
-let num_pair lx ly hx hy x y = num lx hx x, num ly hy y
-
-let load_ui st file =  (* assumes playlist and library already loaded *)
-  let win = Ui.window st.ui in
-  let input fmt = fscanf file fmt in
-  let ww, wh = Api.Window.size win in
-  let sx, sy = Api.Window.min_pos win in
-  let sw, sh = Api.Window.max_size win in
-  let x, y =
-    input " win_pos = %d , %d " (num_pair sx sy (sx + sw - 20) (sy + sh - 20)) in
-  let pal = input " palette = %d " (num 0 (Ui.num_palette st.ui - 1)) in
-  Ui.set_palette st.ui pal;
-  st.playlist.height <- num 0 (sh - wh) st.playlist.height;
-  st.library.width <- num 0 (sw - ww) st.library.width;
-  st.library.browser_width <- num 0 st.library.width st.library.browser_width;
-  Api.Draw.start win `Black;
-  Api.Window.set_pos win x y;
-  Api.Window.set_size win (ww + st.library.width) (wh + st.playlist.height);
-  Api.Draw.finish win
+  Storage.save_map state_file (to_map st)
 
 let load st =
-  let success = ref false in
-
   Playlist.load_playlist st.playlist;
   Library.load_roots st.library;
 
-  Storage.load state_file (fun file ->
-    let input fmt = fscanf file fmt in
-    if input " [%s@]" value <> state_header then failwith "State.load";
+  let map = Storage.load_map state_file in
+  layout_of_map st.layout map;
+  Config.of_map st.config map;
+  Control.of_map st.control map;
+  Playlist.of_map st.playlist map;
+  Library.of_map st.library map;
 
-    Config.load st.config file;
-    Control.load st.control file;
-    Playlist.load st.playlist file;
-    Library.load st.library file;
-    load_ui st file;
-
-    if st.control.current = None && Table.length st.playlist.table > 0 then
-    (
-      st.control.current <- Table.current_opt st.playlist.table;
-      Control.switch st.control (Option.get st.control.current) false;
-    );
-
-    success := true;
+  if st.control.current = None && Playlist.length st.playlist > 0 then
+  (
+    st.control.current <- Table.current_opt st.playlist.table;
+    Option.iter (fun track -> Control.switch st.control track false)
+      st.control.current;
   );
 
-  !success && try ok st; true with _ -> false
+  try ok st; true with _ -> false

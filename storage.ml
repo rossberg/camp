@@ -96,3 +96,48 @@ let append filename f =
     log_error "appending to" filename exn
 
 let _ = append_fwd := append
+
+
+(* Key/value file *)
+
+module Map = Map.Make(String)
+type map = string Map.t
+
+let read_map map key f =
+  match Map.find_opt key map with
+  | None -> ()
+  | Some value -> try f value with exn -> log_error "reading key" key exn
+
+let combine_map map1 map2 =
+  Map.union (fun key _ _ -> failwith ("conflicting key: " ^ key)) map1 map2
+
+let map_of_string s =
+  let map = ref Map.empty in
+  List.iteri (fun i line ->
+    match String.index_opt line '=' with
+    | Some n ->
+      let key = String.(trim (sub line 0 n)) in
+      let value = String.(trim (sub line (n + 1) (length line - n - 1))) in
+      map := Map.add key value !map
+    | None when String.trim line = "" -> ()
+    | None -> failwith ("line " ^ string_of_int i ^ ": syntax error")
+  ) (String.split_on_char '\n' s);
+  !map
+
+let string_of_map map =
+  let buf = Buffer.create 1024 in
+  Map.iter (fun key value ->
+    Buffer.add_string buf key;
+    Buffer.add_string buf " = ";
+    Buffer.add_string buf value;
+    Buffer.add_string buf "\n";
+  ) map;
+  Buffer.contents buf
+
+let load_map filename =
+  let map = ref Map.empty in
+  load filename (fun file -> map := map_of_string (In_channel.input_all file));
+  !map
+
+let save_map filename map =
+  save filename (fun file -> Out_channel.output_string file (string_of_map map))

@@ -15,8 +15,6 @@ type shuffle =
 type t =
 {
   table : track Table.t;
-  mutable shown : bool;
-  mutable height : int;
   mutable total : time * int;
   mutable total_selected : time * int;
   mutable shuffle : shuffle option;
@@ -28,8 +26,6 @@ type t =
 let make () =
   {
     table = Table.make ();
-    shown = false;
-    height = 200;
     total = 0.0, 0;
     total_selected = 0.0, 0;
     shuffle = None;
@@ -45,7 +41,6 @@ let check msg b = if b then [] else [msg]
 let ok pl =
   let len = Array.length pl.table.entries in
   Table.ok "playlist" pl.table @
-  check "playlist height positive" (pl.height > 0) @
   check "playlist total in range"
     (fst pl.total >= 0.0 && snd pl.total <= len) @
   check "playlist selection total in range"
@@ -391,61 +386,50 @@ let load_playlist pl =
   )
 
 
+open Storage
+let fmt = Printf.sprintf
+let scan = Scanf.sscanf
+let bool x = x <> 0
+let num l h x = max l (min h x)
+let num_opt l h x = if x < 0 then None else Some (num l h x)
+
 let opt f = function
   | None -> ""
   | Some i -> f i
 
 let opt_int_pair = opt (fun (i, j) -> string_of_int i ^ ", " ^ string_of_int j)
 
-let to_string' pl =
-  let buf = Buffer.create 1024 in
-  let output fmt  = Printf.bprintf buf fmt in
-  output "shuffle = %d\n" (Bool.to_int (pl.shuffle <> None));
-  output "play_open = %d\n" (Bool.to_int pl.shown);
-  output "play_height = %d\n" pl.height;
-  output "play_pos = %d\n" (Option.value pl.table.pos ~default: (-1));
-  output "play_scroll = %d\n" pl.table.vscroll;
-  Buffer.contents buf
+let to_map pl =
+  Map.of_list
+  [
+    "shuffle", fmt "%d" (Bool.to_int (pl.shuffle <> None));
+    "play_pos", fmt "%d" (Option.value pl.table.pos ~default: (-1));
+    "play_scroll", fmt "%d" pl.table.vscroll;
+  ]
 
-let to_string pl =
-  to_string' pl ^
-  let buf = Buffer.create 1024 in
-  let output fmt = Printf.bprintf buf fmt in
-  output "play_length = %d\n" (Table.length pl.table);
-  output "play_selected = %d" (Table.IntSet.cardinal pl.table.selected);
-  if pl.table.selected <> Table.IntSet.empty then
-    Table.IntSet.(output " (%d-%d)"
-      (min_elt pl.table.selected) (max_elt pl.table.selected));
-  output "\n";
-  output "play_sel_range = %s\n" (opt_int_pair pl.table.sel_range);
-  output "play_total = %.2f, %d\n" (fst pl.total) (snd pl.total);
-  output "play_total_selected = %.2f, %d\n"
+let to_map_extra pl =
+  Map.of_list
+  [
+    "play_length", fmt "%d" (Table.length pl.table);
+    "play_selected", fmt "%d" (Table.IntSet.cardinal pl.table.selected) ^
+      ( if pl.table.selected = Table.IntSet.empty then "" else
+        Table.IntSet.(fmt "(%d-%d)"
+          (min_elt pl.table.selected) (max_elt pl.table.selected)) );
+    "play_sel_range", fmt "%s" (opt_int_pair pl.table.sel_range);
+    "play_total", fmt "%.2f, %d" (fst pl.total) (snd pl.total);
+    "play_total_selected", fmt "%.2f, %d"
     (fst pl.total_selected) (snd pl.total_selected);
-  output "play_undo_length = %d\n" (List.length !(pl.table.undos));
-  output "play_redo_length = %d\n" (List.length !(pl.table.redos));
-  Buffer.contents buf
+    "play_undo_length", fmt "%d" (List.length !(pl.table.undos));
+    "play_redo_length", fmt "%d" (List.length !(pl.table.redos));
+  ]
 
-let save pl file =
-  Out_channel.output_string file (to_string' pl)
-
-
-let fscanf file =
-  match In_channel.input_line file with
-  | None -> raise End_of_file
-  | Some s -> Scanf.sscanf s
-
-let bool x = x <> 0
-let num l h x = max l (min h x)
-let num_opt l h x = if x < 0 then None else Some (num l h x)
-
-let load pl file =
-  let input fmt = fscanf file fmt in
-  let len = Array.length pl.table.entries in
-  let shuffled = input " shuffle = %d " bool in
-  pl.shown <- input " play_open = %d " bool;
-  pl.height <- input " play_height = %d " (num 20 max_int);  (* clamped later *)
-  pl.table.pos <- input " play_pos = %d " (num_opt 0 (len - 1));
+let of_map pl m =
+  let len = Table.length pl.table in
+  read_map m "play_pos"
+    (fun s -> pl.table.pos <- scan s "%d" (num_opt 0 (len - 1)));
   Table.adjust_pos pl.table;
-  pl.table.vscroll <- input " play_scroll = %d " (num 0 (len - 1));
-  if shuffled then shuffle pl pl.table.pos;
+  read_map m "play_scroll"
+    (fun s -> pl.table.vscroll <- scan s "%d" (num 0 (len - 1)));
+  read_map m "shuffle"
+    (fun s -> if scan s "%d" bool then shuffle pl pl.table.pos);
   update_total pl

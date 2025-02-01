@@ -7,10 +7,6 @@ type t =
 {
   db : db;
   mutable roots : dir array;
-  mutable shown : bool;
-  mutable side : Api.side;
-  mutable width : int;
-  mutable browser_width : int;
   mutable current : dir option;
   mutable browser : dir Table.t;
   mutable artists : artist Table.t;
@@ -26,12 +22,19 @@ type t =
 val make : db -> t
 
 
+(* Validation *)
+
+type error = string
+
+val ok : t -> error list
+
+
 (* Persistance *)
 
-val to_string : t -> string
+val to_map : t -> Storage.map
+val of_map : t -> Storage.map -> unit  (* assumes roots already set *)
 
-val load : t -> in_channel -> unit  (* assumes roots already set *)
-val save : t -> out_channel -> unit
+val to_map_extra : t -> Storage.map
 
 
 (* Accessors *)
@@ -93,10 +96,3 @@ val select_invert : t -> unit
 
 val select : t -> int -> int -> unit
 val deselect : t -> int -> int -> unit
-
-
-(* Validation *)
-
-type error = string
-
-val ok : t -> error list

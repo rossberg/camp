@@ -13,10 +13,6 @@ type t =
 {
   db : db;
   mutable roots : dir array;
-  mutable shown : bool;
-  mutable side : Api.side;
-  mutable width : int;
-  mutable browser_width : int;
   mutable current : dir option;
   mutable browser : dir Table.t;
   mutable artists : artist Table.t;
@@ -33,10 +29,6 @@ let make db =
   {
     db;
     roots = [||];
-    shown = false;
-    side = `Right;
-    width = 600;
-    browser_width = 100;
     current = None;
     browser = Table.make ();
     artists = Table.make ();
@@ -54,10 +46,9 @@ type error = string
 let check msg b = if b then [] else [msg]
 
 let ok lib =
-  check "library width positive" (lib.width > 0) @
-  check "browser width in range" (lib.browser_width <= lib.width - 40) @
   Table.ok "browser" lib.browser @
   Table.ok "tracks" lib.tracks @
+  check "browser nonempty" (Table.length lib.browser > 0) @
   check "artists pos unset" (lib.artists.pos = None || lib.artists.pos = Some 0) @
   check "albums pos unset" (lib.albums.pos = None || lib.albums.pos = Some 0) @
   check "tracks pos unset" (lib.tracks.pos = None || lib.tracks.pos = Some 0) @
@@ -615,52 +606,32 @@ let reorder_tracks lib =
 
 (* Persistance *)
 
-let to_string' lib =
-  let buf = Buffer.create 1024 in
-  let output fmt  = Printf.bprintf buf fmt in
-  output "lib_open = %d\n" (Bool.to_int lib.shown);
-  output "lib_side = %d\n" (Bool.to_int (lib.side = `Right));
-  output "lib_width = %d\n" lib.width;
-  output "lib_browser_width = %d\n" lib.browser_width;
-  output "lib_browser_scroll = %d\n" lib.browser.vscroll;
-  Buffer.contents buf
-
-let to_string lib =
-  to_string' lib ^
-  let buf = Buffer.create 1024 in
-  let output fmt = Printf.bprintf buf fmt in
-  output "lib_browser_pos = %d\n" (Option.value lib.browser.pos ~default: (-1));
-  output "lib_browser_length = %d\n" (Array.length lib.browser.entries);
-  output "lib_tracks_pos = %d\n" (Option.value lib.tracks.pos ~default: (-1));
-  output "lib_tracks_vscroll = %d\n" lib.tracks.vscroll;
-  output "lib_tracks_hscroll = %d\n" lib.tracks.hscroll;
-  output "lib_tracks_length = %d\n" (Array.length lib.tracks.entries);
-  output "lib_root_length = %d\n" (Array.length lib.roots);
-  output "lib_error = %s\n" lib.error;
-  output "lib_error_time = %.1f\n" lib.error_time;
-  Buffer.contents buf
-
-let save lib file =
-  Out_channel.output_string file (to_string' lib)
-
-
-let fscanf file =
-  match In_channel.input_line file with
-  | None -> raise End_of_file
-  | Some s -> Scanf.sscanf s
-
-let bool x = x <> 0
+open Storage
+let fmt = Printf.sprintf
+let scan = Scanf.sscanf
 let num l h x = max l (min h x)
 
-let load lib file =
-  let input fmt = fscanf file fmt in
-  lib.shown <- input " lib_open = %d " bool;
-  lib.side <- if input " lib_side = %d " bool then `Right else `Left;
-  (* TODO: 400 = library_min, 360 = control_w; use constants *)
-  lib.width <- input " lib_width = %d " (num 120 max_int);  (* clamped later *)
-  (* TODO: 40 = browser_min, 60 = browser_min + 2*margin; use constants *)
-  lib.browser_width <- input " lib_browser_width = %d "
-    (num 40 (lib.width - 60));
+let to_map lib =
+  Map.of_list
+  [
+    "browser_scroll", fmt "%d" lib.browser.vscroll;
+  ]
+
+let to_map_extra lib =
+  Map.of_list
+  [
+    "browser_pos", fmt "%d" (Option.value lib.browser.pos ~default: (-1));
+    "browser_length",  fmt "%d" (Array.length lib.browser.entries);
+    "tracks_pos", fmt "%d" (Option.value lib.tracks.pos ~default: (-1));
+    "tracks_vscroll", fmt "%d" lib.tracks.vscroll;
+    "tracks_hscroll", fmt "%d" lib.tracks.hscroll;
+    "tracks_length", fmt "%d" (Array.length lib.tracks.entries);
+    "root_length", fmt "%d" (Array.length lib.roots);
+    "lib_error", fmt "%s" lib.error;
+    "lib_error_time", fmt "%.1f" lib.error_time;
+  ]
+
+let of_map lib m =
   update_browser lib;
-  lib.browser.vscroll <- input " lib_browser_scroll = %d "
-    (num 0 (max 0 (Array.length lib.roots - 1)))
+  read_map m "browser_scroll" (fun s ->
+    lib.browser.vscroll <- scan s "%d" (num 0 (max 0 (length_browser lib - 1))))
