@@ -101,7 +101,7 @@ let library_key g = Ui.key g.ui ([`Shift], `Char 'L')
 
 (* Display box *)
 let info_w _g = -55
-let info_h _g = 98
+let info_h _g = -52
 let info_margin _g = 4
 let info_box g = Ui.box g.ui (0, margin g, margin g, info_w g, info_h g) `Black
 
@@ -145,17 +145,19 @@ let lcd_button g = Ui.mouse g.ui (0, lcd_x g 0, lcd_y g, colon_w + lcd_x g 4, lc
 
 (* Info *)
 let seek_h _g = 14
-let seek_y g = margin g + info_h g - info_margin g/2 - seek_h g
+let seek_y g = info_h g - info_margin g/2 - seek_h g
 let ticker_h _g = 16
 let ticker_y g = seek_y g - ticker_h g - 4
+let prop_h _g = 12
+let prop_y g = ticker_y g - prop_h g - 4
 
-let prop_text g = Ui.text g.ui (0, margin g + info_margin g, lcd_y g + lcd_h + 10, mute_x g, 12) `Left
+let prop_text g = Ui.text g.ui (0, margin g + info_margin g, prop_y g, mute_x g, prop_h g) `Left
 let title_ticker g = Ui.ticker g.ui (0, margin g + info_margin g, ticker_y g, info_w g - info_margin g, ticker_h g)
 let seek_bar g = Ui.progress_bar g.ui (0, margin g + info_margin g / 2, seek_y g, info_w g - info_margin g, seek_h g)
 
 (* Hidden mode buttons *)
 let color_y g = lcd_y g + lcd_h
-let color_button side g = Ui.mouse g.ui (0, margin g, color_y g, mute_x g, ticker_y g - color_y g) side
+let color_button side g = Ui.mouse g.ui (0, margin g, color_y g, mute_x g, ticker_y g) side
 let color_button_fwd = color_button `Left
 let color_button_bwd = color_button `Right
 
@@ -182,7 +184,7 @@ let ff_key g = Ui.key g.ui ([], `Arrow `Right)
 let mode_w = 25
 let mode_h = 12
 let mode_x g i = - margin g - mode_w - i * (mode_w + 8)
-let mode_y _g = 130
+let mode_y _g = -30
 let mode_indicator_x g x = function
   | `Center -> x + (mode_w - indicator_w g)/2 + 1
   | `Left -> x + 4
