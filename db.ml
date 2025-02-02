@@ -471,13 +471,6 @@ let to_album data : album =
     meta = to_meta (2 + file_cols + format_cols) data;
   }
 
-let to_album_from_track data : album =
-  let album = to_album data in
-  { album with
-    meta = Option.map (fun (meta : Meta.t) ->
-      {meta with artist = meta.albumartist; title = meta.albumtitle}) album.meta;
-  }
-
 let bind_album stmt _ (album : album) =
   let* () = bind_text stmt 1 album.path in
   let* () = bind_file stmt 2 album.file in
@@ -591,19 +584,62 @@ let iter_tracks = iter_table [||] to_track @@ stmt
   SELECT rowid, * FROM Tracks;
 |}
 
-let iter_tracks_for_path db path = db |> iter_table [|of_text (path ^ "%")|] to_track @@ stmt
+let iter_tracks_for_path db path artist album = db |> iter_table [|of_text (path ^ "%"); of_text artist; of_text artist; of_text album|] to_track @@ stmt
 {|
-  SELECT rowid, * FROM Tracks WHERE path LIKE ?;
+  SELECT rowid, * FROM Tracks
+  WHERE path LIKE ? AND (artist LIKE ? OR albumartist LIKE ?) AND albumtitle LIKE ?;
 |}
 
 let iter_tracks_for_path_as_artists db path = db |> iter_table [|of_text (path ^ "%")|] to_artist @@ stmt
 {|
-  SELECT rowid, artist, COUNT(DISTINCT albumtitle), COUNT(*) FROM Tracks WHERE path LIKE ?;
+  SELECT rowid, artist, SUM(albums), SUM(tracks)
+  FROM (
+    SELECT rowid, artist, COUNT(DISTINCT albumtitle) AS albums, COUNT(*) AS tracks
+    FROM Tracks
+    WHERE path LIKE ?
+    GROUP BY artist
+  UNION
+    SELECT rowid, albumartist AS artist, COUNT(DISTINCT albumtitle) AS albums, COUNT(*) AS tracks
+    FROM Tracks
+    WHERE path LIKE ? AND artist <> albumartist
+    GROUP BY albumartist
+  )
+  GROUP BY artist;
 |}
 
-let iter_tracks_for_path_as_albums db path = db |> iter_table [|of_text (path ^ "%")|] to_album_from_track @@ stmt
+let iter_tracks_for_path_as_albums db path artist = db |> iter_table [|of_text (path ^ "%"); of_text artist; of_text artist|] to_album @@ stmt
 {|
-  SELECT rowid, * FROM Tracks WHERE path LIKE ?;
+  SELECT
+    rowid,
+    path,
+    SUM(filesize),
+    MAX(filetime),
+    MAX(fileage),
+    codec,
+    MIN(channels),
+    MIN(depth),
+    MIN(rate),
+    AVG(bitrate),
+    SUM(size),
+    SUM(time),
+    albumartist,
+    albumtitle,
+    COUNT(track),
+    COUNT(DISTINCT disc),
+    albumartist,
+    albumtitle,
+    MAX(date),
+    label,
+    country,
+    SUM(length),
+    MAX(rating),
+    cover,
+    album_id,
+    NULL,
+    MAX(status)
+  FROM Tracks
+  WHERE path LIKE ? AND (artist LIKE ? OR albumartist LIKE ?)
+  GROUP BY albumartist, albumtitle, codec, label;
 |}
 
 let iter_tracks_for_path_and_album db path name = db |> iter_table [|of_text (path ^ "%"); of_text name|] to_track @@ stmt

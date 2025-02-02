@@ -681,8 +681,14 @@ let run_library (st : State.t) =
   | `Sort _ | `Arrange -> assert false
 
   | `Select ->
-    (* TODO: allow multiple selections and keys *)
-    browser.selected <- selected;  (* override *)
+    (* TODO: allow multiple selections *)
+    if Table.num_selected lib.browser > 1 then
+      browser.selected <- selected;  (* override *)
+    Option.iter (fun i ->
+      Library.select_dir lib i;  (* do bureaucracy *)
+    ) (Library.selected_dir lib);
+    Library.deselect_all lib;
+    Library.update_views lib;
 
   | `Click (Some i) ->
     (* Click on dir: fold/unfold or switch view *)
@@ -701,8 +707,10 @@ let run_library (st : State.t) =
       (* Click on directory name: change view if necessary *)
       (* TODO: allow multiple selections *)
       if Table.num_selected browser > 1 then
-        browser.selected <- selected  (* override *)
-      else if Library.selected_dir lib <> dir then
+        browser.selected <- selected;  (* override *)
+      Library.focus_browser lib;
+      Playlist.defocus pl;
+      if Library.selected_dir lib <> dir then
       (
         Library.select_dir lib i;  (* do bureaucracy *)
         Library.deselect_all lib;
@@ -725,6 +733,8 @@ let run_library (st : State.t) =
     Library.deselect_dir lib;
     Library.deselect_all lib;
     Library.update_views lib;
+    Library.focus_browser lib;
+    Playlist.defocus pl;
 
   | `Move _ ->
     (* Drag or Cmd-cursor movement: adjust cursor *)
@@ -871,8 +881,15 @@ let run_library (st : State.t) =
           dir.artists_columns
     in
 
+    let selected = tab.selected in
     (match artists_table lay cols (Some headings) tab pp_row with
-    | `None | `Select | `Scroll -> ()
+    | `None | `Scroll -> ()
+
+    | `Select ->
+      (* TODO: allow multiple selections *)
+      if Table.num_selected tab > 1 then
+        tab.selected <- selected;  (* override *)
+      Library.update_albums lib;
 
     | `Sort i ->
       (* Click on column header: reorder view accordingly *)
@@ -881,7 +898,7 @@ let run_library (st : State.t) =
       let order' = if attr' = attr then Data.rev_order order else `Asc in
       dir.artists_sorting <- attr', order';
       Library.update_dir lib dir;
-      Library.reorder_albums lib;
+      Library.reorder_artists lib;
 
     | `Arrange ->
       (* Column resizing: update column widths *)
@@ -892,12 +909,16 @@ let run_library (st : State.t) =
       (* Double-click on track: clear playlist and send tracks to it *)
       Control.eject st.control;
       Playlist.remove_all pl;
-      let tracks = [||] in  (* TODO *)
+      let tracks = lib.tracks.entries in
       Playlist.insert pl 0 (Array.map Track.make_from_data tracks);
       Control.switch st.control (Playlist.current pl) true;
 
     | `Click _ ->
       (* Single-click: grab focus *)
+      (* TODO: allow multiple selections *)
+      if Table.num_selected tab > 1 then
+        tab.selected <- selected;  (* override *)
+      Library.update_albums lib;
       Library.focus_artists lib;
       Playlist.defocus pl;
       Playlist.deselect_all pl;
@@ -920,7 +941,7 @@ let run_library (st : State.t) =
       if Api.inside m r then
       (
         (* Drag & drop onto playlist: send selection to playlist *)
-        let tracks = [||] in  (* TODO *)
+        let tracks = lib.tracks.entries in
         let len = Playlist.length pl in
         let pos = min len ((my - y) / lay.text + pl.table.vscroll) in
         Playlist.insert pl pos (Array.map Track.make_from_data tracks);
@@ -957,8 +978,15 @@ let run_library (st : State.t) =
           dir.albums_columns
     in
 
+    let selected = tab.selected in
     (match albums_table lay cols (Some headings) tab pp_row with
-    | `None | `Select | `Scroll -> ()
+    | `None | `Scroll -> ()
+
+    | `Select ->
+      (* TODO: allow multiple selections *)
+      if Table.num_selected tab > 1 then
+        tab.selected <- selected;  (* override *)
+      Library.update_tracks lib;
 
     | `Sort i ->
       (* Click on column header: reorder view accordingly *)
@@ -978,12 +1006,16 @@ let run_library (st : State.t) =
       (* Double-click on track: clear playlist and send tracks to it *)
       Control.eject st.control;
       Playlist.remove_all pl;
-      let tracks = [||] in  (* TODO *)
+      let tracks = lib.tracks.entries in
       Playlist.insert pl 0 (Array.map Track.make_from_data tracks);
       Control.switch st.control (Playlist.current pl) true;
 
     | `Click _ ->
       (* Single-click: grab focus *)
+      (* TODO: allow multiple selections *)
+      if Table.num_selected tab > 1 then
+        tab.selected <- selected;  (* override *)
+      Library.update_tracks lib;
       Library.focus_albums lib;
       Playlist.defocus pl;
       Playlist.deselect_all pl;
@@ -1006,7 +1038,7 @@ let run_library (st : State.t) =
       if Api.inside m r then
       (
         (* Drag & drop onto playlist: send selection to playlist *)
-        let tracks = [||] in  (* TODO *)
+        let tracks = lib.tracks.entries in
         let len = Playlist.length pl in
         let pos = min len ((my - y) / lay.text + pl.table.vscroll) in
         Playlist.insert pl pos (Array.map Track.make_from_data tracks);

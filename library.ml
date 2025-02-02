@@ -139,9 +139,9 @@ let meta_attr_string (meta : Meta.t) = function
   | `AlbumArtist -> meta.albumartist
   | `AlbumTitle -> meta.albumtitle
   | `Track -> nonzero_int meta.track
-  | `Tracks -> nonzero_int meta.tracks
+  | `Tracks -> nonzero_int meta.track (* TODO: set and use tracks *)
   | `Disc -> nonzero_int meta.disc
-  | `Discs -> nonzero_int meta.discs
+  | `Discs -> nonzero_int meta.disc (* TODO: set and use discs *)
   | `Date -> meta.date_txt
   | `Year -> nonzero_int meta.year
   | `Label -> meta.label
@@ -588,30 +588,45 @@ let update lib tab sorting attr_string key iter_db =
   Table.adjust_pos tab;
   Table.restore_selection tab selection key
 
+let update_tracks lib =
+  update lib lib.tracks tracks_sorting track_attr_string track_key
+    (fun dir f ->
+      (* TODO: filter by multiple artists and albums *)
+      let artist =
+        match Table.first_selected lib.artists with
+        | Some i -> lib.artists.entries.(i).name
+        | None -> "%"
+      in
+      let album =
+        match Table.first_selected lib.albums with
+        | Some i when lib.albums.entries.(i).meta <> None ->
+          (Option.get lib.albums.entries.(i).meta).albumtitle
+        | _ -> "%"
+      in
+      Db.iter_tracks_for_path lib.db (Filename.concat dir.path "") artist album f
+    )
+
+let update_albums lib =
+  update_tracks lib;
+  update lib lib.albums albums_sorting album_attr_string album_key
+    (fun dir f ->
+      (* TODO: filter by multiple artists *)
+      let artist =
+        match Table.first_selected lib.artists with
+        | Some i -> lib.artists.entries.(i).name
+        | None -> "%"
+      in
+      Db.iter_tracks_for_path_as_albums lib.db (Filename.concat dir.path "") artist f
+    )
+
 let update_artists lib =
+  update_albums lib;
   update lib lib.artists artists_sorting artist_attr_string artist_key
     (fun dir f ->
       Db.iter_tracks_for_path_as_artists lib.db (Filename.concat dir.path "") f
     )
 
-let update_albums lib =
-  update lib lib.albums albums_sorting album_attr_string album_key
-    (fun dir f ->
-      (* TODO: filter by artists *)
-      Db.iter_tracks_for_path_as_albums lib.db (Filename.concat dir.path "") f
-    )
-
-let update_tracks lib =
-  update lib lib.tracks tracks_sorting track_attr_string track_key
-    (fun dir f ->
-      (* TODO: filter by artists and albums *)
-      Db.iter_tracks_for_path lib.db (Filename.concat dir.path "") f
-    )
-
-let update_views lib =
-  update_artists lib;
-  update_albums lib;
-  update_tracks lib
+let update_views lib = update_artists lib
 
 
 let reorder lib tab sorting attr_string key =

@@ -127,8 +127,8 @@ let albums_columns : album_attr columns =
 [|
   `FileTime, 110;
   `Rating, 30;
-  `Artist, 150;
-  `Title, 180;
+  `AlbumArtist, 150;
+  `AlbumTitle, 180;
   `Length, 30;
   `Tracks, 20;
   `Date, 60;
