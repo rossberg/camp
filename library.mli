@@ -66,12 +66,14 @@ val update_dir : t -> dir -> unit
 
 val fold_dir : t -> dir -> bool -> unit
 
+val focus_browser : t -> unit
+
 val selected_dir : t -> int option
 val select_dir : t -> int -> unit
 val deselect_dir : t -> unit
 
 
-(* View *)
+(* Views *)
 
 val attr_name : [< any_attr] -> string
 val attr_align : [< any_attr] -> [> `Left | `Right]
@@ -80,10 +82,19 @@ val artist_attr_string : artist -> artist_attr -> string
 val album_attr_string : album -> album_attr -> string
 val track_attr_string : track -> track_attr -> string
 
+val update_artists : t -> unit
+val update_albums : t -> unit
 val update_tracks : t -> unit
+val update_views : t -> unit
+
+val reorder_artists : t -> unit
+val reorder_albums : t -> unit
 val reorder_tracks : t -> unit
 
-val focus : t -> bool -> unit
+val focus_artists : t -> unit
+val focus_albums : t -> unit
+val focus_tracks : t -> unit
+val defocus : t -> unit
 
 val has_selection : t -> bool
 val num_selected : t -> int

@@ -448,7 +448,7 @@ let run_playlist (st : State.t) =
   | `Click _ ->
     (* Single-click: grab focus *)
     Playlist.update_total_selected pl;
-    Library.focus lib false;
+    Library.defocus lib;
     Library.deselect_all lib;
 
   | `Move delta ->
@@ -654,7 +654,7 @@ let run_library (st : State.t) =
   if Library.rescan_done lib then
   (
     Library.update_browser lib;
-    Library.update_tracks lib;
+    Library.update_views lib;
   );
 
   (* Browser *)
@@ -706,7 +706,7 @@ let run_library (st : State.t) =
       (
         Library.select_dir lib i;  (* do bureaucracy *)
         Library.deselect_all lib;
-        Library.update_tracks lib;
+        Library.update_views lib;
       );
       if Api.Mouse.is_doubleclick `Left then
       (
@@ -724,7 +724,7 @@ let run_library (st : State.t) =
     (* Click into empty space: deselect everything *)
     Library.deselect_dir lib;
     Library.deselect_all lib;
-    Library.update_tracks lib;
+    Library.update_views lib;
 
   | `Move _ ->
     (* Drag or Cmd-cursor movement: adjust cursor *)
@@ -767,7 +767,7 @@ let run_library (st : State.t) =
       find_root_pos (i + 1) (if browser.entries.(i).nest = 0 then j + 1 else j)
     in
     if Library.add_roots lib dropped (find_root_pos 0 0) then
-      Library.update_tracks lib
+      Library.update_views lib
     else
       Layout.browser_error_box lay;  (* flash *)
   );
@@ -778,7 +778,7 @@ let run_library (st : State.t) =
     match Library.selected_dir lib with
     | Some i when browser.entries.(i).parent = None ->
       Library.remove_roots lib [browser.entries.(i).path];
-      Library.update_tracks lib
+      Library.update_views lib
     | _ -> Layout.browser_error_box lay;  (* flash *)
   );
 
@@ -798,7 +798,6 @@ let run_library (st : State.t) =
   if have_dir && artists' <> artists then
   (
     (* Click on Artists button: toggle artist pane *)
-    (* TODO *)
     dir.artists_shown <- artists';
     if not (artists' || dir.albums_shown || dir.tracks_shown) then
       dir.tracks_shown <- true;
@@ -813,7 +812,6 @@ let run_library (st : State.t) =
   if have_dir && albums' <> albums then
   (
     (* Click on Albums button: toggle artist pane *)
-    (* TODO *)
     dir.albums_shown <- albums';
     if not (albums' || dir.artists_shown || dir.tracks_shown) then
       dir.tracks_shown <- true;
@@ -828,7 +826,6 @@ let run_library (st : State.t) =
   if have_dir && tracks' <> tracks then
   (
     (* Click on Tracks button: toggle artist pane *)
-    (* TODO *)
     dir.tracks_shown <- tracks';
     if not (tracks' || dir.artists_shown || dir.albums_shown) then
       dir.artists_shown <- true;
@@ -857,7 +854,7 @@ let run_library (st : State.t) =
 
   if show_artists then
   (
-    let artists_pane, _artists_area, artists_table = Layout.left_view in
+    let artists_pane, artists_area, artists_table = Layout.left_view in
     artists_pane lay;
 
     let tab = lib.artists in
@@ -875,7 +872,65 @@ let run_library (st : State.t) =
     in
 
     (match artists_table lay cols (Some headings) tab pp_row with
-    | _ -> ()  (* TODO *)
+    | `None | `Select | `Scroll -> ()
+
+    | `Sort i ->
+      (* Click on column header: reorder view accordingly *)
+      let attr, order = dir.artists_sorting in
+      let attr' = fst dir.artists_columns.(i) in
+      let order' = if attr' = attr then Data.rev_order order else `Asc in
+      dir.artists_sorting <- attr', order';
+      Library.update_dir lib dir;
+      Library.reorder_albums lib;
+
+    | `Arrange ->
+      (* Column resizing: update column widths *)
+      Array.mapi_inplace (fun i (a, _) -> a, fst cols.(i)) dir.artists_columns;
+      if have_dir then Library.update_dir lib dir;
+
+    | `Click (Some _i) when Api.Mouse.is_doubleclick `Left ->
+      (* Double-click on track: clear playlist and send tracks to it *)
+      Control.eject st.control;
+      Playlist.remove_all pl;
+      let tracks = [||] in  (* TODO *)
+      Playlist.insert pl 0 (Array.map Track.make_from_data tracks);
+      Control.switch st.control (Playlist.current pl) true;
+
+    | `Click _ ->
+      (* Single-click: grab focus *)
+      Library.focus_artists lib;
+      Playlist.defocus pl;
+      Playlist.deselect_all pl;
+
+    | `Move _ ->
+      (* Drag or Cmd-cursor movement: adjust cursor *)
+      if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
+      (
+        (* Actual drag *)
+        Api.Mouse.set_cursor win
+          (if
+            Api.inside m (Ui.dim lay.ui (artists_area lay)) ||
+            Api.inside m (Ui.dim lay.ui (Layout.playlist_area lay))
+          then `Point else `Blocked)
+      );
+
+    | `Drop ->
+      (* Drag & drop originating from tracks *)
+      let (_, y, _, _) as r = Ui.dim lay.ui (Layout.playlist_area lay) in
+      if Api.inside m r then
+      (
+        (* Drag & drop onto playlist: send selection to playlist *)
+        let tracks = [||] in  (* TODO *)
+        let len = Playlist.length pl in
+        let pos = min len ((my - y) / lay.text + pl.table.vscroll) in
+        Playlist.insert pl pos (Array.map Track.make_from_data tracks);
+        Library.defocus lib;
+        Library.deselect_all lib;
+        Playlist.focus pl;
+        Playlist.deselect_all pl;
+        Playlist.select pl pos (pos + Array.length tracks - 1);
+        Control.switch_if_empty st.control (Playlist.current_opt pl);
+      )
     );
   );
 
@@ -884,7 +939,7 @@ let run_library (st : State.t) =
 
   if show_albums then
   (
-    let albums_pane, _albums_area, albums_table =
+    let albums_pane, albums_area, albums_table =
       Layout.(if lay.right_shown then right_view else left_view) in
     albums_pane lay;
 
@@ -903,7 +958,65 @@ let run_library (st : State.t) =
     in
 
     (match albums_table lay cols (Some headings) tab pp_row with
-    | _ -> ()  (* TODO *)
+    | `None | `Select | `Scroll -> ()
+
+    | `Sort i ->
+      (* Click on column header: reorder view accordingly *)
+      let attr, order = dir.albums_sorting in
+      let attr' = fst dir.albums_columns.(i) in
+      let order' = if attr' = attr then Data.rev_order order else `Asc in
+      dir.albums_sorting <- attr', order';
+      Library.update_dir lib dir;
+      Library.reorder_albums lib;
+
+    | `Arrange ->
+      (* Column resizing: update column widths *)
+      Array.mapi_inplace (fun i (a, _) -> a, fst cols.(i)) dir.albums_columns;
+      if have_dir then Library.update_dir lib dir;
+
+    | `Click (Some _i) when Api.Mouse.is_doubleclick `Left ->
+      (* Double-click on track: clear playlist and send tracks to it *)
+      Control.eject st.control;
+      Playlist.remove_all pl;
+      let tracks = [||] in  (* TODO *)
+      Playlist.insert pl 0 (Array.map Track.make_from_data tracks);
+      Control.switch st.control (Playlist.current pl) true;
+
+    | `Click _ ->
+      (* Single-click: grab focus *)
+      Library.focus_albums lib;
+      Playlist.defocus pl;
+      Playlist.deselect_all pl;
+
+    | `Move _ ->
+      (* Drag or Cmd-cursor movement: adjust cursor *)
+      if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
+      (
+        (* Actual drag *)
+        Api.Mouse.set_cursor win
+          (if
+            Api.inside m (Ui.dim lay.ui (albums_area lay)) ||
+            Api.inside m (Ui.dim lay.ui (Layout.playlist_area lay))
+          then `Point else `Blocked)
+      );
+
+    | `Drop ->
+      (* Drag & drop originating from tracks *)
+      let (_, y, _, _) as r = Ui.dim lay.ui (Layout.playlist_area lay) in
+      if Api.inside m r then
+      (
+        (* Drag & drop onto playlist: send selection to playlist *)
+        let tracks = [||] in  (* TODO *)
+        let len = Playlist.length pl in
+        let pos = min len ((my - y) / lay.text + pl.table.vscroll) in
+        Playlist.insert pl pos (Array.map Track.make_from_data tracks);
+        Library.defocus lib;
+        Library.deselect_all lib;
+        Playlist.focus pl;
+        Playlist.deselect_all pl;
+        Playlist.select pl pos (pos + Array.length tracks - 1);
+        Control.switch_if_empty st.control (Playlist.current_opt pl);
+      )
     );
 
     (* Divider *)
@@ -980,7 +1093,8 @@ let run_library (st : State.t) =
 
     | `Click _ ->
       (* Single-click: grab focus *)
-      Playlist.focus pl false;
+      Library.focus_tracks lib;
+      Playlist.defocus pl;
       Playlist.deselect_all pl;
 
     | `Move _ ->
@@ -990,7 +1104,7 @@ let run_library (st : State.t) =
         (* Actual drag *)
         Api.Mouse.set_cursor win
           (if
-            Api.inside m (Ui.dim lay.ui (tracks_area lay))          ||
+            Api.inside m (Ui.dim lay.ui (tracks_area lay)) ||
             Api.inside m (Ui.dim lay.ui (Layout.playlist_area lay))
           then `Point else `Blocked)
       );
@@ -1005,9 +1119,9 @@ let run_library (st : State.t) =
         let len = Playlist.length pl in
         let pos = min len ((my - y) / lay.text + pl.table.vscroll) in
         Playlist.insert pl pos (Array.map Track.make_from_data tracks);
-        Library.focus lib false;
+        Library.defocus lib;
         Library.deselect_all lib;
-        Playlist.focus pl true;
+        Playlist.focus pl;
         Playlist.deselect_all pl;
         Playlist.select pl pos (pos + Array.length tracks - 1);
         Control.switch_if_empty st.control (Playlist.current_opt pl);
@@ -1112,9 +1226,7 @@ let startup () =
   let audio = Api.Audio.init () in
   let rst = ref (State.make ui audio db) in
   let st = if State.load !rst then !rst else State.make ui audio db in
-  Library.update_tracks st.library;
-  Playlist.adjust_scroll st.playlist 4;
-  Playlist.focus st.playlist true;
+  Playlist.focus st.playlist;
   at_exit (fun () -> State.save st; Storage.clear_temp (); Db.exit db);
   st
 

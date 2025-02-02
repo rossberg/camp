@@ -68,7 +68,8 @@ let length pl = Table.length pl.table
 let current pl = Table.current pl.table
 let current_opt pl = Table.current_opt pl.table
 
-let focus pl b = pl.table.focus <- b
+let focus pl = pl.table.focus <- true
+let defocus pl = pl.table.focus <- false
 let adjust_scroll pl fit = Table.adjust_scroll pl.table pl.table.pos fit
 
 
@@ -425,11 +426,12 @@ let to_map_extra pl =
 
 let of_map pl m =
   let len = Table.length pl.table in
+  update_total pl;
   read_map m "play_pos"
     (fun s -> pl.table.pos <- scan s "%d" (num_opt 0 (len - 1)));
   Table.adjust_pos pl.table;
   read_map m "play_scroll"
     (fun s -> pl.table.vscroll <- scan s "%d" (num 0 (len - 1)));
+  adjust_scroll pl 4;
   read_map m "shuffle"
-    (fun s -> if scan s "%d" bool then shuffle pl pl.table.pos);
-  update_total pl
+    (fun s -> if scan s "%d" bool then shuffle pl pl.table.pos)

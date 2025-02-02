@@ -46,7 +46,8 @@ val length : t -> int
 val current : t -> track
 val current_opt : t -> track option
 
-val focus : t -> bool -> unit
+val focus : t -> unit
+val defocus : t -> unit
 val adjust_scroll : t -> int -> unit
 
 

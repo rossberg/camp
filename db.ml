@@ -419,6 +419,17 @@ let update_dirs_pos db parent first delta =
   ()
 
 
+(* Artists *)
+
+let to_artist data : artist =
+  {
+    id = to_id 0 data;
+    name = to_text 1 data;
+    albums = to_int 2 data;
+    tracks = to_int 3 data;
+  }
+
+
 (* Albums *)
 
 let create_albums = create_table
@@ -458,6 +469,13 @@ let to_album data : album =
     file = to_file 2 data;
     format = to_format (2 + file_cols) data;
     meta = to_meta (2 + file_cols + format_cols) data;
+  }
+
+let to_album_from_track data : album =
+  let album = to_album data in
+  { album with
+    meta = Option.map (fun (meta : Meta.t) ->
+      {meta with artist = meta.albumartist; title = meta.albumtitle}) album.meta;
   }
 
 let bind_album stmt _ (album : album) =
@@ -573,9 +591,29 @@ let iter_tracks = iter_table [||] to_track @@ stmt
   SELECT rowid, * FROM Tracks;
 |}
 
-let iter_tracks_for db path = db |> iter_table [|of_text (path ^ "%")|] to_track @@ stmt
+let iter_tracks_for_path db path = db |> iter_table [|of_text (path ^ "%")|] to_track @@ stmt
 {|
   SELECT rowid, * FROM Tracks WHERE path LIKE ?;
+|}
+
+let iter_tracks_for_path_as_artists db path = db |> iter_table [|of_text (path ^ "%")|] to_artist @@ stmt
+{|
+  SELECT rowid, artist, COUNT(DISTINCT albumtitle), COUNT(*) FROM Tracks WHERE path LIKE ?;
+|}
+
+let iter_tracks_for_path_as_albums db path = db |> iter_table [|of_text (path ^ "%")|] to_album_from_track @@ stmt
+{|
+  SELECT rowid, * FROM Tracks WHERE path LIKE ?;
+|}
+
+let iter_tracks_for_path_and_album db path name = db |> iter_table [|of_text (path ^ "%"); of_text name|] to_track @@ stmt
+{|
+  SELECT rowid, * FROM Tracks WHERE path LIKE ? AND albumtitle = ?;
+|}
+
+let iter_tracks_for_path_and_artist db path name = db |> iter_table [|of_text (path ^ "%"); of_text name; of_text name|] to_track @@ stmt
+{|
+  SELECT rowid, * FROM Tracks WHERE path LIKE ? AND (artist = ? OR albumartist = ?);
 |}
 
 let insert_track = insert_into_table bind_track (fun t id -> t.id <- id) @@ stmt

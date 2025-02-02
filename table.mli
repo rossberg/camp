@@ -57,6 +57,9 @@ val select_invert : 'a t -> unit
 val select : 'a t -> int -> int -> unit
 val deselect : 'a t -> int -> int -> unit
 
+val save_selection : 'a t -> 'a array
+val restore_selection : 'a t -> 'a array -> ('a -> string) -> unit
+
 
 (* Editing *)
 

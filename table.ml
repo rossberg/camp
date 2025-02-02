@@ -1,6 +1,7 @@
 (* Table state *)
 
 module IntSet = Set.Make(Int)
+module KeySet = Set.Make(String)
 
 type 'a undo =
 {
@@ -149,6 +150,19 @@ let deselect tab i0 j0 =
       tab.selected <- IntSet.remove k tab.selected
   done;
   tab.sel_range <- Some (i0, j0)
+
+
+let save_selection tab =
+  let selection = selected tab in
+  deselect_all tab;
+  selection
+
+let restore_selection tab selection key =
+  let set =
+    Array.fold_right (fun x -> KeySet.add (key x)) selection KeySet.empty in
+  Array.iteri (fun i x -> if KeySet.mem (key x) set then select tab i i)
+    tab.entries;
+  adjust_scroll tab (first_selected tab) 4
 
 
 (* Undo *)

@@ -3,8 +3,6 @@
 open Audio_file
 open Data
 
-module Set = Set.Make(String)
-
 
 type time = float
 type db = Db.t
@@ -351,28 +349,24 @@ let _ = queue_rescan_dir := rescan_dir
 
 let length_browser lib = Table.length lib.browser
 
+
+let defocus lib =
+  lib.browser.focus <- false;
+  lib.artists.focus <- false;
+  lib.albums.focus <- false;
+  lib.tracks.focus <- false
+
+let focus_browser lib =
+  defocus lib;
+  lib.browser.focus <- true
+
+
 let selected_dir lib = Table.first_selected lib.browser
 let deselect_dir lib = Table.deselect_all lib.browser; lib.current <- None
 let select_dir lib i =
   Table.deselect_all lib.browser;
   Table.select lib.browser i i;
   lib.current <- Some lib.browser.entries.(i)
-
-
-let save_browser_selection lib =
-  let selection =
-    Option.map (fun i -> lib.browser.entries.(i).path)
-      (Table.first_selected lib.browser)
-  in
-  Table.deselect_all lib.browser;
-  selection
-
-let restore_browser_selection lib selection =
-  Array.iteri
-    (fun i (d : Data.dir) ->
-      if selection = Some d.path then Table.select lib.browser i i
-    ) lib.browser.entries;
-  Table.adjust_scroll lib.browser (Table.first_selected lib.browser) 4
 
 
 let make_all lib =
@@ -390,10 +384,10 @@ let update_browser lib =
     Array.fold_right
       (fun link -> entries (Data.val_of_link link)) dir.children acc)
   in
-  let selection = save_browser_selection lib in
+  let selection = Table.save_selection lib.browser in
   lib.browser.entries <- Array.of_list (entries (make_all lib) []);
   Table.adjust_pos lib.browser;
-  restore_browser_selection lib selection
+  Table.restore_selection lib.browser selection (fun dir -> dir.path)
 
 
 let fold_dir lib dir status =
@@ -532,9 +526,20 @@ let remove_roots lib paths =
   List.iter (remove_root lib) paths
 
 
-(* Tracks View *)
+(* Views *)
 
-let focus lib b = lib.tracks.focus <- b
+let focus_artists lib =
+  defocus lib;
+  lib.artists.focus <- true
+
+let focus_albums lib =
+  defocus lib;
+  lib.albums.focus <- true
+
+let focus_tracks lib =
+  defocus lib;
+  lib.tracks.focus <- true
+
 
 let has_selection lib = Table.has_selection lib.tracks
 let num_selected lib = Table.num_selected lib.tracks
@@ -543,65 +548,87 @@ let last_selected lib = Table.last_selected lib.tracks
 let is_selected lib i = Table.is_selected lib.tracks i
 let selected lib = Table.selected lib.tracks
 
-let select_all lib =
-  Table.select_all lib.tracks
+let select_all lib = Table.select_all lib.tracks
+let deselect_all lib = Table.deselect_all lib.tracks
+let select_invert lib = Table.select_invert lib.tracks
+let select lib i j = Table.select lib.tracks i j
+let deselect lib i j = Table.deselect lib.tracks i j
 
-let deselect_all lib =
-  Table.deselect_all lib.tracks
-
-let select_invert lib =
-  Table.select_invert lib.tracks
-
-let select lib i j =
-  Table.select lib.tracks i j
-
-let deselect lib i j =
-  Table.deselect lib.tracks i j
+let adjust_scroll lib pos fit = Table.adjust_scroll lib.tracks pos fit
 
 
-let adjust_scroll lib pos fit =
-  Table.adjust_scroll lib.tracks pos fit
+let artists_sorting dir = dir.artists_sorting
+let albums_sorting dir = dir.albums_sorting
+let tracks_sorting dir = dir.tracks_sorting
 
+let artist_key (artist : artist) = artist.name
+let album_key (album : album) = (*album.track*)  (* TODO *)
+  match album.meta with
+  | None -> "[unknown]"
+  | Some meta -> meta.albumtitle
 
-let save_tracks_selection lib =
-  let selection = selected lib in
-  deselect_all lib;
-  selection
+let track_key (track : track) = track.path
 
-let restore_tracks_selection lib selection =
-  let set = Array.fold_right (fun t -> Set.add t.path) selection Set.empty in
-  Array.iteri (fun i t -> if Set.mem t.path set then select lib i i)
-    lib.tracks.entries;
-  Table.adjust_scroll lib.tracks (first_selected lib) 4
-
-
-let sort_tracks tracks (attr, order) =
-  let enriched_tracks =
-    Array.map (fun track -> track_attr_string track attr, track) tracks in
+let sort_entries entries (attr, order) attr_string =
+  let enriched = Array.map (fun entry -> attr_string entry attr, entry) entries in
   let sign = if order = `Asc then +1 else - 1 in
   let cmp t1 t2 = sign * compare (fst t1) (fst t2) in
-  Array.stable_sort cmp enriched_tracks;
-  Array.map snd enriched_tracks
+  Array.stable_sort cmp enriched;
+  Array.map snd enriched
+
+let update lib tab sorting attr_string key iter_db =
+  let selection = Table.save_selection tab in
+  let entries' = ref [||] in
+  Option.iter (fun (dir : dir) ->
+    let entries = ref [] in
+    iter_db dir (fun e -> entries := e :: !entries);
+    entries' := sort_entries (Array.of_list !entries) (sorting dir) attr_string;
+  ) lib.current;
+  tab.entries <- !entries';
+  Table.adjust_pos tab;
+  Table.restore_selection tab selection key
+
+let update_artists lib =
+  update lib lib.artists artists_sorting artist_attr_string artist_key
+    (fun dir f ->
+      Db.iter_tracks_for_path_as_artists lib.db (Filename.concat dir.path "") f
+    )
+
+let update_albums lib =
+  update lib lib.albums albums_sorting album_attr_string album_key
+    (fun dir f ->
+      (* TODO: filter by artists *)
+      Db.iter_tracks_for_path_as_albums lib.db (Filename.concat dir.path "") f
+    )
 
 let update_tracks lib =
-  let selection = save_tracks_selection lib in
-  let tracks' = ref [||] in
+  update lib lib.tracks tracks_sorting track_attr_string track_key
+    (fun dir f ->
+      (* TODO: filter by artists and albums *)
+      Db.iter_tracks_for_path lib.db (Filename.concat dir.path "") f
+    )
+
+let update_views lib =
+  update_artists lib;
+  update_albums lib;
+  update_tracks lib
+
+
+let reorder lib tab sorting attr_string key =
   Option.iter (fun (dir : dir) ->
-    let path = Filename.concat dir.path "" in
-    let tracks = ref [] in
-    Db.iter_tracks_for lib.db path (fun tr -> tracks := tr :: !tracks);
-    tracks' := sort_tracks (Array.of_list !tracks) dir.tracks_sorting;
-  ) lib.current;
-  lib.tracks.entries <- !tracks';
-  Table.adjust_pos lib.tracks;
-  restore_tracks_selection lib selection
+    let selection = Table.save_selection tab in
+    tab.entries <- sort_entries tab.entries (sorting dir) attr_string;
+    Table.restore_selection tab selection key;
+  ) lib.current
+
+let reorder_artists lib =
+  reorder lib lib.artists artists_sorting artist_attr_string artist_key
+
+let reorder_albums lib =
+  reorder lib lib.albums albums_sorting album_attr_string album_key
 
 let reorder_tracks lib =
-  Option.iter (fun (dir : dir) ->
-    let selection = save_tracks_selection lib in
-    lib.tracks.entries <- sort_tracks lib.tracks.entries dir.tracks_sorting;
-    restore_tracks_selection lib selection;
-  ) lib.current
+  reorder lib lib.tracks tracks_sorting track_attr_string track_key
 
 
 (* Persistance *)
@@ -633,5 +660,6 @@ let to_map_extra lib =
 
 let of_map lib m =
   update_browser lib;
+  update_views lib;
   read_map m "browser_scroll" (fun s ->
     lib.browser.vscroll <- scan s "%d" (num 0 (max 0 (length_browser lib - 1))))
