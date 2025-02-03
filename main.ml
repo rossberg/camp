@@ -201,7 +201,7 @@ let run_control (st : State.t) =
   (* Play controls *)
   let len = Playlist.length pl in
   let _, _, _, h = Ui.dim lay.ui (Layout.playlist_area lay) in
-  let page = max 4 (int_of_float (Float.floor (float h /. float lay.text))) in
+  let page = max 1 (int_of_float (Float.floor (float h /. float lay.text))) in
   let bwd = if Layout.bwd_button lay (Some false) then -1 else 0 in
   let fwd = if Layout.fwd_button lay (Some false) then +1 else 0 in
   let off = if len = 0 then 0 else bwd + fwd in
@@ -398,7 +398,7 @@ let run_playlist (st : State.t) =
 
   (* Playlist table *)
   let _, y, _, h = Ui.dim lay.ui (Layout.playlist_area lay) in
-  let page = int_of_float (Float.floor (float h /. float lay.text)) in
+  let page = max 1 (int_of_float (Float.floor (float h /. float lay.text))) in
   let digits_pos = log10 (len + 1) + 1 in
   let digits_time = ref 1 in
   for i = tab.vscroll to min len (tab.vscroll + page) - 1 do

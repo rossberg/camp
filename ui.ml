@@ -810,7 +810,7 @@ let rich_table ui area gw ch sw sh cols headings_opt (tab : _ Table.t) pp_row =
   let command = Key.are_modifiers_down [`Command] in
 
   let len = Array.length tab.entries in
-  let page = max 4 (int_of_float (Float.floor (float h /. float ch))) in
+  let page = max 1 (int_of_float (Float.floor (float h /. float ch))) in
   (* Correct scrolling position for possible resize *)
   tab.vscroll <- clamp 0 (max 0 (len - page)) tab.vscroll;
 
@@ -828,12 +828,13 @@ let rich_table ui area gw ch sw sh cols headings_opt (tab : _ Table.t) pp_row =
     | None -> `None
     | Some i ->
       let i = tab.vscroll + i in
+      let limit = min len (tab.vscroll + page) in
       if not (shift || command) then
       (
         match drag_status ui r (max_int, ch) with
         | `None ->
           (* Click *)
-          if i >= len then
+          if i >= limit then
           (
             (* Click on empty space *)
             Table.deselect_all tab;
@@ -852,7 +853,7 @@ let rich_table ui area gw ch sw sh cols headings_opt (tab : _ Table.t) pp_row =
         | `Click ->
           (* Click-release: deselect all except for clicked entry *)
           Table.deselect_all tab;
-          if i >= len then
+          if i >= limit then
             `Click None
           else
           (
@@ -867,7 +868,7 @@ let rich_table ui area gw ch sw sh cols headings_opt (tab : _ Table.t) pp_row =
       else if command && Mouse.is_pressed `Left then
       (
         (* Cmd-click on entry: toggle selection of clicked entry *)
-        if i >= len then
+        if i >= limit then
           `Click None
         else
         (
@@ -921,8 +922,9 @@ let rich_table ui area gw ch sw sh cols headings_opt (tab : _ Table.t) pp_row =
   let h' = page * ch in
   let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * ch)) in
   let pos = if len = 0 then 0.0 else float tab.vscroll /. float len in
-  let wheel = if not shift then wheel_status ui r else 0.0 in
-  let pos' = scroll_bar ui vscroll_area `Vertical pos ext -. 0.05 *. wheel in
+  let coeff = max 1.0 (float page /. 4.0) /. float (len - page) in
+  let wheel = if not shift then coeff *. wheel_status ui r else 0.0 in
+  let pos' = scroll_bar ui vscroll_area `Vertical pos ext -. wheel in
   let result =
     if result <> `None || pos = pos' then result else
     (

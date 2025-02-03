@@ -346,11 +346,11 @@ let right_min _g = 100
 let views_min g = left_min g + right_min g
 let library_min g = browser_min g + views_min g
 
-let upper_min g = margin g + 5 * (text_h g) + scrollbar_w g + 3
-let lower_min g = divider_w g + 5 * (text_h g) + scrollbar_w g + 3
+let upper_min g = margin g + 3 * (text_h g) + scrollbar_w g + 3
+let lower_min g = divider_w g + 3 * (text_h g) + scrollbar_w g + 3
 
 let browser_max g = g.library_width - views_min g
 let left_max g = g.library_width - g.browser_width - right_min g
 let upper_max g = control_h g + g.playlist_height - bottom_h g - lower_min g
 
-let playlist_min g = bottom_h g + max (margin g + 4 * (text_h g)) (upper_min g + lower_min g - control_h g)
+let playlist_min g = bottom_h g + max (margin g + 2 * (text_h g)) (upper_min g + lower_min g - control_h g)
