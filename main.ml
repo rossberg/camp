@@ -684,11 +684,15 @@ let run_library (st : State.t) =
     (* TODO: allow multiple selections *)
     if Table.num_selected lib.browser > 1 then
       browser.selected <- selected;  (* override *)
-    Option.iter (fun i ->
-      Library.select_dir lib i;  (* do bureaucracy *)
-    ) (Library.selected_dir lib);
-    Library.deselect_all lib;
-    Library.update_views lib;
+    if Library.selected_dir lib <> dir then
+    (
+      (match Library.selected_dir lib with
+      | None -> Library.deselect_dir lib
+      | Some i -> Library.select_dir lib i  (* do bureaucracy *)
+      );
+      Library.deselect_all lib;
+      Library.update_views lib;
+    );
 
   | `Click (Some i) ->
     (* Click on dir: fold/unfold or switch view *)
@@ -719,6 +723,9 @@ let run_library (st : State.t) =
       if Api.Mouse.is_doubleclick `Left then
       (
         (* Double-click on directory name: send track view to playlist *)
+        Table.deselect_all lib.artists;  (* deactivate possible inner filters *)
+        Table.deselect_all lib.albums;
+        Library.update_albums lib;
         let tracks = Array.map Track.make_from_data lib.tracks.entries in
         Playlist.replace_all pl tracks;
         Control.eject st.control;
@@ -905,6 +912,8 @@ let run_library (st : State.t) =
 
     | `Click (Some _i) when Api.Mouse.is_doubleclick `Left ->
       (* Double-click on track: clear playlist and send tracks to it *)
+      Table.deselect_all lib.albums;  (* deactivate possible inner filter *)
+      Library.update_tracks lib;
       let tracks = Array.map Track.make_from_data lib.tracks.entries in
       Playlist.replace_all pl tracks;
       Control.eject st.control;
