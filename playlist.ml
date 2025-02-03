@@ -346,6 +346,17 @@ let remove_invalid pl =
   remove_if (fun i -> Track.is_invalid pl.table.entries.(i)) pl (num_invalid pl)
 
 
+let replace_all pl tracks =
+  if pl.table.entries = [||] then
+    insert pl 0 tracks
+  else
+  (
+    remove_all pl;
+    insert pl 0 tracks;
+    Table.drop_undo pl.table;
+  )
+
+
 let move_selected pl d =
   if Table.num_selected pl.table > 0 then
   (

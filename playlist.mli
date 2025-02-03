@@ -99,6 +99,8 @@ val remove_selected : t -> unit
 val remove_unselected : t -> unit
 val remove_invalid : t -> unit
 
+val replace_all : t -> track array -> unit
+
 val move_selected : t -> int -> unit
 
 

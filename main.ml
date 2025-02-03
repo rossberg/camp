@@ -719,12 +719,10 @@ let run_library (st : State.t) =
       if Api.Mouse.is_doubleclick `Left then
       (
         (* Double-click on directory name: send track view to playlist *)
-        Control.eject st.control;
-        Playlist.remove_all pl;
         let tracks = Array.map Track.make_from_data lib.tracks.entries in
-        Playlist.insert pl 0 tracks;
-        if tracks <> [||] then
-          Control.switch st.control tracks.(0) true;
+        Playlist.replace_all pl tracks;
+        Control.eject st.control;
+        if tracks <> [||] then Control.switch st.control tracks.(0) true;
       )
     )
 
@@ -907,11 +905,10 @@ let run_library (st : State.t) =
 
     | `Click (Some _i) when Api.Mouse.is_doubleclick `Left ->
       (* Double-click on track: clear playlist and send tracks to it *)
+      let tracks = Array.map Track.make_from_data lib.tracks.entries in
+      Playlist.replace_all pl tracks;
       Control.eject st.control;
-      Playlist.remove_all pl;
-      let tracks = lib.tracks.entries in
-      Playlist.insert pl 0 (Array.map Track.make_from_data tracks);
-      Control.switch st.control (Playlist.current pl) true;
+      if tracks <> [||] then Control.switch st.control tracks.(0) true;
 
     | `Click _ ->
       (* Single-click: grab focus *)
@@ -1004,11 +1001,10 @@ let run_library (st : State.t) =
 
     | `Click (Some _i) when Api.Mouse.is_doubleclick `Left ->
       (* Double-click on track: clear playlist and send tracks to it *)
+      let tracks = Array.map Track.make_from_data lib.tracks.entries in
+      Playlist.replace_all pl tracks;
       Control.eject st.control;
-      Playlist.remove_all pl;
-      let tracks = lib.tracks.entries in
-      Playlist.insert pl 0 (Array.map Track.make_from_data tracks);
-      Control.switch st.control (Playlist.current pl) true;
+      if tracks <> [||] then Control.switch st.control tracks.(0) true;
 
     | `Click _ ->
       (* Single-click: grab focus *)
@@ -1113,14 +1109,13 @@ let run_library (st : State.t) =
 
     | `Click (Some i) when Api.Mouse.is_doubleclick `Left ->
       (* Double-click on track: clear playlist and send tracks to it *)
-      Control.eject st.control;
-      Playlist.remove_all pl;
       let tracks =
         if Api.Key.are_modifiers_down [`Command]
         then Library.selected lib
         else [|tab.entries.(i)|]
       in
-      Playlist.insert pl 0 (Array.map Track.make_from_data tracks);
+      Playlist.replace_all pl (Array.map Track.make_from_data tracks);
+      Control.eject st.control;
       Control.switch st.control (Playlist.current pl) true;
 
     | `Click _ ->
