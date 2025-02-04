@@ -161,8 +161,7 @@ let restore_selection tab selection key =
   let set =
     Array.fold_right (fun x -> KeySet.add (key x)) selection KeySet.empty in
   Array.iteri (fun i x -> if KeySet.mem (key x) set then select tab i i)
-    tab.entries;
-  adjust_scroll tab (first_selected tab) 4
+    tab.entries
 
 
 (* Undo *)

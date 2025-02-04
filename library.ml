@@ -244,10 +244,19 @@ let rescan_dir lib (dir : Data.dir) =
       )
     ) (Sys.readdir dir.path)
   with exn -> Storage.log
-    ("error scaning dir " ^ dir.path ^ ": " ^ Printexc.to_string exn)
+    ("error scanning dir " ^ dir.path ^ ": " ^ Printexc.to_string exn)
 
+let rescan_playlist lib path =
+  try
+    let s = In_channel.(with_open_bin path input_all) in
+    let items = M3u.parse_ext s in
+    Db.delete_playlists lib.db path;
+    List.iteri (fun i item -> Db.insert_playlist lib.db path i item) items;
+  with exn -> Storage.log
+    ("error scanning playlist " ^ path ^ ": " ^ Printexc.to_string exn)
 
 let queue_rescan_dir = ref (fun _ -> assert false)
+let queue_rescan_playlist = ref (fun _ -> assert false)
 
 let rescan_root lib (root : Data.dir) =
   let rec scan_path path nest =
@@ -260,7 +269,7 @@ let rescan_root lib (root : Data.dir) =
       if Format.is_known_ext path then
         scan_track path
       else if M3u.is_known_ext path then
-        scan_playlist path
+        scan_playlist path nest
       else
         None
 
@@ -284,6 +293,8 @@ let rescan_root lib (root : Data.dir) =
         | None ->
           let parent = Some (Filename.dirname path) in
           let dir = Data.make_dir path parent nest 0 in  (* TODO: pos *)
+          if Format.is_known_ext path then
+            dir.name <- Filename.remove_extension dir.name;
           dir.folded <- true;
           (* Root may have been deleted in the mean time... *)
           if Db.exists_root lib.db root.path then
@@ -301,10 +312,17 @@ let rescan_root lib (root : Data.dir) =
   and scan_track _path =
     Some []  (* deferred to directory scan *)
 
-  and scan_playlist path =
-    if not (Db.exists_playlist lib.db path) then
-      Db.insert_playlist lib.db (Data.make_playlist path);
-    Some []
+  and scan_playlist path nest =
+    let parent = Some (Filename.dirname path) in
+    let dir = Data.make_dir path parent (nest + 1) 0 in  (* TODO: pos *)
+    if M3u.is_known_ext path then
+      dir.name <- Filename.remove_extension dir.name;
+    dir.folded <- true;
+    (* Root may have been deleted in the mean time... *)
+    if Db.exists_root lib.db root.path then
+      Db.insert_dir lib.db dir;
+    !queue_rescan_playlist lib path;
+    Some [dir]
   in
 
   try
@@ -315,9 +333,11 @@ let rescan_root lib (root : Data.dir) =
 
 let dir_queue = Safe_queue.create ()
 let track_queue = Safe_queue.create ()
+let playlist_queue = Safe_queue.create ()
 
 let dir_busy = Atomic.make false
 let track_busy = Atomic.make false
+let playlist_busy = Atomic.make false
 
 let completed = Atomic.make false
 
@@ -331,18 +351,22 @@ let rec scanner queue busy () =
 
 let _ = Domain.spawn (scanner dir_queue dir_busy)
 let _ = Domain.spawn (scanner track_queue track_busy)
+let _ = Domain.spawn (scanner playlist_queue playlist_busy)
 
 let rescan_root lib root = Safe_queue.add (fun () -> rescan_root lib root) dir_queue
 let rescan_roots lib = Array.iter (rescan_root lib) lib.roots
 let rescan_dir lib dir = Safe_queue.add (fun () -> rescan_dir lib dir) track_queue
 let rescan_dirs lib dirs = Array.iter (rescan_dir lib) dirs
+let rescan_playlist lib path =
+  Safe_queue.add (fun () -> rescan_playlist lib path) playlist_queue
 let rescan_tracks lib tracks =
   Safe_queue.add (fun () -> Array.iter (rescan_track lib) tracks) track_queue
 
-let rescan_busy _lib = Atomic.get dir_busy || Atomic.get track_busy
+let rescan_busy _lib = Atomic.get dir_busy || Atomic.get track_busy || Atomic.get playlist_busy
 let rescan_done _lib = Atomic.exchange completed false
 
 let _ = queue_rescan_dir := rescan_dir
+let _ = queue_rescan_playlist := rescan_playlist
 
 
 (* Browser *)

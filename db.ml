@@ -670,24 +670,43 @@ let create_playlists = create_table
 {|
   CREATE TABLE IF NOT EXISTS Playlists
   (
-    path TEXT NOT NULL PRIMARY KEY
+    path TEXT NONT NULL,
+    pos INT NOT NULL,
+    track TEXT NOT NULL,
+    name TEXT,
+    time REAL
   );
 |}
 
-let to_playlist data : playlist =
-  {
-    id = to_id 0 data;
-    path = to_text 1 data;
-  }
+let to_playlist data : path * int * M3u.item =
+  to_text 1 data,
+  to_int 2 data,
+  let name = to_text_opt 4 data in
+  let time = to_float_opt 5 data in
+  let info : M3u.info option =
+    if name = None && time = None then None else Some
+    {
+      title = Option.value name ~default: "";
+      time = int_of_float (Option.value time ~default: 0.0);
+    }
+  in
+  {path = to_text 3 data; info}
 
-let bind_playlist stmt _ (playlist : playlist) =
-  let* () = bind_text stmt 1 playlist.path in
+let bind_playlist path pos stmt _ (item : M3u.item) =
+  let* () = bind_text stmt 1 path in
+  let* () = bind_int stmt 2 pos in
+  let* () = bind_text stmt 3 item.path in
+  Option.iter (fun (info : M3u.info) ->
+    let* () = bind_text stmt 4 info.title in
+    let* () = bind_float stmt 5 (float info.time) in
+    ()
+  ) item.info;
   return
 
 
 let count_playlists = count_table @@ stmt
 {|
-  SELECT COUNT(*) FROM Playlists;
+  SELECT COUNT(DISTINCT path) FROM Playlists;
 |}
 
 let exists_playlist = exist_in_table @@ stmt
@@ -695,14 +714,9 @@ let exists_playlist = exist_in_table @@ stmt
   SELECT COUNT(*) FROM Playlists WHERE path = ?;
 |}
 
-let find_playlist = find_in_table to_playlist @@ stmt
+let insert_playlist db path pos = db |> insert_into_table (bind_playlist path pos) (fun _ _ -> ()) @@ stmt
 {|
-  SELECT rowid, * FROM Playlists WHERE path = ?;
-|}
-
-let insert_playlist = insert_into_table bind_playlist (fun p id -> p.id <- id) @@ stmt
-{|
-  INSERT OR REPLACE INTO Playlists VALUES (?);
+  INSERT OR REPLACE INTO Playlists VALUES (?, ?, ?, ?, ?);
 |}
 
 let delete_playlists = delete_from_table_prefix @@ stmt

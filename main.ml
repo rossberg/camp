@@ -628,7 +628,7 @@ let run_playlist (st : State.t) =
 
 (* Library Panes *)
 
-let symbol_empty = "○"
+let symbol_empty = " ○"
 let symbol_folded = "►" (* "▸" *)
 let symbol_unfolded = "▼" (* "▾" *)
 
