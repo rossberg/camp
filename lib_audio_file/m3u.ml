@@ -50,7 +50,7 @@ let parse_info s =
   let* com = String.index_from_opt s col ',' in
   let* time = int_of_string_opt (String.sub s (col + 1) (com - col - 1)) in
   let title = String.sub s (com + 1) (String.length s - com - 1) in
-  Some {time; title}
+  Some {time = max 0 time; title}
 
 let parse_ext s =
   List.fold_right

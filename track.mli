@@ -26,6 +26,9 @@ val make_from_data : Data.track -> t
 val is_separator : t -> bool
 val is_invalid : t -> bool
 
+val artist_title_of_name : string -> (string * string) option
+val artist_title_of_path : path -> (string * string) option
+
 
 (* Updating queue *)
 

@@ -31,6 +31,26 @@ let name_of_meta path (meta : Meta.t) =
   else
     name_of_path path
 
+let artist_title_of_name name =
+  let rec find i =
+    match String.index_from_opt name i '-' with
+    | None -> None
+    | Some i ->
+      if i >= String.length name - 1 then None else
+      if name.[i - 1] <> ' ' || name.[i + 1] <> ' ' then find (i + 2) else
+      Some String.(sub name 0 (i - 1), sub name (i + 2) (length name - i - 2))
+  in find 1
+
+let artist_title_of_path path =
+  if M3u.is_separator path then Some (name_separator, name_separator) else
+  let name = Filename.(remove_extension (basename path)) in
+  match artist_title_of_name name with
+  | None -> None
+  | Some (_, title) as result ->
+    (* In case there is a position as well *)
+    let result' = artist_title_of_name title in
+    if result' = None then result else result'
+
 
 let make' path name time status =
   {path; name; time; status; last_update = 0.0}

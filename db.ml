@@ -80,6 +80,7 @@ let to_bool_default i data = to_default to_bool false i data
 let to_int_default i data = to_default to_int 0 i data
 let to_float_default i data = to_default to_float 0.0 i data
 let to_text_default i data = to_default to_text "" i data
+let to_id_default i data = to_default to_id (-1L) i data
 
 let to_pair to_x i to_y j data = (to_x i data, to_y j data)
 
@@ -324,27 +325,27 @@ let create_dirs = create_table
   );
 |}
 
-let to_dir data : dir =
+let to_dir i data : dir =
   {
-    id = to_id 0 data;
-    path = to_text 1 data;
-    parent = to_text_opt 2 data;
-    name = to_text 3 data;
+    id = to_id i data;
+    path = to_text (i + 1) data;
+    parent = to_text_opt (i + 2) data;
+    name = to_text (i + 3) data;
     children = [||];
-    pos = to_int 4 data;
-    nest = to_int 5 data;
-    folded = to_bool 6 data;
-    artists_shown = to_int 7 data land 1 <> 0;
-    albums_shown = to_int 7 data land 2 <> 0;
-    tracks_shown = to_int 7 data land 4 <> 0;
-    divider_width = to_int 8 data;
-    divider_height = to_int 9 data;
-    artists_columns = artist_columns_of_string (to_text 10 data);
-    albums_columns = album_columns_of_string (to_text 11 data);
-    tracks_columns = track_columns_of_string (to_text 12 data);
-    artists_sorting = artist_sorting_of_string (to_text 13 data);
-    albums_sorting = album_sorting_of_string (to_text 14 data);
-    tracks_sorting = track_sorting_of_string (to_text 15 data);
+    pos = to_int (i + 4) data;
+    nest = to_int (i + 5) data;
+    folded = to_bool (i + 6) data;
+    artists_shown = to_int (i + 7) data land 1 <> 0;
+    albums_shown = to_int (i + 7) data land 2 <> 0;
+    tracks_shown = to_int (i + 7) data land 4 <> 0;
+    divider_width = to_int (i + 8) data;
+    divider_height = to_int (i + 9) data;
+    artists_columns = artist_columns_of_string (to_text (i + 10) data);
+    albums_columns = album_columns_of_string (to_text (i + 11) data);
+    tracks_columns = track_columns_of_string (to_text (i + 12) data);
+    artists_sorting = artist_sorting_of_string (to_text (i + 13) data);
+    albums_sorting = album_sorting_of_string (to_text (i + 14) data);
+    tracks_sorting = track_sorting_of_string (to_text (i + 15) data);
   }
 
 let bind_dir stmt _ (dir : dir) =
@@ -383,12 +384,12 @@ let exists_dir = exist_in_table @@ stmt
   SELECT COUNT(*) FROM Dirs WHERE path = ?;
 |}
 
-let find_dir = find_in_table to_dir @@ stmt
+let find_dir = find_in_table (to_dir 0) @@ stmt
 {|
   SELECT rowid, * FROM Dirs WHERE path = ?;
 |}
 
-let iter_dirs = iter_table [||] to_dir @@ stmt
+let iter_dirs = iter_table [||] (to_dir 0) @@ stmt
 {|
   SELECT rowid, * FROM Dirs;
 |}
@@ -421,12 +422,12 @@ let update_dirs_pos db parent first delta =
 
 (* Artists *)
 
-let to_artist data : artist =
+let to_artist i data : artist =
   {
-    id = to_id 0 data;
-    name = to_text 1 data;
-    albums = to_int 2 data;
-    tracks = to_int 3 data;
+    id = to_id i data;
+    name = to_text (i + 1) data;
+    albums = to_int (i + 2) data;
+    tracks = to_int (i + 3) data;
   }
 
 
@@ -462,13 +463,13 @@ let create_albums = create_table
   );
 |}
 
-let to_album data : album =
+let to_album i data : album =
   {
-    id = to_id 0 data;
-    path = to_text 1 data;
-    file = to_file 2 data;
-    format = to_format (2 + file_cols) data;
-    meta = to_meta (2 + file_cols + format_cols) data;
+    id = to_id i data;
+    path = to_text (i + 1) data;
+    file = to_file (i + 2) data;
+    format = to_format (i + 2 + file_cols) data;
+    meta = to_meta (i + 2 + file_cols + format_cols) data;
   }
 
 let bind_album stmt _ (album : album) =
@@ -489,7 +490,7 @@ let exist_album = exist_in_table @@ stmt
   SELECT COUNT(*) FROM Albums WHERE path = ?;
 |}
 
-let find_album = find_in_table to_album @@ stmt
+let find_album = find_in_table (to_album 0) @@ stmt
 {|
   SELECT rowid, * FROM Tracks WHERE path = ?;
 |}
@@ -536,21 +537,22 @@ let create_tracks = create_table
     rating INT,
     cover BLOB,
     album_id INT,
-    pos INT,
     status INT NOT NULL
   );
 |}
 
-let to_track data : track =
+let track_cols = 25
+
+let to_track i data : track =
   {
-    id = to_id 0 data;
-    path = to_text 1 data;
-    file = to_file 2 data;
-    format = to_format (2 + file_cols) data;
-    meta = to_meta (2 + file_cols + format_cols) data;
-    album = to_link_opt (2 + file_cols + format_cols + meta_cols) data;
-    pos = to_int (3 + file_cols + format_cols + meta_cols) data;
-    status = to_status (to_int (4 + file_cols + format_cols + meta_cols) data);
+    id = to_id_default i data;
+    path = to_text_default (i + 1) data;
+    file = to_file (i + 2) data;
+    format = to_format (i + 2 + file_cols) data;
+    meta = to_meta (i + 2 + file_cols + format_cols) data;
+    album = to_link_opt (i + 2 + file_cols + format_cols + meta_cols) data;
+    pos = 0;
+    status = to_status (to_int_default (i + 3 + file_cols + format_cols + meta_cols) data);
   }
 
 let bind_track stmt _ (track : track) =
@@ -559,9 +561,8 @@ let bind_track stmt _ (track : track) =
   let* () = bind_opt bind_format stmt (2 + file_cols) track.format in
   let* () = bind_opt bind_meta stmt (2 + file_cols + format_cols) track.meta in
   let* () = bind_id_opt stmt (2 + file_cols + format_cols + meta_cols) (Option.map album_id_of_link track.album) in
-  let* () = bind_int stmt (3 + file_cols + format_cols + meta_cols) track.pos in
-  let* () = bind_int stmt (4 + file_cols + format_cols + meta_cols) (of_status track.status) in
-  assert (4 + file_cols + format_cols + meta_cols = 26);
+  let* () = bind_int stmt (3 + file_cols + format_cols + meta_cols) (of_status track.status) in
+  assert (3 + file_cols + format_cols + meta_cols = track_cols);
   return
 
 let count_tracks = count_table @@ stmt
@@ -574,23 +575,23 @@ let exists_track = exist_in_table @@ stmt
   SELECT COUNT(*) FROM Tracks WHERE path = ?;
 |}
 
-let find_track = find_in_table to_track @@ stmt
+let find_track = find_in_table (to_track 0) @@ stmt
 {|
   SELECT rowid, * FROM Tracks WHERE path = ?;
 |}
 
-let iter_tracks = iter_table [||] to_track @@ stmt
+let iter_tracks = iter_table [||] (to_track 0) @@ stmt
 {|
   SELECT rowid, * FROM Tracks;
 |}
 
-let iter_tracks_for_path db path artist album = db |> iter_table [|of_text (path ^ "%"); of_text artist; of_text artist; of_text album|] to_track @@ stmt
+let iter_tracks_for_path db path artist album = db |> iter_table [|of_text (path ^ "%"); of_text artist; of_text artist; of_text album|] (to_track 0) @@ stmt
 {|
   SELECT rowid, * FROM Tracks
   WHERE path LIKE ? AND (artist LIKE ? OR albumartist LIKE ?) AND albumtitle LIKE ?;
 |}
 
-let iter_tracks_for_path_as_artists db path = db |> iter_table [|of_text (path ^ "%")|] to_artist @@ stmt
+let iter_tracks_for_path_as_artists db path = db |> iter_table [|of_text (path ^ "%")|] (to_artist 0) @@ stmt
 {|
   SELECT rowid, artist, SUM(albums), SUM(tracks)
   FROM (
@@ -607,7 +608,7 @@ let iter_tracks_for_path_as_artists db path = db |> iter_table [|of_text (path ^
   GROUP BY artist;
 |}
 
-let iter_tracks_for_path_as_albums db path artist = db |> iter_table [|of_text (path ^ "%"); of_text artist; of_text artist|] to_album @@ stmt
+let iter_tracks_for_path_as_albums db path artist = db |> iter_table [|of_text (path ^ "%"); of_text artist; of_text artist|] (to_album 0) @@ stmt
 {|
   SELECT
     rowid,
@@ -635,19 +636,18 @@ let iter_tracks_for_path_as_albums db path artist = db |> iter_table [|of_text (
     MAX(rating),
     cover,
     album_id,
-    NULL,
     MAX(status)
   FROM Tracks
   WHERE path LIKE ? AND (artist LIKE ? OR albumartist LIKE ?)
   GROUP BY albumartist, albumtitle, codec, label;
 |}
 
-let iter_tracks_for_path_and_album db path name = db |> iter_table [|of_text (path ^ "%"); of_text name|] to_track @@ stmt
+let iter_tracks_for_path_and_album db path name = db |> iter_table [|of_text (path ^ "%"); of_text name|] (to_track 0) @@ stmt
 {|
   SELECT rowid, * FROM Tracks WHERE path LIKE ? AND albumtitle = ?;
 |}
 
-let iter_tracks_for_path_and_artist db path name = db |> iter_table [|of_text (path ^ "%"); of_text name; of_text name|] to_track @@ stmt
+let iter_tracks_for_path_and_artist db path name = db |> iter_table [|of_text (path ^ "%"); of_text name; of_text name|] (to_track 0) @@ stmt
 {|
   SELECT rowid, * FROM Tracks WHERE path LIKE ? AND (artist = ? OR albumartist = ?);
 |}
@@ -655,7 +655,7 @@ let iter_tracks_for_path_and_artist db path name = db |> iter_table [|of_text (p
 let insert_track = insert_into_table bind_track (fun t id -> t.id <- id) @@ stmt
 {|
   INSERT OR REPLACE INTO Tracks
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 |}
 
 let delete_tracks = delete_from_table_prefix @@ stmt
@@ -678,11 +678,11 @@ let create_playlists = create_table
   );
 |}
 
-let to_playlist data : path * int * M3u.item =
-  to_text 1 data,
-  to_int 2 data,
-  let name = to_text_opt 4 data in
-  let time = to_float_opt 5 data in
+let to_playlist i data : path * int * M3u.item =
+  to_text (i + 1) data,
+  to_int (i + 2) data,
+  let name = to_text_opt (i + 4) data in
+  let time = to_float_opt (i + 5) data in
   let info : M3u.info option =
     if name = None && time = None then None else Some
     {
@@ -690,7 +690,23 @@ let to_playlist data : path * int * M3u.item =
       time = int_of_float (Option.value time ~default: 0.0);
     }
   in
-  {path = to_text 3 data; info}
+  {path = to_text (i + 3) data; info}
+
+let to_track_and_playlist i data : track =
+  let track = to_track i data in
+  track.pos <- to_int_default (i + track_cols + 1) data;
+  if track.path <> "" then
+    track
+  else
+  (
+    let path = to_text (i + track_cols + 2) data in
+    Option.iter (fun (artist, title) ->
+      let length = to_float_default (i + track_cols + 4) data in
+      track.meta <-
+        Some {(Meta.meta track.path None) with artist; title; length};
+    ) (Track.artist_title_of_path path);
+    {track with path}
+  )
 
 let bind_playlist path pos stmt _ (item : M3u.item) =
   let* () = bind_text stmt 1 path in
@@ -722,6 +738,38 @@ let insert_playlist db path pos = db |> insert_into_table (bind_playlist path po
 let delete_playlists = delete_from_table_prefix @@ stmt
 {|
   DELETE FROM Playlists WHERE path LIKE ?;
+|}
+
+
+let iter_tracks_and_playlists_for_path db path artist album with_pos = db |>
+  iter_table [|
+    of_text path;
+    of_text artist; of_text artist;
+    of_text album;
+    of_bool with_pos;
+    of_text path; of_text path;
+    of_text artist; of_text artist; of_text artist; of_text (artist ^ " - %");
+    of_text album; of_text album;
+    of_bool with_pos;
+  |] (to_track_and_playlist 0) @@ stmt
+{|
+  SELECT Tracks.rowid, Tracks.*, NULL, NULL, NULL, NULL
+  FROM Tracks
+  WHERE
+    (Tracks.path LIKE ?) AND
+    (artist LIKE ? OR albumartist LIKE ?) AND
+    (albumtitle LIKE ?)
+  UNION
+  SELECT
+    Tracks.rowid, Tracks.*,
+    CASE WHEN ? THEN Playlists.pos ELSE NULL END,
+    Playlists.track, Playlists.name, Playlists.time
+  FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
+  WHERE
+    (Playlists.path = ? OR Playlists.path LIKE ?) AND
+    (? = '%' OR artist LIKE ? OR albumartist LIKE ? OR name LIKE ?) AND
+    (? = '%' OR albumtitle LIKE ?) AND
+    (? OR NOT (Playlists.track LIKE 'separator://%'));
 |}
 
 

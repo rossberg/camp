@@ -142,6 +142,7 @@ let albums_columns : album_attr columns =
 
 let tracks_columns : track_attr columns =
 [|
+  `Pos, 20;
   `FileTime, 110;
   `Rating, 30;
   `Artist, 150;
@@ -180,7 +181,10 @@ let make_dir path parent nest pos : dir =
     tracks_columns = tracks_columns;
     artists_sorting = `Artist, `Asc;
     albums_sorting = `Artist, `Asc;
-    tracks_sorting = `Artist, `Asc;
+    tracks_sorting =
+      if M3u.is_known_ext path || Format.is_known_ext path
+      then `Pos, `Asc
+      else `Artist, `Asc;
   }
 
 let make_file () : file =
@@ -244,6 +248,7 @@ let rev_order = function
 
 let attr_str =
 [
+  `Pos, "POS";
   `FilePath, "PTH";
   `FileSize, "SIZ";
   `FileTime, "TIM";
@@ -268,7 +273,6 @@ let attr_str =
   `Year, "YER";
   `Label, "LAB";
   `Country, "CTY";
-  `Pos, "POS";
 ]
 
 let string_of_attr attr = List.assoc (attr :> any_attr) attr_str

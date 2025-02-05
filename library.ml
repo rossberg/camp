@@ -63,6 +63,7 @@ let ok lib =
 (* Attributes *)
 
 let attr_prop = function
+  | `Pos -> "Pos", `Right
   | `FilePath -> "File Path", `Left
   | `FileSize -> "File Size", `Right
   | `FileTime -> "File Time", `Left
@@ -83,7 +84,6 @@ let attr_prop = function
   | `Disc -> "Disc", `Right
   | `Discs -> "Discs", `Right
   | `Albums -> "Albums", `Right
-  | `Pos -> "Pos", `Right
   | `Date -> "Date", `Left
   | `Year -> "Year", `Left
   | `Label -> "Label", `Left
@@ -146,11 +146,15 @@ let meta_attr_string (meta : Meta.t) = function
   | `Year -> nonzero_int meta.year
   | `Label -> meta.label
   | `Country -> meta.country
+  | `Length -> nonzero 0.0 fmt_time meta.length
   | `Rating ->
     let star = "*" in  (* TODO: "★" *)
     let len = String.length star in
     String.init (meta.rating * len) (fun i -> star.[i mod len])
 
+let length_attr_string format meta =
+  let s = nonempty format_attr_string format `Length in
+  if s <> "" then s else nonempty meta_attr_string meta `Length
 
 let artist_attr_string (artist : artist) = function
   | `Artist -> artist.name
@@ -158,15 +162,17 @@ let artist_attr_string (artist : artist) = function
   | `Albums -> string_of_int artist.albums
 
 let album_attr_string (album : album) = function
+  | `Length -> length_attr_string album.format album.meta
   | #file_attr as attr -> file_attr_string album.path album.file attr
   | #format_attr as attr -> nonempty format_attr_string album.format attr
   | #meta_attr as attr -> nonempty meta_attr_string album.meta attr
 
 let track_attr_string (track : track) = function
+  | `Pos -> nonzero 0 (fmt "%3d") track.pos
+  | `Length -> length_attr_string track.format track.meta
   | #file_attr as attr -> file_attr_string track.path track.file attr
   | #format_attr as attr -> nonempty format_attr_string track.format attr
   | #meta_attr as attr -> nonempty meta_attr_string track.meta attr
-  | `Pos -> nonzero_int track.pos
 
 
 (* Helpers *)
@@ -251,7 +257,7 @@ let rescan_playlist lib path =
     let s = In_channel.(with_open_bin path input_all) in
     let items = M3u.parse_ext s in
     Db.delete_playlists lib.db path;
-    List.iteri (fun i item -> Db.insert_playlist lib.db path i item) items;
+    List.iteri (fun i item -> Db.insert_playlist lib.db path (i + 1) item) items;
   with exn -> Storage.log
     ("error scanning playlist " ^ path ^ ": " ^ Printexc.to_string exn)
 
@@ -332,12 +338,10 @@ let rescan_root lib (root : Data.dir) =
 
 
 let dir_queue = Safe_queue.create ()
-let track_queue = Safe_queue.create ()
-let playlist_queue = Safe_queue.create ()
+let file_queue = Safe_queue.create ()
 
 let dir_busy = Atomic.make false
-let track_busy = Atomic.make false
-let playlist_busy = Atomic.make false
+let file_busy = Atomic.make false
 
 let completed = Atomic.make false
 
@@ -350,19 +354,18 @@ let rec scanner queue busy () =
   scanner queue busy ()
 
 let _ = Domain.spawn (scanner dir_queue dir_busy)
-let _ = Domain.spawn (scanner track_queue track_busy)
-let _ = Domain.spawn (scanner playlist_queue playlist_busy)
+let _ = Domain.spawn (scanner file_queue file_busy)
 
 let rescan_root lib root = Safe_queue.add (fun () -> rescan_root lib root) dir_queue
 let rescan_roots lib = Array.iter (rescan_root lib) lib.roots
-let rescan_dir lib dir = Safe_queue.add (fun () -> rescan_dir lib dir) track_queue
+let rescan_dir lib dir = Safe_queue.add (fun () -> rescan_dir lib dir) file_queue
 let rescan_dirs lib dirs = Array.iter (rescan_dir lib) dirs
 let rescan_playlist lib path =
-  Safe_queue.add (fun () -> rescan_playlist lib path) playlist_queue
+  Safe_queue.add (fun () -> rescan_playlist lib path) file_queue
 let rescan_tracks lib tracks =
-  Safe_queue.add (fun () -> Array.iter (rescan_track lib) tracks) track_queue
+  Safe_queue.add (fun () -> Array.iter (rescan_track lib) tracks) file_queue
 
-let rescan_busy _lib = Atomic.get dir_busy || Atomic.get track_busy || Atomic.get playlist_busy
+let rescan_busy _lib = Atomic.get dir_busy || Atomic.get file_busy
 let rescan_done _lib = Atomic.exchange completed false
 
 let _ = queue_rescan_dir := rescan_dir
@@ -616,18 +619,21 @@ let update_tracks lib =
   update lib lib.tracks tracks_sorting track_attr_string track_key
     (fun dir f ->
       (* TODO: filter by multiple artists and albums *)
-      let artist =
+      let path =
+        if Sys.file_exists dir.path && Sys.is_directory dir.path
+        then Filename.concat dir.path "%"
+        else dir.path
+      and artist =
         match Table.first_selected lib.artists with
         | Some i -> lib.artists.entries.(i).name
         | None -> "%"
-      in
-      let album =
+      and album =
         match Table.first_selected lib.albums with
         | Some i when lib.albums.entries.(i).meta <> None ->
           (Option.get lib.albums.entries.(i).meta).albumtitle
         | _ -> "%"
-      in
-      Db.iter_tracks_for_path lib.db (Filename.concat dir.path "") artist album f
+      and with_pos = M3u.is_known_ext dir.path in
+      Db.iter_tracks_and_playlists_for_path lib.db path artist album with_pos f
     )
 
 let update_albums lib =
