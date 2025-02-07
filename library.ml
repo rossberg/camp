@@ -261,7 +261,7 @@ let rescan_track lib mode track =
       track.file.size <- stats.st_size;
       track.file.time <- stats.st_mtime;
       if
-        mode = `Thorough ||
+        mode = `Thorough || track.status = `Undet ||
         track.file.size <> old.file.size || track.file.time <> old.file.time
       then
       (
@@ -725,11 +725,10 @@ let rescan_affects_views lib path_opts =
   | None -> false
   | Some dir ->
     let is_dir = Sys.file_exists dir.path && Sys.is_directory dir.path in
-    let prefix = if is_dir then Filename.concat dir.path "" else dir.path in
     List.exists (function
       | None -> true
       | Some path ->
-        String.starts_with path ~prefix ||
+        String.starts_with path ~prefix: dir.path ||
         not is_dir && Format.is_known_ext path &&
         not (Sys.file_exists path && Sys.is_directory path) &&
         Array.exists (fun track -> track.path = path) lib.tracks.entries

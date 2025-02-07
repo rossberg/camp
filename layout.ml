@@ -257,7 +257,9 @@ let browser_divider g = Ui.divider g.ui (2, - divider_w g, margin g, divider_w g
 let scan_w = 32
 let scan_y g = margin g
 let scan_indicator_w g = indicator_w g + 5
-let scan_indicator g = Ui.indicator g.ui (2, margin g + (scan_w - scan_indicator_w g)/2, scan_y g + label_h g + 2, scan_indicator_w g, scan_indicator_w g)
+let scan_indicator_area g = (2, margin g + (scan_w - scan_indicator_w g)/2, scan_y g + label_h g + 2, scan_indicator_w g, scan_indicator_w g)
+let scan_indicator g = Ui.indicator g.ui (scan_indicator_area g)
+let scan_button g = Ui.mouse g.ui (scan_indicator_area g) `Left
 let scan_label g = Ui.label g.ui (2, margin g, scan_y g, scan_w, label_h g) `Center "SCANNING"
 
 let view_w = 25

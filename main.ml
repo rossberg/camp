@@ -796,6 +796,8 @@ let run_library (st : State.t) =
   (* Scanning indicator *)
   Layout.scan_label lay;
   Layout.scan_indicator lay (Library.rescan_busy lib);
+  if Layout.scan_button lay && not (Library.rescan_busy lib) then
+    Library.rescan_roots lib `Thorough;
 
   (* Browse modes *)
   let have_dir = lib.current <> None in
