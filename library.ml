@@ -306,8 +306,9 @@ let rescan_playlist lib _mode path =
   try
     let s = In_channel.(with_open_bin path input_all) in
     let items = M3u.parse_ext s in
+    let items' = List.map (M3u.resolve (Filename.dirname path)) items in
     Db.delete_playlists lib.db path;
-    Db.insert_playlists_bulk lib.db path items;
+    Db.insert_playlists_bulk lib.db path items';
   with exn -> Storage.log
     ("error scanning playlist " ^ path ^ ": " ^ Printexc.to_string exn)
 

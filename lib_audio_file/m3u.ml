@@ -59,3 +59,34 @@ let parse_ext s =
       then items, parse_info ln
       else {path = ln; info}::items, None
     ) (List.rev (lines s)) ([], None) |> fst |> List.rev
+
+
+let split_drive path =
+  if Sys.win32 && String.length path >= 2 && path.[1] = ':' then
+    String.sub path 0 2, String.sub path 2 (String.length path - 2)
+  else
+    "", path
+
+let normalise path =
+  let open Filename in
+  assert (String.length dir_sep = 1);
+  let arcs = String.split_on_char dir_sep.[0] path in
+  let rec iter ls rs =
+    match ls, rs with
+    | _, [] -> List.rev ls
+    | _, r1::rs' when r1 = current_dir_name -> iter ls rs'
+    | _::_, r1::rs' when r1 = "" -> iter ls rs'
+    | l1::l2::ls', r1::r2::rs'
+      when r1 = parent_dir_name && l1 <> parent_dir_name ->
+      iter (l2::ls') (r2::rs')
+    | _, r1::rs' -> iter (r1::ls) rs'
+  in
+  String.concat dir_sep (iter [] arcs)
+
+let resolve dir item =
+  let ddrive, dpath = split_drive dir in
+  let idrive, ipath = split_drive item.path in
+  let drive = if idrive = "" && ddrive <> "" then ddrive else idrive in
+  let path =
+    if Filename.is_relative ipath then Filename.concat dpath ipath else ipath in
+  {item with path = drive ^ normalise path}
