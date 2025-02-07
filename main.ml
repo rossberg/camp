@@ -651,11 +651,7 @@ let run_library (st : State.t) =
   Layout.browser_pane lay;
 
   (* Background rescanning *)
-  if Library.rescan_done lib then
-  (
-    Library.update_browser lib;
-    Library.update_views lib;
-  );
+  Library.update_after_rescan lib;
 
   (* Browser *)
   let browser = lib.browser in

@@ -7,9 +7,19 @@ open Data
 type time = float
 type db = Db.t
 
+type scan =
+{
+  dir_queue : (path option * (unit -> unit)) Safe_queue.t;
+  file_queue : (path option * (unit -> unit)) Safe_queue.t;
+  dir_busy : bool Atomic.t;
+  file_busy : bool Atomic.t;
+  completed : path option list Atomic.t;
+}
+
 type t =
 {
   db : db;
+  scan : scan;
   mutable roots : dir array;
   mutable current : dir option;
   mutable browser : dir Table.t;
@@ -23,9 +33,37 @@ type t =
 
 (* Constructor *)
 
+let rec complete scan path =
+  let paths = Atomic.get scan.completed in
+  if not (Atomic.compare_and_set scan.completed paths (path::paths)) then
+    complete scan path
+
+let rec scanner scan queue busy () =
+  Atomic.set busy false;
+  let path, f = Safe_queue.take queue in
+  Atomic.set busy true;
+  f ();
+  complete scan path;
+  scanner scan queue busy ()
+
+let make_scan () =
+  let scan =
+    {
+      dir_queue = Safe_queue.create ();
+      file_queue = Safe_queue.create ();
+      dir_busy = Atomic.make false;
+      file_busy = Atomic.make false;
+      completed = Atomic.make [];
+    }
+  in
+  ignore (Domain.spawn (scanner scan scan.dir_queue scan.dir_busy));
+  ignore (Domain.spawn (scanner scan scan.file_queue scan.file_busy));
+  scan
+
 let make db =
   {
     db;
+    scan = make_scan ();
     roots = [||];
     current = None;
     browser = Table.make ();
@@ -66,7 +104,7 @@ let attr_prop = function
   | `Pos -> "Pos", `Right
   | `FilePath -> "File Path", `Left
   | `FileSize -> "File Size", `Right
-  | `FileTime -> "File Time", `Left
+  | `FileTime -> "File Date", `Left
   | `Codec -> "Format", `Left
   | `Channels -> "Channels", `Left
   | `Depth -> "Bit Depth", `Right
@@ -99,7 +137,11 @@ let fmt_time t =
   let t' = int_of_float (Float.trunc t) in
   fmt "%d:%02d" (t' / 60) (t' mod  60)
 
-let fmt_date_time t =
+let fmt_date t =
+  let tm = Unix.localtime t in
+  fmt "%04d-%02d-%02d" (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
+
+let _fmt_date_time t =
   let tm = Unix.localtime t in
   fmt "%04d-%02d-%02d %02d:%02d:%02d"
     (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
@@ -113,7 +155,7 @@ let nonempty f x attr = match x with None -> "" | Some x -> f x attr
 let file_attr_string path (file : file) = function
   | `FilePath -> path
   | `FileSize -> nonzero 0.0 (fmt "%.1f MB") (float file.size /. 2.0 ** 20.0)
-  | `FileTime -> nonzero 0.0 fmt_date_time file.time
+  | `FileTime -> nonzero 0.0 fmt_date file.time
 
 let rec format_attr_string (format : Format.t) = function
   | `Length -> nonzero 0.0 fmt_time format.time
@@ -337,36 +379,28 @@ let rescan_root lib (root : Data.dir) =
     ("error scaning root " ^ root.path ^ ": " ^ Printexc.to_string exn)
 
 
-let dir_queue = Safe_queue.create ()
-let file_queue = Safe_queue.create ()
+let rescan_root lib root =
+  Safe_queue.add (None, fun () -> rescan_root lib root)
+    lib.scan.dir_queue
 
-let dir_busy = Atomic.make false
-let file_busy = Atomic.make false
+let rescan_dir lib (dir : dir) =
+  Safe_queue.add (Some dir.path, fun () -> rescan_dir lib dir)
+    lib.scan.file_queue
 
-let completed = Atomic.make false
-
-let rec scanner queue busy () =
-  Atomic.set busy false;
-  let f = Safe_queue.take queue in
-  Atomic.set busy true;
-  f ();
-  Atomic.set completed true;
-  scanner queue busy ()
-
-let _ = Domain.spawn (scanner dir_queue dir_busy)
-let _ = Domain.spawn (scanner file_queue file_busy)
-
-let rescan_root lib root = Safe_queue.add (fun () -> rescan_root lib root) dir_queue
-let rescan_roots lib = Array.iter (rescan_root lib) lib.roots
-let rescan_dir lib dir = Safe_queue.add (fun () -> rescan_dir lib dir) file_queue
-let rescan_dirs lib dirs = Array.iter (rescan_dir lib) dirs
 let rescan_playlist lib path =
-  Safe_queue.add (fun () -> rescan_playlist lib path) file_queue
-let rescan_tracks lib tracks =
-  Safe_queue.add (fun () -> Array.iter (rescan_track lib) tracks) file_queue
+  Safe_queue.add (Some path, fun () -> rescan_playlist lib path)
+    lib.scan.file_queue
 
-let rescan_busy _lib = Atomic.get dir_busy || Atomic.get file_busy
-let rescan_done _lib = Atomic.exchange completed false
+let rescan_track lib track =
+  Safe_queue.add (Some track.path, fun () -> rescan_track lib track)
+    lib.scan.file_queue
+
+let rescan_roots lib = Array.iter (rescan_root lib) lib.roots
+let rescan_dirs lib dirs = Array.iter (rescan_dir lib) dirs
+let rescan_tracks lib tracks = Array.iter (rescan_track lib) tracks
+
+let rescan_busy lib = Atomic.(get lib.scan.dir_busy || get lib.scan.file_busy)
+let rescan_done lib = Atomic.exchange lib.scan.completed []
 
 let _ = queue_rescan_dir := rescan_dir
 let _ = queue_rescan_playlist := rescan_playlist
@@ -619,21 +653,21 @@ let update_tracks lib =
   update lib lib.tracks tracks_sorting track_attr_string track_key
     (fun dir f ->
       (* TODO: filter by multiple artists and albums *)
-      let path =
-        if Sys.file_exists dir.path && Sys.is_directory dir.path
-        then Filename.concat dir.path "%"
-        else dir.path
-      and artist =
+      let artist =
         match Table.first_selected lib.artists with
         | Some i -> lib.artists.entries.(i).name
-        | None -> "%"
+        | None -> ""
       and album =
         match Table.first_selected lib.albums with
         | Some i when lib.albums.entries.(i).meta <> None ->
           (Option.get lib.albums.entries.(i).meta).albumtitle
-        | _ -> "%"
-      and with_pos = M3u.is_known_ext dir.path in
-      Db.iter_tracks_and_playlists_for_path lib.db path artist album with_pos f
+        | _ -> ""
+      in
+      if Sys.file_exists dir.path && Sys.is_directory dir.path then
+        let path = Filename.concat dir.path "%" in
+        Db.iter_tracks_for_path lib.db path artist album f
+      else if M3u.is_known_ext dir.path then
+        Db.iter_playlist_tracks_for_path lib.db dir.path artist album f
     )
 
 let update_albums lib =
@@ -644,19 +678,54 @@ let update_albums lib =
       let artist =
         match Table.first_selected lib.artists with
         | Some i -> lib.artists.entries.(i).name
-        | None -> "%"
+        | None -> ""
       in
-      Db.iter_tracks_for_path_as_albums lib.db (Filename.concat dir.path "") artist f
+      if Sys.file_exists dir.path && Sys.is_directory dir.path then
+        let path = Filename.concat dir.path "%" in
+        Db.iter_tracks_for_path_as_albums lib.db path artist f
+      else if M3u.is_known_ext dir.path then
+        Db.iter_playlist_tracks_for_path_as_albums lib.db dir.path artist f
     )
 
 let update_artists lib =
   update_albums lib;
   update lib lib.artists artists_sorting artist_attr_string artist_key
     (fun dir f ->
-      Db.iter_tracks_for_path_as_artists lib.db (Filename.concat dir.path "") f
+      if Sys.file_exists dir.path && Sys.is_directory dir.path then
+        let path = Filename.concat dir.path "%" in
+        Db.iter_tracks_for_path_as_artists lib.db path f
+      else if M3u.is_known_ext dir.path then
+        Db.iter_playlist_tracks_for_path_as_artists lib.db dir.path f
     )
 
 let update_views lib = update_artists lib
+
+
+let rescan_affects_views lib path_opts =
+  match selected_dir lib with
+  | None -> false
+  | Some i ->
+    let dir = lib.browser.entries.(i) in
+    let is_dir = Sys.file_exists dir.path && Sys.is_directory dir.path in
+    let prefix = if is_dir then Filename.concat dir.path "" else dir.path in
+    List.exists (function
+      | None -> true
+      | Some path ->
+        String.starts_with path ~prefix ||
+        not is_dir && Format.is_known_ext path &&
+        not (Sys.file_exists path && Sys.is_directory path) &&
+        Array.exists (fun track -> track.path = path) lib.tracks.entries
+    ) path_opts
+
+let update_after_rescan lib =
+  let updated = rescan_done lib in
+  if List.mem None updated then
+  (
+    update_browser lib;
+    update_views lib;
+  )
+  else if rescan_affects_views lib updated then
+    update_views lib
 
 
 let reorder lib tab sorting attr_string key =

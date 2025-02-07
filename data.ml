@@ -95,12 +95,6 @@ type album =
   mutable meta : Meta.t option;
 }
 
-type playlist =
-{
-  mutable id : id;
-  path : path;  (* primary *)
-}
-
 type track =
 {
   mutable id : id;
@@ -143,7 +137,7 @@ let albums_columns : album_attr columns =
 let tracks_columns : track_attr columns =
 [|
   `Pos, 20;
-  `FileTime, 110;
+  `FileTime, 70;
   `Rating, 30;
   `Artist, 150;
   `Title, 180;
@@ -221,12 +215,6 @@ let make_track path : track =
     album = None;
     pos = 0;
     status = `Undet;
-  }
-
-let make_playlist path : playlist =
-  {
-    id = -1L;
-    path;
   }
 
 

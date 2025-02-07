@@ -2,10 +2,12 @@
 
 open Data
 type db = Db.t
+type scan
 
 type t =
 {
   db : db;
+  scan : scan;
   mutable roots : dir array;
   mutable current : dir option;
   mutable browser : dir Table.t;
@@ -49,12 +51,16 @@ val load_roots : t -> unit
 val add_roots : t -> path list -> int -> bool
 val remove_roots : t -> path list -> unit
 
+
+(* Scanning *)
+
 val rescan_roots : t -> unit
 val rescan_dirs : t -> dir array -> unit
 val rescan_tracks : t -> track array -> unit
 
 val rescan_busy : t -> bool
-val rescan_done : t -> bool
+
+val update_after_rescan : t -> unit
 
 
 (* Browser *)
