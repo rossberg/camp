@@ -54,9 +54,11 @@ val remove_roots : t -> path list -> unit
 
 (* Scanning *)
 
-val rescan_roots : t -> unit
-val rescan_dirs : t -> dir array -> unit
-val rescan_tracks : t -> track array -> unit
+type scan_mode = [`Fast | `Thorough]
+
+val rescan_roots : t -> scan_mode -> unit
+val rescan_dirs : t -> scan_mode -> dir array -> unit
+val rescan_tracks : t -> scan_mode -> track array -> unit
 
 val rescan_busy : t -> bool
 

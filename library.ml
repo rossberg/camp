@@ -235,7 +235,9 @@ let array_of_list_rev l =
 
 (* Scanning *)
 
-let rescan_track lib track =
+type scan_mode = [`Fast | `Thorough]
+
+let rescan_track lib mode track =
   let old = {track with id = track.id} in
   try
     if not (Sys.file_exists track.path) then
@@ -258,9 +260,15 @@ let rescan_track lib track =
       let stats = Unix.stat track.path in
       track.file.size <- stats.st_size;
       track.file.time <- stats.st_mtime;
-      track.format <- Some (Format.read track.path);
-      track.meta <- Some (Meta.load ~with_cover: false track.path);
-      track.status <- `Det;
+      if
+        mode = `Thorough ||
+        track.file.size <> old.file.size || track.file.time <> old.file.time
+      then
+      (
+        track.format <- Some (Format.read track.path);
+        track.meta <- Some (Meta.load ~with_cover: false track.path);
+        track.status <- `Det;
+      )
     );
     if track <> old then
     (
@@ -271,7 +279,7 @@ let rescan_track lib track =
     ("error scaning track " ^ track.path ^ ": " ^ Printexc.to_string exn)
 
 
-let rescan_dir lib (dir : Data.dir) =
+let rescan_dir lib mode (dir : Data.dir) =
   try
     Array.iter (fun file ->
       let path = Filename.concat dir.path file in
@@ -288,25 +296,26 @@ let rescan_dir lib (dir : Data.dir) =
         in
         (* Parent may have been deleted in the mean time... *)
         if Db.exists_dir lib.db dir.path then
-          rescan_track lib track
+          rescan_track lib mode track
       )
     ) (Sys.readdir dir.path)
   with exn -> Storage.log
     ("error scanning dir " ^ dir.path ^ ": " ^ Printexc.to_string exn)
 
-let rescan_playlist lib path =
+let rescan_playlist lib _mode path =
   try
     let s = In_channel.(with_open_bin path input_all) in
     let items = M3u.parse_ext s in
     Db.delete_playlists lib.db path;
-    List.iteri (fun i item -> Db.insert_playlist lib.db path (i + 1) item) items;
+    Db.insert_playlists_bulk lib.db path items;
   with exn -> Storage.log
     ("error scanning playlist " ^ path ^ ": " ^ Printexc.to_string exn)
+
 
 let queue_rescan_dir = ref (fun _ -> assert false)
 let queue_rescan_playlist = ref (fun _ -> assert false)
 
-let rescan_root lib (root : Data.dir) =
+let rescan_root lib mode (root : Data.dir) =
   let rec scan_path path nest =
     if Sys.is_directory path then
       if Format.is_known_ext path then
@@ -351,7 +360,7 @@ let rescan_root lib (root : Data.dir) =
       in
       (* TODO: remove missing children *)
       dir.children <- children;
-      !queue_rescan_dir lib dir;
+      !queue_rescan_dir lib mode dir;
       Some [dir]
 
   and scan_album path nest =
@@ -369,7 +378,6 @@ let rescan_root lib (root : Data.dir) =
     (* Root may have been deleted in the mean time... *)
     if Db.exists_root lib.db root.path then
       Db.insert_dir lib.db dir;
-    !queue_rescan_playlist lib path;
     Some [dir]
   in
 
@@ -379,25 +387,25 @@ let rescan_root lib (root : Data.dir) =
     ("error scaning root " ^ root.path ^ ": " ^ Printexc.to_string exn)
 
 
-let rescan_root lib root =
-  Safe_queue.add (None, fun () -> rescan_root lib root)
+let rescan_root lib mode root =
+  Safe_queue.add (None, fun () -> rescan_root lib mode root)
     lib.scan.dir_queue
 
-let rescan_dir lib (dir : dir) =
-  Safe_queue.add (Some dir.path, fun () -> rescan_dir lib dir)
+let rescan_dir lib mode (dir : dir) =
+  Safe_queue.add (Some dir.path, fun () -> rescan_dir lib mode dir)
     lib.scan.file_queue
 
-let rescan_playlist lib path =
-  Safe_queue.add (Some path, fun () -> rescan_playlist lib path)
+let rescan_playlist lib mode path =
+  Safe_queue.add (Some path, fun () -> rescan_playlist lib mode path)
     lib.scan.file_queue
 
-let rescan_track lib track =
-  Safe_queue.add (Some track.path, fun () -> rescan_track lib track)
+let rescan_track lib mode track =
+  Safe_queue.add (Some track.path, fun () -> rescan_track lib mode track)
     lib.scan.file_queue
 
-let rescan_roots lib = Array.iter (rescan_root lib) lib.roots
-let rescan_dirs lib dirs = Array.iter (rescan_dir lib) dirs
-let rescan_tracks lib tracks = Array.iter (rescan_track lib) tracks
+let rescan_roots lib mode = Array.iter (rescan_root lib mode) lib.roots
+let rescan_dirs lib mode dirs = Array.iter (rescan_dir lib mode) dirs
+let rescan_tracks lib mode tracks = Array.iter (rescan_track lib mode) tracks
 
 let rescan_busy lib = Atomic.(get lib.scan.dir_busy || get lib.scan.file_busy)
 let rescan_done lib = Atomic.exchange lib.scan.completed []
@@ -422,12 +430,22 @@ let focus_browser lib =
   lib.browser.focus <- true
 
 
-let selected_dir lib = Table.first_selected lib.browser
-let deselect_dir lib = Table.deselect_all lib.browser; lib.current <- None
+let selected_dir lib =
+  Table.first_selected lib.browser
+
+let deselect_dir lib =
+  Table.deselect_all lib.browser;
+  lib.current <- None;
+  Db.clear_playlists lib.db
+
 let select_dir lib i =
   Table.deselect_all lib.browser;
   Table.select lib.browser i i;
-  lib.current <- Some lib.browser.entries.(i)
+  let dir = lib.browser.entries.(i) in
+  lib.current <- Some dir;
+  Db.clear_playlists lib.db;
+  if M3u.is_known_ext dir.path then
+    rescan_playlist lib false dir.path
 
 
 let make_all lib =
@@ -506,7 +524,7 @@ let load_roots lib =
   in
   treeify 0 (make_all lib) [];
 
-  rescan_roots lib
+  rescan_roots lib `Fast
 
 
 let make_root lib path pos =
@@ -552,7 +570,7 @@ let add_roots lib paths pos =
     *)
     Array.iter (Db.insert_root lib.db) paths;
     Array.iter (Db.insert_dir lib.db) roots';
-    Array.iter (rescan_root lib) roots';
+    Array.iter (rescan_root lib `Thorough) roots';
     update_browser lib;
     true
   with Failure msg ->
@@ -702,10 +720,9 @@ let update_views lib = update_artists lib
 
 
 let rescan_affects_views lib path_opts =
-  match selected_dir lib with
+  match lib.current with
   | None -> false
-  | Some i ->
-    let dir = lib.browser.entries.(i) in
+  | Some dir ->
     let is_dir = Sys.file_exists dir.path && Sys.is_directory dir.path in
     let prefix = if is_dir then Filename.concat dir.path "" else dir.path in
     List.exists (function

@@ -209,6 +209,12 @@ let create_table sql db =
   let* () = Sqlite3.exec db sql in
   ()
 
+let clear_table stmt db =
+  let& () = db in
+  let stmt = prepare db stmt in
+  let* () = Sqlite3.step stmt in
+  ()
+
 let count_table stmt db =
   let& () = db in
   let stmt = prepare db stmt in
@@ -348,29 +354,29 @@ let to_dir i data : dir =
     tracks_sorting = track_sorting_of_string (to_text (i + 15) data);
   }
 
-let bind_dir stmt _ (dir : dir) =
+let bind_dir stmt i (dir : dir) =
   assert ((dir.nest = 0) = (dir.parent = None));
-  let* () = bind_text stmt 1 dir.path in
-  let* () = bind_text_opt stmt 2 dir.parent in
-  let* () = bind_text stmt 3 dir.name in
-  let* () = bind_int stmt 4 dir.pos in
-  let* () = bind_int stmt 5 dir.nest in
-  let* () = bind_bool stmt 6 dir.folded in
-  let* () = bind_int stmt 7
+  let* () = bind_text stmt (i + 0) dir.path in
+  let* () = bind_text_opt stmt (i + 1) dir.parent in
+  let* () = bind_text stmt (i + 2) dir.name in
+  let* () = bind_int stmt (i + 3) dir.pos in
+  let* () = bind_int stmt (i + 4) dir.nest in
+  let* () = bind_bool stmt (i + 5) dir.folded in
+  let* () = bind_int stmt (i + 6)
     Bool.(
       to_int dir.artists_shown +
       to_int dir.albums_shown lsl 1 +
       to_int dir.tracks_shown lsl 2
     )
   in
-  let* () = bind_int stmt 8 dir.divider_width in
-  let* () = bind_int stmt 9 dir.divider_height in
-  let* () = bind_text stmt 10 (string_of_artist_columns dir.artists_columns) in
-  let* () = bind_text stmt 11 (string_of_album_columns dir.albums_columns) in
-  let* () = bind_text stmt 12 (string_of_track_columns dir.tracks_columns) in
-  let* () = bind_text stmt 13 (string_of_artist_sorting dir.artists_sorting) in
-  let* () = bind_text stmt 14 (string_of_album_sorting dir.albums_sorting) in
-  let* () = bind_text stmt 15 (string_of_track_sorting dir.tracks_sorting) in
+  let* () = bind_int stmt (i + 7) dir.divider_width in
+  let* () = bind_int stmt (i + 8) dir.divider_height in
+  let* () = bind_text stmt (i + 9) (string_of_artist_columns dir.artists_columns) in
+  let* () = bind_text stmt (i + 10) (string_of_album_columns dir.albums_columns) in
+  let* () = bind_text stmt (i + 11) (string_of_track_columns dir.tracks_columns) in
+  let* () = bind_text stmt (i + 12) (string_of_artist_sorting dir.artists_sorting) in
+  let* () = bind_text stmt (i + 13) (string_of_album_sorting dir.albums_sorting) in
+  let* () = bind_text stmt (i + 14) (string_of_track_sorting dir.tracks_sorting) in
   return
 
 
@@ -472,11 +478,11 @@ let to_album i data : album =
     meta = to_meta (i + 2 + file_cols + format_cols) data;
   }
 
-let bind_album stmt _ (album : album) =
-  let* () = bind_text stmt 1 album.path in
-  let* () = bind_file stmt 2 album.file in
-  let* () = bind_opt bind_format stmt (2 + file_cols) album.format in
-  let* () = bind_opt bind_meta stmt (2 + file_cols + format_cols) album.meta in
+let bind_album stmt i (album : album) =
+  let* () = bind_text stmt (i + 0) album.path in
+  let* () = bind_file stmt (i + 1) album.file in
+  let* () = bind_opt bind_format stmt (i + 1 + file_cols) album.format in
+  let* () = bind_opt bind_meta stmt (i + 1 + file_cols + format_cols) album.meta in
   return
 
 
@@ -555,13 +561,13 @@ let to_track i data : track =
     status = to_status (to_int_default (i + 3 + file_cols + format_cols + meta_cols) data);
   }
 
-let bind_track stmt _ (track : track) =
-  let* () = bind_text stmt 1 track.path in
-  let* () = bind_file stmt 2 track.file in
-  let* () = bind_opt bind_format stmt (2 + file_cols) track.format in
-  let* () = bind_opt bind_meta stmt (2 + file_cols + format_cols) track.meta in
-  let* () = bind_id_opt stmt (2 + file_cols + format_cols + meta_cols) (Option.map album_id_of_link track.album) in
-  let* () = bind_int stmt (3 + file_cols + format_cols + meta_cols) (of_status track.status) in
+let bind_track stmt i (track : track) =
+  let* () = bind_text stmt (i + 0) track.path in
+  let* () = bind_file stmt (i + 1) track.file in
+  let* () = bind_opt bind_format stmt (i + 1 + file_cols) track.format in
+  let* () = bind_opt bind_meta stmt (i + 1 + file_cols + format_cols) track.meta in
+  let* () = bind_id_opt stmt (i + 1 + file_cols + format_cols + meta_cols) (Option.map album_id_of_link track.album) in
+  let* () = bind_int stmt (i + 2 + file_cols + format_cols + meta_cols) (of_status track.status) in
   assert (3 + file_cols + format_cols + meta_cols = track_cols);
   return
 
@@ -587,41 +593,37 @@ let iter_tracks = iter_table [||] (to_track 0) @@ stmt
 
 let iter_tracks_for_path db path artist album = db |>
   iter_table [|
-    of_text path;
-    of_text artist; of_text artist; of_text artist;
-    of_text album; of_text album;
+    of_text path; of_text artist; of_text album;
   |] (to_track 0) @@ stmt
 {|
   SELECT rowid, *
   FROM Tracks
   WHERE
-    (path LIKE ?) AND
-    (? = '' OR artist = ? OR albumartist = ?) AND
-    (? = '' OR albumtitle = ?);
+    (path LIKE ?1) AND
+    (?2 = '' OR artist = ?2 OR albumartist = ?2) AND
+    (?3 = '' OR albumtitle = ?3);
 |}
 
 let iter_tracks_for_path_as_artists db path = db |>
-  iter_table [|of_text path; of_text path|] (to_artist 0) @@ stmt
+  iter_table [|of_text path|] (to_artist 0) @@ stmt
 {|
   SELECT NULL, artist, SUM(albums), SUM(tracks)
   FROM (
     SELECT artist, COUNT(DISTINCT albumtitle) AS albums, COUNT(*) AS tracks
     FROM Tracks
-    WHERE path LIKE ?
+    WHERE path LIKE ?1
     GROUP BY artist
   UNION
     SELECT albumartist AS artist, COUNT(DISTINCT albumtitle) AS albums, COUNT(*) AS tracks
     FROM Tracks
-    WHERE path LIKE ? AND artist <> albumartist
+    WHERE path LIKE ?1 AND artist <> albumartist
     GROUP BY albumartist
   )
   GROUP BY artist;
 |}
 
 let iter_tracks_for_path_as_albums db path artist = db |>
-  iter_table [|
-    of_text path; of_text artist; of_text artist; of_text artist
-  |] (to_album 0) @@ stmt
+  iter_table [|of_text path; of_text artist|] (to_album 0) @@ stmt
 {|
   SELECT
     NULL,
@@ -651,7 +653,7 @@ let iter_tracks_for_path_as_albums db path artist = db |>
     album_id,
     MAX(status)
   FROM Tracks
-  WHERE path LIKE ? AND (? = '' OR artist = ? OR albumartist = ?)
+  WHERE path LIKE ?1 AND (?2 = '' OR artist = ?2 OR albumartist = ?2)
   GROUP BY albumartist, albumtitle, codec, label;
 |}
 
@@ -716,27 +718,27 @@ let to_playlist_track i data : track =
   )
 
 
-let bind_playlist path pos stmt _ (item : M3u.item) =
-  let* () = bind_text stmt 1 path in
-  let* () = bind_int stmt 2 pos in
-  let* () = bind_text stmt 3 item.path in
+let bind_playlist path pos stmt i (item : M3u.item) =
+  let* () = bind_text stmt (i + 0) path in
+  let* () = bind_int stmt (i + 1) pos in
+  let* () = bind_text stmt (i + 2) item.path in
   Option.iter (fun (info : M3u.info) ->
-    let* () = bind_text stmt 4 info.title in
-    let* () = bind_float stmt 7 (float info.time) in
+    let* () = bind_text stmt (i + 3) info.title in
+    let* () = bind_float stmt (i + 6) (float info.time) in
     match Track.artist_title_of_name info.title with
     | Some (artist, title) ->
-      let* () = bind_text stmt 5 artist in
-      let* () = bind_text stmt 6 title in
+      let* () = bind_text stmt (i + 4) artist in
+      let* () = bind_text stmt (i + 5) title in
       ()
     | None ->
       match Track.artist_title_of_path path with
       | Some (artist, title) ->
-        let* () = bind_text stmt 5 artist in
-        let* () = bind_text stmt 6 title in
+        let* () = bind_text stmt (i + 4) artist in
+        let* () = bind_text stmt (i + 5) title in
         ()
       | None ->
-        let* () = bind_text stmt 5 "[unknown]" in
-        let* () = bind_text stmt 6 info.title in
+        let* () = bind_text stmt (i + 4) "[unknown]" in
+        let* () = bind_text stmt (i + 5) info.title in
         ()
   ) item.info;
   return
@@ -747,27 +749,42 @@ let count_playlists = count_table @@ stmt
   SELECT COUNT(DISTINCT path) FROM Playlists;
 |}
 
-let exists_playlist = exist_in_table @@ stmt
+let exists_playlists = exist_in_table @@ stmt
 {|
   SELECT COUNT(*) FROM Playlists WHERE path = ?;
 |}
 
-let insert_playlist db path pos = db |> insert_into_table (bind_playlist path pos) (fun _ _ -> ()) @@ stmt
+let insert_playlists db path pos = db |> insert_into_table (bind_playlist path pos) (fun _ _ -> ()) @@ stmt
 {|
   INSERT OR REPLACE INTO Playlists VALUES (?, ?, ?, ?, ?, ?, ?);
 |}
+
+let insert_playlists_bulk db path items =
+  if items <> [] then
+  let tuples = String.concat ", "
+    (List.map (fun _ -> "(?, ?, ?, ?, ?, ?, ?)") items) in
+  let stmt = stmt @@ "INSERT OR REPLACE INTO Playlists VALUES " ^ tuples ^ ";" in
+  let& () = db in
+  let stmt = prepare db stmt in
+  List.iteri (fun i item ->
+    let* () = bind_playlist path (i + 1) stmt (1 + i * 7) item in ()
+  ) items;
+  let* () = Sqlite3.step stmt in
+  ()
 
 let delete_playlists = delete_from_table_prefix @@ stmt
 {|
   DELETE FROM Playlists WHERE path LIKE ?;
 |}
 
+let clear_playlists = clear_table @@ stmt
+{|
+  DELETE FROM Playlists;
+|}
+
 
 let iter_playlist_tracks_for_path_as_artists db path = db |>
-  iter_table [|
-    of_text path;
-    of_text path;
-  |] (to_artist 0) @@ stmt
+  iter_table [|of_text path|] (to_artist 0) @@ stmt
 {|
   SELECT NULL, aartist, SUM(albums), SUM(tracks)
   FROM (
@@ -786,7 +803,7 @@ let iter_playlist_tracks_for_path_as_artists db path = db |>
       ) AS albums,
       COUNT(*) AS tracks
     FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
-    WHERE Playlists.path = ?
+    WHERE Playlists.path = ?1
     GROUP BY aartist
   UNION
     SELECT
@@ -802,17 +819,14 @@ let iter_playlist_tracks_for_path_as_artists db path = db |>
       ) AS albums,
       COUNT(*) AS tracks
     FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
-    WHERE Playlists.path = ? AND Tracks.artist <> albumartist
+    WHERE Playlists.path = ?1 AND Tracks.artist <> albumartist
     GROUP BY albumartist
   )
   GROUP BY aartist;
 |}
 
 let iter_playlist_tracks_for_path_as_albums db path artist = db |>
-  iter_table [|
-    of_text path;
-    of_text artist; of_text artist; of_text artist; of_text artist;
-  |] (to_album 0) @@ stmt
+  iter_table [|of_text path; of_text artist|] (to_album 0) @@ stmt
 {|
   SELECT
     NULL,
@@ -851,16 +865,14 @@ let iter_playlist_tracks_for_path_as_albums db path artist = db |>
     MAX(status)
   FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
   WHERE
-    (Playlists.path = ?) AND
-    (? = '' OR Tracks.artist = ? OR albumartist = ? OR Playlists.artist = ?)
+    (Playlists.path = ?1) AND
+    (?2 = '' OR Tracks.artist = ?2 OR albumartist = ?2 OR Playlists.artist = ?2)
   GROUP BY aartist, atitle, codec, label;
 |}
 
 let iter_playlist_tracks_for_path db path artist album = db |>
   iter_table [|
-    of_text path;
-    of_text artist; of_text artist; of_text artist; of_text artist;
-    of_text album; of_text album;
+    of_text path; of_text artist; of_text album;
   |] (to_playlist_track 0) @@ stmt
 {|
   SELECT
@@ -868,41 +880,34 @@ let iter_playlist_tracks_for_path db path artist album = db |>
     Playlists.pos, Playlists.track, Playlists.artist, Playlists.title, Playlists.time
   FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
   WHERE
-    (Playlists.path = ?) AND
-    (? = '' OR Tracks.artist = ? OR albumartist = ? OR Playlists.artist = ?) AND
-    (? = '' OR albumtitle = ?);
+    (Playlists.path = ?1) AND
+    (?2 = '' OR Tracks.artist = ?2 OR albumartist = ?2 OR Playlists.artist = ?2) AND
+    (?3 = '' OR albumtitle = ?3);
 |}
 
 
 let iter_tracks_and_playlist_tracks_for_path db path artist album with_pos = db |>
   iter_table [|
-    of_text path;
-    of_text artist; of_text artist;
-    of_text album;
-    of_bool with_pos;
-    of_text path; of_text path;
-    of_text artist; of_text artist; of_text artist; of_text artist;
-    of_text album; of_text album;
-    of_bool with_pos;
+    of_text path; of_text artist; of_text album; of_bool with_pos;
   |] (to_playlist_track 0) @@ stmt
 {|
   SELECT Tracks.rowid, Tracks.*, NULL, NULL, NULL, NULL, NULL
   FROM Tracks
   WHERE
-    (Tracks.path LIKE ?) AND
-    (? = '' OR Tracks.artist = ? OR albumartist = ?) AND
-    (? = '' OR albumtitle = ?)
+    (Tracks.path LIKE ?1) AND
+    (?2 = '' OR Tracks.artist = ?2 OR albumartist = ?2) AND
+    (?3 = '' OR albumtitle = ?3)
   UNION
   SELECT
     Tracks.rowid, Tracks.*,
-    CASE WHEN ? THEN Playlists.pos ELSE NULL END,
+    CASE WHEN ?4 THEN Playlists.pos ELSE NULL END,
     Playlists.track, Playlists.artist, Playlists.title, Playlists.time
   FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
   WHERE
-    (Playlists.path LIKE ?) AND
-    (? = '' OR Tracks.artist = ? OR albumartist = ? OR Playlists.artist = ?) AND
-    (? = '' OR albumtitle = ?) AND
-    (? OR NOT (Playlists.track LIKE 'separator://%'));
+    (Playlists.path LIKE ?1) AND
+    (?2 = '' OR Tracks.artist = ?2 OR albumartist = ?2 OR Playlists.artist = ?2) AND
+    (?3 = '' OR albumtitle = ?3) AND
+    (?4 OR NOT (Playlists.track LIKE 'separator://%'));
 |}
 
 
