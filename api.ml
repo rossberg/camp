@@ -159,8 +159,18 @@ let rec color = function
     Raylib.Color.create (x lsr 16 land 0xff) (x lsr 8 land 0xff) (x land 0xff) 0xff
   | `Trans (col, x) ->
     let c = color col in
-    let r, g, b = Raylib.Color.(r c, g c, b c) in
-    Raylib.Color.create r g b x
+    let r, g, b, a = Raylib.Color.(r c, g c, b c, a c) in
+    Raylib.Color.create r g b (x * a / 0xff)
+
+module Color =
+struct
+  let darken f col =
+  let c = color col in
+  let r, g, b, a = Raylib.Color.(r c, g c, b c, a c) in
+  let r', g', b' = f * r / 0x100, f * g / 0x100, f * b / 0x100 in
+  let col' = `RGB (r' lsl 16 + g' lsl 8 + b') in
+  if a = 0xff then col' else `Trans (col', a)
+end
 
 
 (* Fonts *)

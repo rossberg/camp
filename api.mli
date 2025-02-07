@@ -66,6 +66,11 @@ type color =
   | `Trans of color * int
 ]
 
+module Color :
+sig
+  val darken : int -> color -> color
+end
+
 
 (* Fonts *)
 

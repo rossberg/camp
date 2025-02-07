@@ -1089,7 +1089,7 @@ let run_library (st : State.t) =
           | _ when track.path = current -> `White
           | `Absent -> Ui.error_color lay.ui
           | `Invalid -> Ui.warn_color lay.ui
-          | `Undet -> Ui.semilit_color (Ui.text_color lay.ui)
+          | `Undet -> Ui.error_color lay.ui
           | `Predet | `Det -> Ui.text_color lay.ui
         in
         c,
