@@ -92,7 +92,7 @@ val deselect : t -> int -> int -> unit
 (* Editing *)
 
 val insert : t -> int -> track array -> unit
-val insert_paths : t -> int -> Track.path list -> Api.audio -> unit
+val insert_paths : t -> int -> Track.path list -> unit
 
 val remove_all : t -> unit
 val remove_selected : t -> unit

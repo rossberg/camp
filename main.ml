@@ -416,7 +416,7 @@ let run_playlist (st : State.t) =
   let pp_row i =
     let track = tab.entries.(i) in
     if now -. track.last_update > st.config.delay_track_update then
-      Track.update st.control.audio track;
+      Track.update track;
     let c =
       match track.status with
       | _ when tab.pos = Some i ->
@@ -608,7 +608,7 @@ let run_playlist (st : State.t) =
     let pos = min len ((my - y) / lay.text + tab.vscroll) in
     Playlist.deselect_all pl;
     let len = Playlist.length pl in
-    Playlist.insert_paths pl pos dropped st.control.audio;
+    Playlist.insert_paths pl pos dropped;
     let len' = Playlist.length pl in
     if pos > 0 && pos < len then Playlist.select pl pos (pos + len' - len - 1);
     Control.switch_if_empty st.control (Playlist.current_opt pl);

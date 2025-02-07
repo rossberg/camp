@@ -84,7 +84,7 @@ let switch ctl (track : track) play =
   track.time <-
     if ctl.sound = Api.Audio.silence ctl.audio then 0.0
     else Api.Audio.length ctl.audio ctl.sound;
-  Track.update ctl.audio track;
+  Track.update track;
   Api.Audio.volume ctl.audio ctl.sound (if ctl.mute then 0.0 else ctl.volume);
   Api.Audio.play ctl.audio ctl.sound;
   if not play then Api.Audio.pause ctl.audio ctl.sound

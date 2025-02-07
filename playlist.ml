@@ -255,11 +255,11 @@ let insert pl pos tracks =
     ) pl.shuffle;
   )
 
-let insert_paths pl pos paths audio =
+let insert_paths pl pos paths =
   let tracks = ref [] in
   let add_track (track : track) =
     tracks := track :: !tracks;
-    if track.status = `Undet then Track.update audio track
+    if track.status = `Undet then Track.update track
   in
   let add_song path =
     if Format.is_known_ext path then

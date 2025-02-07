@@ -32,4 +32,4 @@ val artist_title_of_path : path -> (string * string) option
 
 (* Updating queue *)
 
-val update : Api.audio -> t -> unit
+val update : t -> unit

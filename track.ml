@@ -95,15 +95,15 @@ let is_invalid track =
 
 let queue = Safe_queue.create ()
 
-let update audio track =
+let update track =
   if track.last_update >= 0.0 then
   (
     track.last_update <- -1.0;
-    Safe_queue.add (audio, track) queue;
+    Safe_queue.add track queue;
   )
 
 let rec updater () =
-  let audio, track = Safe_queue.take queue in
+  let track = Safe_queue.take queue in
   if M3u.is_separator track.path then
   (
     track.status <- `Det;
@@ -123,19 +123,13 @@ let rec updater () =
   else
   (
     try
-      let meta = Meta.load track.path in
+      let meta = Meta.load track.path ~with_cover: false in
       if meta.loaded then track.status <- `Det;
       if track.time = 0.0 then
       (
         if meta.length <> 0.0 then track.time <- meta.length else
-        let sound = Api.Audio.load audio track.path in
-        track.time <-
-          if sound = Api.Audio.silence audio then 0.0 else
-          (
-            let t = Api.Audio.length audio sound in
-            Api.Audio.free audio sound;
-            t
-          )
+        let format = Format.read track.path in
+        track.time <- format.time;
       );
       track.name <- name_of_meta track.path meta
     with
