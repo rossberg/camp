@@ -787,7 +787,7 @@ let run_library (st : State.t) =
   if Layout.del_key lay then
   (
     match Library.selected_dir lib with
-    | Some i when browser.entries.(i).parent = None ->
+    | Some i when browser.entries.(i).parent = Some "" ->
       Library.remove_roots lib [browser.entries.(i).path];
       Library.update_views lib
     | _ -> Layout.browser_error_box lay;  (* flash *)

@@ -8,7 +8,7 @@ type t =
 {
   db : db;
   scan : scan;
-  mutable roots : dir array;
+  mutable root : dir;
   mutable current : dir option;
   mutable browser : dir Table.t;
   mutable artists : artist Table.t;

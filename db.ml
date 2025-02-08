@@ -64,14 +64,12 @@ let to_int i data = Sqlite3.Data.to_int_exn data.(i)
 let to_float i data = Sqlite3.Data.to_float_exn data.(i)
 let to_text i data = Sqlite3.Data.to_string_exn data.(i)
 let to_id i data = Sqlite3.Data.to_int64_exn data.(i)
-let to_link i data = ref (`Id (to_id i data))
 
 let to_bool_opt i data = Sqlite3.Data.to_bool data.(i)
 let to_int_opt i data = Sqlite3.Data.to_int data.(i)
 let to_float_opt i data = Sqlite3.Data.to_float data.(i)
 let to_text_opt i data = Sqlite3.Data.to_string data.(i)
 let to_id_opt i data = Sqlite3.Data.to_int64 data.(i)
-let to_link_opt i data = Option.map link_id (to_id_opt i data)
 
 let to_default to_x def i data =
   if data.(i) = Sqlite3.Data.NULL then def else to_x i data
@@ -83,16 +81,6 @@ let to_text_default i data = to_default to_text "" i data
 let to_id_default i data = to_default to_id (-1L) i data
 
 let to_pair to_x i to_y j data = (to_x i data, to_y j data)
-
-let dir_id_of_link link =
-  match !link with
-  | `Id id -> id
-  | `Val (dir : dir) -> dir.id
-
-let album_id_of_link link =
-  match !link with
-  | `Id id -> id
-  | `Val (album : album) -> album.id
 
 
 let of_status = function
@@ -355,7 +343,8 @@ let to_dir i data : dir =
   }
 
 let bind_dir stmt i (dir : dir) =
-  assert ((dir.nest = 0) = (dir.parent = None));
+  assert ((dir.nest = -1) = (dir.parent = None));
+  assert ((dir.nest = 0) = (dir.parent = Some ""));
   let* () = bind_text stmt (i + 0) dir.path in
   let* () = bind_text_opt stmt (i + 1) dir.parent in
   let* () = bind_text stmt (i + 2) dir.name in
@@ -542,12 +531,11 @@ let create_tracks = create_table
     length REAL,
     rating INT,
     cover BLOB,
-    album_id INT,
     status INT NOT NULL
   );
 |}
 
-let track_cols = 25
+let track_cols = 24
 
 let to_track i data : track =
   {
@@ -556,9 +544,9 @@ let to_track i data : track =
     file = to_file (i + 2) data;
     format = to_format (i + 2 + file_cols) data;
     meta = to_meta (i + 2 + file_cols + format_cols) data;
-    album = to_link_opt (i + 2 + file_cols + format_cols + meta_cols) data;
+    album = None;
     pos = 0;
-    status = to_status (to_int_default (i + 3 + file_cols + format_cols + meta_cols) data);
+    status = to_status (to_int_default (i + 2 + file_cols + format_cols + meta_cols) data);
   }
 
 let bind_track stmt i (track : track) =
@@ -566,9 +554,8 @@ let bind_track stmt i (track : track) =
   let* () = bind_file stmt (i + 1) track.file in
   let* () = bind_opt bind_format stmt (i + 1 + file_cols) track.format in
   let* () = bind_opt bind_meta stmt (i + 1 + file_cols + format_cols) track.meta in
-  let* () = bind_id_opt stmt (i + 1 + file_cols + format_cols + meta_cols) (Option.map album_id_of_link track.album) in
-  let* () = bind_int stmt (i + 2 + file_cols + format_cols + meta_cols) (of_status track.status) in
-  assert (3 + file_cols + format_cols + meta_cols = track_cols);
+  let* () = bind_int stmt (i + 1 + file_cols + format_cols + meta_cols) (of_status track.status) in
+  assert (2 + file_cols + format_cols + meta_cols = track_cols);
   return
 
 let count_tracks = count_table @@ stmt
@@ -650,7 +637,6 @@ let iter_tracks_for_path_as_albums db path artist = db |>
     SUM(length),
     MAX(rating),
     cover,
-    album_id,
     MAX(status)
   FROM Tracks
   WHERE path LIKE ?1 AND (?2 = '' OR artist = ?2 OR albumartist = ?2)
@@ -661,7 +647,7 @@ let iter_tracks_for_path_as_albums db path artist = db |>
 let insert_track = insert_into_table bind_track (fun t id -> t.id <- id) @@ stmt
 {|
   INSERT OR REPLACE INTO Tracks
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 |}
 
 let delete_tracks = delete_from_table_prefix @@ stmt

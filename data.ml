@@ -6,17 +6,6 @@ type path = string
 type time = float
 type blob = string
 type id = int64
-type 'a link = [`Id of id | `Val of 'a] ref
-
-
-(* Links *)
-(* TODO: remove? *)
-
-let link_id id = ref (`Id id)
-let link_val x = ref (`Val x)
-
-let id_of_link = function {contents = `Id id} -> id | _ -> assert false
-let val_of_link = function {contents = `Val x} -> x | _ -> assert false
 
 
 (* View Attributes *)
@@ -56,7 +45,7 @@ type dir =
   nest : int;
   mutable name : string;
   mutable pos : int;
-  mutable children : dir link array;
+  mutable children : dir array;
   mutable folded : bool;
   mutable artists_shown : bool;
   mutable albums_shown : bool;
@@ -102,7 +91,7 @@ type track =
   file : file;
   mutable format : Format.t option;
   mutable meta : Meta.t option;
-  mutable album : album link option;
+  mutable album : album option;
   mutable pos : int;
   mutable status : [`Undet | `Predet | `Det | `Invalid | `Absent];
 }
