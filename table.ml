@@ -29,7 +29,7 @@ type 'a t =
 
 (* Constructor *)
 
-let make () =
+let make undo_depth =
   {
     entries = [||];
     pos = None;
@@ -40,7 +40,7 @@ let make () =
     selected = IntSet.empty;
     undos = ref [];
     redos = ref [];
-    undo_depth = 100;
+    undo_depth;
   }
 
 

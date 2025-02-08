@@ -21,7 +21,7 @@ type 'a t =
 
 (* Constructor *)
 
-val make : unit -> 'a t
+val make : int -> 'a t
 
 
 (* Validation *)

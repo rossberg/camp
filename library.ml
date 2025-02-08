@@ -93,10 +93,10 @@ let make db =
     scan = make_scan ();
     root;
     current = None;
-    browser = Table.make ();
-    artists = Table.make ();
-    albums = Table.make ();
-    tracks = Table.make ();
+    browser = Table.make 0;
+    artists = Table.make 0;
+    albums = Table.make 0;
+    tracks = Table.make 0;
     error = "";
     error_time = 0.0;
   }

@@ -25,7 +25,7 @@ type t =
 
 let make () =
   {
-    table = Table.make ();
+    table = Table.make 100;
     total = 0.0, 0;
     total_selected = 0.0, 0;
     shuffle = None;
