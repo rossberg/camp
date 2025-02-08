@@ -800,7 +800,9 @@ let run_library (st : State.t) =
   (
     (* Inactive scanning indicator clicked: rescan *)
     let mode = if Api.Key.is_modifier_down `Shift then `Thorough else `Fast in
-    Library.rescan_roots lib mode;
+    match Library.selected_dir lib with
+    | None | Some 0 -> Library.rescan_roots lib mode
+    | Some i -> Library.rescan_dirs lib mode [|lib.browser.entries.(i)|]
   );
 
   (* Browse modes *)

@@ -46,6 +46,8 @@ val adjust_scroll : t -> int option -> int -> unit
 
 (* Roots *)
 
+val is_root : t -> dir -> bool
+
 val load_roots : t -> unit
 
 val add_roots : t -> path list -> int -> bool

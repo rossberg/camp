@@ -267,7 +267,7 @@ let rescan_track lib mode track =
     ("error scaning track " ^ track.path ^ ": " ^ Printexc.to_string exn)
 
 
-let rescan_dir lib mode (dir : Data.dir) =
+let rescan_dir_tracks lib mode (dir : Data.dir) =
   try
     Array.iter (fun file ->
       let path = Filename.concat dir.path file in
@@ -301,10 +301,9 @@ let rescan_playlist lib _mode path =
     ("error scanning playlist " ^ path ^ ": " ^ Printexc.to_string exn)
 
 
-let queue_rescan_dir = ref (fun _ -> assert false)
-let queue_rescan_playlist = ref (fun _ -> assert false)
+let queue_rescan_dir_tracks = ref (fun _ -> assert false)
 
-let rescan_root lib mode (root : Data.dir) =
+let rescan_dir lib mode (origin : Data.dir) =
   let rec scan_path path nest =
     if Sys.is_directory path then
       if Format.is_known_ext path then
@@ -332,7 +331,7 @@ let rescan_root lib mode (root : Data.dir) =
     | None -> None
     | Some dirs ->
       let dir =
-        if nest = 0 then root else
+        if nest = origin.nest then origin else
         match Db.find_dir lib.db path with
         | Some dir -> dir
         | None ->
@@ -342,13 +341,13 @@ let rescan_root lib mode (root : Data.dir) =
             dir.name <- Filename.remove_extension dir.name;
           dir.folded <- true;
           (* Root may have been deleted in the mean time... *)
-          if Db.exists_root lib.db root.path then
+          if Db.exists_dir lib.db origin.path then
             Db.insert_dir lib.db dir;
           dir
       in
       (* TODO: remove missing children *)
       dir.children <- Array.of_list dirs;
-      !queue_rescan_dir lib mode dir;
+      !queue_rescan_dir_tracks lib mode dir;
       Some [dir]
 
   and scan_album path nest =
@@ -364,24 +363,20 @@ let rescan_root lib mode (root : Data.dir) =
       dir.name <- Filename.remove_extension dir.name;
     dir.folded <- true;
     (* Root may have been deleted in the mean time... *)
-    if Db.exists_root lib.db root.path then
+    if Db.exists_root lib.db origin.path then
       Db.insert_dir lib.db dir;
     Some [dir]
   in
 
   try
-    ignore (scan_dir root.path (-1))
+    ignore (scan_dir origin.path (origin.nest - 1))
   with exn -> Storage.log
-    ("error scaning root " ^ root.path ^ ": " ^ Printexc.to_string exn)
+    ("error scaning directory " ^ origin.path ^ ": " ^ Printexc.to_string exn)
 
 
-let rescan_root lib mode root =
-  Safe_queue.add (None, fun () -> rescan_root lib mode root)
+let rescan_dir lib mode dir =
+  Safe_queue.add (None, fun () -> rescan_dir lib mode dir)
     lib.scan.dir_queue
-
-let rescan_dir lib mode (dir : dir) =
-  Safe_queue.add (Some dir.path, fun () -> rescan_dir lib mode dir)
-    lib.scan.file_queue
 
 let rescan_playlist lib mode path =
   Safe_queue.add (Some path, fun () -> rescan_playlist lib mode path)
@@ -391,15 +386,19 @@ let rescan_track lib mode track =
   Safe_queue.add (Some track.path, fun () -> rescan_track lib mode track)
     lib.scan.file_queue
 
-let rescan_roots lib mode = Array.iter (rescan_root lib mode) lib.root.children
+let rescan_dir_tracks lib mode (dir : dir) =
+  Safe_queue.add (Some dir.path, fun () -> rescan_dir_tracks lib mode dir)
+    lib.scan.dir_queue
+
+
 let rescan_dirs lib mode dirs = Array.iter (rescan_dir lib mode) dirs
+let rescan_roots lib mode = rescan_dirs lib mode lib.root.children
 let rescan_tracks lib mode tracks = Array.iter (rescan_track lib mode) tracks
 
 let rescan_busy lib = Atomic.(get lib.scan.dir_busy || get lib.scan.file_busy)
 let rescan_done lib = Atomic.exchange lib.scan.completed []
 
-let _ = queue_rescan_dir := rescan_dir
-let _ = queue_rescan_playlist := rescan_playlist
+let _ = queue_rescan_dir_tracks := rescan_dir_tracks
 
 
 (* Browser *)
@@ -465,6 +464,8 @@ let fold_dir lib dir status =
 
 
 (* Roots *)
+
+let is_root _lib dir = dir.parent = Some ""
 
 let load_roots lib =
   let dirs = ref [] in
@@ -555,7 +556,7 @@ let add_roots lib paths pos =
     *)
     Array.iter (Db.insert_root lib.db) paths;
     Array.iter (Db.insert_dir lib.db) roots';
-    Array.iter (rescan_root lib `Thorough) roots';
+    Array.iter (rescan_dir lib `Thorough) roots';
     update_browser lib;
     true
   with Failure msg ->
