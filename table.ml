@@ -146,8 +146,7 @@ let select tab i0 j0 =
 let deselect tab i0 j0 =
   let i, j = min i0 j0, max i0 j0 in
   for k = i to j do
-    if IntSet.mem k tab.selected then
-      tab.selected <- IntSet.remove k tab.selected
+    tab.selected <- IntSet.remove k tab.selected
   done;
   tab.sel_range <- Some (i0, j0)
 
@@ -281,10 +280,10 @@ let remove_if p tab n =
       (
         assert (js.(j) = -2);
         let b = p j in
+        if b then deselect tab j j;
         move_pos tab j i len';  (* could affect (p j)! *)
         if b then
         (
-          deselect tab j j;
           incr d;
           js.(j) <- -1;
           skip i;
@@ -307,7 +306,7 @@ let remove_if p tab n =
 
 
 let move_selected tab d =
-  if num_selected tab = 0 then [||] else
+  if d = 0 || num_selected tab = 0 then [||] else
   (
     push_undo tab;
     let len = Array.length tab.entries in
