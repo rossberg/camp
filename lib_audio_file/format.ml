@@ -39,7 +39,7 @@ let read path =
       channels = channels;
       depth = 1024 * mp3.bitrate / mp3.rate / channels;
       rate = mp3.rate;
-      bitrate = float (1024 * mp3.bitrate);
+      bitrate = float (1000 * mp3.bitrate);
       time = mp3.time;
       size = mp3.size;
     }
