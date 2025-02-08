@@ -75,8 +75,10 @@ val divider : t -> area -> Api.orientation -> int -> int -> int -> int
 
 type column = int * align
 type row = color * inversion * string array
+type sorting = int * [`Asc | `Desc]
+
 val table : t -> area -> int -> int -> column array -> row array -> int -> int option
-val header : t -> area -> int -> column array -> string array -> int -> [`Click of int | `Arrange | `None]
+val header : t -> area -> int -> column array -> string array -> sorting option -> int -> [`Click of int | `Arrange | `None]
 
 val rich_table :
   t -> 
@@ -85,5 +87,8 @@ val rich_table :
   int ->  (* row height *)
   int ->  (* vertical scroll bar width *)
   int ->  (* horizontal scroll bar height (can be 0) *)
-  column array -> string array option -> 'a Table.t -> (int -> color * string array) ->
+  column array ->                    (* column layout *)
+  (string array * sorting) option -> (* headers *)
+  'a Table.t ->                      (* data *)
+  (int -> color * string array) ->   (* row generator *)
     [`Click of int option | `Select | `Scroll | `Sort of int | `Arrange | `Move of int | `Drop | `None]

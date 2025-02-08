@@ -163,7 +163,7 @@ let make_dir path parent nest pos : dir =
     albums_columns = albums_columns;
     tracks_columns = tracks_columns;
     artists_sorting = `Artist, `Asc;
-    albums_sorting = `Artist, `Asc;
+    albums_sorting = `AlbumArtist, `Asc;
     tracks_sorting =
       if M3u.is_known_ext path || Format.is_known_ext path
       then `Pos, `Asc

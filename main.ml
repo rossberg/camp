@@ -884,14 +884,17 @@ let run_library (st : State.t) =
     in
 
     let pp_row i =
-        let artist = tab.entries.(i) in
-        Ui.text_color lay.ui,
-        Array.map (fun (attr, _) -> Library.artist_attr_string artist attr)
-          dir.artists_columns
+      let artist = tab.entries.(i) in
+      Ui.text_color lay.ui,
+      Array.map (fun (attr, _) -> Library.artist_attr_string artist attr)
+        dir.artists_columns
     in
 
     let selected = tab.selected in
-    (match artists_table lay cols (Some headings) tab pp_row with
+    let attr, order = dir.artists_sorting in
+    let i = Array.find_index (fun (a, _) -> a = attr) dir.artists_columns in
+    let sorting = Option.get i, order in
+    (match artists_table lay cols (Some (headings, sorting)) tab pp_row with
     | `None | `Scroll -> ()
 
     | `Select ->
@@ -982,14 +985,17 @@ let run_library (st : State.t) =
     in
 
     let pp_row i =
-        let album = tab.entries.(i) in
-        Ui.text_color lay.ui,
-        Array.map (fun (attr, _) -> Library.album_attr_string album attr)
-          dir.albums_columns
+      let album = tab.entries.(i) in
+      Ui.text_color lay.ui,
+      Array.map (fun (attr, _) -> Library.album_attr_string album attr)
+        dir.albums_columns
     in
 
     let selected = tab.selected in
-    (match albums_table lay cols (Some headings) tab pp_row with
+    let attr, order = dir.albums_sorting in
+    let i = Array.find_index (fun (a, _) -> a = attr) dir.albums_columns in
+    let sorting = Option.get i, order in
+    (match albums_table lay cols (Some (headings, sorting)) tab pp_row with
     | `None | `Scroll -> ()
 
     | `Select ->
@@ -1089,21 +1095,24 @@ let run_library (st : State.t) =
     in
 
     let pp_row i =
-        let track = tab.entries.(i) in
-        let c =
-          match track.status with
-          | _ when track.path = current -> `White
-          | `Absent -> Ui.error_color lay.ui
-          | `Invalid -> Ui.warn_color lay.ui
-          | `Undet -> Ui.error_color lay.ui
-          | `Predet | `Det -> Ui.text_color lay.ui
-        in
-        c,
-        Array.map (fun (attr, _) -> Library.track_attr_string track attr)
-          dir.tracks_columns
+      let track = tab.entries.(i) in
+      let c =
+        match track.status with
+        | _ when track.path = current -> `White
+        | `Absent -> Ui.error_color lay.ui
+        | `Invalid -> Ui.warn_color lay.ui
+        | `Undet -> Ui.error_color lay.ui
+        | `Predet | `Det -> Ui.text_color lay.ui
+      in
+      c,
+      Array.map (fun (attr, _) -> Library.track_attr_string track attr)
+        dir.tracks_columns
     in
 
-    (match tracks_table lay cols (Some headings) tab pp_row with
+    let attr, order = dir.tracks_sorting in
+    let i = Array.find_index (fun (a, _) -> a = attr) dir.tracks_columns in
+    let sorting = Option.get i, order in
+    (match tracks_table lay cols (Some (headings, sorting)) tab pp_row with
     | `None | `Select | `Scroll -> ()
 
     | `Sort i ->
