@@ -8,7 +8,7 @@ module Dirs = Directories.Base_dirs ()
 
 let dir =
   match Dirs.data_local_dir with
-  | Some path -> Filename.concat path App.name
+  | Some path -> Filename.concat (Fpath.to_string path) App.name
   | None -> "."
 
 let path filename =

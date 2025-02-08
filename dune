@@ -2,7 +2,7 @@
   (public_name kamp)
   (name main)
   (modules safe_queue app track control table playlist library config data db state storage api ui layout main)
-  (libraries unix directories raylib sqlite3 audio_file)
+  (libraries unix directories raylib sqlite3 camomile audio_file)
   (link_deps (include link_deps.sexp))
   (link_flags (:include link_flags.sexp))
 )

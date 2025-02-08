@@ -638,7 +638,7 @@ let track_key (track : track) = track.path
 let sort_entries entries (attr, order) attr_string =
   let enriched = Array.map (fun entry -> attr_string entry attr, entry) entries in
   let sign = if order = `Asc then +1 else - 1 in
-  let cmp t1 t2 = sign * compare (fst t1) (fst t2) in
+  let cmp t1 t2 = sign * Data.compare_for attr (fst t1) (fst t2) in
   Array.stable_sort cmp enriched;
   Array.map snd enriched
 

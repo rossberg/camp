@@ -306,3 +306,13 @@ let track_sorting_of_string s = sorting_of_string to_track_attr s
 let artist_columns_of_string s = columns_of_string to_artist_attr s
 let album_columns_of_string s = columns_of_string to_album_attr s
 let track_columns_of_string s = columns_of_string to_track_attr s
+
+
+(* String Comparison *)
+
+module UCol = Camomile.UCol.Make (Camomile.UTF8)
+
+let compare_for : 'a. ([< any_attr] as 'a) -> _ = function
+  | `Artist | `Title | `AlbumArtist | `AlbumTitle | `Country | `Label ->
+    fun s1 s2 -> UCol.compare ~prec: `Primary s1 s2
+  | _ -> compare

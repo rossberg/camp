@@ -770,7 +770,7 @@ let header ui area gw cols titles sort_opt hscroll =
     let cx, cw = find_header 0 x in
     let sym = match order with `Asc -> symbol_asc | `Desc -> symbol_desc in
     if cw > 10 then
-    Api.Draw.text ui.win (cx + cw - 8) y h `Black (font ui h) sym;
+    Api.Draw.text ui.win (cx + cw - 6) y h `Black (font ui h) sym;
   ) sort_opt;
 
   let gutter_tolerance = 5 in
