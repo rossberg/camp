@@ -797,7 +797,11 @@ let run_library (st : State.t) =
   Layout.scan_label lay;
   Layout.scan_indicator lay (Library.rescan_busy lib);
   if Layout.scan_button lay && not (Library.rescan_busy lib) then
-    Library.rescan_roots lib `Thorough;
+  (
+    (* Inactive scanning indicator clicked: rescan *)
+    let mode = if Api.Key.is_modifier_down `Shift then `Thorough else `Fast in
+    Library.rescan_roots lib mode;
+  );
 
   (* Browse modes *)
   let have_dir = lib.current <> None in
