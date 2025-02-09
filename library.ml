@@ -635,10 +635,13 @@ let album_key (album : album) = (*album.track*)  (* TODO *)
 
 let track_key (track : track) = track.path
 
-let sort_entries entries (attr, order) attr_string =
-  let enriched = Array.map (fun entry -> attr_string entry attr, entry) entries in
-  let sign = if order = `Asc then +1 else - 1 in
-  let cmp t1 t2 = sign * Data.compare_for attr (fst t1) (fst t2) in
+let sort_entries entries sorting attr_string =
+  let enriched =
+    Array.map (fun entry ->
+      List.map (fun (attr, _) -> attr_string entry attr) sorting, entry
+    ) entries
+  in
+  let cmp e1 e2 = Data.compare_attrs sorting (fst e1) (fst e2) in
   Array.stable_sort cmp enriched;
   Array.map snd enriched
 

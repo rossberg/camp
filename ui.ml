@@ -692,9 +692,10 @@ let divider ui r orient v minv maxv =
 
 type align = [`Left | `Center | `Right]
 type inversion = [`Regular | `Inverted]
+type order = [`Asc | `Desc]
 type column = int * align
 type row = color * inversion * string array
-type sorting = int * [`Asc | `Desc]
+type sorting = (int * order) list
 
 let table ui r gw ch cols rows hscroll =
   let (x, y, w, h), status = element ui r no_modkey in
@@ -744,10 +745,10 @@ let table ui r gw ch cols rows hscroll =
 
 (* Table Headers *)
 
-let symbol_asc = "▲" (* "▴" *)
-let symbol_desc = "▼" (* "▾" *)
+let symbols_asc = [|"▲" (* "▴" *); "▲'" (* "△", "▵", "▵" *); "▲''"; "▲'''"|]
+let symbols_desc = [|"▼" (* "▾" *); "▼'" (* "▽", "▾", "▿" *); "▼''"; "▼'''"|]
 
-let header ui area gw cols titles sort_opt hscroll =
+let header ui area gw cols titles sorting hscroll =
   let (x, y, w, h) as r, status = element ui area no_modkey in
   ignore (table ui area gw h cols [|text_color ui, `Inverted, titles|] hscroll);
 
@@ -761,17 +762,20 @@ let header ui area gw cols titles sort_opt hscroll =
   );
   Draw.unclip ui.win;
 
-  Option.iter (fun (i, order) ->
+  List.iteri (fun k (i, order) ->
     let rec find_header j cx =
       let cw = fst cols.(j) in
       if j < i then find_header (j + 1) (cx + cw + gw) else
       cx, cw
     in
     let cx, cw = find_header 0 x in
-    let sym = match order with `Asc -> symbol_asc | `Desc -> symbol_desc in
-    if cw > 10 then
-    Api.Draw.text ui.win (cx + cw - 6) y h `Black (font ui h) sym;
-  ) sort_opt;
+    let syms = match order with `Asc -> symbols_asc | `Desc -> symbols_desc in
+    if k < Array.length syms then
+      let font = font ui h in
+      let tw = Api.Draw.text_width ui.win h font syms.(k) in
+      if cw > tw then
+        Api.Draw.text ui.win (cx + cw - tw + 3) y h `Black font syms.(k)
+  ) sorting;
 
   let gutter_tolerance = 5 in
   let rec find_gutter' mx i cx =
@@ -927,8 +931,8 @@ let rich_table ui area gw ch sw sh cols headings_opt (tab : _ Table.t) pp_row =
   let result =
     match headings_opt with
     | None -> result
-    | Some (headings, sort) ->
-      match header ui header_area gw cols headings (Some sort) tab.hscroll with
+    | Some (headings, sorting) ->
+      match header ui header_area gw cols headings sorting tab.hscroll with
       | `Click i -> `Sort i
       | `Arrange -> `Arrange
       | `None -> result

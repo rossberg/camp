@@ -31,7 +31,8 @@ type album_attr = [ file_attr | format_attr | meta_attr ]
 type track_attr = [ file_attr | format_attr | meta_attr | `Pos ]
 type any_attr = [ artist_attr | album_attr | track_attr ]
 
-type 'attr sorting = 'attr * [`Asc | `Desc]
+type order = [`Asc | `Desc]
+type 'attr sorting = ('attr * order) list
 type 'attr columns = ('attr * int) array
 
 
@@ -162,12 +163,12 @@ let make_dir path parent nest pos : dir =
     artists_columns = artists_columns;
     albums_columns = albums_columns;
     tracks_columns = tracks_columns;
-    artists_sorting = `Artist, `Asc;
-    albums_sorting = `AlbumArtist, `Asc;
+    artists_sorting = [`Artist, `Asc];
+    albums_sorting = [`AlbumArtist, `Asc; `AlbumTitle, `Asc; `Codec, `Asc];
     tracks_sorting =
       if M3u.is_known_ext path || Format.is_known_ext path
-      then `Pos, `Asc
-      else `Artist, `Asc;
+      then [`Pos, `Asc]
+      else [`Artist, `Asc; `Title, `Asc; `Codec, `Asc];
   }
 
 let make_file () : file =
@@ -218,10 +219,6 @@ let order_of_char = function
   | '-' -> `Desc
   | _ -> failwith ""
 
-let rev_order = function
-  | `Asc -> `Desc
-  | `Desc -> `Asc
-
 
 let attr_str =
 [
@@ -255,12 +252,23 @@ let attr_str =
 let string_of_attr attr = List.assoc (attr :> any_attr) attr_str
 let attr_of_string s = fst (List.find (fun (_, s') -> s' = s) attr_str)
 
-let string_of_sorting (attr, order) =
-  string_of_order order ^ string_of_attr attr
+let rec string_of_sorting = function
+  | [] -> ""
+  | (attr, order)::sorting' ->
+    string_of_order order ^ string_of_attr attr ^ string_of_sorting sorting'
+
+let rec sorting_of_string' to_attr s i =
+  if i = String.length s then [] else
+  let order = order_of_char s.[i] in
+  let attr = to_attr (attr_of_string (String.sub s (i + 1) 3)) in
+  (attr, order) :: sorting_of_string' to_attr s (i + 4)
 
 let sorting_of_string to_attr s =
-  to_attr (attr_of_string (String.sub s 1 (String.length s - 1))),
-  order_of_char s.[0]
+  try
+    sorting_of_string' to_attr s 0
+  with exn ->
+    Storage.log ("malformed sorting format: " ^ s);
+    raise exn
 
 let string_of_column (attr, w) = string_of_attr attr ^ string_of_int w
 let column_of_string to_attr s =
@@ -312,7 +320,42 @@ let track_columns_of_string s = columns_of_string to_track_attr s
 
 module UCol = Camomile.UCol.Make (Camomile.UTF8)
 
-let compare_for : 'a. ([< any_attr] as 'a) -> _ = function
+let compare_attr : 'a. ([< any_attr] as 'a) -> _ = function
   | `Artist | `Title | `AlbumArtist | `AlbumTitle | `Country | `Label ->
     fun s1 s2 -> UCol.compare ~prec: `Primary s1 s2
   | _ -> compare
+
+let rec compare_attrs sorting ss1 ss2 =
+  match sorting, ss1, ss2 with
+  | (attr, order)::sorting', s1::ss1', s2::ss2' ->
+    (match compare_attr attr s1 s2 with
+    | 0 -> compare_attrs sorting' ss1' ss2'
+    | r -> if order = `Asc then +r else -r
+    )
+  | _, _, _ -> 0
+
+
+let rev_order = function
+  | `Asc -> `Desc
+  | `Desc -> `Asc
+
+let rec insert_sorting attr i = function
+  | [] ->
+    if i >= 0 then
+      [attr, `Asc]
+    else
+      []
+  | (attr', order)::sorting' when attr = attr' ->
+    (match compare i 0 with
+    | +1 -> (attr', order)::sorting'
+    | -1 -> sorting'
+    | _ -> (attr, rev_order order)::sorting'
+    )
+  | (attr', order)::sorting' ->
+    let sorting'' = (attr', order) :: insert_sorting attr (i - 1) sorting' in
+    if i = 0 then
+      (attr, `Asc)::sorting''
+    else
+      sorting''
+
+let remove_sorting attr = insert_sorting attr (-1)

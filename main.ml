@@ -632,6 +632,11 @@ let symbol_empty = " ○"
 let symbol_folded = "►" (* "▸" *)
 let symbol_unfolded = "▼" (* "▾" *)
 
+let convert_sorting columns sorting =
+  let index attr = Array.find_index (fun (a, _) -> a = attr) columns in
+  List.map (fun (attr, order) -> Option.get (index attr), order) sorting
+
+
 let run_library (st : State.t) =
   let pl = st.playlist in
   let lib = st.library in
@@ -891,9 +896,7 @@ let run_library (st : State.t) =
     in
 
     let selected = tab.selected in
-    let attr, order = dir.artists_sorting in
-    let i = Array.find_index (fun (a, _) -> a = attr) dir.artists_columns in
-    let sorting = Option.get i, order in
+    let sorting = convert_sorting dir.artists_columns dir.artists_sorting in
     (match artists_table lay cols (Some (headings, sorting)) tab pp_row with
     | `None | `Scroll -> ()
 
@@ -905,10 +908,14 @@ let run_library (st : State.t) =
 
     | `Sort i ->
       (* Click on column header: reorder view accordingly *)
-      let attr, order = dir.artists_sorting in
-      let attr' = fst dir.artists_columns.(i) in
-      let order' = if attr' = attr then Data.rev_order order else `Asc in
-      dir.artists_sorting <- attr', order';
+      let attr = fst dir.artists_columns.(i) in
+      let k =
+        Bool.to_int (Api.Key.is_modifier_down `Shift) +
+        Bool.to_int (Api.Key.is_modifier_down `Alt) * 2 +
+        Bool.to_int (Api.Key.is_modifier_down `Command) * (-4)
+      in
+      dir.artists_sorting <-
+        List.take 4 (Data.insert_sorting attr k dir.artists_sorting);
       Library.update_dir lib dir;
       Library.reorder_artists lib;
 
@@ -992,9 +999,7 @@ let run_library (st : State.t) =
     in
 
     let selected = tab.selected in
-    let attr, order = dir.albums_sorting in
-    let i = Array.find_index (fun (a, _) -> a = attr) dir.albums_columns in
-    let sorting = Option.get i, order in
+    let sorting = convert_sorting dir.albums_columns dir.albums_sorting in
     (match albums_table lay cols (Some (headings, sorting)) tab pp_row with
     | `None | `Scroll -> ()
 
@@ -1006,10 +1011,14 @@ let run_library (st : State.t) =
 
     | `Sort i ->
       (* Click on column header: reorder view accordingly *)
-      let attr, order = dir.albums_sorting in
-      let attr' = fst dir.albums_columns.(i) in
-      let order' = if attr' = attr then Data.rev_order order else `Asc in
-      dir.albums_sorting <- attr', order';
+      let attr = fst dir.albums_columns.(i) in
+      let k =
+        Bool.to_int (Api.Key.is_modifier_down `Shift) +
+        Bool.to_int (Api.Key.is_modifier_down `Alt) * 2 +
+        Bool.to_int (Api.Key.is_modifier_down `Command) * (-4)
+      in
+      dir.albums_sorting <-
+        List.take 4 (Data.insert_sorting attr k dir.albums_sorting);
       Library.update_dir lib dir;
       Library.reorder_albums lib;
 
@@ -1109,18 +1118,20 @@ let run_library (st : State.t) =
         dir.tracks_columns
     in
 
-    let attr, order = dir.tracks_sorting in
-    let i = Array.find_index (fun (a, _) -> a = attr) dir.tracks_columns in
-    let sorting = Option.get i, order in
+    let sorting = convert_sorting dir.tracks_columns dir.tracks_sorting in
     (match tracks_table lay cols (Some (headings, sorting)) tab pp_row with
     | `None | `Select | `Scroll -> ()
 
     | `Sort i ->
       (* Click on column header: reorder view accordingly *)
-      let attr, order = dir.tracks_sorting in
-      let attr' = fst dir.tracks_columns.(i) in
-      let order' = if attr' = attr then Data.rev_order order else `Asc in
-      dir.tracks_sorting <- attr', order';
+      let attr = fst dir.tracks_columns.(i) in
+      let k =
+        Bool.to_int (Api.Key.is_modifier_down `Shift) +
+        Bool.to_int (Api.Key.is_modifier_down `Alt) * 2 +
+        Bool.to_int (Api.Key.is_modifier_down `Command) * (-4)
+      in
+      dir.tracks_sorting <-
+        List.take 4 (Data.insert_sorting attr k dir.tracks_sorting);
       Library.update_dir lib dir;
       Library.reorder_tracks lib;
 

@@ -75,10 +75,11 @@ val divider : t -> area -> Api.orientation -> int -> int -> int -> int
 
 type column = int * align
 type row = color * inversion * string array
-type sorting = int * [`Asc | `Desc]
+type order = [`Asc | `Desc]
+type sorting = (int * order) list
 
 val table : t -> area -> int -> int -> column array -> row array -> int -> int option
-val header : t -> area -> int -> column array -> string array -> sorting option -> int -> [`Click of int | `Arrange | `None]
+val header : t -> area -> int -> column array -> string array -> sorting -> int -> [`Click of int | `Arrange | `None]
 
 val rich_table :
   t -> 
