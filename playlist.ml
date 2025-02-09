@@ -238,7 +238,7 @@ let pop_redo pl = pop_unredo pl Table.pop_redo pl.table.redos
 let insert pl pos tracks =
   if tracks <> [||] then
   (
-    let len = Array.length pl.table.entries in
+    let len = Table.length pl.table in
     let len' = Array.length tracks in
     Table.insert pl.table pos tracks;
     pl.total <- add_total pl.total (fst (range_total pl pos (pos + len' - 1)));
@@ -306,7 +306,7 @@ let remove_all pl =
 let remove_if p pl n =
   if n > 0 then
   (
-    let len = Array.length pl.table.entries in
+    let len = Table.length pl.table in
     let len' = len - n in
     let js = Table.remove_if p pl.table n in
     update_total pl;
@@ -335,7 +335,7 @@ let remove_selected pl =
 
 let remove_unselected pl =
   remove_if (fun i -> not (Table.is_selected pl.table i)) pl
-    (Array.length pl.table.entries - Table.num_selected pl.table)
+    (Table.length pl.table - Table.num_selected pl.table)
 
 let num_invalid pl =
   Array.fold_left (fun n track ->

@@ -264,7 +264,7 @@ let rescan_track lib mode track =
       Db.insert_track lib.db track;
     )
   with exn -> Storage.log
-    ("error scaning track " ^ track.path ^ ": " ^ Printexc.to_string exn)
+    ("error scanning track " ^ track.path ^ ": " ^ Printexc.to_string exn)
 
 
 let rescan_dir_tracks lib mode (dir : Data.dir) =
@@ -371,7 +371,7 @@ let rescan_dir lib mode (origin : Data.dir) =
   try
     ignore (scan_dir origin.path (origin.nest - 1))
   with exn -> Storage.log
-    ("error scaning directory " ^ origin.path ^ ": " ^ Printexc.to_string exn)
+    ("error scanning directory " ^ origin.path ^ ": " ^ Printexc.to_string exn)
 
 
 let rescan_dir lib mode dir =
@@ -423,16 +423,21 @@ let selected_dir lib =
 let deselect_dir lib =
   Table.deselect_all lib.browser;
   lib.current <- None;
+  Table.clear_undo lib.tracks;
   Db.clear_playlists lib.db
 
 let select_dir lib i =
   Table.deselect_all lib.browser;
   Table.select lib.browser i i;
   let dir = lib.browser.entries.(i) in
-  lib.current <- Some dir;
-  Db.clear_playlists lib.db;
-  if M3u.is_known_ext dir.path then
-    rescan_playlist lib false dir.path
+  if lib.current <> Some dir then
+  (
+    lib.current <- Some dir;
+    Table.clear_undo lib.tracks;
+    Db.clear_playlists lib.db;
+    if M3u.is_known_ext dir.path then
+      rescan_playlist lib false dir.path;
+  )
 
 
 let update_dir lib dir =
@@ -755,6 +760,147 @@ let reorder_albums lib =
 
 let reorder_tracks lib =
   reorder lib lib.tracks tracks_sorting track_attr_string track_key
+
+
+(* Playlist Editing *)
+
+let array_swap a i j =
+  let temp = a.(i) in
+  a.(i) <- a.(j);
+  a.(j) <- temp
+
+let array_rev a =
+  let len = Array.length a in
+  for i = 0 to len / 2 - 1 do
+    array_swap a i (len - i - 1)
+  done
+
+
+let current_is_playlist lib =
+  match lib.current with
+  | None -> false
+  | Some dir -> M3u.is_known_ext dir.path
+
+
+let save_playlist lib path =
+  let tracks = Array.map Fun.id lib.tracks.entries in
+  Array.sort (fun (t1 : track) (t2 : track) -> compare t1.pos t2.pos) tracks;
+  let items = Array.map Data.to_m3u_track tracks in
+  let s = M3u.make_ext (Array.to_list items) in
+  try
+    Out_channel.with_open_bin path (fun file -> output_string file s)
+  with exn -> Storage.log
+    ("error writing playlist " ^ path ^ ": " ^ Printexc.to_string exn)
+
+
+let insert_reuse lib pos tracks =
+  assert (current_is_playlist lib);
+  if tracks <> [||] then
+  (
+    let len = Array.length tracks in
+    let dir = Option.get lib.current in
+    let pos', reorder =
+      match dir.tracks_sorting with
+      | (`Pos, `Asc)::_ -> pos, false
+      | (`Pos, `Desc)::_ ->
+        array_rev tracks; Table.length lib.tracks - pos, true
+      | _ -> Table.length lib.tracks, true
+    in
+    Array.iteri (fun i track -> track.pos <- pos' + i) tracks;
+    Table.insert lib.tracks pos' tracks;
+    Array.iter (fun track ->
+      if track.pos >= pos' then track.pos <- track.pos + len
+    ) tracks;
+    if reorder then reorder_tracks lib;
+    save_playlist lib dir.path;
+    (* TODO: update DB? *)
+  )
+
+let insert lib pos tracks =
+  insert_reuse lib pos
+    (Array.map (fun track -> {track with pos = track.pos}) tracks)
+
+let insert_paths lib pos paths =
+  let tracks = ref [] in
+  let add_track track = tracks := track :: !tracks in
+  let add_song path =
+    if Format.is_known_ext path then
+    (
+      let track =
+        match Db.find_track lib.db path with
+        | Some track -> track
+        | None -> Data.make_track path
+      in add_track track
+    )
+  and add_playlist path =
+    let s = In_channel.(with_open_bin path input_all) in
+    List.iter (fun path -> add_track (Data.make_track path)) (M3u.parse s)
+  in
+  let rec add_path path =
+    try
+      match String.lowercase_ascii (Filename.extension path) with
+      | _ when Sys.file_exists path && Sys.is_directory path ->
+        Array.iter (fun file ->
+          add_path (Filename.concat path file)
+        ) (Sys.readdir path)
+      | ".m3u" | ".m3u8" -> add_playlist path
+      | _ -> add_song path
+    with Sys_error _ -> add_song path
+  in
+  List.iter add_path paths;
+  insert_reuse lib pos (Array.of_list (List.rev !tracks))
+
+
+let remove_all lib =
+  assert (current_is_playlist lib);
+  if lib.tracks.entries <> [||] then
+  (
+    let dir = Option.get lib.current in
+    Table.remove_all lib.tracks;
+    save_playlist lib dir.path;
+    (* TODO: update DB? *)
+  )
+
+let remove_if p lib n =
+  assert (current_is_playlist lib);
+  if n > 0 then
+  (
+    let dir = Option.get lib.current in
+    let js = Table.remove_if p lib.tracks n in
+    Array.iter (fun track -> track.pos <- js.(track.pos)) lib.tracks.entries;
+    save_playlist lib dir.path;
+    (* TODO: update DB? *)
+  )
+
+let remove_selected lib =
+  remove_if (Table.is_selected lib.tracks) lib (Table.num_selected lib.tracks)
+
+let remove_unselected lib =
+  remove_if (fun i -> not (Table.is_selected lib.tracks i)) lib
+    (Table.length lib.tracks - Table.num_selected lib.tracks)
+
+
+let replace_all lib tracks =
+  if lib.tracks.entries = [||] then
+    insert lib 0 tracks
+  else
+  (
+    Table.remove_all lib.tracks;
+    insert lib 0 tracks;
+    Table.drop_undo lib.tracks;
+  )
+
+
+let move_selected lib d =
+  assert (current_is_playlist lib);
+  if Table.num_selected lib.tracks > 0 then
+  (
+    let dir = Option.get lib.current in
+    let js = Table.move_selected lib.tracks d in
+    Array.iter (fun track -> track.pos <- js.(track.pos)) lib.tracks.entries;
+    save_playlist lib dir.path;
+    (* TODO: update DB? *)
+  )
 
 
 (* Persistance *)

@@ -208,6 +208,61 @@ let make_track path : track =
   }
 
 
+(* Conversion *)
+
+let to_m3u_track (track : track) =
+  let info =
+    Option.map (fun (meta : Meta.t) ->
+      let title =
+        if meta.artist = "" then meta.title else
+        meta.artist ^ " - " ^ meta.title
+      and time =
+        match track.format with
+        | Some format -> format.time
+        | None -> meta.length
+      in
+      M3u.{title; time = int_of_float time}
+    ) track.meta
+  in
+  M3u.{path = track.path; info}
+
+let of_m3u_track (m3u_track : M3u.item) =
+  let track = make_track m3u_track.path in
+  Option.iter (fun (info : M3u.info) ->
+    Option.iter (fun (artist, title) ->
+      let meta = Meta.meta track.path None in
+      track.meta <- Some {meta with artist; title; length = float info.time}
+    ) (Track.artist_title_of_name info.title)
+  ) m3u_track.info;
+  track
+
+
+let to_playlist_track (track : track) : Track.t =
+  {
+    path = track.path;
+    name =
+      (match track.meta with
+      | Some meta -> Track.name_of_meta track.path meta
+      | None -> Track.name_of_path track.path
+      );
+    time =
+      (match track.format with
+      | Some format -> format.time
+      | None -> 0.0
+      );
+    status = track.status;
+    last_update = track.file.age;
+  }
+
+let of_playlist_track (pl_track : Track.t) =
+  let track = make_track pl_track.path in
+  Option.iter (fun (artist, title) ->
+    let meta = Meta.meta track.path None in
+    track.meta <- Some {meta with artist; title; length = pl_track.time}
+  ) (Track.artist_title_of_name pl_track.name);
+  track
+
+
 (* String Conversion *)
 
 let string_of_order = function

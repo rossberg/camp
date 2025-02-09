@@ -63,23 +63,6 @@ let make path =
   if M3u.is_separator path then make_separator () else
   make' path (name_of_path path) 0.0 `Undet
 
-let make_from_data (track : Data.track) =
-  {
-    path = track.path;
-    name =
-      (match track.meta with
-      | Some meta -> name_of_meta track.path meta
-      | None -> name_of_path track.path
-      );
-    time =
-      (match track.format with
-      | Some format -> format.time
-      | None -> 0.0
-      );
-    status = track.status;
-    last_update = track.file.age;
-  }
-
 
 (* Properties *)
 

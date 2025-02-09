@@ -73,8 +73,11 @@ val move_selected : 'a t -> int -> int array
 
 (* Undo *)
 
+val push_undo : 'a t -> unit
 val pop_undo : 'a t -> unit
 val pop_redo : 'a t -> unit
 
 val drop_undo : 'a t -> unit
 val drop_redo : 'a t -> unit
+
+val clear_undo : 'a t -> unit

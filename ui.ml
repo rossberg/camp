@@ -319,7 +319,7 @@ let mouse_status ui r = function
       `Hovered
 
 
-type drag += Drag of {pos : point}
+type drag += Drag of {pos : point; moved : bool}
 
 let drag_status ui r (stepx, stepy) =
   if not (inside ui.drag_origin r) then
@@ -334,15 +334,15 @@ let drag_status ui r (stepx, stepy) =
   ui.mouse_owned <- true;
   match ui.drag_extra with
   | No_drag ->
-    ui.drag_extra <- Drag {pos = m};
-    if stepx * stepy = 0 then `Drag (0, 0) else `None
-  | Drag {pos; _} ->
+    ui.drag_extra <- Drag {pos = m; moved = false};
+    `Drag ((0, 0), false)
+  | Drag {pos; moved} ->
     let dx, dy = sub m pos in
     let dx' = if stepx = 0 then dx else dx / stepx in
     let dy' = if stepy = 0 then dy else dy / stepy in
-    ui.drag_extra <-
-      Drag {pos = mx - dx mod max 1 stepx, my - dy mod max 1 stepy};
-    `Drag (dx', dy')
+    let pos = mx - dx mod max 1 stepx, my - dy mod max 1 stepy in
+    ui.drag_extra <- Drag {pos; moved = Mouse.is_drag `Left};
+    `Drag ((dx', dy'), moved)  (* moved is is_drag delayed by 1 frame *)
   | _ -> assert false
 
 let wheel_status ui r =
@@ -801,9 +801,9 @@ let header ui area gw cols titles sorting hscroll =
     Mouse.set_cursor ui.win (`Resize `E_W);
 
   match drag_status ui r (1, max_int) with
-  | `None | `Drop -> `None
+  | `None | `Take | `Drop -> `None
   | `Click -> find_heading mx
-  | `Drag (dx, _) ->
+  | `Drag ((dx, _), _) ->
     match find_gutter (mx - dx) with
     | None -> `None
     | Some i ->
@@ -816,13 +816,20 @@ let header ui area gw cols titles sorting hscroll =
 
 (* Rich Tables *)
 
+let rich_table_inner _ui area _gw ch sw sh has_headings =
+  let (p, ax, ay, aw, ah) = area in
+  let ty = if has_headings then ay else ay + ch + 2 in
+  let th =
+    ah - (if ah < 0 then 0 else ty - ay) - (if sh = 0 then 0 else sh + 1) in
+  (p, ax, ty, aw - sw - 1, th)
+
 let rich_table ui area gw ch sw sh cols headings_opt (tab : _ Table.t) pp_row =
   let (p, ax, ay, aw, ah) = area in
   let ty = if headings_opt = None then ay else ay + ch + 2 in
   let th = ah - (if ah < 0 then 0 else ty - ay) - (if sh = 0 then 0 else sh + 1) in
   let header_area = (p, ax, ay, aw - sw - 1, ch) in
   let table_area = (p, ax, ty, aw - sw - 1, th) in
-  let vscroll_area = (p, aw - sw - 1, ay, sw, ah) in
+  let vscroll_area = (p, (if aw < 0 then aw - sw - 1 else ax + aw + 1), ay, sw, ah) in
   let hscroll_area = (p, ax, (if ah < 0 then ah - sh else ty + th + 1), aw - sw - 1, sh) in
   let (_, _, w, h) as r = dim ui table_area in
 
@@ -881,7 +888,7 @@ let rich_table ui area gw ch sw sh cols headings_opt (tab : _ Table.t) pp_row =
             `Click (Some i)
           )
 
-        | `Drag (_, dy) -> `Move dy
+        | `Drag ((_, dy), moved) -> `Move (dy, moved)
 
         | `Drop -> `Drop
       )
@@ -1027,7 +1034,7 @@ let rich_table ui area gw ch sw sh cols headings_opt (tab : _ Table.t) pp_row =
       (
         (* Cmd-cursor movement: move selection *)
         Table.adjust_scroll tab (Some i) page;
-        `Move d
+        `Move (d, false)
       )
       else `None
     )

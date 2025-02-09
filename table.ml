@@ -203,6 +203,10 @@ let pop_redo tab = pop_unredo tab tab.redos tab.undos
 let drop_undo tab = tab.undos := List.tl !(tab.undos)
 let drop_redo tab = tab.redos := List.tl !(tab.redos)
 
+let clear_undo tab =
+  tab.undos := [];
+  tab.redos := []
+
 
 (* Editing *)
 

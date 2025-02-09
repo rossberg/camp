@@ -119,3 +119,17 @@ val select_invert : t -> unit
 
 val select : t -> int -> int -> unit
 val deselect : t -> int -> int -> unit
+
+
+(* Playlist Editing *)
+
+val insert : t -> int -> track array -> unit
+val insert_paths : t -> int -> Data.path list -> unit
+
+val remove_all : t -> unit
+val remove_selected : t -> unit
+val remove_unselected : t -> unit
+
+val replace_all : t -> track array -> unit
+
+val move_selected : t -> int -> unit
