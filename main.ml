@@ -1,5 +1,7 @@
 (* Main Program *)
 
+open Audio_file
+
 
 (* Helpers *)
 
@@ -474,20 +476,45 @@ let run_playlist (st : State.t) =
   let is_executable path =
     try Unix.(access path [X_OK]); true with Unix.Unix_error _ -> false
   in
-  let tag_available = selected && is_executable st.config.exec_tag in
+  let tag_available =
+    is_executable st.config.exec_tag &&
+    (Playlist.length pl > 0 || lay.library_shown && lib.current <> None)
+  in
   if Layout.tag_button lay (if tag_available then Some false else None) then
   (
     (* Click on Tag button: execute tagging program *)
-    let tracks = Array.to_list (Playlist.selected pl) in
+    let paths =
+      if selected || pl.table.focus then
+        let tracks =
+          if selected then
+            (* Target is playlist with selection: take selected tracks *)
+            Playlist.selected pl
+          else
+            (* Target is playlist without selection: take all tracks *)
+            pl.table.entries
+        in Array.map (fun (track : Track.t) -> track.path) tracks
+      else
+        let dir = Option.get lib.current in
+        let tracks =
+          if dir.tracks_shown && Library.num_selected lib > 0 then
+            (* Target is tracks view: take selected tracks *)
+            Library.selected lib
+          else
+            (* Target is not tracks view: take all (filtered) tracks *)
+            lib.tracks.entries
+        in Array.map (fun (track : Data.track) -> track.path) tracks
+    in
+    (* Command-click: add tracks to tagger if it's already open *)
+    let additive = Api.Key.is_modifier_down `Command in
     Domain.spawn (fun () ->
-      let tracks' = List.filter (fun tr -> not (Track.is_separator tr)) tracks in
-      let paths = List.map (fun (track : Track.t) -> track.path) tracks' in
-      if st.config.exec_tag_max_len = 0 then
-        exec st.config.exec_tag paths
+      let paths' =
+        List.filter (fun p -> not (M3u.is_separator p)) (Array.to_list paths) in
+      if st.config.exec_tag_max_len = 0 && not additive then
+        exec st.config.exec_tag paths'
       else
       (
         (* Work around Windows command line limits *)
-        let args = ref paths in
+        let args = ref paths' in
         let rec pick len max =
           match !args with
           | [] -> []
@@ -504,14 +531,15 @@ let run_playlist (st : State.t) =
          * which is very slow, so only use that when (a) we have less then a
          * certain number of tracks, or (b) when the command line gets too long
          * for a single call anyways. *)
-        let max = if List.length tracks < 20 then 1 else st.config.exec_tag_max_len in
-        exec st.config.exec_tag (pick 0 max);
+        let max =
+          if List.length paths' < 20 then 1 else st.config.exec_tag_max_len in
+        if not additive then exec st.config.exec_tag (pick 0 max);
         List.iter (fun arg -> exec st.config.exec_tag ["/add"; arg]) !args;
       )
     ) |> ignore;
   );
 
-  (* Spearator button *)
+  (* Separator button *)
   if Layout.sep_button lay (Some false) then
   (
     (* Click on Separator button: insert separator *)
