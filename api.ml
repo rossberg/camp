@@ -575,7 +575,6 @@ struct
     )
 
   let free () sound =
-    assert (sound != silence ());
     Raylib.stop_music_stream sound.music;
     Option.iter Storage.remove_temp sound.temp;
     Raylib.unload_music_stream sound.music

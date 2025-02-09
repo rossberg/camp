@@ -1287,7 +1287,12 @@ let startup () =
   let rst = ref (State.make ui audio db) in
   let st = if State.load !rst then !rst else State.make ui audio db in
   Playlist.focus st.playlist;
-  at_exit (fun () -> State.save st; Storage.clear_temp (); Db.exit db);
+  at_exit (fun () ->
+    State.save st;
+    Api.Audio.free audio st.control.sound;
+    Storage.clear_temp ();
+    Db.exit db
+  );
   st
 
 let _main =
