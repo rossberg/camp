@@ -143,7 +143,7 @@ let run_control (st : State.t) =
   let name =
     match ctl.current with
     | Some track when not (Track.is_separator track) ->
-      track.name ^ " - " ^ fmt_time track.time
+      Track.name track ^ " - " ^ fmt_time (Track.time track)
     | _ -> App.(name ^ " " ^ version)
   in
   Layout.title_ticker lay name;
@@ -404,9 +404,9 @@ let run_playlist (st : State.t) =
   let digits_pos = log10 (len + 1) + 1 in
   let digits_time = ref 1 in
   for i = tab.vscroll to min len (tab.vscroll + page) - 1 do
-    if tab.entries.(i).time > 599.4 then
-      digits_time := max !digits_time
-        (if tab.entries.(i).time > 5999.4 then 3 else 2)
+    let time = Track.time tab.entries.(i) in
+    if time > 599.4 then
+      digits_time := max !digits_time (if time > 5999.4 then 3 else 2)
   done;
   let font = Ui.font lay.ui lay.text in
   let s_pos = String.make digits_pos '0' ^ "." in
@@ -417,7 +417,7 @@ let run_playlist (st : State.t) =
 
   let pp_row i =
     let track = tab.entries.(i) in
-    if now -. track.last_update > st.config.delay_track_update then
+    if now -. track.file.age > st.config.delay_track_update then
       Track.update track;
     let c =
       match track.status with
@@ -429,8 +429,9 @@ let run_playlist (st : State.t) =
       | `Undet -> Ui.semilit_color (Ui.text_color lay.ui)
       | `Predet | `Det -> Ui.text_color lay.ui
     in
-    let time = if track.time = 0.0 then "" else fmt_time track.time in
-    c, [|fmt "%0*d." digits_pos (i + 1); track.name; time|]
+    let time = Track.time track in
+    let stime = if time = 0.0 then "" else fmt_time time in
+    c, [|fmt "%0*d." digits_pos (i + 1); Track.name track; stime|]
   in
 
   (match Layout.playlist_table lay cols None tab pp_row with
@@ -522,7 +523,7 @@ let run_playlist (st : State.t) =
           let pos = min len ((my - y) / lay.text + lib.tracks.vscroll) in
           Library.insert_paths lib pos
             (Array.to_list
-              (Array.map (fun (track : Track.t) -> track.path) tracks));
+              (Array.map (fun (track : Data.track) -> track.path) tracks));
           Playlist.defocus pl;
           Playlist.deselect_all pl;
           Library.focus_tracks lib;
@@ -561,7 +562,7 @@ let run_playlist (st : State.t) =
           else
             (* Target is playlist without selection: take all tracks *)
             pl.table.entries
-        in Array.map (fun (track : Track.t) -> track.path) tracks
+        in Array.map (fun (track : Data.track) -> track.path) tracks
       else
         let dir = Option.get lib.current in
         let tracks =
@@ -613,7 +614,7 @@ let run_playlist (st : State.t) =
   (
     (* Click on Separator button: insert separator *)
     let pos = Option.value (Playlist.first_selected pl) ~default: 0 in
-    Playlist.insert pl pos [|Track.make_separator ()|];
+    Playlist.insert pl pos [|Data.make_separator ()|];
     Control.switch_if_empty st.control (Playlist.current_opt pl);
     if Playlist.num_selected pl = 1 then
     (
@@ -665,7 +666,7 @@ let run_playlist (st : State.t) =
   if Layout.cut_key lay then
   (
     (* Press of Cut key: remove selected tracks and write them to clipboard *)
-    let s = Playlist.string_of_playlist (Playlist.selected pl) in
+    let s = Track.to_m3u (Playlist.selected pl) in
     Api.Clipboard.write win s;
     Playlist.remove_selected pl;
   );
@@ -673,7 +674,7 @@ let run_playlist (st : State.t) =
   if Layout.copy_key lay then
   (
     (* Press of Copy key: write selected tracks to clipboard *)
-    let s = Playlist.string_of_playlist (Playlist.selected pl) in
+    let s = Track.to_m3u (Playlist.selected pl) in
     Api.Clipboard.write win s;
   );
 
@@ -683,7 +684,7 @@ let run_playlist (st : State.t) =
     match Api.Clipboard.read win with
     | None -> ()
     | Some s ->
-      let tracks = Playlist.playlist_of_string s in
+      let tracks = Track.of_m3u s in
       let pos = Option.value (Playlist.first_selected pl) ~default: 0 in
       Playlist.insert pl pos tracks;
       Control.switch_if_empty st.control (Playlist.current_opt pl);
@@ -800,7 +801,7 @@ let run_library (st : State.t) =
       (* CLick on triangle: fold/unfold entry *)
       let dir = browser.entries.(i) in
       browser.selected <- selected;  (* override selection change *)
-      if Api.Mouse.is_pressed `Left then
+      if Api.Mouse.is_released `Left then
         Library.fold_dir lib dir (not dir.folded);
     )
     else
@@ -823,8 +824,8 @@ let run_library (st : State.t) =
         Table.deselect_all lib.artists;  (* deactivate possible inner filters *)
         Table.deselect_all lib.albums;
         Library.update_albums lib;
-        let tracks = Array.map Data.to_playlist_track lib.tracks.entries in
-        Playlist.replace_all pl tracks;
+        let tracks = lib.tracks.entries in
+        Playlist.replace_all pl lib.tracks.entries;
         Control.eject st.control;
         if tracks <> [||] then Control.switch st.control tracks.(0) true;
       )
@@ -856,7 +857,7 @@ let run_library (st : State.t) =
     if Api.inside m r then
     (
       (* Drag & drop onto playlist: send directory contents to playlist *)
-      let tracks = Array.map Data.to_playlist_track lib.tracks.entries in
+      let tracks = lib.tracks.entries in
       let len = Playlist.length pl in
       let pos = min len ((my - y) / lay.text + pl.table.vscroll) in
       Playlist.insert pl pos tracks;
@@ -1024,7 +1025,7 @@ let run_library (st : State.t) =
       (* Double-click on track: clear playlist and send tracks to it *)
       Table.deselect_all lib.albums;  (* deactivate possible inner filter *)
       Library.update_tracks lib;
-      let tracks = Array.map Data.to_playlist_track lib.tracks.entries in
+      let tracks = lib.tracks.entries in
       Playlist.replace_all pl tracks;
       Control.eject st.control;
       if tracks <> [||] then Control.switch st.control tracks.(0) true;
@@ -1060,7 +1061,7 @@ let run_library (st : State.t) =
         let tracks = lib.tracks.entries in
         let len = Playlist.length pl in
         let pos = min len ((my - y) / lay.text + pl.table.vscroll) in
-        Playlist.insert pl pos (Array.map Data.to_playlist_track tracks);
+        Playlist.insert pl pos tracks;
         Library.defocus lib;
         Library.deselect_all lib;
         Playlist.focus pl;
@@ -1124,7 +1125,7 @@ let run_library (st : State.t) =
 
     | `Click (Some _i) when Api.Mouse.is_doubleclick `Left ->
       (* Double-click on track: clear playlist and send tracks to it *)
-      let tracks = Array.map Data.to_playlist_track lib.tracks.entries in
+      let tracks = lib.tracks.entries in
       Playlist.replace_all pl tracks;
       Control.eject st.control;
       if tracks <> [||] then Control.switch st.control tracks.(0) true;
@@ -1160,7 +1161,7 @@ let run_library (st : State.t) =
         let tracks = lib.tracks.entries in
         let len = Playlist.length pl in
         let pos = min len ((my - y) / lay.text + pl.table.vscroll) in
-        Playlist.insert pl pos (Array.map Data.to_playlist_track tracks);
+        Playlist.insert pl pos tracks;
         Library.defocus lib;
         Library.deselect_all lib;
         Playlist.focus pl;
@@ -1242,7 +1243,7 @@ let run_library (st : State.t) =
         then Library.selected lib
         else [|tab.entries.(i)|]
       in
-      Playlist.replace_all pl (Array.map Data.to_playlist_track tracks);
+      Playlist.replace_all pl tracks;
       Control.eject st.control;
       Control.switch st.control (Playlist.current pl) true;
 
@@ -1273,7 +1274,7 @@ let run_library (st : State.t) =
         let tracks = Library.selected lib in
         let len = Playlist.length pl in
         let pos = min len ((my - y) / lay.text + pl.table.vscroll) in
-        Playlist.insert pl pos (Array.map Data.to_playlist_track tracks);
+        Playlist.insert pl pos tracks;
         Library.defocus lib;
         Library.deselect_all lib;
         Playlist.focus pl;

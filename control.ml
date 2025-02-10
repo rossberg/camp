@@ -1,7 +1,7 @@
 (* Control State *)
 
 type time = float
-type track = Track.t
+type track = Data.track
 
 type t =
 {
@@ -81,9 +81,11 @@ let switch ctl (track : track) play =
   ctl.sound <- Api.Audio.load ctl.audio track.path;
   ctl.current <- Some track;
   ctl.loop <- `None;
+(*
   track.time <-
     if ctl.sound = Api.Audio.silence ctl.audio then 0.0
     else Api.Audio.length ctl.audio ctl.sound;
+*)
   Track.update track;
   Api.Audio.volume ctl.audio ctl.sound (if ctl.mute then 0.0 else ctl.volume);
   Api.Audio.play ctl.audio ctl.sound;
@@ -150,10 +152,7 @@ let of_map ctl m =
   read_map m "volume" (fun s -> ctl.volume <- scan s "%f" (num 0.0 1.0));
   read_map m "mute" (fun s -> ctl.mute <- scan s "%d" bool);
   read_map m "play" (fun s ->
-    if s <> "" then
-    let track = Track.make s in
-    ctl.current <- Some track;
-    switch ctl track false
+    if s <> "" then switch ctl (Data.make_track s) false
   );
   read_map m "seek" (fun s -> seek ctl (scan s "%f" (num 0.0 1.0)));
   read_map m "repeat" (fun s ->

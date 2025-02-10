@@ -1,7 +1,8 @@
 (* Playlist *)
 
-type time = Track.time
-type track = Track.t
+type path = Data.path
+type time = Data.time
+type track = Data.track
 
 type shuffle
 
@@ -35,9 +36,6 @@ val to_map_extra : t -> Storage.map
 
 val load_playlist : t -> unit
 val save_playlist : t -> unit
-
-val string_of_playlist : track array -> string
-val playlist_of_string : string -> track array
 
 
 (* Accessors *)
@@ -92,7 +90,7 @@ val deselect : t -> int -> int -> unit
 (* Editing *)
 
 val insert : t -> int -> track array -> unit
-val insert_paths : t -> int -> Track.path list -> unit
+val insert_paths : t -> int -> path list -> unit
 
 val remove_all : t -> unit
 val remove_selected : t -> unit

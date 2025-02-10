@@ -785,9 +785,8 @@ let current_is_playlist lib =
 let save_playlist lib path =
   let tracks = Array.map Fun.id lib.tracks.entries in
   Array.sort (fun (t1 : track) (t2 : track) -> compare t1.pos t2.pos) tracks;
-  let items = Array.map Data.to_m3u_track tracks in
-  let s = M3u.make_ext (Array.to_list items) in
   try
+    let s = Track.to_m3u tracks in
     Out_channel.with_open_bin path (fun file -> output_string file s)
   with exn -> Storage.log
     ("error writing playlist " ^ path ^ ": " ^ Printexc.to_string exn)

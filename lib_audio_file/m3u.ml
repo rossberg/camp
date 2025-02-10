@@ -13,7 +13,9 @@ let is_known_ext path =
   List.mem (String.lowercase_ascii (Filename.extension path)) exts
 
 
-let is_separator path = String.starts_with ~prefix:"separator:" path
+let separator = "separator://"
+
+let is_separator path = String.starts_with ~prefix: "separator:" path
 
 
 let string_of_item {path; info} =

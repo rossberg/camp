@@ -2,8 +2,9 @@
 
 open Audio_file
 
-type time = Track.time
-type track = Track.t
+type path = Data.path
+type time = Data.time
+type track = Data.track
 
 type shuffle =
 {
@@ -81,7 +82,10 @@ let sub_total (t1, n1) (t2, n2) = (max 0.0 (t1 -. t2), max 0 (n1 - n2))
 let track_total (track : track) =
   match track.status with
   | `Undet | `Invalid | `Absent -> 0.0, 1
-  | `Predet | `Det -> track.time, 0
+  | `Predet | `Det ->
+    match track.format with
+    | Some format when format.time <> 0.0 -> format.time, 0
+    | _ -> 0.0, 1
 
 let range_total pl i j =
   let total = ref (0.0, 0) in
@@ -263,16 +267,12 @@ let insert_paths pl pos paths =
   in
   let add_song path =
     if Format.is_known_ext path then
-      add_track (Track.make path)
+      add_track (Data.make_track path)
   in
   let add_playlist path =
     let s = In_channel.(with_open_bin path input_all) in
-    List.iter (fun M3u.{path; info} ->
-      let track =
-        match info with
-        | None -> Track.make path
-        | Some {title; time} -> Track.make_predet path title (float time)
-      in add_track track
+    List.iter (fun item ->
+      add_track (Track.of_m3u_item item)
     ) (M3u.parse_ext s)
   in
   let rec add_path path =
@@ -371,30 +371,15 @@ let move_selected pl d =
 
 let playlist_file = "playlist.m3u"
 
-let string_of_playlist (tracks : Track.t array) =
-  List.init (Array.length tracks) (fun i ->
-    let time = int_of_float tracks.(i).time in
-    let info =
-      if time = 0 then None else Some M3u.{time; title = tracks.(i).name} in
-    M3u.{path = tracks.(i).path; info}
-  ) |> M3u.make_ext
-
-let playlist_of_string s =
-  Array.map (fun (item : M3u.item) ->
-    match item.info with
-    | None -> Track.make item.path
-    | Some info -> Track.make_predet item.path info.title (float info.time)
-  ) (Array.of_list (M3u.parse_ext s))
-
 
 let save_playlist pl =
   Storage.save playlist_file (fun file ->
-    Out_channel.output_string file (string_of_playlist pl.table.entries)
+    Out_channel.output_string file (Track.to_m3u pl.table.entries)
   )
 
 let load_playlist pl =
   Storage.load playlist_file (fun file ->
-    pl.table.entries <- playlist_of_string (In_channel.input_all file)
+    pl.table.entries <- Track.of_m3u (In_channel.input_all file)
   )
 
 

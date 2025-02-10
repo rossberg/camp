@@ -1,21 +1,20 @@
 (* Tracks *)
 
 open Audio_file
-
-type path = string
-type time = float
-
-type t =
-{
-  path : path;
-  mutable name : string;
-  mutable time : time;
-  mutable status : [`Undet | `Predet | `Det | `Invalid | `Absent];
-  mutable last_update : time;
-}
+open Data
 
 
-(* Constructors *)
+(* Properties *)
+
+let is_separator (track : track) = M3u.is_separator track.path
+
+let is_invalid track =
+  match track.status with
+  | `Invalid | `Absent -> true
+  | `Det | `Predet | `Undet -> false
+
+
+(* Names *)
 
 let name_separator = String.make 80 '-'
 
@@ -23,13 +22,25 @@ let name_of_path path =
   let file = Filename.basename path in
   if Format.is_known_ext file then Filename.remove_extension file else file
 
+let name_of_artist_title artist title =
+  let artist = if artist = "" then "[unknown]" else artist in
+  let title = if title = "" then "[unknown]" else title in
+  artist ^ " - " ^ title
+
 let name_of_meta path (meta : Meta.t) =
   if meta.artist <> "" && meta.title <> "" then
     meta.artist ^ " - " ^ meta.title
   else if meta.title <> "" then
-    meta.title
+    "[unknown] - " ^ meta.title
   else
     name_of_path path
+
+let name track =
+  if is_separator track then name_separator else
+  match track.meta with
+  | Some meta -> name_of_meta track.path meta
+  | None -> name_of_artist_title "" ""
+
 
 let artist_title_of_name name =
   let rec find i =
@@ -52,26 +63,45 @@ let artist_title_of_path path =
     if result' = None then result else result'
 
 
-let make' path name time status =
-  {path; name; time; status; last_update = 0.0}
-
-let make_separator () = make' "separator://" name_separator 0.0 `Det
-
-let make_predet path name time = make' path name time `Predet
-
-let make path =
-  if M3u.is_separator path then make_separator () else
-  make' path (name_of_path path) 0.0 `Undet
+let time track =
+  match track.format with
+  | Some format -> format.time
+  | None ->
+    match track.meta with
+    | Some meta -> meta.length
+    | None -> 0.0
 
 
-(* Properties *)
+(* Conversion *)
 
-let is_separator track = M3u.is_separator track.path
+let to_m3u_item (track : Data.track) =
+  let info =
+    Option.map (fun (meta : Meta.t) ->
+      let title = name_of_meta track.path meta in
+      let time = time track in
+      M3u.{title; time = int_of_float time}
+    ) track.meta
+  in
+  M3u.{path = track.path; info}
 
-let is_invalid track =
-  match track.status with
-  | `Invalid | `Absent -> true
-  | `Det | `Predet | `Undet -> false
+let of_m3u_item (item : M3u.item) =
+  let track = Data.make_track item.path in
+  if is_separator track then
+    track.status <- `Det
+  else if not (Format.is_known_ext track.path) then
+    track.status <- `Invalid
+  else
+    Option.iter (fun (info : M3u.info) ->
+      Option.iter (fun (artist, title) ->
+        let meta = Meta.meta track.path None in
+        track.meta <- Some {meta with artist; title; length = float info.time}
+      ) (artist_title_of_name info.title)
+    ) item.info;
+  track
+
+
+let to_m3u tracks = M3u.make_ext (Array.to_list (Array.map to_m3u_item tracks))
+let of_m3u s = Array.map of_m3u_item (Array.of_list (M3u.parse_ext s))
 
 
 (* Updating queue *)
@@ -79,49 +109,37 @@ let is_invalid track =
 let queue = Safe_queue.create ()
 
 let update track =
-  if track.last_update >= 0.0 then
+  if track.file.age >= 0.0 then
   (
-    track.last_update <- -1.0;
+    track.file.age <- -1.0;
     Safe_queue.add track queue;
   )
 
 let rec updater () =
   let track = Safe_queue.take queue in
   if M3u.is_separator track.path then
-  (
-    track.status <- `Det;
-    track.time <- 0.0;
-    track.name <- name_separator;
-  )
+    track.status <- `Det
   else if not (Sys.file_exists track.path) then
-  (
-    track.status <- `Absent;
-    track.name <- name_of_path track.path
-  )
+    track.status <- `Absent
   else if not (Format.is_known_ext track.path) then
-  (
-    track.status <- `Invalid;
-    track.name <- name_of_path track.path
-  )
+    track.status <- `Invalid
   else
   (
     try
+      track.format <- Some (Format.read track.path);
       let meta = Meta.load track.path ~with_cover: false in
-      if meta.loaded then track.status <- `Det;
-      if track.time = 0.0 then
+      if meta.loaded then
       (
-        if meta.length <> 0.0 then track.time <- meta.length else
-        let format = Format.read track.path in
-        track.time <- format.time;
-      );
-      track.name <- name_of_meta track.path meta
+        track.meta <- Some meta;
+        track.status <- `Det;
+      )
     with
     | Sys_error _ -> track.status <- `Invalid
     | exn ->
-      Printf.fprintf stderr "uncaught exception in updater thread: %s\n%!"
-        (Printexc.to_string exn)
+      Storage.log ("failure updating playlist entry " ^ track.path ^
+        ": " ^ Printexc.to_string exn)
   );
-  track.last_update <- Unix.time ();
+  track.file.age <- Unix.time ();
   updater ()
 
 let _ = Domain.spawn updater

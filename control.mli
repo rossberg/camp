@@ -1,7 +1,7 @@
 (* Control State *)
 
 type time = float
-type track = Track.t
+type track = Data.track
 
 type t =
 {
