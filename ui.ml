@@ -319,7 +319,8 @@ let mouse_status ui r = function
       `Hovered
 
 
-type drag += Drag of {pos : point; moved : bool}
+type way = [`Start | `Inside | `Outside | `Outward | `Inward]
+type drag += Drag of {pos : point; moved : bool; inside : bool}
 
 let drag_status ui r (stepx, stepy) =
   if not (inside ui.drag_origin r) then
@@ -334,15 +335,26 @@ let drag_status ui r (stepx, stepy) =
   ui.mouse_owned <- true;
   match ui.drag_extra with
   | No_drag ->
-    ui.drag_extra <- Drag {pos = m; moved = false};
-    `Drag ((0, 0), false)
-  | Drag {pos; moved} ->
+    ui.drag_extra <- Drag {pos = m; moved = false; inside = true};
+    `None
+  | Drag {pos; moved; inside} ->
     let dx, dy = sub m pos in
     let dx' = if stepx = 0 then dx else dx / stepx in
     let dy' = if stepy = 0 then dy else dy / stepy in
     let pos = mx - dx mod max 1 stepx, my - dy mod max 1 stepy in
-    ui.drag_extra <- Drag {pos; moved = Mouse.is_drag `Left};
-    `Drag ((dx', dy'), moved)  (* moved is is_drag delayed by 1 frame *)
+    let moved' = Mouse.is_drag `Left in
+    let inside' = Api.inside m r in
+    ui.drag_extra <- Drag {pos; moved = moved'; inside = inside'};
+    if not moved' then `None else
+    let way =
+      if not moved then `Start else
+      match inside, inside' with
+      | true, true -> `Inside
+      | true, false -> `Outward
+      | false, true -> `Inward
+      | false, false -> `Outside
+    in
+    `Drag ((dx', dy'), way)
   | _ -> assert false
 
 let wheel_status ui r =
@@ -888,7 +900,7 @@ let rich_table ui area gw ch sw sh cols headings_opt (tab : _ Table.t) pp_row =
             `Click (Some i)
           )
 
-        | `Drag ((_, dy), moved) -> `Move (dy, moved)
+        | `Drag ((_, dy), way) -> `Drag (dy, way)
 
         | `Drop -> `Drop
       )
@@ -1034,7 +1046,7 @@ let rich_table ui area gw ch sw sh cols headings_opt (tab : _ Table.t) pp_row =
       (
         (* Cmd-cursor movement: move selection *)
         Table.adjust_scroll tab (Some i) page;
-        `Move (d, false)
+        `Move d
       )
       else `None
     )

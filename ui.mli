@@ -41,9 +41,11 @@ val font : t -> int -> Api.font
 
 (* Input elements *)
 
+type way = [`Start | `Inside | `Outside | `Outward | `Inward]
+
 val key : t -> modifier list * key -> bool
 val mouse : t -> area -> side -> bool
-val drag : t -> area -> size -> [`Drag of size * bool | `Drop | `Click | `None]
+val drag : t -> area -> size -> [`Drag of size * way | `Drop | `Click | `None]
 val wheel : t -> area -> float
 val drop : t -> area -> string list
 
@@ -92,6 +94,6 @@ val rich_table :
   (string array * sorting) option -> (* headers *)
   'a Table.t ->                      (* data *)
   (int -> color * string array) ->   (* row generator *)
-    [`Click of int option | `Select | `Scroll | `Sort of int | `Arrange | `Move of int * bool | `Drop | `None]
+    [`Click of int option | `Select | `Scroll | `Sort of int | `Arrange | `Move of int | `Drag of int * way | `Drop | `None]
 
 val rich_table_inner : t -> area -> int -> int  -> int -> int -> bool -> area

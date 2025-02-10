@@ -450,15 +450,24 @@ let run_playlist (st : State.t) =
 
   | `Click _ ->
     (* Single-click: grab focus *)
+Printf.printf "[click A undo %d redo %d]\n%!"
+(List.length !(pl.table.undos)) (List.length !(pl.table.redos));
     Playlist.update_total_selected pl;
     Library.defocus lib;
     Library.deselect_all lib;
+Printf.printf "[click B undo %d redo %d]\n%!"
+(List.length !(pl.table.undos)) (List.length !(pl.table.redos));
 
-  | `Move (delta, moved_before) ->
-    (* Drag or Cmd-cursor movement: move selection *)
-    if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
+  | `Move delta ->
+    (* Cmd-cursor movement: move selection *)
+    Playlist.move_selected pl delta;
+
+  | `Drag (delta, way) ->
+Printf.printf "[drag A undo %d redo %d]\n%!"
+(List.length !(pl.table.undos)) (List.length !(pl.table.redos));
+    (* Drag: move selection if inside *)
+    if Api.Key.are_modifiers_down [] then
     (
-      (* Actual drag *)
       if Playlist.num_selected pl > 0 then
       (
         let m = Api.Mouse.pos win in
@@ -477,29 +486,54 @@ let run_playlist (st : State.t) =
           then `Point else `Blocked)
       );
 
-      if not moved_before then
+      (* Invariant:
+       * - when Still: no undo or redo added yet
+       * - when Inside: one undo for returning to original state on undo stack
+       * - when Outside: one redo for creating new state on redo stack
+       *)
+      (match way with
+      | `Start ->
         (* Start of drag & drop: remember original configuration *)
         Table.push_undo pl.table;
+      | `Outward ->
+        (* Leaving area: snap back to original state *)
+        Table.pop_undo pl.table
+      | `Inward ->
+        (* Reentering area: restore updated state *)
+        Table.pop_redo pl.table
+      | `Inside | `Outside -> ()
+      );
+
       if delta <> 0 && Playlist.num_selected pl > 0 then
       (
-        Playlist.move_selected pl delta;
-        (* Don't remember intermediate states *)
-        Table.drop_undo pl.table;
+Printf.printf "[undo %d redo %d]\n%!"
+(List.length !(pl.table.undos)) (List.length !(pl.table.redos));
+        match way with
+        | `Start | `Inside | `Inward ->
+          Playlist.move_selected pl delta;
+          (* Erase intermediate new state *)
+          Table.drop_undo pl.table;
+        | `Outside | `Outward ->
+          (* Temporarily restore new state, modify, and immediately undo *)
+          (* Restore new state *)
+          Table.pop_redo pl.table;
+          Playlist.move_selected pl delta;
+          (* Erase intermediate new state *)
+          Table.drop_undo pl.table;
+          (* Undo new state, recovering original *)
+          Table.pop_undo pl.table;
       )
     )
-    else
-    (
-      (* Keyboard commands *)
-      Playlist.move_selected pl delta;
-    )
+;Printf.printf "[drag B undo %d redo %d]\n%!"
+(List.length !(pl.table.undos)) (List.length !(pl.table.redos));
 
   | `Drop ->
     let r = Ui.dim lay.ui (Layout.playlist_area lay) in
     let (_, my) as m = Api.Mouse.pos win in
     if not (Api.inside m r) then
     (
-      (* Dropping outside playlist: snap back to original *)
-      Table.pop_undo pl.table;
+      (* Dropping outside playlist: drop redo for new state *)
+      Table.drop_redo pl.table;
 
       match lib.current with
       | Some dir
@@ -775,7 +809,7 @@ let run_library (st : State.t) =
   let dir = Library.selected_dir lib in
   let selected = browser.selected in
   (match Layout.browser_table lay cols None browser pp_row with
-  | `None | `Scroll -> ()
+  | `None | `Scroll | `Move _ -> ()
   | `Sort _ | `Arrange -> assert false
 
   | `Select ->
@@ -839,11 +873,10 @@ let run_library (st : State.t) =
     Library.focus_browser lib;
     Playlist.defocus pl;
 
-  | `Move _ ->
-    (* Drag or Cmd-cursor movement: adjust cursor *)
-    if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
+  | `Drag _ ->
+    (* Drag: adjust cursor *)
+    if Api.Key.are_modifiers_down [] then
     (
-      (* Actual drag *)
       Api.Mouse.set_cursor win
         (if
           Api.inside m (Ui.dim lay.ui (Layout.browser_area lay)) ||
@@ -995,7 +1028,7 @@ let run_library (st : State.t) =
     let selected = tab.selected in
     let sorting = convert_sorting dir.artists_columns dir.artists_sorting in
     (match artists_table lay cols (Some (headings, sorting)) tab pp_row with
-    | `None | `Scroll -> ()
+    | `None | `Scroll | `Move _ -> ()
 
     | `Select ->
       (* TODO: allow multiple selections *)
@@ -1040,11 +1073,10 @@ let run_library (st : State.t) =
       Playlist.defocus pl;
       Playlist.deselect_all pl;
 
-    | `Move _ ->
-      (* Drag or Cmd-cursor movement: adjust cursor *)
-      if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
+    | `Drag _ ->
+      (* Drag: adjust cursor *)
+      if Api.Key.are_modifiers_down [] then
       (
-        (* Actual drag *)
         Api.Mouse.set_cursor win
           (if
             Api.inside m (Ui.dim lay.ui (artists_area lay)) ||
@@ -1097,7 +1129,7 @@ let run_library (st : State.t) =
     let selected = tab.selected in
     let sorting = convert_sorting dir.albums_columns dir.albums_sorting in
     (match albums_table lay cols (Some (headings, sorting)) tab pp_row with
-    | `None | `Scroll -> ()
+    | `None | `Scroll | `Move _ -> ()
 
     | `Select ->
       (* TODO: allow multiple selections *)
@@ -1140,11 +1172,10 @@ let run_library (st : State.t) =
       Playlist.defocus pl;
       Playlist.deselect_all pl;
 
-    | `Move _ ->
-      (* Drag or Cmd-cursor movement: adjust cursor *)
-      if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
+    | `Drag _ ->
+      (* Drag: adjust cursor *)
+      if Api.Key.are_modifiers_down [] then
       (
-        (* Actual drag *)
         Api.Mouse.set_cursor win
           (if
             Api.inside m (Ui.dim lay.ui (albums_area lay)) ||
@@ -1216,7 +1247,7 @@ let run_library (st : State.t) =
 
     let sorting = convert_sorting dir.tracks_columns dir.tracks_sorting in
     (match tracks_table lay cols (Some (headings, sorting)) tab pp_row with
-    | `None | `Select | `Scroll -> ()
+    | `None | `Select | `Scroll | `Move _ -> ()
 
     | `Sort i ->
       (* Click on column header: reorder view accordingly *)
@@ -1253,11 +1284,10 @@ let run_library (st : State.t) =
       Playlist.defocus pl;
       Playlist.deselect_all pl;
 
-    | `Move _ ->
-      (* Drag or Cmd-cursor movement: adjust cursor *)
-      if Api.Key.are_modifiers_down [] && Api.Mouse.is_drag `Left then
+    | `Drag _ ->
+      (* Drag: adjust cursor *)
+      if Api.Key.are_modifiers_down [] then
       (
-        (* Actual drag *)
         Api.Mouse.set_cursor win
           (if
             Api.inside m (Ui.dim lay.ui (tracks_area lay)) ||
