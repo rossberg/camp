@@ -4,16 +4,6 @@ open Audio_file
 open Data
 
 
-(* Properties *)
-
-let is_separator (track : track) = M3u.is_separator track.path
-
-let is_invalid track =
-  match track.status with
-  | `Invalid | `Absent -> true
-  | `Det | `Predet | `Undet -> false
-
-
 (* Names *)
 
 let name_separator = String.make 80 '-'

@@ -150,7 +150,7 @@ let make_dir path parent nest pos : dir =
     id = -1L;
     path;
     parent;
-    name = Filename.basename path;
+    name = if path = "" then path else Filename.basename path;
     nest;
     pos;
     children = [||];
@@ -211,6 +211,26 @@ let make_separator () : track =
   let track = make_track M3u.separator in
   track.status <- `Det;
   track
+
+
+(* Properties *)
+
+let parent_path path = Filename.(concat (dirname path) "")
+let is_dir_path path = String.ends_with path ~suffix: Filename.dir_sep 
+let is_playlist_path path = M3u.is_known_ext path
+let is_track_path path = Format.is_known_ext path || M3u.is_separator path
+
+let is_root dir = dir.parent = Some ""
+let is_dir (dir : dir) = dir.path = "" || is_dir_path dir.path
+let is_playlist (dir : dir) = is_playlist_path dir.path
+
+
+let is_separator (track : track) = M3u.is_separator track.path
+
+let is_invalid track =
+  match track.status with
+  | `Invalid | `Absent -> true
+  | `Det | `Predet | `Undet -> false
 
 
 (* String Conversion *)

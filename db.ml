@@ -259,42 +259,6 @@ let iter_table binds of_data stmt db f =
   ()
 
 
-(* Roots *)
-
-let create_roots = create_table
-{|
-  CREATE TABLE IF NOT EXISTS Roots
-  (
-    path TEXT NOT NULL PRIMARY KEY
-  );
-|}
-
-let count_roots = count_table @@ stmt
-{|
-  SELECT COUNT(*) FROM Roots;
-|}
-
-let exists_root = exist_in_table @@ stmt
-{|
-  SELECT COUNT(*) FROM Roots WHERE path = ?;
-|}
-
-let iter_roots = iter_table [||] (to_text 0) @@ stmt
-{|
-  SELECT * FROM Roots;
-|}
-
-let insert_root = insert_into_table bind_text (fun _ _ -> ()) @@ stmt
-{|
-  INSERT OR REPLACE INTO Roots VALUES (?);
-|}
-
-let delete_root = delete_from_table @@ stmt
-{|
-  DELETE FROM Roots WHERE path = ?;
-|}
-
-
 (* Dirs *)
 
 let create_dirs = create_table
@@ -386,7 +350,7 @@ let find_dir = find_in_table (to_dir 0) @@ stmt
 
 let iter_dirs = iter_table [||] (to_dir 0) @@ stmt
 {|
-  SELECT rowid, * FROM Dirs;
+  SELECT rowid, * FROM Dirs ORDER BY path DESC;
 |}
 
 let insert_dir = insert_into_table bind_dir (fun d id -> d.id <-id) @@ stmt
@@ -903,7 +867,6 @@ let filename = "library.db"
 
 let init () =
   let db = Sqlite3.db_open (Storage.path filename) in
-  create_roots db;
   create_dirs db;
   create_albums db;
   create_tracks db;

@@ -4,12 +4,6 @@ open Audio_file
 open Data
 
 
-(* Properties *)
-
-val is_separator : track -> bool
-val is_invalid : track -> bool
-
-
 (* Names *)
 
 val name_of_artist_title : string -> string -> string

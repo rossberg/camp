@@ -44,21 +44,11 @@ val to_map_extra : t -> Storage.map
 val adjust_scroll : t -> int option -> int -> unit
 
 
-(* Roots *)
-
-val is_root : t -> dir -> bool
-
-val load_roots : t -> unit
-
-val add_roots : t -> path list -> int -> bool
-val remove_roots : t -> path list -> unit
-
-
 (* Scanning *)
 
 type scan_mode = [`Fast | `Thorough]
 
-val rescan_roots : t -> scan_mode -> unit
+val rescan_root : t -> scan_mode -> unit
 val rescan_dirs : t -> scan_mode -> dir array -> unit
 val rescan_tracks : t -> scan_mode -> track array -> unit
 
@@ -81,6 +71,10 @@ val focus_browser : t -> unit
 val selected_dir : t -> int option
 val select_dir : t -> int -> unit
 val deselect_dir : t -> unit
+
+val load_dirs : t -> unit
+val add_dirs : t -> path list -> int -> bool
+val remove_dirs : t -> path list -> unit
 
 
 (* Views *)
@@ -129,6 +123,7 @@ val insert_paths : t -> int -> Data.path list -> unit
 val remove_all : t -> unit
 val remove_selected : t -> unit
 val remove_unselected : t -> unit
+val remove_invalid : t -> unit
 
 val replace_all : t -> track array -> unit
 

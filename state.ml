@@ -162,7 +162,7 @@ let save st =
 
 let load st =
   Playlist.load_playlist st.playlist;
-  Library.load_roots st.library;
+  Library.load_dirs st.library;
 
   let map = Storage.load_map state_file in
   layout_of_map st.layout map;

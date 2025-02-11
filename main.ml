@@ -142,7 +142,7 @@ let run_control (st : State.t) =
   (* Title info *)
   let name =
     match ctl.current with
-    | Some track when not (Track.is_separator track) ->
+    | Some track when not (Data.is_separator track) ->
       Track.name track ^ " - " ^ fmt_time (Track.time track)
     | _ -> App.(name ^ " " ^ version)
   in
@@ -423,7 +423,7 @@ let run_playlist (st : State.t) =
       match track.status with
       | _ when tab.pos = Some i ->
         if track.path = (Option.get st.control.current).path then `White else `Gray 0xc0
-      | _ when Track.is_separator track -> Ui.text_color lay.ui
+      | _ when Data.is_separator track -> Ui.text_color lay.ui
       | `Absent -> Ui.error_color lay.ui
       | `Invalid -> Ui.warn_color lay.ui
       | `Undet -> Ui.semilit_color (Ui.text_color lay.ui)
@@ -450,21 +450,15 @@ let run_playlist (st : State.t) =
 
   | `Click _ ->
     (* Single-click: grab focus *)
-Printf.printf "[click A undo %d redo %d]\n%!"
-(List.length !(pl.table.undos)) (List.length !(pl.table.redos));
     Playlist.update_total_selected pl;
     Library.defocus lib;
     Library.deselect_all lib;
-Printf.printf "[click B undo %d redo %d]\n%!"
-(List.length !(pl.table.undos)) (List.length !(pl.table.redos));
 
   | `Move delta ->
     (* Cmd-cursor movement: move selection *)
     Playlist.move_selected pl delta;
 
   | `Drag (delta, way) ->
-Printf.printf "[drag A undo %d redo %d]\n%!"
-(List.length !(pl.table.undos)) (List.length !(pl.table.redos));
     (* Drag: move selection if inside *)
     if Api.Key.are_modifiers_down [] then
     (
@@ -477,7 +471,7 @@ Printf.printf "[drag A undo %d redo %d]\n%!"
             match lib.current with
             | Some dir ->
               lay.library_shown && dir.tracks_shown &&
-              M3u.is_known_ext dir.path &&
+              Data.is_playlist dir &&
               let area =
                 if lay.lower_shown then Layout.lower_area else
                 if lay.right_shown then Layout.right_area else Layout.left_area
@@ -487,7 +481,7 @@ Printf.printf "[drag A undo %d redo %d]\n%!"
       );
 
       (* Invariant:
-       * - when Still: no undo or redo added yet
+       * - on Start: no undo or redo added yet
        * - when Inside: one undo for returning to original state on undo stack
        * - when Outside: one redo for creating new state on redo stack
        *)
@@ -506,8 +500,6 @@ Printf.printf "[drag A undo %d redo %d]\n%!"
 
       if delta <> 0 && Playlist.num_selected pl > 0 then
       (
-Printf.printf "[undo %d redo %d]\n%!"
-(List.length !(pl.table.undos)) (List.length !(pl.table.redos));
         match way with
         | `Start | `Inside | `Inward ->
           Playlist.move_selected pl delta;
@@ -524,8 +516,6 @@ Printf.printf "[undo %d redo %d]\n%!"
           Table.pop_undo pl.table;
       )
     )
-;Printf.printf "[drag B undo %d redo %d]\n%!"
-(List.length !(pl.table.undos)) (List.length !(pl.table.redos));
 
   | `Drop ->
     let r = Ui.dim lay.ui (Layout.playlist_area lay) in
@@ -537,10 +527,7 @@ Printf.printf "[undo %d redo %d]\n%!"
 
       match lib.current with
       | Some dir
-        when
-          lay.library_shown &&
-          dir.tracks_shown &&
-          M3u.is_known_ext dir.path ->
+        when lay.library_shown && dir.tracks_shown && Data.is_playlist dir ->
         let area =
           if lay.lower_shown then Layout.lower_area else
           if lay.right_shown then Layout.right_area else Layout.left_area
@@ -912,7 +899,7 @@ let run_library (st : State.t) =
       if i = pos then j else
       find_root_pos (i + 1) (if browser.entries.(i).nest = 0 then j + 1 else j)
     in
-    if Library.add_roots lib dropped (find_root_pos 0 0) then
+    if Library.add_dirs lib dropped (find_root_pos 0 0) then
       Library.update_views lib
     else
       Layout.browser_error_box lay;  (* flash *)
@@ -923,7 +910,7 @@ let run_library (st : State.t) =
   (
     match Library.selected_dir lib with
     | Some i when browser.entries.(i).parent = Some "" ->
-      Library.remove_roots lib [browser.entries.(i).path];
+      Library.remove_dirs lib [browser.entries.(i).path];
       Library.update_views lib
     | _ -> Layout.browser_error_box lay;  (* flash *)
   );
@@ -936,7 +923,7 @@ let run_library (st : State.t) =
     (* Inactive scanning indicator clicked: rescan *)
     let mode = if Api.Key.is_modifier_down `Shift then `Thorough else `Fast in
     match Library.selected_dir lib with
-    | None | Some 0 -> Library.rescan_roots lib mode
+    | None | Some 0 -> Library.rescan_root lib mode
     | Some i -> Library.rescan_dirs lib mode [|lib.browser.entries.(i)|]
   );
 
@@ -1315,11 +1302,7 @@ let run_library (st : State.t) =
     );
 
 (*
-    if
-      Sys.file_exists dir.path &&
-      Sys.is_directory dir.path &&
-      M3u.is_known_ext dir.path
-    then
+    if Data.is_playlist dir then
     (
       (* Separator button *)
       if Layout.sep_button lay (Some false) then

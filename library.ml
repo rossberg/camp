@@ -44,9 +44,6 @@ let ok lib =
   check "artists pos unset" (lib.artists.pos = None || lib.artists.pos = Some 0) @
   check "albums pos unset" (lib.albums.pos = None || lib.albums.pos = Some 0) @
   check "tracks pos unset" (lib.tracks.pos = None || lib.tracks.pos = Some 0) @
-  check "browser consistent with roots"
-    ( Array.length lib.browser.entries = 1 ||
-      Array.length lib.browser.entries >= Array.length lib.root.children ) @
   check "browser selection singular" (Table.num_selected lib.browser <= 1) @
   check "browser selection consistent with current"
     ( Table.num_selected lib.browser = 0 ||
@@ -236,7 +233,7 @@ let rescan_track lib mode track =
     (
       track.status <- `Invalid;
     )
-    else if not (Format.is_known_ext track.path) then
+    else if not (Data.is_track_path track.path) then
     (
       let stats = Unix.stat track.path in
       track.file.size <- stats.st_size;
@@ -270,12 +267,8 @@ let rescan_track lib mode track =
 let rescan_dir_tracks lib mode (dir : Data.dir) =
   try
     Array.iter (fun file ->
-      let path = Filename.concat dir.path file in
-      if
-        Sys.file_exists path &&
-        not (Sys.is_directory path) &&
-        Format.is_known_ext path
-      then
+      let path = dir.path ^ file in
+      if not (Sys.is_directory path) && Data.is_track_path path then
       (
         let track =
           match Db.find_track lib.db path with
@@ -306,14 +299,14 @@ let queue_rescan_dir_tracks = ref (fun _ -> assert false)
 let rescan_dir lib mode (origin : Data.dir) =
   let rec scan_path path nest =
     if Sys.is_directory path then
-      if Format.is_known_ext path then
+      if Data.is_track_path path then
         scan_album path nest
       else
         scan_dir path nest
     else
-      if Format.is_known_ext path then
+      if Data.is_track_path path then
         scan_track path
-      else if M3u.is_known_ext path then
+      else if Data.is_playlist_path path then
         scan_playlist path nest
       else
         None
@@ -332,12 +325,13 @@ let rescan_dir lib mode (origin : Data.dir) =
     | Some dirs ->
       let dir =
         if nest = origin.nest then origin else
-        match Db.find_dir lib.db path with
+        let dirpath = Filename.concat path "" in
+        match Db.find_dir lib.db dirpath with
         | Some dir -> dir
         | None ->
-          let parent = Some (Filename.dirname path) in
-          let dir = Data.make_dir path parent nest 0 in  (* TODO: pos *)
-          if Format.is_known_ext path then
+          let parent = Some (Data.parent_path path) in
+          let dir = Data.make_dir dirpath parent nest 0 in  (* TODO: pos *)
+          if Data.is_track_path path then
             dir.name <- Filename.remove_extension dir.name;
           dir.folded <- true;
           (* Root may have been deleted in the mean time... *)
@@ -345,7 +339,7 @@ let rescan_dir lib mode (origin : Data.dir) =
             Db.insert_dir lib.db dir;
           dir
       in
-      (* TODO: remove missing children *)
+      (* TODO: remove missing children from DB *)
       dir.children <- Array.of_list dirs;
       !queue_rescan_dir_tracks lib mode dir;
       Some [dir]
@@ -357,14 +351,19 @@ let rescan_dir lib mode (origin : Data.dir) =
     Some []  (* deferred to directory scan *)
 
   and scan_playlist path nest =
-    let parent = Some (Filename.dirname path) in
-    let dir = Data.make_dir path parent (nest + 1) 0 in  (* TODO: pos *)
-    if M3u.is_known_ext path then
-      dir.name <- Filename.remove_extension dir.name;
-    dir.folded <- true;
-    (* Root may have been deleted in the mean time... *)
-    if Db.exists_root lib.db origin.path then
-      Db.insert_dir lib.db dir;
+    let dir =
+      match Db.find_dir lib.db path with
+      | Some dir -> dir
+      | None ->
+        let parent = Some (Data.parent_path path) in
+        let dir = Data.make_dir path parent (nest + 1) 0 in  (* TODO: pos *)
+        dir.name <- Filename.remove_extension dir.name;
+        dir.folded <- true;
+        (* Root may have been deleted in the mean time... *)
+        if Db.exists_dir lib.db origin.path then
+          Db.insert_dir lib.db dir;
+        dir
+    in
     Some [dir]
   in
 
@@ -392,7 +391,7 @@ let rescan_dir_tracks lib mode (dir : dir) =
 
 
 let rescan_dirs lib mode dirs = Array.iter (rescan_dir lib mode) dirs
-let rescan_roots lib mode = rescan_dirs lib mode lib.root.children
+let rescan_root lib mode = rescan_dirs lib mode lib.root.children
 let rescan_tracks lib mode tracks = Array.iter (rescan_track lib mode) tracks
 
 let rescan_busy lib = Atomic.(get lib.scan.dir_busy || get lib.scan.file_busy)
@@ -435,7 +434,7 @@ let select_dir lib i =
     lib.current <- Some dir;
     Table.clear_undo lib.tracks;
     Db.clear_playlists lib.db;
-    if M3u.is_known_ext dir.path then
+    if Data.is_playlist_path dir.path then
       rescan_playlist lib false dir.path;
   )
 
@@ -470,9 +469,7 @@ let fold_dir lib dir status =
 
 (* Roots *)
 
-let is_root _lib dir = dir.parent = Some ""
-
-let load_roots lib =
+let load_dirs lib =
   let dirs = ref [] in
   Db.iter_dirs lib.db (fun dir -> dirs := dir :: !dirs);
   if !dirs = [] then
@@ -481,40 +478,23 @@ let load_roots lib =
     dirs := [lib.root];
     Db.insert_dir lib.db lib.root;
   );
-  let dirs = Array.of_list !dirs in
-  let dirpath path = Filename.concat path "" in
-  let compare_dir (d1 : Data.dir) (d2 : Data.dir) =
-    compare (dirpath d1.path) (dirpath d2.path) in
-  Array.sort compare_dir dirs;
 
-  let roots = ref [] in
-  Db.iter_roots lib.db (fun root -> roots := root :: !roots);
-  let roots =
-    List.mapi (fun i path ->
-      match Db.find_dir lib.db path with
-      | Some dir -> dir
-      | None ->
-        Storage.log ("database contains root with no dir entry: " ^ path);
-        Data.make_dir path (Some "") 0 i
-    ) (List.rev !roots)
-  in
-
-  let len = Array.length dirs in
-  let rec treeify i (parent : dir) children =
-    if i < len && Filename.dirname dirs.(i).path = parent.path then
-      treeify (i + 1) parent (dirs.(i) :: children)
-    else
-    (
+  let rec treeify (parent : dir) children : dir list -> _ = function
+    | dir::dirs when String.starts_with dir.path ~prefix: parent.path ->
+      let dirs' = if Data.is_dir dir then treeify dir [] dirs else dirs in
+      treeify parent (dir::children) dirs'
+    | dirs ->
       parent.children <- Array.of_list children;
-      Array.stable_sort (fun (d1 : dir) (d2 : dir) -> compare d1.pos d2.pos)
-        parent.children;
-      if i < len then treeify (i + 1) dirs.(i) []
-    )
+      let cmp (dir1 : dir) (dir2 : dir) =
+        match compare dir1.pos dir2.pos with
+        | 0 -> compare dir1.name dir2.name
+        | i -> i
+      in Array.stable_sort cmp parent.children; dirs
   in
-  lib.root <- dirs.(0);
-  treeify 1 lib.root roots;
+  lib.root <- List.hd !dirs;
+  ignore (treeify lib.root [] (List.tl !dirs));
 
-  rescan_roots lib `Fast
+  rescan_root lib `Fast
 
 
 let make_root lib path pos =
@@ -524,19 +504,20 @@ let make_root lib path pos =
     failwith (path ^ " is not a directory")
   else
   (
+    let dirpath = Filename.concat path "" in
     match
       Array.find_opt (fun (dir : dir) ->
         path = dir.path ||
-        String.starts_with dir.path ~prefix: (Filename.concat path "") ||
-        String.starts_with path ~prefix: (Filename.concat dir.path "")
+        String.starts_with dir.path ~prefix: dirpath ||
+        String.starts_with dirpath ~prefix: dir.path
       ) lib.root.children
     with
     | Some dir ->
-      failwith (path ^ " overlaps with " ^ dir.name ^ " (" ^ dir.path ^ ")")
-    | None -> Data.make_dir path (Some "") 0 pos
+      failwith (dirpath ^ " overlaps with " ^ dir.name ^ " (" ^ dir.path ^ ")")
+    | None -> Data.make_dir dirpath (Some "") 0 pos
   )
 
-let add_roots lib paths pos =
+let add_dirs lib paths pos =
   let paths = Array.of_list paths in
   lib.error <- "";
   try
@@ -559,9 +540,8 @@ let add_roots lib paths pos =
     (* For some reason, this doesn't work with the parent condition
     Db.update_dirs_pos lib.db None pos (+len');
     *)
-    Array.iter (Db.insert_root lib.db) paths;
     Array.iter (Db.insert_dir lib.db) roots';
-    Array.iter (rescan_dir lib `Thorough) roots';
+    Array.iter (fun (dir : dir) -> rescan_dir lib `Thorough dir) roots';
     update_browser lib;
     true
   with Failure msg ->
@@ -570,17 +550,16 @@ let add_roots lib paths pos =
     false
 
 
-let remove_root lib path =
+let remove_dir lib path =
+  let dirpath = Filename.concat path "" in
   let roots = lib.root.children in
-  match Array.find_index (fun (r : Data.dir) -> r.path = path) roots with
+  match Array.find_index (fun (r : Data.dir) -> r.path = dirpath) roots with
   | None -> ()
   | Some pos ->
-    let prefix = Filename.concat path "" in
-    Db.delete_root lib.db path;
-    Db.delete_dirs lib.db prefix;
-    Db.delete_albums lib.db prefix;
-    Db.delete_tracks lib.db prefix;
-    Db.delete_playlists lib.db prefix;
+    Db.delete_dirs lib.db dirpath;
+    Db.delete_albums lib.db dirpath;
+    Db.delete_tracks lib.db dirpath;
+    Db.delete_playlists lib.db dirpath;
     lib.root.children <-
       Array.init (Array.length roots - 1) (fun i ->
         if i < pos then
@@ -593,8 +572,8 @@ let remove_root lib path =
     lib.current <- None;
     update_browser lib
 
-let remove_roots lib paths =
-  List.iter (remove_root lib) paths
+let remove_dirs lib paths =
+  List.iter (remove_dir lib) paths
 
 
 (* Views *)
@@ -678,10 +657,10 @@ let update_tracks lib =
       in
       if dir.path = "" then
         Db.iter_tracks_for_path lib.db "%" artist album f
-      else if Sys.file_exists dir.path && Sys.is_directory dir.path then
+      else if Data.is_dir dir then
         let path = Filename.concat dir.path "%" in
         Db.iter_tracks_for_path lib.db path artist album f
-      else if M3u.is_known_ext dir.path then
+      else if Data.is_playlist dir then
         Db.iter_playlist_tracks_for_path lib.db dir.path artist album f
     )
 
@@ -697,10 +676,10 @@ let update_albums lib =
       in
       if dir.path = "" then
         Db.iter_tracks_for_path_as_albums lib.db "%" artist f
-      else if Sys.file_exists dir.path && Sys.is_directory dir.path then
+      else if Data.is_dir dir then
         let path = Filename.concat dir.path "%" in
         Db.iter_tracks_for_path_as_albums lib.db path artist f
-      else if M3u.is_known_ext dir.path then
+      else if Data.is_playlist dir then
         Db.iter_playlist_tracks_for_path_as_albums lib.db dir.path artist f
     )
 
@@ -710,10 +689,10 @@ let update_artists lib =
     (fun dir f ->
       if dir.path = "" then
         Db.iter_tracks_for_path_as_artists lib.db "%" f
-      else if Sys.file_exists dir.path && Sys.is_directory dir.path then
+      else if Data.is_dir dir then
         let path = Filename.concat dir.path "%" in
         Db.iter_tracks_for_path_as_artists lib.db path f
-      else if M3u.is_known_ext dir.path then
+      else if Data.is_playlist dir then
         Db.iter_playlist_tracks_for_path_as_artists lib.db dir.path f
     )
 
@@ -724,13 +703,11 @@ let rescan_affects_views lib path_opts =
   match lib.current with
   | None -> false
   | Some dir ->
-    let is_dir = Sys.file_exists dir.path && Sys.is_directory dir.path in
     List.exists (function
       | None -> true
       | Some path ->
         String.starts_with path ~prefix: dir.path ||
-        not is_dir && Format.is_known_ext path &&
-        not (Sys.file_exists path && Sys.is_directory path) &&
+        not (Data.is_dir dir) &&
         Array.exists (fun track -> track.path = path) lib.tracks.entries
     ) path_opts
 
@@ -779,7 +756,7 @@ let array_rev a =
 let current_is_playlist lib =
   match lib.current with
   | None -> false
-  | Some dir -> M3u.is_known_ext dir.path
+  | Some dir -> Data.is_playlist dir
 
 
 let save_playlist lib path =
@@ -821,30 +798,28 @@ let insert lib pos tracks =
 
 let insert_paths lib pos paths =
   let tracks = ref [] in
-  let add_track track = tracks := track :: !tracks in
-  let add_song path =
-    if Format.is_known_ext path then
-    (
-      let track =
-        match Db.find_track lib.db path with
-        | Some track -> track
-        | None -> Data.make_track path
-      in add_track track
-    )
-  and add_playlist path =
+  let add_track path =
+    let track =
+      match Db.find_track lib.db path with
+      | Some track -> track
+      | None -> Data.make_track path
+    in tracks := track :: !tracks
+  in
+  let add_playlist path =
     let s = In_channel.(with_open_bin path input_all) in
-    List.iter (fun path -> add_track (Data.make_track path)) (M3u.parse s)
+    List.iter add_track (M3u.parse s)
   in
   let rec add_path path =
     try
-      match String.lowercase_ascii (Filename.extension path) with
-      | _ when Sys.file_exists path && Sys.is_directory path ->
+      if Sys.file_exists path && Sys.is_directory path then
         Array.iter (fun file ->
           add_path (Filename.concat path file)
         ) (Sys.readdir path)
-      | ".m3u" | ".m3u8" -> add_playlist path
-      | _ -> add_song path
-    with Sys_error _ -> add_song path
+      else if Data.is_playlist_path path then
+        add_playlist path
+      else if Data.is_track_path path then
+        add_track path
+    with Sys_error _ -> ()
   in
   List.iter add_path paths;
   insert_reuse lib pos (Array.of_list (List.rev !tracks))
@@ -877,6 +852,15 @@ let remove_selected lib =
 let remove_unselected lib =
   remove_if (fun i -> not (Table.is_selected lib.tracks i)) lib
     (Table.length lib.tracks - Table.num_selected lib.tracks)
+
+let num_invalid lib =
+  Array.fold_left (fun n track ->
+    n + Bool.to_int (Data.is_invalid track)
+  ) 0 lib.tracks.entries
+
+let remove_invalid lib =
+  remove_if (fun i -> Data.is_invalid lib.tracks.entries.(i))
+    lib (num_invalid lib)
 
 
 let replace_all lib tracks =
@@ -913,6 +897,8 @@ let to_map lib =
   Map.of_list
   [
     "browser_scroll", fmt "%d" lib.browser.vscroll;
+    "browser_current",
+      (Option.value lib.current ~default: (Data.make_dir "-" None 0 0)).path;
   ]
 
 let to_map_extra lib =
@@ -920,10 +906,10 @@ let to_map_extra lib =
   [
     "browser_pos", fmt "%d" (Option.value lib.browser.pos ~default: (-1));
     "browser_length", fmt "%d" (Array.length lib.browser.entries);
-    "browser_selected", fmt "%d"
-      (Option.value (selected_dir lib) ~default: (-1));
-    "browser_current",
-      (Option.value lib.current ~default: (Data.make_dir "" None 0 0)).name;
+    "browser_selected",
+      (Option.value (Option.map (fun i ->
+          fmt "%d(%s)" i lib.browser.entries.(i).name
+        ) (selected_dir lib)) ~default: "");
     "tracks_pos", fmt "%d" (Option.value lib.tracks.pos ~default: (-1));
     "tracks_vscroll", fmt "%d" lib.tracks.vscroll;
     "tracks_hscroll", fmt "%d" lib.tracks.hscroll;
@@ -937,4 +923,10 @@ let of_map lib m =
   update_browser lib;
   update_views lib;
   read_map m "browser_scroll" (fun s ->
-    lib.browser.vscroll <- scan s "%d" (num 0 (max 0 (length_browser lib - 1))))
+    lib.browser.vscroll <- scan s "%d" (num 0 (max 0 (length_browser lib - 1))));
+  read_map m "browser_current" (fun s ->
+    lib.current <- Db.find_dir lib.db s;
+    Option.iter (fun i ->
+      select_dir lib i
+    ) (Array.find_index (fun (dir : dir) -> dir.path = s) lib.browser.entries)
+  )

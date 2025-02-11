@@ -265,26 +265,21 @@ let insert_paths pl pos paths =
     tracks := track :: !tracks;
     if track.status = `Undet then Track.update track
   in
-  let add_song path =
-    if Format.is_known_ext path then
-      add_track (Data.make_track path)
-  in
   let add_playlist path =
     let s = In_channel.(with_open_bin path input_all) in
-    List.iter (fun item ->
-      add_track (Track.of_m3u_item item)
-    ) (M3u.parse_ext s)
+    List.iter (fun item -> add_track (Track.of_m3u_item item)) (M3u.parse_ext s)
   in
   let rec add_path path =
     try
-      match String.lowercase_ascii (Filename.extension path) with
-      | _ when Sys.file_exists path && Sys.is_directory path ->
+      if Sys.file_exists path && Sys.is_directory path then
         Array.iter (fun file ->
           add_path (Filename.concat path file)
         ) (Sys.readdir path)
-      | ".m3u" | ".m3u8" -> add_playlist path
-      | _ -> add_song path
-    with Sys_error _ -> add_song path
+      else if Data.is_playlist_path path then
+        add_playlist path
+      else if Data.is_track_path path then
+        add_track (Data.make_track path)
+    with Sys_error _ -> ()
   in
   List.iter add_path paths;
   insert pl pos (Array.of_list (List.rev !tracks))
@@ -339,11 +334,11 @@ let remove_unselected pl =
 
 let num_invalid pl =
   Array.fold_left (fun n track ->
-    n + Bool.to_int (Track.is_invalid track)
+    n + Bool.to_int (Data.is_invalid track)
   ) 0 pl.table.entries
 
 let remove_invalid pl =
-  remove_if (fun i -> Track.is_invalid pl.table.entries.(i)) pl (num_invalid pl)
+  remove_if (fun i -> Data.is_invalid pl.table.entries.(i)) pl (num_invalid pl)
 
 
 let replace_all pl tracks =
