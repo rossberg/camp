@@ -80,6 +80,7 @@ let add_total (t1, n1) (t2, n2) = (t1 +. t2, n1 + n2)
 let sub_total (t1, n1) (t2, n2) = (max 0.0 (t1 -. t2), max 0 (n1 - n2))
 
 let track_total (track : track) =
+  if Data.is_separator track then 0.0, 0 else
   match track.status with
   | `Undet | `Invalid | `Absent -> 0.0, 1
   | `Predet | `Det ->
@@ -237,6 +238,22 @@ let pop_undo pl = pop_unredo pl Table.pop_undo pl.table.undos
 let pop_redo pl = pop_unredo pl Table.pop_redo pl.table.redos
 
 
+
+(* Playlist I/O *)
+
+let playlist_file = "playlist.m3u"
+
+let save_playlist pl =
+  Storage.save playlist_file (fun file ->
+    Out_channel.output_string file (Track.to_m3u pl.table.entries)
+  )
+
+let load_playlist pl =
+  Storage.load playlist_file (fun file ->
+    pl.table.entries <- Track.of_m3u (In_channel.input_all file)
+  )
+
+
 (* Editing *)
 
 let insert pl pos tracks =
@@ -257,6 +274,7 @@ let insert pl pos tracks =
       if shuffle.pos = None then shuffle.pos <- Some 0;
       if len = 0 then shuffle.unobserved <- 1;
     ) pl.shuffle;
+    save_playlist pl;
   )
 
 let insert_paths pl pos paths =
@@ -295,7 +313,8 @@ let remove_all pl =
       shuffle.unobserved <- 0;
       shuffle.pos <- None;
       shuffle.tracks <- [||];
-    ) pl.shuffle
+    ) pl.shuffle;
+    save_playlist pl;
   )
 
 let remove_if p pl n =
@@ -322,7 +341,8 @@ let remove_if p pl n =
       let shuffle_tracks' = Array.init len' skip in
       ignore (skip len');
       shuffle.tracks <- shuffle_tracks';
-    ) pl.shuffle
+    ) pl.shuffle;
+    save_playlist pl;
   )
 
 let remove_selected pl =
@@ -358,25 +378,12 @@ let move_selected pl d =
     let js = Table.move_selected pl.table d in
     Option.iter (fun shuffle ->
       Array.map_inplace (fun i -> js.(i)) shuffle.tracks
-    ) pl.shuffle
+    ) pl.shuffle;
+    save_playlist pl;
   )
 
 
 (* Persistance *)
-
-let playlist_file = "playlist.m3u"
-
-
-let save_playlist pl =
-  Storage.save playlist_file (fun file ->
-    Out_channel.output_string file (Track.to_m3u pl.table.entries)
-  )
-
-let load_playlist pl =
-  Storage.load playlist_file (fun file ->
-    pl.table.entries <- Track.of_m3u (In_channel.input_all file)
-  )
-
 
 open Storage
 let fmt = Printf.sprintf

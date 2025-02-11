@@ -297,6 +297,7 @@ let rescan_playlist lib _mode path =
 let queue_rescan_dir_tracks = ref (fun _ -> assert false)
 
 let rescan_dir lib mode (origin : Data.dir) =
+  (* TODO: bulk insert for performance *)
   let rec scan_path path nest =
     if Sys.is_directory path then
       if Data.is_track_path path then

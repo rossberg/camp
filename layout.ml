@@ -232,14 +232,14 @@ let pl_w = 25
 let pl_h = 20
 let pl_button i j label key g = Ui.labeled_button g.ui (1, margin g + i*5 + j*pl_w, -pl_h, pl_w, pl_h) (label_h g) label key
 
-let save_button = pl_button 0 0 "SAVE" ([`Command], `Char 'S')
-let tag_button = pl_button 1 1 "TAG" ([`Command], `Char 'T')
-let del_button = pl_button 2 2 "DEL" ([], `Delete)
-let crop_button = pl_button 2 3 "CROP" ([`Shift], `Delete)
-let clean_button = pl_button 2 4 "CLEAN" ([`Command], `Delete)
-let undo_button = pl_button 3 5 "UNDO" ([`Command], `Char 'Z')
-let redo_button = pl_button 3 6 "REDO" ([`Shift; `Command], `Char 'Z')
-let sep_button = pl_button 4 7 "SEP" ([`Command], `Char ' ')
+let sep_button = pl_button 0 0 "SEP" ([`Command], `Char ' ')
+let del_button = pl_button 1 1 "DEL" ([], `Delete)
+let crop_button = pl_button 1 2 "CROP" ([`Shift], `Delete)
+let clean_button = pl_button 1 3 "CLEAN" ([`Command], `Delete)
+let undo_button = pl_button 2 4 "UNDO" ([`Command], `Char 'Z')
+let redo_button = pl_button 2 5 "REDO" ([`Shift; `Command], `Char 'Z')
+let tag_button = pl_button 3 6 "TAG" ([`Command], `Char 'T')
+let save_button = pl_button 4 7 "SAVE" ([`Command], `Char 'S')
 
 let cut_key g = Ui.key g.ui ([`Command], `Char 'X')
 let copy_key g = Ui.key g.ui ([`Command], `Char 'C')
