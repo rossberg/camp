@@ -39,11 +39,6 @@ val of_map : t -> Storage.map -> unit  (* assumes roots already set *)
 val to_map_extra : t -> Storage.map
 
 
-(* Accessors *)
-
-val adjust_scroll : t -> int option -> int -> unit
-
-
 (* Scanning *)
 
 type scan_mode = [`Fast | `Thorough]
@@ -75,6 +70,8 @@ val deselect_dir : t -> unit
 val load_dirs : t -> unit
 val add_dirs : t -> path list -> int -> bool
 val remove_dirs : t -> path list -> unit
+
+val current_is_playlist : t -> bool
 
 
 (* Views *)
@@ -117,6 +114,9 @@ val deselect : t -> int -> int -> unit
 
 (* Playlist Editing *)
 
+val length : t -> int
+val tracks : t -> track array
+
 val insert : t -> int -> track array -> unit
 val insert_paths : t -> int -> Data.path list -> unit
 
@@ -128,3 +128,8 @@ val remove_invalid : t -> unit
 val replace_all : t -> track array -> unit
 
 val move_selected : t -> int -> unit
+
+val undo : t -> unit
+val redo : t -> unit
+
+val adjust_scroll : t -> int option -> int -> unit

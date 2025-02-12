@@ -43,11 +43,10 @@ let ok lib =
   check "browser nonempty" (Table.length lib.browser > 0) @
   check "artists pos unset" (lib.artists.pos = None || lib.artists.pos = Some 0) @
   check "albums pos unset" (lib.albums.pos = None || lib.albums.pos = Some 0) @
-  check "tracks pos unset" (lib.tracks.pos = None || lib.tracks.pos = Some 0) @
   check "browser selection singular" (Table.num_selected lib.browser <= 1) @
   check "browser selection consistent with current"
     ( Table.num_selected lib.browser = 0 ||
-      lib.current = Some (Table.selected lib.browser).(0) ) @
+      Option.get lib.current == (Table.selected lib.browser).(0) ) @
   []
 
 
@@ -93,7 +92,7 @@ let make db =
     browser = Table.make 0;
     artists = Table.make 0;
     albums = Table.make 0;
-    tracks = Table.make 0;
+    tracks = Table.make 100;
     error = "";
     error_time = 0.0;
   }
@@ -127,6 +126,7 @@ let attr_prop = function
   | `Year -> "Year", `Left
   | `Label -> "Label", `Left
   | `Country -> "Country", `Left
+  | `None -> assert false
 
 let attr_name attr = fst (attr_prop (attr :> any_attr))
 let attr_align attr = snd (attr_prop (attr :> any_attr))
@@ -211,7 +211,7 @@ let album_attr_string (album : album) = function
   | #meta_attr as attr -> nonempty meta_attr_string album.meta attr
 
 let track_attr_string (track : track) = function
-  | `Pos -> nonzero 0 (fmt "%3d") track.pos
+  | `Pos -> nonzero 0 (fmt "%3d") (track.pos + 1)
   | `Length -> length_attr_string track.format track.meta
   | #file_attr as attr -> file_attr_string track.path track.file attr
   | #format_attr as attr -> nonempty format_attr_string track.format attr
@@ -444,7 +444,9 @@ let update_dir lib dir =
   Db.insert_dir lib.db dir
 
 let update_browser lib =
-  let rec entries dir acc =
+  let rec entries (dir : dir) acc =
+    Option.iter (fun (cur : dir) ->
+      if cur.path = dir.path then lib.current <- Some dir) lib.current;
     dir ::
     (if dir.folded then acc else Array.fold_right entries dir.children acc)
   in
@@ -466,6 +468,12 @@ let fold_dir lib dir status =
         (Array.find_index (fun dir -> lib.current = Some dir) lib.browser.entries)
     );
   )
+
+
+let current_is_playlist lib =
+  match lib.current with
+  | None -> false
+  | Some dir -> Data.is_playlist dir
 
 
 (* Roots *)
@@ -605,8 +613,6 @@ let select_invert lib = Table.select_invert lib.tracks
 let select lib i j = Table.select lib.tracks i j
 let deselect lib i j = Table.deselect lib.tracks i j
 
-let adjust_scroll lib pos fit = Table.adjust_scroll lib.tracks pos fit
-
 
 let artists_sorting dir = dir.artists_sorting
 let albums_sorting dir = dir.albums_sorting
@@ -619,6 +625,7 @@ let album_key (album : album) = (*album.track*)  (* TODO *)
   | Some meta -> meta.albumtitle
 
 let track_key (track : track) = track.path
+let pos_key (track : track) = string_of_int track.pos
 
 let sort_entries entries sorting attr_string =
   let enriched =
@@ -709,7 +716,8 @@ let rescan_affects_views lib path_opts =
       | Some path ->
         String.starts_with path ~prefix: dir.path ||
         not (Data.is_dir dir) &&
-        Array.exists (fun track -> track.path = path) lib.tracks.entries
+        Array.exists (fun track ->
+          String.starts_with track.path ~prefix: path) lib.tracks.entries
     ) path_opts
 
 let update_after_rescan lib =
@@ -737,10 +745,17 @@ let reorder_albums lib =
   reorder lib lib.albums albums_sorting album_attr_string album_key
 
 let reorder_tracks lib =
-  reorder lib lib.tracks tracks_sorting track_attr_string track_key
+  reorder lib lib.tracks tracks_sorting track_attr_string
+    (if current_is_playlist lib then pos_key else track_key)
 
 
 (* Playlist Editing *)
+
+let length lib = Table.length lib.tracks
+let tracks lib = lib.tracks.entries
+
+let adjust_scroll lib pos fit = Table.adjust_scroll lib.tracks pos fit
+
 
 let array_swap a i j =
   let temp = a.(i) in
@@ -754,48 +769,67 @@ let array_rev a =
   done
 
 
-let current_is_playlist lib =
-  match lib.current with
-  | None -> false
-  | Some dir -> Data.is_playlist dir
-
-
-let save_playlist lib path =
+let save_playlist lib =
+  assert (current_is_playlist lib);
+  let dir = Option.get lib.current in
   let tracks = Array.map Fun.id lib.tracks.entries in
   Array.sort (fun (t1 : track) (t2 : track) -> compare t1.pos t2.pos) tracks;
   try
     let s = Track.to_m3u tracks in
-    Out_channel.with_open_bin path (fun file -> output_string file s)
+    Out_channel.with_open_bin dir.path (fun file -> output_string file s)
   with exn -> Storage.log
-    ("error writing playlist " ^ path ^ ": " ^ Printexc.to_string exn)
+    ("error writing playlist " ^ dir.path ^ ": " ^ Printexc.to_string exn)
 
 
-let insert_reuse lib pos tracks =
+(* Before editing, normalise playlist to pos-order to enable correct undo *)
+let compare_pos (tr1 : track) (tr2 : track) = compare tr1.pos tr2.pos
+
+let normalize_playlist lib =
+  let dir = Option.get lib.current in
+  match dir.tracks_sorting with
+  | (`Pos, `Asc)::_ -> `Asc
+  | (`Pos, `Desc)::_ -> array_rev lib.tracks.entries; `Desc
+  | _ -> Array.sort compare_pos lib.tracks.entries; `Other
+
+let restore_playlist lib = function
+  | `Asc -> ()
+  | `Desc -> array_rev lib.tracks.entries
+  | `Other -> reorder_tracks lib
+
+
+let insert' lib pos tracks =
   assert (current_is_playlist lib);
   if tracks <> [||] then
   (
-    let len = Array.length tracks in
-    let dir = Option.get lib.current in
-    let pos', reorder =
-      match dir.tracks_sorting with
-      | (`Pos, `Asc)::_ -> pos, false
-      | (`Pos, `Desc)::_ ->
-        array_rev tracks; Table.length lib.tracks - pos, true
-      | _ -> Table.length lib.tracks, true
+    deselect_all lib;
+    let entries = lib.tracks.entries in
+    let len = Table.length lib.tracks in
+    let len' = Array.length tracks in
+    let pos' = if pos >= len then len else entries.(pos).pos in
+    let order = normalize_playlist lib in
+    let pos'' =
+      match order with
+      | `Asc -> pos
+      | `Desc -> len - pos
+      | `Other -> pos'
     in
-    Array.iteri (fun i track -> track.pos <- pos' + i) tracks;
-    Table.insert lib.tracks pos' tracks;
-    Array.iter (fun track ->
-      if track.pos >= pos' then track.pos <- track.pos + len
-    ) tracks;
-    if reorder then reorder_tracks lib;
-    save_playlist lib dir.path;
-    (* TODO: update DB? *)
+    if order = `Desc then
+      Array.iteri (fun i track -> track.pos <- pos'' + len' - i - 1) tracks
+    else
+      Array.iteri (fun i track -> track.pos <- pos'' + i) tracks;
+    for i = pos'' to len - 1 do
+      entries.(i).pos <- entries.(i).pos + len'
+    done;
+    Table.insert lib.tracks pos'' tracks;
+    select lib pos'' (pos'' + len' - 1);
+    restore_playlist lib order;
+    save_playlist lib;
+    (* TODO: update DB eagerly? *)
   )
 
 let insert lib pos tracks =
-  insert_reuse lib pos
-    (Array.map (fun track -> {track with pos = track.pos}) tracks)
+  (* Clone tracks for pos mutation *)
+  insert' lib pos (Array.map (fun tr -> {tr with pos = tr.pos}) tracks)
 
 let insert_paths lib pos paths =
   let tracks = ref [] in
@@ -823,28 +857,30 @@ let insert_paths lib pos paths =
     with Sys_error _ -> ()
   in
   List.iter add_path paths;
-  insert_reuse lib pos (Array.of_list (List.rev !tracks))
+  insert' lib pos (Array.of_list (List.rev !tracks))
 
 
 let remove_all lib =
   assert (current_is_playlist lib);
   if lib.tracks.entries <> [||] then
   (
-    let dir = Option.get lib.current in
+    let order = normalize_playlist lib in
     Table.remove_all lib.tracks;
-    save_playlist lib dir.path;
-    (* TODO: update DB? *)
+    restore_playlist lib order;
+    save_playlist lib;
+    (* TODO: update DB eagerly? *)
   )
 
 let remove_if p lib n =
   assert (current_is_playlist lib);
   if n > 0 then
   (
-    let dir = Option.get lib.current in
+    let order = normalize_playlist lib in
     let js = Table.remove_if p lib.tracks n in
     Array.iter (fun track -> track.pos <- js.(track.pos)) lib.tracks.entries;
-    save_playlist lib dir.path;
-    (* TODO: update DB? *)
+    restore_playlist lib order;
+    save_playlist lib;
+    (* TODO: update DB eagerly? *)
   )
 
 let remove_selected lib =
@@ -869,7 +905,7 @@ let replace_all lib tracks =
     insert lib 0 tracks
   else
   (
-    Table.remove_all lib.tracks;
+    remove_all lib;
     insert lib 0 tracks;
     Table.drop_undo lib.tracks;
   )
@@ -879,12 +915,30 @@ let move_selected lib d =
   assert (current_is_playlist lib);
   if Table.num_selected lib.tracks > 0 then
   (
-    let dir = Option.get lib.current in
+    let order = normalize_playlist lib in
     let js = Table.move_selected lib.tracks d in
     Array.iter (fun track -> track.pos <- js.(track.pos)) lib.tracks.entries;
-    save_playlist lib dir.path;
-    (* TODO: update DB? *)
+    restore_playlist lib order;
+    save_playlist lib;
+    (* TODO: update DB eagerly? *)
   )
+
+
+let undo lib =
+  let order = normalize_playlist lib in
+  Table.pop_undo lib.tracks;
+  Array.iteri (fun i track -> track.pos <- i) lib.tracks.entries;
+  restore_playlist lib order;
+  save_playlist lib
+  (* TODO: update DB eagerly? *)
+
+let redo lib =
+  let order = normalize_playlist lib in
+  Table.pop_redo lib.tracks;
+  Array.iteri (fun i track -> track.pos <- i) lib.tracks.entries;
+  restore_playlist lib order;
+  save_playlist lib
+  (* TODO: update DB eagerly? *)
 
 
 (* Persistance *)
@@ -922,12 +976,15 @@ let to_map_extra lib =
 
 let of_map lib m =
   update_browser lib;
-  update_views lib;
   read_map m "browser_scroll" (fun s ->
     lib.browser.vscroll <- scan s "%d" (num 0 (max 0 (length_browser lib - 1))));
   read_map m "browser_current" (fun s ->
     lib.current <- Db.find_dir lib.db s;
     Option.iter (fun i ->
-      select_dir lib i
+      let dir = lib.browser.entries.(i) in
+      lib.current <- Some dir;
+      select_dir lib i;
+      if current_is_playlist lib then rescan_playlist lib `Fast dir.path;
     ) (Array.find_index (fun (dir : dir) -> dir.path = s) lib.browser.entries)
-  )
+  );
+  update_views lib

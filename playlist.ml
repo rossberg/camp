@@ -66,6 +66,8 @@ let ok pl =
 (* Accessors *)
 
 let length pl = Table.length pl.table
+let tracks pl = pl.table.entries
+
 let current pl = Table.current pl.table
 let current_opt pl = Table.current_opt pl.table
 
@@ -117,7 +119,7 @@ let modulo n m = let k = n mod m in if k < 0 then k + m else k
 
 let skip pl delta repeat =
   let len = Array.length pl.table.entries in
-  len > 0 &&  (* implies pl.pos <> None *)
+  len > 0 &&  (* implies pl.table.pos <> None *)
   let up pos = if repeat then modulo (pos + delta) len else pos + delta in
   match pl.shuffle with
   | None ->
@@ -261,7 +263,9 @@ let insert pl pos tracks =
   (
     let len = Table.length pl.table in
     let len' = Array.length tracks in
+    Table.deselect_all pl.table;
     Table.insert pl.table pos tracks;
+    Table.select pl.table pos (pos + len' - 1);
     pl.total <- add_total pl.total (fst (range_total pl pos (pos + len' - 1)));
     Option.iter (fun shuffle ->
       shuffle.tracks <-
@@ -362,13 +366,17 @@ let remove_invalid pl =
 
 
 let replace_all pl tracks =
-  if pl.table.entries = [||] then
-    insert pl 0 tracks
-  else
+  if tracks <> [||] then
   (
-    remove_all pl;
-    insert pl 0 tracks;
-    Table.drop_undo pl.table;
+    if pl.table.entries = [||] then
+      insert pl 0 tracks
+    else
+    (
+      remove_all pl;
+      insert pl 0 tracks;
+      deselect_all pl;
+      Table.drop_undo pl.table;
+    )
   )
 
 
@@ -381,6 +389,10 @@ let move_selected pl d =
     ) pl.shuffle;
     save_playlist pl;
   )
+
+
+let undo pl = Table.pop_undo pl.table
+let redo pl = Table.pop_redo pl.table
 
 
 (* Persistance *)

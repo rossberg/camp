@@ -29,7 +29,7 @@ type meta_attr =
 type artist_attr = [ `Artist | `Albums | `Tracks ]
 type album_attr = [ file_attr | format_attr | meta_attr ]
 type track_attr = [ file_attr | format_attr | meta_attr | `Pos ]
-type any_attr = [ artist_attr | album_attr | track_attr ]
+type any_attr = [ artist_attr | album_attr | track_attr | `None ]
 
 type order = [`Asc | `Desc]
 type 'attr sorting = ('attr * order) list
@@ -203,7 +203,7 @@ let make_track path : track =
     format = None;
     meta = None;
     album = None;
-    pos = 0;
+    pos = -1;
     status = `Undet;
   }
 
@@ -364,7 +364,8 @@ let rev_order = function
   | `Asc -> `Desc
   | `Desc -> `Asc
 
-let rec insert_sorting attr i = function
+let rec insert_sorting primary attr i n = function
+  | _ when n <= 0 -> []
   | [] ->
     if i >= 0 then
       [attr, `Asc]
@@ -377,10 +378,13 @@ let rec insert_sorting attr i = function
     | _ -> (attr, rev_order order)::sorting'
     )
   | (attr', order)::sorting' ->
-    let sorting'' = (attr', order) :: insert_sorting attr (i - 1) sorting' in
-    if i = 0 then
-      (attr, `Asc)::sorting''
-    else
+    let sorting'' =
+      (attr', order) :: insert_sorting primary attr (i - 1) (n - 1) sorting' in
+    if i <> 0 then
       sorting''
+    else if (attr :> any_attr) = (primary :> any_attr) then
+      [attr, `Asc]
+    else
+      (attr, `Asc)::sorting''
 
-let remove_sorting attr = insert_sorting attr (-1)
+let remove_sorting attr = insert_sorting `None attr (-1) max_int

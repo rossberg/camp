@@ -509,7 +509,7 @@ let to_track i data : track =
     format = to_format (i + 2 + file_cols) data;
     meta = to_meta (i + 2 + file_cols + format_cols) data;
     album = None;
-    pos = 0;
+    pos = -1;
     status = to_status (to_int_default (i + 2 + file_cols + format_cols + meta_cols) data);
   }
 
@@ -653,7 +653,7 @@ let to_playlist_entry i data : path * int * M3u.item =
 
 let to_playlist_track i data : track =
   let track = to_track i data in
-  track.pos <- to_int_default (i + track_cols + 1) data;
+  track.pos <- to_int_default (i + track_cols + 1) data - 1;
   if track.path <> "" then
     track
   else

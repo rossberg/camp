@@ -68,6 +68,20 @@ and dump st errors =
   )
 
 
+(* Focus *)
+
+let focus_playlist st =
+  Library.deselect_all st.library;
+  Library.defocus st.library;
+  Playlist.focus st.playlist
+
+let focus_library st (table : _ Table.t) =
+  Playlist.deselect_all st.playlist;
+  Playlist.defocus st.playlist;
+  Library.defocus st.library;
+  table.focus <- true
+
+
 (* Layout Persistance *)
 
 open Storage
@@ -171,6 +185,7 @@ let load st =
   Playlist.of_map st.playlist map;
   Library.of_map st.library map;
 
+  focus_playlist st;
   if st.control.current = None && Playlist.length st.playlist > 0 then
   (
     st.control.current <- Table.current_opt st.playlist.table;

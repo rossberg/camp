@@ -345,6 +345,7 @@ let run_toggle_panes (st : State.t) =
   let playlist_shown' = Layout.playlist_button lay (Some lay.playlist_shown) in
   (* Click on playlist activation button: toggle playlist *)
   lay.playlist_shown <- playlist_shown';
+  if not playlist_shown' then Playlist.defocus st.playlist;
 
   Layout.library_label lay;
   Layout.library_indicator lay lay.library_shown;
@@ -356,7 +357,7 @@ let run_toggle_panes (st : State.t) =
   if not lay.library_shown && library_shown'
   && not (Api.Key.is_modifier_down `Shift) then
   (
-    (* Library was off: show; switch side if window is at the respective border *)
+    (* Library was off: show; switch side if window is at respective border *)
     if lay.library_side = `Left && wx <= sx then
       lay.library_side <- `Right;
     if lay.library_side = `Right && wx + Layout.control_w lay >= sx + sw then
@@ -373,8 +374,9 @@ let run_toggle_panes (st : State.t) =
   )
   else
   (
-    (* Library was on: turn off *)
+    (* Otherwise: keep or toggle *)
     lay.library_shown <- library_shown';
+    if not library_shown' then Library.defocus st.library;
   );
 
   (* Minimize button *)
@@ -439,6 +441,7 @@ let run_playlist (st : State.t) =
   | `Sort _ | `Arrange -> assert false
 
   | `Select ->
+    State.focus_playlist st;
     Playlist.update_total_selected pl
 
   | `Click (Some i) when Api.Mouse.is_doubleclick `Left ->
@@ -450,9 +453,8 @@ let run_playlist (st : State.t) =
 
   | `Click _ ->
     (* Single-click: grab focus *)
+    State.focus_playlist st;
     Playlist.update_total_selected pl;
-    Library.defocus lib;
-    Library.deselect_all lib;
 
   | `Move delta ->
     (* Cmd-cursor movement: move selection *)
@@ -462,6 +464,7 @@ let run_playlist (st : State.t) =
     (* Drag: move selection if inside *)
     if Api.Key.are_modifiers_down [] then
     (
+      State.focus_playlist st;
       if Playlist.num_selected pl > 0 then
       (
         let m = Api.Mouse.pos win in
@@ -542,14 +545,9 @@ let run_playlist (st : State.t) =
           let tracks = Playlist.selected pl in
           let len = Table.length lib.tracks in
           let pos = min len ((my - y) / lay.text + lib.tracks.vscroll) in
-          Library.insert_paths lib pos
-            (Array.to_list
-              (Array.map (fun (track : Data.track) -> track.path) tracks));
-          Playlist.defocus pl;
-          Playlist.deselect_all pl;
-          Library.focus_tracks lib;
-          Library.deselect_all lib;
-          (*Library.select lib pos (pos + Array.length tracks - 1);*)
+          let paths = Array.map (fun (tr : Data.track) -> tr.path) tracks in
+          Library.insert_paths lib pos (Array.to_list paths);
+          State.focus_library st lib.tracks;
         )
       | _ -> ()
     );
@@ -562,39 +560,211 @@ let run_playlist (st : State.t) =
     (* TODO: file dialog for chosing file path and name *)
   );
 
+  (* Playlist drag & drop *)
+  let dropped = Layout.playlist_drop lay in
+  if dropped <> [] then
+  (
+    (* Files drop on playlist: insertion paths at pointed position *)
+    let _, my = Api.Mouse.pos win in
+    let pos = min len ((my - y) / lay.text + tab.vscroll) in
+    Playlist.insert_paths pl pos dropped;
+    State.focus_playlist st;
+    Control.switch_if_empty st.control (Playlist.current_opt pl);
+  );
+
+  (* Playlist total *)
+  if int_of_float (time ()) mod 10 = 0 then Playlist.update_total pl;
+  let fmt_total (t, n) = fmt_time3 t ^ if n > 0 then "+" else "" in
+  let s1 =
+    if pl.total_selected = (0.0, 0) then "" else
+    fmt_total pl.total_selected ^ "/"
+  in
+  let s2 = fmt_total pl.total in
+  Layout.playlist_total_box lay;
+  Layout.playlist_total_text lay `Regular true (s1 ^ s2)
+
+
+(* Edit Buttons *)
+
+module type TracksView =  (* target view for edit ops *)
+sig
+  open Data
+
+  type t
+  val it : t
+
+(*  val length : t -> int*)
+  val tracks : t -> track array
+
+  val num_selected : t -> int
+  val first_selected : t -> int option
+  val selected : t -> track array
+(*  val select_all : t -> unit*)
+  val deselect_all : t -> unit
+(*  val select_invert : t -> unit*)
+(*  val select : t -> int -> int -> unit*)
+(*  val deselect : t -> int -> int -> unit*)
+
+  val insert : t -> int -> track array -> unit
+(*  val remove_all : t -> unit*)
+  val remove_selected : t -> unit
+  val remove_unselected : t -> unit
+  val remove_invalid : t -> unit
+(*  val replace_all : t -> track array -> unit*)
+(*  val move_selected : t -> int -> unit*)
+  val undo : t -> unit
+  val redo : t -> unit
+end
+
+let run_edit (st : State.t) =
+  let pl = st.playlist in
+  let lib = st.library in
+  let lay = st.layout in
+  let win = Ui.window lay.ui in
+
+  let pl_focus = pl.table.focus in
+  let lib_focus = lib.tracks.focus || lib.albums.focus || lib.artists.focus ||
+    lib.browser.focus in
+  let pl_edit = pl_focus in
+  let lib_edit = lib_focus && Library.current_is_playlist lib in
+
+  assert (not (pl_focus && lib_focus));
+  assert (not (pl_edit && lib_edit));
+  assert (lay.playlist_shown || not pl_focus);
+  assert (lay.library_shown || not lib_focus);
+
+  let pl_len = Playlist.length pl in
+  let lib_len = Library.length lib in
+  let pl_sel = Playlist.num_selected pl in
+  let lib_sel = Library.num_selected lib in
+
+  let playlist = (module struct let it = pl include Playlist end : TracksView) in
+  let library = (module struct let it = lib include Library end : TracksView) in
+  let view, other = if pl_focus then playlist, library else library, playlist in
+  let module View = (val view) in
+  let module Other = (val other) in
+  let view = View.it in
+  let other = Other.it in
+
+  (* Separator button *)
+  let sep_avail = pl_edit || lib_edit in
+  if Layout.sep_button lay (if sep_avail then Some false else None) then
+  (
+    (* Click on Separator button: insert separator *)
+    let pos = Option.value (View.first_selected view) ~default: 0 in
+    View.insert view pos [|Data.make_separator ()|];
+    Other.deselect_all other;
+    Control.switch_if_empty st.control (Playlist.current_opt pl);
+  );
+
+  (* Edit buttons *)
+  let pl_del_avail = pl_edit && pl_sel > 0 in
+  let lib_del_avail = lib_edit && lib_sel > 0 in
+  let del_avail = pl_del_avail || lib_del_avail in
+  if Layout.del_button lay (if del_avail then Some false else None) then
+  (
+    (* Click on Delete button: remove selected tracks from playlist *)
+    View.remove_selected view;
+  );
+
+  let pl_crop_avail = pl_edit && pl_sel < pl_len in
+  let lib_crop_avail = lib_edit && lib_sel < lib_len in
+  let crop_avail = pl_crop_avail || lib_crop_avail in
+  if Layout.crop_button lay (if crop_avail then Some false else None) then
+  (
+    (* Click on Crop button: remove unselected tracks from playlist *)
+    View.remove_unselected view;
+  );
+
+  let pl_clean_avail = pl_edit && snd pl.total > 0 in
+  let lib_clean_avail = lib_edit (* TODO: && snd pl.total > 0 *) in
+  let clean_avail = pl_clean_avail || lib_clean_avail in
+  if Layout.clean_button lay (if clean_avail then Some false else None) then
+  (
+    (* Click on Clean button: remove invalid tracks from playlist *)
+    View.remove_invalid view;
+  );
+
+  let pl_undo_avail = pl_edit && !(pl.table.undos) <> [] in
+  let lib_undo_avail = lib_edit && !(lib.tracks.undos) <> [] in
+  let undo_avail = pl_undo_avail || lib_undo_avail in
+  if Layout.undo_button lay (if undo_avail then Some false else None) then
+  (
+    (* Click on Undo button: pop undo *)
+    View.undo view;
+    Control.switch_if_empty st.control (Playlist.current_opt pl);
+  );
+
+  let pl_redo_avail = pl_edit && !(pl.table.redos) <> [] in
+  let lib_redo_avail = lib_edit && !(lib.tracks.redos) <> [] in
+  let redo_avail = pl_redo_avail || lib_redo_avail in
+  if Layout.redo_button lay (if redo_avail then Some false else None) then
+  (
+    (* Click on Redo button: pop redo *)
+    View.redo view;
+    Control.switch_if_empty st.control (Playlist.current_opt pl);
+  );
+
+  (* Edit keys *)
+  let pl_cut_avail = pl_edit && pl_sel > 0 in
+  let lib_cut_avail = lib_edit && lib_sel > 0 in
+  let cut_avail = pl_cut_avail || lib_cut_avail in
+  if cut_avail && Layout.cut_key lay then
+  (
+    (* Press of Cut key: remove selected tracks and write them to clipboard *)
+    let s = Track.to_m3u (View.selected view) in
+    View.remove_selected view;
+    Api.Clipboard.write win s;
+  );
+
+  let pl_copy_avail = pl_focus && pl_sel > 0 in
+  let lib_copy_avail = lib_focus && lib_sel > 0 in
+  let copy_avail = pl_copy_avail || lib_copy_avail in
+  if copy_avail && Layout.copy_key lay then
+  (
+    (* Press of Copy key: write selected tracks to clipboard *)
+    let s = Track.to_m3u (View.selected view) in
+    Api.Clipboard.write win s;
+  );
+
+  let pl_paste_avail = pl_edit in
+  let lib_paste_avail = lib_edit in
+  let paste_avail = pl_paste_avail || lib_paste_avail in
+  if paste_avail && Layout.paste_key lay then
+  (
+    (* Press of Paste key: insert tracks from clipboard *)
+    match Api.Clipboard.read win with
+    | None -> ()
+    | Some s ->
+      let tracks = Track.of_m3u s in
+      let found_proper =
+        Array.exists (fun (track : Data.track) ->
+          Data.is_track_path track.path
+        ) tracks
+      in
+      if found_proper && tracks <> [||] then
+      (
+        let pos = Option.value (View.first_selected view) ~default: 0 in
+        View.insert view pos tracks;
+        Other.deselect_all other;
+        Control.switch_if_empty st.control (Playlist.current_opt pl);
+      )
+  );
+
   (* Tag button *)
-  let selected = Playlist.num_selected pl > 0 in
-  let is_executable path =
-    try Unix.(access path [X_OK]); true with Unix.Unix_error _ -> false
+  let exec_avail =
+    try Unix.(access st.config.exec_tag [X_OK]); true
+    with Unix.Unix_error _ -> false
   in
-  let tag_available =
-    is_executable st.config.exec_tag &&
-    (Playlist.length pl > 0 || lay.library_shown && lib.current <> None)
-  in
-  if Layout.tag_button lay (if tag_available then Some false else None) then
+  let pl_tag_avail = pl_focus && pl_len > 0 in
+  let lib_tag_avail = lib_focus && lib_len > 0 in
+  let tag_avail = exec_avail && (pl_tag_avail || lib_tag_avail) in
+  if Layout.tag_button lay (if tag_avail then Some false else None) then
   (
     (* Click on Tag button: execute tagging program *)
-    let paths =
-      if selected || pl.table.focus then
-        let tracks =
-          if selected then
-            (* Target is playlist with selection: take selected tracks *)
-            Playlist.selected pl
-          else
-            (* Target is playlist without selection: take all tracks *)
-            pl.table.entries
-        in Array.map (fun (track : Data.track) -> track.path) tracks
-      else
-        let dir = Option.get lib.current in
-        let tracks =
-          if dir.tracks_shown && Library.num_selected lib > 0 then
-            (* Target is tracks view: take selected tracks *)
-            Library.selected lib
-          else
-            (* Target is not tracks view: take all (filtered) tracks *)
-            lib.tracks.entries
-        in Array.map (fun (track : Data.track) -> track.path) tracks
-    in
+    let tracks =
+      View.(if num_selected view > 0 then selected view else tracks view) in
+    let paths = Array.map (fun (track : Data.track) -> track.path) tracks in
     (* Command-click: add tracks to tagger if it's already open *)
     let additive = Api.Key.is_modifier_down `Command in
     Domain.spawn (fun () ->
@@ -628,121 +798,7 @@ let run_playlist (st : State.t) =
         List.iter (fun arg -> exec st.config.exec_tag ["/add"; arg]) !args;
       )
     ) |> ignore;
-  );
-
-  (* Separator button *)
-  if Layout.sep_button lay (Some false) then
-  (
-    (* Click on Separator button: insert separator *)
-    let pos = Option.value (Playlist.first_selected pl) ~default: 0 in
-    Playlist.insert pl pos [|Data.make_separator ()|];
-    Control.switch_if_empty st.control (Playlist.current_opt pl);
-    if Playlist.num_selected pl = 1 then
-    (
-      (* Selection was singular: change it to new insertion *)
-      Library.deselect_all lib;
-      Playlist.deselect_all pl;
-      Playlist.select pl pos pos;
-    )
-  );
-
-  (* Edit buttons *)
-  if Layout.del_button lay (if selected then Some false else None) then
-  (
-    (* Click on Delete button: remove selected tracks from playlist *)
-    Playlist.remove_selected pl;
-  );
-
-  let unselected = Playlist.num_selected pl < len in
-  if Layout.crop_button lay (if unselected then Some false else None) then
-  (
-    (* Click on Crop button: remove unselected tracks from playlist *)
-    Playlist.remove_unselected pl;
-  );
-
-  let clean_avail = if snd pl.total > 0 then Some false else None in
-  if Layout.clean_button lay clean_avail then
-  (
-    (* Click on Clean button: remove invalid tracks from playlist *)
-    Playlist.remove_invalid pl;
-  );
-
-  let undo_avail = if !(tab.undos) <> [] then Some false else None in
-  if Layout.undo_button lay undo_avail then
-  (
-    (* Click on Undo button: pop undo *)
-    Playlist.pop_undo pl;
-    Control.switch_if_empty st.control (Playlist.current_opt pl);
-  );
-
-  let redo_avail = if !(tab.redos) <> [] then Some false else None in
-  if Layout.redo_button lay redo_avail then
-  (
-    (* Click on Redo button: pop redo *)
-    Playlist.pop_redo pl;
-    Control.switch_if_empty st.control (Playlist.current_opt pl);
-  );
-
-  (* Edit keys *)
-  if Layout.cut_key lay then
-  (
-    (* Press of Cut key: remove selected tracks and write them to clipboard *)
-    let s = Track.to_m3u (Playlist.selected pl) in
-    Api.Clipboard.write win s;
-    Playlist.remove_selected pl;
-  );
-
-  if Layout.copy_key lay then
-  (
-    (* Press of Copy key: write selected tracks to clipboard *)
-    let s = Track.to_m3u (Playlist.selected pl) in
-    Api.Clipboard.write win s;
-  );
-
-  if Layout.paste_key lay then
-  (
-    (* Press of Paste key: insert tracks from clipboard *)
-    match Api.Clipboard.read win with
-    | None -> ()
-    | Some s ->
-      let tracks = Track.of_m3u s in
-      let pos = Option.value (Playlist.first_selected pl) ~default: 0 in
-      Playlist.insert pl pos tracks;
-      Control.switch_if_empty st.control (Playlist.current_opt pl);
-      if Playlist.num_selected pl = 1 && tracks <> [||] then
-      (
-        (* Selection was singular: change it to new insertion *)
-        Library.deselect_all lib;
-        Playlist.deselect_all pl;
-        Playlist.select pl pos (pos + Array.length tracks - 1);
-      )
-  );
-
-  (* Playlist drag & drop *)
-  let dropped = Layout.playlist_drop lay in
-  if dropped <> [] then
-  (
-    (* Files drop on playlist: insertion paths at pointed position *)
-    let _, my = Api.Mouse.pos win in
-    let pos = min len ((my - y) / lay.text + tab.vscroll) in
-    Playlist.deselect_all pl;
-    let len = Playlist.length pl in
-    Playlist.insert_paths pl pos dropped;
-    let len' = Playlist.length pl in
-    if pos > 0 && pos < len then Playlist.select pl pos (pos + len' - len - 1);
-    Control.switch_if_empty st.control (Playlist.current_opt pl);
-  );
-
-  (* Playlist total *)
-  if int_of_float (time ()) mod 10 = 0 then Playlist.update_total pl;
-  let fmt_total (t, n) = fmt_time3 t ^ if n > 0 then "+" else "" in
-  let s1 =
-    if pl.total_selected = (0.0, 0) then "" else
-    fmt_total pl.total_selected ^ "/"
-  in
-  let s2 = fmt_total pl.total in
-  Layout.playlist_total_box lay;
-  Layout.playlist_total_text lay `Regular true (s1 ^ s2)
+  )
 
 
 (* Library Panes *)
@@ -801,7 +857,8 @@ let run_library (st : State.t) =
 
   | `Select ->
     (* TODO: allow multiple selections *)
-    if Table.num_selected lib.browser > 1 then
+    State.focus_library st browser;
+    if Table.num_selected browser > 1 then
       browser.selected <- selected;  (* override *)
     if Library.selected_dir lib <> dir then
     (
@@ -831,8 +888,8 @@ let run_library (st : State.t) =
       (* TODO: allow multiple selections *)
       if Table.num_selected browser > 1 then
         browser.selected <- selected;  (* override *)
-      Library.focus_browser lib;
-      Playlist.defocus pl;
+      if Api.Mouse.is_pressed `Left then
+        State.focus_library st browser;
       if Library.selected_dir lib <> dir then
       (
         Library.select_dir lib i;  (* do bureaucracy *)
@@ -846,9 +903,13 @@ let run_library (st : State.t) =
         Table.deselect_all lib.albums;
         Library.update_albums lib;
         let tracks = lib.tracks.entries in
-        Playlist.replace_all pl lib.tracks.entries;
-        Control.eject st.control;
-        if tracks <> [||] then Control.switch st.control tracks.(0) true;
+        if tracks <> [||] then
+        (
+          Playlist.replace_all pl lib.tracks.entries;
+          State.focus_playlist st;
+          Control.eject st.control;
+          Control.switch st.control tracks.(0) true;
+        )
       )
     )
 
@@ -857,19 +918,19 @@ let run_library (st : State.t) =
     Library.deselect_dir lib;
     Library.deselect_all lib;
     Library.update_views lib;
-    Library.focus_browser lib;
-    Playlist.defocus pl;
+    State.focus_library st browser;
 
   | `Drag _ ->
     (* Drag: adjust cursor *)
     if Api.Key.are_modifiers_down [] then
     (
+      State.focus_library st browser;
       Api.Mouse.set_cursor win
         (if
           Api.inside m (Ui.dim lay.ui (Layout.browser_area lay)) ||
           Api.inside m (Ui.dim lay.ui (Layout.playlist_area lay))
         then `Point else `Blocked)
-    );
+    )
 
   | `Drop ->
     (* Drag & drop originating from tracks *)
@@ -881,9 +942,7 @@ let run_library (st : State.t) =
       let len = Playlist.length pl in
       let pos = min len ((my - y) / lay.text + pl.table.vscroll) in
       Playlist.insert pl pos tracks;
-      Library.deselect_all lib;
-      Playlist.deselect_all pl;
-      Playlist.select pl pos (pos + Array.length tracks - 1);
+      State.focus_playlist st;
       Control.switch_if_empty st.control (Playlist.current_opt pl);
     )
   );
@@ -924,7 +983,9 @@ let run_library (st : State.t) =
     let mode = if Api.Key.is_modifier_down `Shift then `Thorough else `Fast in
     match Library.selected_dir lib with
     | None | Some 0 -> Library.rescan_root lib mode
-    | Some i -> Library.rescan_dirs lib mode [|lib.browser.entries.(i)|]
+    | Some i ->
+      let dir = lib.browser.entries.(i) in
+      if Data.is_dir dir then Library.rescan_dirs lib mode [|dir|]
   );
 
   (* Browse modes *)
@@ -1019,6 +1080,7 @@ let run_library (st : State.t) =
 
     | `Select ->
       (* TODO: allow multiple selections *)
+      State.focus_library st tab;
       if Table.num_selected tab > 1 then
         tab.selected <- selected;  (* override *)
       Library.update_albums lib;
@@ -1032,7 +1094,7 @@ let run_library (st : State.t) =
         Bool.to_int (Api.Key.is_modifier_down `Command) * (-4)
       in
       dir.artists_sorting <-
-        List.take 4 (Data.insert_sorting attr k dir.artists_sorting);
+        Data.insert_sorting `Artist attr k 4 dir.artists_sorting;
       Library.update_dir lib dir;
       Library.reorder_artists lib;
 
@@ -1046,9 +1108,13 @@ let run_library (st : State.t) =
       Table.deselect_all lib.albums;  (* deactivate possible inner filter *)
       Library.update_tracks lib;
       let tracks = lib.tracks.entries in
-      Playlist.replace_all pl tracks;
-      Control.eject st.control;
-      if tracks <> [||] then Control.switch st.control tracks.(0) true;
+      if tracks <> [||] then
+      (
+        Playlist.replace_all pl tracks;
+        State.focus_playlist st;
+        Control.eject st.control;
+        Control.switch st.control tracks.(0) true;
+      )
 
     | `Click _ ->
       (* Single-click: grab focus *)
@@ -1056,14 +1122,13 @@ let run_library (st : State.t) =
       if Table.num_selected tab > 1 then
         tab.selected <- selected;  (* override *)
       Library.update_albums lib;
-      Library.focus_artists lib;
-      Playlist.defocus pl;
-      Playlist.deselect_all pl;
+      State.focus_library st tab;
 
     | `Drag _ ->
       (* Drag: adjust cursor *)
       if Api.Key.are_modifiers_down [] then
       (
+        State.focus_library st tab;
         Api.Mouse.set_cursor win
           (if
             Api.inside m (Ui.dim lay.ui (artists_area lay)) ||
@@ -1081,11 +1146,7 @@ let run_library (st : State.t) =
         let len = Playlist.length pl in
         let pos = min len ((my - y) / lay.text + pl.table.vscroll) in
         Playlist.insert pl pos tracks;
-        Library.defocus lib;
-        Library.deselect_all lib;
-        Playlist.focus pl;
-        Playlist.deselect_all pl;
-        Playlist.select pl pos (pos + Array.length tracks - 1);
+        State.focus_playlist st;
         Control.switch_if_empty st.control (Playlist.current_opt pl);
       )
     );
@@ -1120,6 +1181,7 @@ let run_library (st : State.t) =
 
     | `Select ->
       (* TODO: allow multiple selections *)
+      State.focus_library st tab;
       if Table.num_selected tab > 1 then
         tab.selected <- selected;  (* override *)
       Library.update_tracks lib;
@@ -1133,7 +1195,7 @@ let run_library (st : State.t) =
         Bool.to_int (Api.Key.is_modifier_down `Command) * (-4)
       in
       dir.albums_sorting <-
-        List.take 4 (Data.insert_sorting attr k dir.albums_sorting);
+        Data.insert_sorting `None attr k 4 dir.albums_sorting;
       Library.update_dir lib dir;
       Library.reorder_albums lib;
 
@@ -1145,9 +1207,13 @@ let run_library (st : State.t) =
     | `Click (Some _i) when Api.Mouse.is_doubleclick `Left ->
       (* Double-click on track: clear playlist and send tracks to it *)
       let tracks = lib.tracks.entries in
-      Playlist.replace_all pl tracks;
-      Control.eject st.control;
-      if tracks <> [||] then Control.switch st.control tracks.(0) true;
+      if tracks <> [||] then
+      (
+        Playlist.replace_all pl tracks;
+        State.focus_playlist st;
+        Control.eject st.control;
+        Control.switch st.control tracks.(0) true;
+      )
 
     | `Click _ ->
       (* Single-click: grab focus *)
@@ -1155,14 +1221,13 @@ let run_library (st : State.t) =
       if Table.num_selected tab > 1 then
         tab.selected <- selected;  (* override *)
       Library.update_tracks lib;
-      Library.focus_albums lib;
-      Playlist.defocus pl;
-      Playlist.deselect_all pl;
+      State.focus_library st tab;
 
     | `Drag _ ->
       (* Drag: adjust cursor *)
       if Api.Key.are_modifiers_down [] then
       (
+        State.focus_library st tab;
         Api.Mouse.set_cursor win
           (if
             Api.inside m (Ui.dim lay.ui (albums_area lay)) ||
@@ -1180,11 +1245,7 @@ let run_library (st : State.t) =
         let len = Playlist.length pl in
         let pos = min len ((my - y) / lay.text + pl.table.vscroll) in
         Playlist.insert pl pos tracks;
-        Library.defocus lib;
-        Library.deselect_all lib;
-        Playlist.focus pl;
-        Playlist.deselect_all pl;
-        Playlist.select pl pos (pos + Array.length tracks - 1);
+        State.focus_playlist st;
         Control.switch_if_empty st.control (Playlist.current_opt pl);
       )
     );
@@ -1234,7 +1295,10 @@ let run_library (st : State.t) =
 
     let sorting = convert_sorting dir.tracks_columns dir.tracks_sorting in
     (match tracks_table lay cols (Some (headings, sorting)) tab pp_row with
-    | `None | `Select | `Scroll | `Move _ -> ()
+    | `None | `Scroll | `Move _ -> ()
+
+    | `Select ->
+      State.focus_library st tab;
 
     | `Sort i ->
       (* Click on column header: reorder view accordingly *)
@@ -1244,8 +1308,10 @@ let run_library (st : State.t) =
         Bool.to_int (Api.Key.is_modifier_down `Alt) * 2 +
         Bool.to_int (Api.Key.is_modifier_down `Command) * (-4)
       in
+      let primary =
+        if Library.current_is_playlist lib then `Pos else `FilePath in
       dir.tracks_sorting <-
-        List.take 4 (Data.insert_sorting attr k dir.tracks_sorting);
+        Data.insert_sorting primary attr k 4 dir.tracks_sorting;
       Library.update_dir lib dir;
       Library.reorder_tracks lib;
 
@@ -1261,20 +1327,23 @@ let run_library (st : State.t) =
         then Library.selected lib
         else [|tab.entries.(i)|]
       in
-      Playlist.replace_all pl tracks;
-      Control.eject st.control;
-      Control.switch st.control (Playlist.current pl) true;
+      if tracks <> [||] then
+      (
+        Playlist.replace_all pl tracks;
+        State.focus_playlist st;
+        Control.eject st.control;
+        Control.switch st.control (Playlist.current pl) true;
+      )
 
     | `Click _ ->
       (* Single-click: grab focus *)
-      Library.focus_tracks lib;
-      Playlist.defocus pl;
-      Playlist.deselect_all pl;
+      State.focus_library st tab;
 
     | `Drag _ ->
       (* Drag: adjust cursor *)
       if Api.Key.are_modifiers_down [] then
       (
+        State.focus_library st tab;
         Api.Mouse.set_cursor win
           (if
             Api.inside m (Ui.dim lay.ui (tracks_area lay)) ||
@@ -1292,124 +1361,10 @@ let run_library (st : State.t) =
         let len = Playlist.length pl in
         let pos = min len ((my - y) / lay.text + pl.table.vscroll) in
         Playlist.insert pl pos tracks;
-        Library.defocus lib;
-        Library.deselect_all lib;
-        Playlist.focus pl;
-        Playlist.deselect_all pl;
-        Playlist.select pl pos (pos + Array.length tracks - 1);
+        State.focus_playlist st;
         Control.switch_if_empty st.control (Playlist.current_opt pl);
-      )
+      );
     );
-
-(*
-    if Data.is_playlist dir then
-    (
-      (* Separator button *)
-      if Layout.sep_button lay (Some false) then
-      (
-        (* Click on Separator button: insert separator *)
-        let pos = Option.value (Playlist.first_selected pl) ~default: 0 in
-        Playlist.insert pl pos [|Track.make_separator ()|];
-        Control.switch_if_empty st.control (Playlist.current_opt pl);
-        if Playlist.num_selected pl = 1 then
-        (
-          (* Selection was singular: change it to new insertion *)
-          Library.deselect_all lib;
-          Playlist.deselect_all pl;
-          Playlist.select pl pos pos;
-        )
-      );
-
-      (* Edit buttons *)
-      let selected = Library.num_selected pl > 0 in
-
-      if Layout.del_button lay (if selected then Some false else None) then
-      (
-        (* Click on Delete button: remove selected tracks from playlist *)
-        Playlist.remove_selected pl;
-      );
-
-      let unselected = Playlist.num_selected pl < len in
-      if Layout.crop_button lay (if unselected then Some false else None) then
-      (
-        (* Click on Crop button: remove unselected tracks from playlist *)
-        Playlist.remove_unselected pl;
-      );
-
-      let clean_avail = if snd pl.total > 0 then Some false else None in
-      if Layout.clean_button lay clean_avail then
-      (
-        (* Click on Clean button: remove invalid tracks from playlist *)
-        Playlist.remove_invalid pl;
-      );
-
-      let undo_avail = if !(tab.undos) <> [] then Some false else None in
-      if Layout.undo_button lay undo_avail then
-      (
-        (* Click on Undo button: pop undo *)
-        Playlist.pop_undo pl;
-        Control.switch_if_empty st.control (Playlist.current_opt pl);
-      );
-
-      let redo_avail = if !(tab.redos) <> [] then Some false else None in
-      if Layout.redo_button lay redo_avail then
-      (
-        (* Click on Redo button: pop redo *)
-        Playlist.pop_redo pl;
-        Control.switch_if_empty st.control (Playlist.current_opt pl);
-      );
-
-      (* Edit keys *)
-      if Layout.cut_key lay then
-      (
-        (* Press of Cut key: remove selected tracks and write them to clipboard *)
-        let s = Playlist.string_of_playlist (Playlist.selected pl) in
-        Api.Clipboard.write win s;
-        Playlist.remove_selected pl;
-      );
-
-      if Layout.copy_key lay then
-      (
-        (* Press of Copy key: write selected tracks to clipboard *)
-        let s = Playlist.string_of_playlist (Playlist.selected pl) in
-        Api.Clipboard.write win s;
-      );
-
-      if Layout.paste_key lay then
-      (
-        (* Press of Paste key: insert tracks from clipboard *)
-        match Api.Clipboard.read win with
-        | None -> ()
-        | Some s ->
-          let tracks = Playlist.playlist_of_string s in
-          let pos = Option.value (Playlist.first_selected pl) ~default: 0 in
-          Playlist.insert pl pos tracks;
-          Control.switch_if_empty st.control (Playlist.current_opt pl);
-          if Playlist.num_selected pl = 1 && tracks <> [||] then
-          (
-            (* Selection was singular: change it to new insertion *)
-            Library.deselect_all lib;
-            Playlist.deselect_all pl;
-            Playlist.select pl pos (pos + Array.length tracks - 1);
-          )
-      );
-
-      (* Playlist drag & drop *)
-      let dropped = Layout.playlist_drop lay in
-      if dropped <> [] then
-      (
-        (* Files drop on playlist: insertion paths at pointed position *)
-        let _, my = Api.Mouse.pos win in
-        let pos = min len ((my - y) / lay.text + tab.vscroll) in
-        Playlist.deselect_all pl;
-        let len = Playlist.length pl in
-        Playlist.insert_paths pl pos dropped;
-        let len' = Playlist.length pl in
-        if pos > 0 && pos < len then Playlist.select pl pos (pos + len' - len - 1);
-        Control.switch_if_empty st.control (Playlist.current_opt pl);
-      )
-    );
-*)
 
     (* Divider *)
     if lay.lower_shown then
@@ -1456,6 +1411,7 @@ let rec run (st : State.t) =
   if not (Api.Window.is_minimized win) then
   (
     if playlist_shown then run_playlist st;
+    if playlist_shown then run_edit st;
     if library_shown then run_library st;
   );
   run_toggle_panes st;
@@ -1509,7 +1465,6 @@ let startup () =
   let audio = Api.Audio.init () in
   let rst = ref (State.make ui audio db) in
   let st = if State.load !rst then !rst else State.make ui audio db in
-  Playlist.focus st.playlist;
   at_exit (fun () ->
     State.save st;
     Api.Audio.free audio st.control.sound;

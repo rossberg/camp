@@ -29,7 +29,7 @@ let name track =
   if is_separator track then name_separator else
   match track.meta with
   | Some meta -> name_of_meta track.path meta
-  | None -> name_of_artist_title "" ""
+  | None -> name_of_path track.path
 
 
 let artist_title_of_name name =
@@ -89,9 +89,13 @@ let of_m3u_item (item : M3u.item) =
     ) item.info;
   track
 
+let of_pos_m3u_item i item =
+  let track = of_m3u_item item in
+  track.pos <- i;
+  track
 
 let to_m3u tracks = M3u.make_ext (Array.to_list (Array.map to_m3u_item tracks))
-let of_m3u s = Array.map of_m3u_item (Array.of_list (M3u.parse_ext s))
+let of_m3u s = Array.mapi of_pos_m3u_item (Array.of_list (M3u.parse_ext s))
 
 
 (* Updating queue *)

@@ -138,8 +138,7 @@ let select_invert tab =
 let select tab i0 j0 =
   let i, j = min i0 j0, max i0 j0 in
   for k = i to j do
-    if not (IntSet.mem k tab.selected) then
-      tab.selected <- IntSet.add k tab.selected
+    tab.selected <- IntSet.add k tab.selected
   done;
   tab.sel_range <- Some (i0, j0)
 

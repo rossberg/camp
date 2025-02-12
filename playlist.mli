@@ -41,6 +41,8 @@ val save_playlist : t -> unit
 (* Accessors *)
 
 val length : t -> int
+val tracks : t -> track array
+
 val current : t -> track
 val current_opt : t -> track option
 
@@ -100,6 +102,9 @@ val remove_invalid : t -> unit
 val replace_all : t -> track array -> unit
 
 val move_selected : t -> int -> unit
+
+val undo : t -> unit
+val redo : t -> unit
 
 
 (* Undo *)

@@ -772,7 +772,6 @@ let header ui area gw cols titles sorting hscroll =
       cx + cw + gw;
     ) (x + mw) cols - x - mw
   );
-  Draw.unclip ui.win;
 
   List.iteri (fun k (i, order) ->
     let rec find_header j cx =
@@ -786,8 +785,9 @@ let header ui area gw cols titles sorting hscroll =
       let font = font ui h in
       let tw = Api.Draw.text_width ui.win h font syms.(k) in
       if cw > tw then
-        Api.Draw.text ui.win (cx + cw - tw + 3) y h `Black font syms.(k)
+        Api.Draw.text ui.win (cx + cw - tw + 4 - hscroll) y h `Black font syms.(k)
   ) sorting;
+  Draw.unclip ui.win;
 
   let gutter_tolerance = 5 in
   let rec find_gutter' mx i cx =
@@ -830,7 +830,7 @@ let header ui area gw cols titles sorting hscroll =
 
 let rich_table_inner _ui area _gw ch sw sh has_headings =
   let (p, ax, ay, aw, ah) = area in
-  let ty = if has_headings then ay else ay + ch + 2 in
+  let ty = if not has_headings then ay else ay + ch + 2 in
   let th =
     ah - (if ah < 0 then 0 else ty - ay) - (if sh = 0 then 0 else sh + 1) in
   (p, ax, ty, aw - sw - 1, th)
@@ -943,8 +943,6 @@ let rich_table ui area gw ch sw sh cols headings_opt (tab : _ Table.t) pp_row =
       )
       else `None
   in
-  if result <> `None then
-    tab.focus <- true;
 
   (* Header *)
   let result =
