@@ -624,8 +624,12 @@ let album_key (album : album) = (*album.track*)  (* TODO *)
   | None -> "[unknown]"
   | Some meta -> meta.albumtitle
 
-let track_key (track : track) = track.path
-let pos_key (track : track) = string_of_int track.pos
+let track_key lib =
+  if current_is_playlist lib then
+    fun track -> string_of_int track.pos
+  else
+    fun track -> track.path
+
 
 let sort_entries entries sorting attr_string =
   let enriched =
@@ -650,7 +654,7 @@ let update lib tab sorting attr_string key iter_db =
   Table.restore_selection tab selection key
 
 let update_tracks lib =
-  update lib lib.tracks tracks_sorting track_attr_string track_key
+  update lib lib.tracks tracks_sorting track_attr_string (track_key lib)
     (fun dir f ->
       (* TODO: filter by multiple artists and albums *)
       let artist =
@@ -745,14 +749,14 @@ let reorder_albums lib =
   reorder lib lib.albums albums_sorting album_attr_string album_key
 
 let reorder_tracks lib =
-  reorder lib lib.tracks tracks_sorting track_attr_string
-    (if current_is_playlist lib then pos_key else track_key)
+  reorder lib lib.tracks tracks_sorting track_attr_string (track_key lib)
 
 
 (* Playlist Editing *)
 
 let length lib = Table.length lib.tracks
 let tracks lib = lib.tracks.entries
+let table lib = lib.tracks
 
 let adjust_scroll lib pos fit = Table.adjust_scroll lib.tracks pos fit
 
@@ -820,9 +824,11 @@ let insert' lib pos tracks =
     for i = pos'' to len - 1 do
       entries.(i).pos <- entries.(i).pos + len'
     done;
+    deselect_all lib;
     Table.insert lib.tracks pos'' tracks;
     select lib pos'' (pos'' + len' - 1);
     restore_playlist lib order;
+    update_views lib;
     save_playlist lib;
     (* TODO: update DB eagerly? *)
   )

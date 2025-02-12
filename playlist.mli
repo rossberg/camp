@@ -42,6 +42,7 @@ val save_playlist : t -> unit
 
 val length : t -> int
 val tracks : t -> track array
+val table : t -> track Table.t
 
 val current : t -> track
 val current_opt : t -> track option

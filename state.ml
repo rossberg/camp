@@ -75,7 +75,7 @@ let focus_playlist st =
   Library.defocus st.library;
   Playlist.focus st.playlist
 
-let focus_library st (table : _ Table.t) =
+let focus_library (table : _ Table.t) st =
   Playlist.deselect_all st.playlist;
   Playlist.defocus st.playlist;
   Library.defocus st.library;

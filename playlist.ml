@@ -67,6 +67,7 @@ let ok pl =
 
 let length pl = Table.length pl.table
 let tracks pl = pl.table.entries
+let table pl = pl.table
 
 let current pl = Table.current pl.table
 let current_opt pl = Table.current_opt pl.table

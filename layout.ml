@@ -306,6 +306,7 @@ let left_pane g = Ui.pane g.ui 3 (left_x g, 0, left_w g, upper_h g)
 
 let left_area g = (3, 0, margin g, -1, -1)
 let left_table g = Ui.rich_table g.ui (left_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g)
+let left_inner g = Ui.rich_table_inner g.ui (left_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
 
 let left_view = left_pane, left_area, left_table
 
@@ -316,6 +317,7 @@ let right_divider g = Ui.divider g.ui (4, 0, 0, divider_w g, -1) `Horizontal
 
 let right_area g = (4, divider_w g, margin g, -1, -1)
 let right_table g = Ui.rich_table g.ui (right_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g)
+let right_inner g = Ui.rich_table_inner g.ui (right_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
 
 let right_view = right_pane, right_area, right_table
 
@@ -326,6 +328,7 @@ let lower_divider g = Ui.divider g.ui (5, 0, 0, -1, divider_w g) `Vertical
 
 let lower_area g = (5, 0, divider_w g, -1, -1)
 let lower_table g = Ui.rich_table g.ui (lower_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g)
+let lower_inner g = Ui.rich_table_inner g.ui (lower_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
 
 let lower_view = lower_pane, lower_area, lower_table
 

@@ -116,6 +116,7 @@ val deselect : t -> int -> int -> unit
 
 val length : t -> int
 val tracks : t -> track array
+val table : t -> track Table.t
 
 val insert : t -> int -> track array -> unit
 val insert_paths : t -> int -> Data.path list -> unit
