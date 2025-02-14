@@ -195,7 +195,21 @@ let meta_attr_string (meta : Meta.t) = function
     let len = String.length star in
     String.init (meta.rating * len) (fun i -> star.[i mod len])
 
-let length_attr_string format meta =
+let artist_attr_string' attr path meta =
+  let s = nonempty meta_attr_string meta attr in
+  if s <> "" then s else
+  match Track.artist_title_of_path path with
+  | Some (artist, _) -> artist
+  | None -> "[unknown]"
+
+let title_attr_string' attr path meta =
+  let s = nonempty meta_attr_string meta attr in
+  if s <> "" then s else
+  match Track.artist_title_of_path path with
+  | Some (_, title) -> title
+  | None -> "[unknown]"
+
+let length_attr_string' format meta =
   let s = nonempty format_attr_string format `Length in
   if s <> "" then s else nonempty meta_attr_string meta `Length
 
@@ -205,14 +219,18 @@ let artist_attr_string (artist : artist) = function
   | `Albums -> string_of_int artist.albums
 
 let album_attr_string (album : album) = function
-  | `Length -> length_attr_string album.format album.meta
+  | `AlbumArtist -> artist_attr_string' `AlbumArtist album.path album.meta
+  | `AlbumTitle -> title_attr_string' `AlbumTitle album.path album.meta
+  | `Length -> length_attr_string' album.format album.meta
   | #file_attr as attr -> file_attr_string album.path album.file attr
   | #format_attr as attr -> nonempty format_attr_string album.format attr
   | #meta_attr as attr -> nonempty meta_attr_string album.meta attr
 
 let track_attr_string (track : track) = function
   | `Pos -> nonzero 0 (fmt "%3d") (track.pos + 1)
-  | `Length -> length_attr_string track.format track.meta
+  | `Artist -> artist_attr_string' `Artist track.path track.meta
+  | `Title -> title_attr_string' `Title track.path track.meta
+  | `Length -> length_attr_string' track.format track.meta
   | #file_attr as attr -> file_attr_string track.path track.file attr
   | #format_attr as attr -> nonempty format_attr_string track.format attr
   | #meta_attr as attr -> nonempty meta_attr_string track.meta attr
@@ -474,6 +492,11 @@ let current_is_playlist lib =
   match lib.current with
   | None -> false
   | Some dir -> Data.is_playlist dir
+
+let current_is_shown_playlist lib =
+  match lib.current with
+  | None -> false
+  | Some dir -> dir.tracks_shown && Data.is_playlist dir
 
 
 (* Roots *)
@@ -779,8 +802,11 @@ let save_playlist lib =
   let tracks = Array.map Fun.id lib.tracks.entries in
   Array.sort (fun (t1 : track) (t2 : track) -> compare t1.pos t2.pos) tracks;
   try
-    let s = Track.to_m3u tracks in
-    Out_channel.with_open_bin dir.path (fun file -> output_string file s)
+    let items = Array.to_list (Array.map (Track.to_m3u_item) tracks) in
+    let s = M3u.make_ext items in
+    Out_channel.with_open_bin dir.path (fun file -> output_string file s);
+    Db.delete_playlists lib.db dir.path;
+    Db.insert_playlists_bulk lib.db dir.path items;
   with exn -> Storage.log
     ("error writing playlist " ^ dir.path ^ ": " ^ Printexc.to_string exn)
 
@@ -789,82 +815,74 @@ let save_playlist lib =
 let compare_pos (tr1 : track) (tr2 : track) = compare tr1.pos tr2.pos
 
 let normalize_playlist lib =
+  if Table.(has_selection lib.artists || has_selection lib.albums) then
+  (
+    Table.deselect_all lib.artists;
+    Table.deselect_all lib.albums;
+    update_views lib;
+  );
   let dir = Option.get lib.current in
   match dir.tracks_sorting with
   | (`Pos, `Asc)::_ -> `Asc
-  | (`Pos, `Desc)::_ -> array_rev lib.tracks.entries; `Desc
-  | _ -> Array.sort compare_pos lib.tracks.entries; `Other
+  | (`Pos, `Desc)::_ ->
+    let selection = Table.save_selection lib.tracks in
+    array_rev lib.tracks.entries;
+    Table.restore_selection lib.tracks selection (track_key lib);
+    `Desc
+  | _ ->
+    let selection = Table.save_selection lib.tracks in
+    Array.sort compare_pos lib.tracks.entries;
+    Table.restore_selection lib.tracks selection (track_key lib);
+    `Other
 
 let restore_playlist lib = function
   | `Asc -> ()
-  | `Desc -> array_rev lib.tracks.entries
-  | `Other -> reorder_tracks lib
+  | `Desc ->
+    let selection = Table.save_selection lib.tracks in
+    array_rev lib.tracks.entries;
+    Table.restore_selection lib.tracks selection (track_key lib)
+  | `Other ->
+    let selection = Table.save_selection lib.tracks in
+    reorder_tracks lib;
+    Table.restore_selection lib.tracks selection (track_key lib)
 
 
-let insert' lib pos tracks =
+let insert lib pos tracks =
   assert (current_is_playlist lib);
   if tracks <> [||] then
   (
     deselect_all lib;
-    let entries = lib.tracks.entries in
+    let pos' =
+      if pos >= Table.length lib.tracks then max_int - 1 else
+      lib.tracks.entries.(pos).pos
+    in
+    let order = normalize_playlist lib in  (* can change entries length! *)
     let len = Table.length lib.tracks in
     let len' = Array.length tracks in
-    let pos' = if pos >= len then len else entries.(pos).pos in
-    let order = normalize_playlist lib in
-    let pos'' =
-      match order with
-      | `Asc -> pos
-      | `Desc -> len - pos
-      | `Other -> pos'
+    let pos'' = min (if order = `Desc then pos' + 1 else pos') len in
+    let tracks' = Array.mapi
+      (fun i (track : track) ->
+        let pos = pos'' + (if order = `Desc then len' - i - 1 else i) in
+        match Db.find_track lib.db track.path with
+        | Some track' -> {track' with pos}  (* clone to prevent aliasing! *)
+        | None ->
+          (* Abuse `Predet as an indication that the track isn't in lib *)
+          let status =
+            if track.status <> `Det || Data.is_separator track
+            then track.status else `Predet
+          in {track with pos; status}
+      ) tracks
     in
-    if order = `Desc then
-      Array.iteri (fun i track -> track.pos <- pos'' + len' - i - 1) tracks
-    else
-      Array.iteri (fun i track -> track.pos <- pos'' + i) tracks;
-    for i = pos'' to len - 1 do
-      entries.(i).pos <- entries.(i).pos + len'
-    done;
     deselect_all lib;
-    Table.insert lib.tracks pos'' tracks;
+    for i = pos'' to len - 1 do
+      lib.tracks.entries.(i).pos <- lib.tracks.entries.(i).pos + len'
+    done;
+    Table.insert lib.tracks pos'' tracks';
     select lib pos'' (pos'' + len' - 1);
     restore_playlist lib order;
-    update_views lib;
     save_playlist lib;
-    (* TODO: update DB eagerly? *)
+    update_views lib;
   )
-
-let insert lib pos tracks =
-  (* Clone tracks for pos mutation *)
-  insert' lib pos (Array.map (fun tr -> {tr with pos = tr.pos}) tracks)
-
-let insert_paths lib pos paths =
-  let tracks = ref [] in
-  let add_track path =
-    let track =
-      match Db.find_track lib.db path with
-      | Some track -> track
-      | None -> Data.make_track path
-    in tracks := track :: !tracks
-  in
-  let add_playlist path =
-    let s = In_channel.(with_open_bin path input_all) in
-    List.iter add_track (M3u.parse s)
-  in
-  let rec add_path path =
-    try
-      if Sys.file_exists path && Sys.is_directory path then
-        Array.iter (fun file ->
-          add_path (Filename.concat path file)
-        ) (Sys.readdir path)
-      else if Data.is_playlist_path path then
-        add_playlist path
-      else if Data.is_track_path path then
-        add_track path
-    with Sys_error _ -> ()
-  in
-  List.iter add_path paths;
-  insert' lib pos (Array.of_list (List.rev !tracks))
-
 
 let remove_all lib =
   assert (current_is_playlist lib);
@@ -874,7 +892,6 @@ let remove_all lib =
     Table.remove_all lib.tracks;
     restore_playlist lib order;
     save_playlist lib;
-    (* TODO: update DB eagerly? *)
   )
 
 let remove_if p lib n =
@@ -886,7 +903,6 @@ let remove_if p lib n =
     Array.iter (fun track -> track.pos <- js.(track.pos)) lib.tracks.entries;
     restore_playlist lib order;
     save_playlist lib;
-    (* TODO: update DB eagerly? *)
   )
 
 let remove_selected lib =
@@ -926,7 +942,6 @@ let move_selected lib d =
     Array.iter (fun track -> track.pos <- js.(track.pos)) lib.tracks.entries;
     restore_playlist lib order;
     save_playlist lib;
-    (* TODO: update DB eagerly? *)
   )
 
 
@@ -936,7 +951,6 @@ let undo lib =
   Array.iteri (fun i track -> track.pos <- i) lib.tracks.entries;
   restore_playlist lib order;
   save_playlist lib
-  (* TODO: update DB eagerly? *)
 
 let redo lib =
   let order = normalize_playlist lib in
@@ -944,7 +958,6 @@ let redo lib =
   Array.iteri (fun i track -> track.pos <- i) lib.tracks.entries;
   restore_playlist lib order;
   save_playlist lib
-  (* TODO: update DB eagerly? *)
 
 
 (* Persistance *)

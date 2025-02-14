@@ -42,15 +42,18 @@ let artist_title_of_name name =
       Some String.(sub name 0 (i - 1), sub name (i + 2) (length name - i - 2))
   in find 1
 
+let is_digit_or_dot c = c = '.' || c >= '0' && c <= '9'
+
 let artist_title_of_path path =
   if M3u.is_separator path then Some (name_separator, name_separator) else
   let name = Filename.(remove_extension (basename path)) in
   match artist_title_of_name name with
   | None -> None
-  | Some (_, title) as result ->
+  | Some (pre, rest) as result when String.for_all is_digit_or_dot pre ->
     (* In case there is a position as well *)
-    let result' = artist_title_of_name title in
+    let result' = artist_title_of_name rest in
     if result' = None then result else result'
+  | result -> result
 
 
 let time track =
@@ -75,19 +78,22 @@ let to_m3u_item (track : Data.track) =
   M3u.{path = track.path; info}
 
 let of_m3u_item (item : M3u.item) =
-  let track = Data.make_track item.path in
-  if is_separator track then
-    track.status <- `Det
-  else if not (Format.is_known_ext track.path) then
-    track.status <- `Invalid
+  if M3u.is_separator item.path then
+    Data.make_separator ()
   else
-    Option.iter (fun (info : M3u.info) ->
-      Option.iter (fun (artist, title) ->
-        let meta = Meta.meta track.path None in
-        track.meta <- Some {meta with artist; title; length = float info.time}
-      ) (artist_title_of_name info.title)
-    ) item.info;
-  track
+  (
+    let track = Data.make_track item.path in
+    if not (Format.is_known_ext track.path) then
+      track.status <- `Invalid
+    else
+      Option.iter (fun (info : M3u.info) ->
+        Option.iter (fun (artist, title) ->
+          let meta = Meta.meta track.path None in
+          track.meta <- Some {meta with artist; title; length = float info.time}
+        ) (artist_title_of_name info.title)
+      ) item.info;
+    track
+  )
 
 let of_pos_m3u_item i item =
   let track = of_m3u_item item in

@@ -216,7 +216,7 @@ let playlist_pane g = Ui.pane g.ui 1 (playlist_x g, control_h g, control_w g, g.
 (* Playlist *)
 let playlist_area g = (1, margin g, margin g, - margin g, - bottom_h g)
 let playlist_table g = Ui.rich_table g.ui (playlist_area g) (gutter_w g) (text_h g) (scrollbar_w g) 0
-let playlist_drop g = Ui.drop g.ui (playlist_area g)
+let playlist_mouse g = Ui.rich_table_mouse g.ui (playlist_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) false
 
 (* Total text field *)
 let total_w g = - margin g - scrollbar_w g
@@ -287,7 +287,7 @@ let tracks_label = view_label 0 "TRACKS"
 let browser_y g = margin g + indicator_w g + view_h + label_h g + 10
 let browser_area g = (2, margin g, browser_y g, - divider_w g, - bottom_h g)
 let browser_table g = Ui.rich_table g.ui (browser_area g) 0 (text_h g) (scrollbar_w g) 0
-let browser_drop g = Ui.drop g.ui (browser_area g)
+let browser_mouse g = Ui.rich_table_mouse g.ui (browser_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) false
 let browser_error_box g = Ui.box g.ui (browser_area g) (Ui.error_color g.ui)
 
 let del_key g = Ui.key g.ui ([`Command], `Delete)
@@ -306,7 +306,7 @@ let left_pane g = Ui.pane g.ui 3 (left_x g, 0, left_w g, upper_h g)
 
 let left_area g = (3, 0, margin g, -1, -1)
 let left_table g = Ui.rich_table g.ui (left_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g)
-let left_inner g = Ui.rich_table_inner g.ui (left_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
+let left_mouse g = Ui.rich_table_mouse g.ui (left_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
 
 let left_view = left_pane, left_area, left_table
 
@@ -317,7 +317,7 @@ let right_divider g = Ui.divider g.ui (4, 0, 0, divider_w g, -1) `Horizontal
 
 let right_area g = (4, divider_w g, margin g, -1, -1)
 let right_table g = Ui.rich_table g.ui (right_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g)
-let right_inner g = Ui.rich_table_inner g.ui (right_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
+let right_mouse g = Ui.rich_table_mouse g.ui (right_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
 
 let right_view = right_pane, right_area, right_table
 
@@ -328,7 +328,7 @@ let lower_divider g = Ui.divider g.ui (5, 0, 0, -1, divider_w g) `Vertical
 
 let lower_area g = (5, 0, divider_w g, -1, -1)
 let lower_table g = Ui.rich_table g.ui (lower_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g)
-let lower_inner g = Ui.rich_table_inner g.ui (lower_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
+let lower_mouse g = Ui.rich_table_mouse g.ui (lower_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
 
 let lower_view = lower_pane, lower_area, lower_table
 

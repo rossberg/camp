@@ -81,6 +81,9 @@ let dim ui (i, x, y, w, h) =
   let h' = h + (if h >= 0 then 0 else ph - y') in
   px + x', py + y', w', h'
 
+let mouse_inside ui r =
+  Api.inside (Api.Mouse.pos ui.win) (dim ui r)
+
 
 (* Geometry helpers *)
 
@@ -360,14 +363,10 @@ let drag_status ui r (stepx, stepy) =
 let wheel_status ui r =
   if inside (Mouse.pos ui.win) r then snd (Mouse.wheel ui.win) else 0.0
 
-let drop_status ui r =
-  if Api.inside (Mouse.pos ui.win) r then Api.File.dropped ui.win else []
-
 let key ui modkey = (key_status ui modkey = `Pressed)
 let mouse ui r side = (mouse_status ui (dim ui r) side = `Released)
 let wheel ui r = wheel_status ui (dim ui r)
 let drag ui r eps = drag_status ui (dim ui r) eps
-let drop ui r = drop_status ui (dim ui r)
 
 
 (* Auxiliary UI elements *)
@@ -705,9 +704,10 @@ let divider ui r orient v minv maxv =
 type align = [`Left | `Center | `Right]
 type inversion = [`Regular | `Inverted]
 type order = [`Asc | `Desc]
+type sorting = (int * order) list
 type column = int * align
 type row = color * inversion * string array
-type sorting = (int * order) list
+type heading = string array * sorting
 
 let table ui r gw ch cols rows hscroll =
   let (x, y, w, h), status = element ui r no_modkey in
@@ -760,7 +760,7 @@ let table ui r gw ch cols rows hscroll =
 let symbols_asc = [|"▲" (* "▴" *); "▲'" (* "△", "▵", "▵" *); "▲''"; "▲'''"|]
 let symbols_desc = [|"▼" (* "▾" *); "▼'" (* "▽", "▾", "▿" *); "▼''"; "▼'''"|]
 
-let header ui area gw cols titles sorting hscroll =
+let header ui area gw cols (titles, sorting) hscroll =
   let (x, y, w, h) as r, status = element ui area no_modkey in
   ignore (table ui area gw h cols [|text_color ui, `Inverted, titles|] hscroll);
 
@@ -828,21 +828,32 @@ let header ui area gw cols titles sorting hscroll =
 
 (* Rich Tables *)
 
-let rich_table_inner _ui area _gw ch sw sh has_headings =
+let rich_table_inner _ui area _gw ch sw sh has_heading =
   let (p, ax, ay, aw, ah) = area in
-  let ty = if not has_headings then ay else ay + ch + 2 in
+  let ty = if not has_heading then ay else ay + ch + 2 in
   let th =
     ah - (if ah < 0 then 0 else ty - ay) - (if sh = 0 then 0 else sh + 1) in
   (p, ax, ty, aw - sw - 1, th)
 
-let rich_table ui area gw ch sw sh cols headings_opt (tab : _ Table.t) pp_row =
+let rich_table_mouse ui area gw ch sw sh has_heading (tab : _ Table.t) =
+  let area' = rich_table_inner ui area gw ch sw sh has_heading in
+  let (_, y, _, _) as r = dim ui area' in
+  let (_, my) as m = Api.Mouse.pos ui.win in
+  if inside m r then
+    Some (min (Table.length tab) ((my - y) / ch + tab.vscroll))
+  else
+    None
+
+let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
   let (p, ax, ay, aw, ah) = area in
-  let ty = if headings_opt = None then ay else ay + ch + 2 in
+  let ty = if header_opt = None then ay else ay + ch + 2 in
   let th = ah - (if ah < 0 then 0 else ty - ay) - (if sh = 0 then 0 else sh + 1) in
   let header_area = (p, ax, ay, aw - sw - 1, ch) in
   let table_area = (p, ax, ty, aw - sw - 1, th) in
-  let vscroll_area = (p, (if aw < 0 then aw - sw - 1 else ax + aw + 1), ay, sw, ah) in
-  let hscroll_area = (p, ax, (if ah < 0 then ah - sh else ty + th + 1), aw - sw - 1, sh) in
+  let vscroll_area = 
+    (p, (if aw < 0 then aw - sw - 1 else ax + aw + 1), ay, sw, ah) in
+  let hscroll_area =
+    (p, ax, (if ah < 0 then ah - sh else ty + th + 1), aw - sw - 1, sh) in
   let (_, _, w, h) as r = dim ui table_area in
 
   let shift = Key.are_modifiers_down [`Shift] in
@@ -946,10 +957,10 @@ let rich_table ui area gw ch sw sh cols headings_opt (tab : _ Table.t) pp_row =
 
   (* Header *)
   let result =
-    match headings_opt with
+    match header_opt with
     | None -> result
-    | Some (headings, sorting) ->
-      match header ui header_area gw cols headings sorting tab.hscroll with
+    | Some heading ->
+      match header ui header_area gw cols heading tab.hscroll with
       | `Click i -> `Sort i
       | `Arrange -> `Arrange
       | `None -> result

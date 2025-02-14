@@ -21,6 +21,8 @@ val pane : t -> pane -> rect -> unit
 type area = pane * int * int * int * int
 
 val dim : t -> area -> rect
+val mouse_inside : t -> area -> bool
+
 
 (* Colors *)
 
@@ -47,7 +49,6 @@ val key : t -> modifier list * key -> bool
 val mouse : t -> area -> side -> bool
 val drag : t -> area -> size -> [`Drag of size * way | `Drop | `Click | `None]
 val wheel : t -> area -> float
-val drop : t -> area -> string list
 
 (* UI elements *)
 
@@ -75,13 +76,16 @@ val scroll_bar : t -> area -> Api.orientation -> float -> float -> float
 
 val divider : t -> area -> Api.orientation -> int -> int -> int -> int
 
-type column = int * align
-type row = color * inversion * string array
 type order = [`Asc | `Desc]
 type sorting = (int * order) list
+type column = int * align
+type row = color * inversion * string array
+type heading = string array * sorting
 
-val table : t -> area -> int -> int -> column array -> row array -> int -> int option
-val header : t -> area -> int -> column array -> string array -> sorting -> int -> [`Click of int | `Arrange | `None]
+val table : t -> area -> int -> int -> column array -> row array -> int ->
+  int option
+val header : t -> area -> int -> column array -> heading -> int ->
+  [`Click of int | `Arrange | `None]
 
 val rich_table :
   t -> 
@@ -91,9 +95,20 @@ val rich_table :
   int ->  (* vertical scroll bar width *)
   int ->  (* horizontal scroll bar height (can be 0) *)
   column array ->                    (* column layout *)
-  (string array * sorting) option -> (* headers *)
+  heading option ->                  (* headers *)
   'a Table.t ->                      (* data *)
   (int -> color * string array) ->   (* row generator *)
-    [`Click of int option | `Select | `Scroll | `Sort of int | `Arrange | `Move of int | `Drag of int * way | `Drop | `None]
+    [ `Click of int option
+    | `Select
+    | `Scroll
+    | `Sort of int
+    | `Arrange
+    | `Move of int
+    | `Drag of int * way
+    | `Drop
+    | `None
+    ]
 
 val rich_table_inner : t -> area -> int -> int  -> int -> int -> bool -> area
+val rich_table_mouse : t -> area -> int -> int  -> int -> int -> bool ->
+  'a Table.t -> int option

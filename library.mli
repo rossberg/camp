@@ -72,6 +72,7 @@ val add_dirs : t -> path list -> int -> bool
 val remove_dirs : t -> path list -> unit
 
 val current_is_playlist : t -> bool
+val current_is_shown_playlist : t -> bool
 
 
 (* Views *)
@@ -119,14 +120,12 @@ val tracks : t -> track array
 val table : t -> track Table.t
 
 val insert : t -> int -> track array -> unit
-val insert_paths : t -> int -> Data.path list -> unit
+val replace_all : t -> track array -> unit
 
 val remove_all : t -> unit
 val remove_selected : t -> unit
 val remove_unselected : t -> unit
 val remove_invalid : t -> unit
-
-val replace_all : t -> track array -> unit
 
 val move_selected : t -> int -> unit
 

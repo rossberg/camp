@@ -1,7 +1,5 @@
 (* Playlist *)
 
-open Audio_file
-
 type path = Data.path
 type time = Data.time
 type track = Data.track
@@ -281,32 +279,6 @@ let insert pl pos tracks =
     ) pl.shuffle;
     save_playlist pl;
   )
-
-let insert_paths pl pos paths =
-  let tracks = ref [] in
-  let add_track (track : track) =
-    tracks := track :: !tracks;
-    if track.status = `Undet then Track.update track
-  in
-  let add_playlist path =
-    let s = In_channel.(with_open_bin path input_all) in
-    List.iter (fun item -> add_track (Track.of_m3u_item item)) (M3u.parse_ext s)
-  in
-  let rec add_path path =
-    try
-      if Sys.file_exists path && Sys.is_directory path then
-        Array.iter (fun file ->
-          add_path (Filename.concat path file)
-        ) (Sys.readdir path)
-      else if Data.is_playlist_path path then
-        add_playlist path
-      else if Data.is_track_path path then
-        add_track (Data.make_track path)
-    with Sys_error _ -> ()
-  in
-  List.iter add_path paths;
-  insert pl pos (Array.of_list (List.rev !tracks))
-
 
 let remove_all pl =
   if pl.table.entries <> [||] then

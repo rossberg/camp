@@ -389,6 +389,31 @@ let run_toggle_panes (st : State.t) =
 
 (* Generic Handling of Track Views *)
 
+let expand_paths paths =
+  let tracks = ref [] in
+  let add_track (track : Data.track) =
+    tracks := track :: !tracks
+  in
+  let add_playlist path =
+    let s = In_channel.(with_open_bin path input_all) in
+    List.iter (fun item -> add_track (Track.of_m3u_item item)) (M3u.parse_ext s)
+  in
+  let rec add_path path =
+    try
+      if Sys.file_exists path && Sys.is_directory path then
+        Array.iter (fun file ->
+          add_path (Filename.concat path file)
+        ) (Sys.readdir path)
+      else if Data.is_playlist_path path then
+        add_playlist path
+      else if Data.is_track_path path then
+        add_track (Data.make_track path)
+    with Sys_error _ -> ()
+  in
+  List.iter add_path paths;
+  Array.of_list (List.rev !tracks)
+
+
 module type TracksView =  (* target view for edit ops *)
 sig
   open Data
@@ -397,7 +422,7 @@ sig
   val it : t
   val focus : track Table.t -> State.t -> unit
 
-  val length : t -> int
+(*  val length : t -> int*)
   val tracks : t -> track array
   val table : t -> track Table.t
 
@@ -411,11 +436,11 @@ sig
 (*  val deselect : t -> int -> int -> unit*)
 
   val insert : t -> int -> track array -> unit
+(*  val replace_all : t -> track array -> unit*)
 (*  val remove_all : t -> unit*)
   val remove_selected : t -> unit
   val remove_unselected : t -> unit
   val remove_invalid : t -> unit
-(*  val replace_all : t -> track array -> unit*)
 (*  val move_selected : t -> int -> unit*)
   val undo : t -> unit
   val redo : t -> unit
@@ -423,6 +448,36 @@ end
 
 module Playlist = struct include Playlist let focus _ = State.focus_playlist end
 module Library = struct include Library let focus = State.focus_library end
+
+
+let drop (st : State.t) tracks table_mouse (module View : TracksView) =
+  let lay = st.layout in
+  let view = View.it in
+  let tab = View.table view in
+  Option.iter (fun pos ->
+    (* Drag & drop onto table: send tracks there *)
+    View.insert view pos tracks;
+    View.focus tab st;
+    Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
+  ) (table_mouse lay tab)
+
+let drop_on_playlist (st : State.t) tracks =
+  if st.layout.playlist_shown then
+  (
+    let module View = struct let it = st.playlist include Playlist end in
+    drop st tracks Layout.playlist_mouse (module View);
+  )
+
+let library_mouse (lay : Layout.t) =
+  if lay.lower_shown then Layout.lower_mouse lay else
+  if lay.right_shown then Layout.right_mouse lay else Layout.left_mouse lay
+
+let drop_on_library (st : State.t) tracks =
+  if st.layout.library_shown && Library.current_is_shown_playlist st.library then
+  (
+    let module View = struct let it = st.library include Library end in
+    drop st tracks library_mouse (module View)
+  )
 
 
 let run_edit (st : State.t) =
@@ -435,7 +490,7 @@ let run_edit (st : State.t) =
   let lib_focus = lib.tracks.focus || lib.albums.focus || lib.artists.focus ||
     lib.browser.focus in
   let pl_edit = pl_focus in
-  let lib_edit = lib_focus && Library.current_is_playlist lib in
+  let lib_edit = lib_focus && Library.current_is_shown_playlist lib in
 
   assert (not (pl_focus && lib_focus));
   assert (not (pl_edit && lib_edit));
@@ -610,42 +665,6 @@ let run_edit (st : State.t) =
   )
 
 
-let drop (st : State.t) tracks area (module View : TracksView) =
-  let lay = st.layout in
-  let (_, y, _, _) as r = Ui.dim lay.ui (area lay) in
-  let (_, my) as m = Api.Mouse.pos (Ui.window lay.ui) in
-  if Api.inside m r then
-  (
-    (* Drag & drop onto table: send tracks there *)
-    let view = View.it in
-    let len = View.length view in
-    let tab = View.table view in
-    let pos = min len ((my - y) / lay.text + tab.vscroll) in
-    View.insert view pos tracks;
-    View.focus tab st;
-  )
-
-let drop_on_playlist (st : State.t) tracks =
-  if st.layout.playlist_shown then
-  (
-    let module View = struct let it = st.playlist include Playlist end in
-    drop st tracks Layout.playlist_area (module View);
-    Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
-  )
-
-let drop_on_library (st : State.t) tracks =
-  Option.iter (fun (dir : Data.dir) ->
-    let lay = st.layout in
-    if lay.library_shown && dir.tracks_shown && Data.is_playlist dir then
-      let area =
-        if lay.lower_shown then Layout.lower_inner else
-        if lay.right_shown then Layout.right_inner else Layout.left_inner
-      in
-      let module View = struct let it = st.library include Library end in
-      drop st tracks area (module View)
-  ) st.library.current
-
-
 (* Playlist Pane *)
 
 let run_playlist (st : State.t) =
@@ -660,7 +679,7 @@ let run_playlist (st : State.t) =
   Layout.playlist_pane lay;
 
   (* Playlist table *)
-  let _, y, _, h = Ui.dim lay.ui (Layout.playlist_area lay) in
+  let _, _, _, h = Ui.dim lay.ui (Layout.playlist_area lay) in
   let page = max 1 (int_of_float (Float.floor (float h /. float lay.text))) in
   let digits_pos = log10 (len + 1) + 1 in
   let digits_time = ref 1 in
@@ -780,8 +799,7 @@ let run_playlist (st : State.t) =
     )
 
   | `Drop ->
-    let r = Ui.dim lay.ui (Layout.playlist_area lay) in
-    if not Api.(inside (Mouse.pos win) r) then
+    if not (Ui.mouse_inside lay.ui (Layout.playlist_area lay)) then
     (
       (* Dropping outside playlist: drop aux redo for new state *)
       Table.drop_redo pl.table;
@@ -790,23 +808,19 @@ let run_playlist (st : State.t) =
     );
   );
 
+  (* Playlist drag & drop *)
+  let dropped = Api.File.dropped win in
+  if dropped <> [] then
+  (
+    (* Files drop: insert paths at pointed position *)
+    drop_on_playlist st (expand_paths dropped);
+  );
+
   (* Save button *)
   if Layout.save_button lay None then
   (
     (* Click on Save button: save playlist *)
     (* TODO: file dialog for chosing file path and name *)
-  );
-
-  (* Playlist drag & drop *)
-  let dropped = Layout.playlist_drop lay in
-  if dropped <> [] then
-  (
-    (* Files drop on playlist: insertion paths at pointed position *)
-    let _, my = Api.Mouse.pos win in
-    let pos = min len ((my - y) / lay.text + tab.vscroll) in
-    Playlist.insert_paths pl pos dropped;
-    State.focus_playlist st;
-    Control.switch_if_empty st.control (Playlist.current_opt pl);
   );
 
   (* Playlist total *)
@@ -854,7 +868,6 @@ let run_library (st : State.t) =
 
   (* Browser *)
   let browser = lib.browser in
-  let len = Table.length browser in
 
   let cols = [|-1, `Left|] in
   let c = Ui.text_color lay.ui in
@@ -953,27 +966,29 @@ let run_library (st : State.t) =
     )
 
   | `Drop ->
-    (* Drag & drop originating from browser *)
+    if not (Ui.mouse_inside lay.ui (Layout.browser_area lay)) then
+    (
+      (* Drag & drop originating from browser *)
 
-    (* Drag & drop onto playlist: send directory contents to playlist *)
-    drop_on_playlist st lib.tracks.entries;
+      (* Drag & drop onto playlist: send directory contents to playlist *)
+      drop_on_playlist st lib.tracks.entries;
+    )
   );
 
   (* Browser drag & drop *)
-  let dropped = Layout.browser_drop lay in
+  let dropped = Api.File.dropped win in
   if dropped <> [] then
   (
-    let _, my = Api.Mouse.pos win in
-    let _, y, _, _ = Ui.dim lay.ui (Layout.browser_area lay) in
-    let pos = min len ((my - y) / lay.text + browser.vscroll) in
-    let rec find_root_pos i j =
-      if i = pos then j else
-      find_root_pos (i + 1) (if browser.entries.(i).nest = 0 then j + 1 else j)
-    in
-    if Library.add_dirs lib dropped (find_root_pos 0 0) then
-      Library.update_views lib
-    else
-      Layout.browser_error_box lay;  (* flash *)
+    Option.iter (fun pos ->
+      let rec find_root_pos i j =
+        if i = pos then j else
+        find_root_pos (i + 1) (if browser.entries.(i).nest = 0 then j + 1 else j)
+      in
+      if Library.add_dirs lib dropped (find_root_pos 0 0) then
+        Library.update_views lib
+      else
+        Layout.browser_error_box lay;  (* flash *)
+    ) (Layout.browser_mouse lay browser)
   );
 
   (* Keys *)
@@ -1149,10 +1164,13 @@ let run_library (st : State.t) =
       );
 
     | `Drop ->
-      (* Drag & drop originating from artists view *)
+      if not (Ui.mouse_inside lay.ui (artists_area lay)) then
+      (
+        (* Drag & drop originating from artists view *)
 
-      (* Drag & drop onto playlist: send tracks to playlist *)
-      drop_on_playlist st lib.tracks.entries;
+        (* Drag & drop onto playlist: send tracks to playlist *)
+        drop_on_playlist st lib.tracks.entries;
+      )
     );
   );
 
@@ -1240,10 +1258,13 @@ let run_library (st : State.t) =
       );
 
     | `Drop ->
-      (* Drag & drop originating from albums view *)
+      if not (Ui.mouse_inside lay.ui (albums_area lay)) then
+      (
+        (* Drag & drop originating from albums view *)
 
-      (* Drag & drop onto playlist: send tracks to playlist *)
-      drop_on_playlist st lib.tracks.entries;
+        (* Drag & drop onto playlist: send tracks to playlist *)
+        drop_on_playlist st lib.tracks.entries;
+      )
     );
 
     (* Divider *)
@@ -1277,12 +1298,19 @@ let run_library (st : State.t) =
     let pp_row i =
       let track = tab.entries.(i) in
       let c =
+        if (track.status = `Undet || track.status = `Predet)
+        && not (Library.rescan_busy lib) then
+          Track.update track;
         match track.status with
         | _ when track.path = current -> `White
         | `Absent -> Ui.error_color lay.ui
         | `Invalid -> Ui.warn_color lay.ui
-        | `Undet -> Ui.error_color lay.ui
-        | `Predet | `Det -> Ui.text_color lay.ui
+        | `Undet -> Ui.semilit_color (Ui.text_color lay.ui)
+        | `Predet | `Det ->
+          if Db.exists_track lib.db track.path then
+            Ui.text_color lay.ui
+          else
+            Ui.warn_color lay.ui
       in
       c,
       Array.map (fun (attr, _) -> Library.track_attr_string track attr)
@@ -1348,10 +1376,21 @@ let run_library (st : State.t) =
       );
 
     | `Drop ->
-      (* Drag & drop originating from tracks *)
+      if not (Ui.mouse_inside lay.ui (tracks_area lay)) then
+      (
+        (* Drag & drop originating from tracks *)
 
-      (* Drag & drop onto playlist: send tracks to playlist *)
-      drop_on_playlist st lib.tracks.entries;
+        (* Drag & drop onto playlist: send tracks to playlist *)
+        drop_on_playlist st (Library.selected lib);
+      )
+    );
+
+    (* Playlist drag & drop *)
+    let dropped = Api.File.dropped win in
+    if dropped <> [] then
+    (
+      (* Files drop: insert paths at pointed position *)
+      drop_on_library st (expand_paths dropped);
     );
 
     (* Divider *)

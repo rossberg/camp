@@ -86,6 +86,7 @@ let normalise path =
   String.concat dir_sep (iter [] arcs)
 
 let resolve dir item =
+  if is_separator item.path then item else
   let ddrive, dpath = split_drive dir in
   let idrive, ipath = split_drive item.path in
   let drive = if idrive = "" && ddrive <> "" then ddrive else idrive in

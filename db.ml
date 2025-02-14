@@ -654,17 +654,24 @@ let to_playlist_entry i data : path * int * M3u.item =
 let to_playlist_track i data : track =
   let track = to_track i data in
   track.pos <- to_int_default (i + track_cols + 1) data - 1;
-  if track.path <> "" then
+  if track.path <> "" then  (* came from tracks table *)
     track
   else
   (
     let path = to_text (i + track_cols + 2) data in
-    let artist = to_text_default (i + track_cols + 3) data in
-    let title = to_text_default (i + track_cols + 4) data in
-    let length = to_float_default (i + track_cols + 5) data in
-    track.meta <-
-      Some {(Meta.meta track.path None) with artist; title; length};
-    {track with path}
+    if M3u.is_separator path then
+      {track with path}
+    else
+    (
+      let artist = to_text_default (i + track_cols + 3) data in
+      let title = to_text_default (i + track_cols + 4) data in
+      let length = to_float_default (i + track_cols + 5) data in
+      let meta =
+        if artist = "" && title = "" then None else
+        Some {(Meta.meta track.path None) with artist; title; length}
+      in
+      {track with path; meta; status = if meta = None then `Undet else `Predet}
+    )
   )
 
 
