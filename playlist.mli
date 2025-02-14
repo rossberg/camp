@@ -54,8 +54,8 @@ val adjust_scroll : t -> int -> unit
 
 (* Total *)
 
-val update_total : t -> unit
-val update_total_selected : t -> unit
+val refresh_total : t -> unit
+val refresh_total_selected : t -> unit
 
 
 (* Navigation *)

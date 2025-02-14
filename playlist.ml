@@ -100,12 +100,12 @@ let range_total pl i j =
   done;
   !total, !total_selected
 
-let update_total pl =
+let refresh_total pl =
   let total, total_sel = range_total pl 0 (Array.length pl.table.entries - 1) in
   pl.total <- total;
   pl.total_selected <- total_sel
 
-let update_total_selected pl =
+let refresh_total_selected pl =
   pl.total_selected <-
     Table.IntSet.fold (fun i total ->
       add_total total (track_total pl.table.entries.(i))
@@ -206,7 +206,7 @@ let deselect_all pl =
 
 let select_invert pl =
   Table.select_invert pl.table;
-  update_total_selected pl
+  refresh_total_selected pl
 
 let select pl i0 j0 =
   let i, j = min i0 j0, max i0 j0 in
@@ -232,7 +232,7 @@ let pop_unredo pl f list =
     unshuffle pl;  (* prevent nastiness *)
     f pl.table;
     if shuffled then shuffle pl pl.table.pos;
-    update_total pl;
+    refresh_total pl;
   )
 
 let pop_undo pl = pop_unredo pl Table.pop_undo pl.table.undos
@@ -262,16 +262,17 @@ let insert pl pos tracks =
   (
     let len = Table.length pl.table in
     let len' = Array.length tracks in
+    let pos' = min pos len in
     Table.deselect_all pl.table;
-    Table.insert pl.table pos tracks;
-    Table.select pl.table pos (pos + len' - 1);
-    pl.total <- add_total pl.total (fst (range_total pl pos (pos + len' - 1)));
+    Table.insert pl.table pos' tracks;
+    Table.select pl.table pos' (pos' + len' - 1);
+    pl.total <- add_total pl.total (fst (range_total pl pos' (pos' + len' - 1)));
     Option.iter (fun shuffle ->
       shuffle.tracks <-
         Array.init (len + len') (fun i ->
-          if i >= len then i - len + pos else
+          if i >= len then i - len + pos' else
           let j = shuffle.tracks.(i) in
-          if j < pos then j else j + len'
+          if j < pos' then j else j + len'
         );
       reshuffle pl;
       if shuffle.pos = None then shuffle.pos <- Some 0;
@@ -300,7 +301,7 @@ let remove_if p pl n =
     let len = Table.length pl.table in
     let len' = len - n in
     let js = Table.remove_if p pl.table n in
-    update_total pl;
+    refresh_total pl;
     Option.iter (fun shuffle ->
       let d = ref 0 in
       let rec skip i =
@@ -409,7 +410,7 @@ let to_map_extra pl =
 
 let of_map pl m =
   let len = Table.length pl.table in
-  update_total pl;
+  refresh_total pl;
   read_map m "play_pos"
     (fun s -> pl.table.pos <- scan s "%d" (num_opt 0 (len - 1)));
   Table.adjust_pos pl.table;

@@ -49,24 +49,23 @@ val rescan_tracks : t -> scan_mode -> track array -> unit
 
 val rescan_busy : t -> bool
 
-val update_after_rescan : t -> unit
+val refresh_after_rescan : t -> unit
 
 
 (* Browser *)
 
 val length_browser : t -> int
 
-val update_browser : t -> unit
-val update_dir : t -> dir -> unit
-
 val fold_dir : t -> dir -> bool -> unit
 
 val focus_browser : t -> unit
+val refresh_browser : t -> unit
 
 val selected_dir : t -> int option
 val select_dir : t -> int -> unit
 val deselect_dir : t -> unit
 
+val update_dir : t -> dir -> unit
 val load_dirs : t -> unit
 val add_dirs : t -> path list -> int -> bool
 val remove_dirs : t -> path list -> unit
@@ -84,10 +83,10 @@ val artist_attr_string : artist -> artist_attr -> string
 val album_attr_string : album -> album_attr -> string
 val track_attr_string : track -> track_attr -> string
 
-val update_artists : t -> unit
-val update_albums : t -> unit
-val update_tracks : t -> unit
-val update_views : t -> unit
+val refresh_artists : t -> unit
+val refresh_albums : t -> unit
+val refresh_tracks : t -> unit
+val refresh_views : t -> unit
 
 val reorder_artists : t -> unit
 val reorder_albums : t -> unit

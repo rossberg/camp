@@ -461,7 +461,7 @@ let select_dir lib i =
 let update_dir lib dir =
   Db.insert_dir lib.db dir
 
-let update_browser lib =
+let refresh_browser lib =
   let rec entries (dir : dir) acc =
     Option.iter (fun (cur : dir) ->
       if cur.path = dir.path then lib.current <- Some dir) lib.current;
@@ -479,7 +479,7 @@ let fold_dir lib dir status =
   (
     dir.folded <- status;
     Db.insert_dir lib.db dir;
-    update_browser lib;
+    refresh_browser lib;
     if not status && lib.current <> None then
     (
       Option.iter (fun i -> Table.select lib.browser i i)
@@ -574,7 +574,7 @@ let add_dirs lib paths pos =
     *)
     Array.iter (Db.insert_dir lib.db) roots';
     Array.iter (fun (dir : dir) -> rescan_dir lib `Thorough dir) roots';
-    update_browser lib;
+    refresh_browser lib;
     true
   with Failure msg ->
     lib.error <- msg;
@@ -602,7 +602,7 @@ let remove_dir lib path =
       );
     Db.update_dirs_pos lib.db None pos (-1);
     lib.current <- None;
-    update_browser lib
+    refresh_browser lib
 
 let remove_dirs lib paths =
   List.iter (remove_dir lib) paths
@@ -664,7 +664,7 @@ let sort_entries entries sorting attr_string =
   Array.stable_sort cmp enriched;
   Array.map snd enriched
 
-let update lib tab sorting attr_string key iter_db =
+let refresh lib tab sorting attr_string key iter_db =
   let selection = Table.save_selection tab in
   let entries' = ref [||] in
   Option.iter (fun (dir : dir) ->
@@ -676,8 +676,8 @@ let update lib tab sorting attr_string key iter_db =
   Table.adjust_pos tab;
   Table.restore_selection tab selection key
 
-let update_tracks lib =
-  update lib lib.tracks tracks_sorting track_attr_string (track_key lib)
+let refresh_tracks lib =
+  refresh lib lib.tracks tracks_sorting track_attr_string (track_key lib)
     (fun dir f ->
       (* TODO: filter by multiple artists and albums *)
       let artist =
@@ -699,9 +699,9 @@ let update_tracks lib =
         Db.iter_playlist_tracks_for_path lib.db dir.path artist album f
     )
 
-let update_albums lib =
-  update_tracks lib;
-  update lib lib.albums albums_sorting album_attr_string album_key
+let refresh_albums lib =
+  refresh_tracks lib;
+  refresh lib lib.albums albums_sorting album_attr_string album_key
     (fun dir f ->
       (* TODO: filter by multiple artists *)
       let artist =
@@ -718,9 +718,9 @@ let update_albums lib =
         Db.iter_playlist_tracks_for_path_as_albums lib.db dir.path artist f
     )
 
-let update_artists lib =
-  update_albums lib;
-  update lib lib.artists artists_sorting artist_attr_string artist_key
+let refresh_artists lib =
+  refresh_albums lib;
+  refresh lib lib.artists artists_sorting artist_attr_string artist_key
     (fun dir f ->
       if dir.path = "" then
         Db.iter_tracks_for_path_as_artists lib.db "%" f
@@ -731,7 +731,7 @@ let update_artists lib =
         Db.iter_playlist_tracks_for_path_as_artists lib.db dir.path f
     )
 
-let update_views lib = update_artists lib
+let refresh_views lib = refresh_artists lib
 
 
 let rescan_affects_views lib path_opts =
@@ -747,15 +747,15 @@ let rescan_affects_views lib path_opts =
           String.starts_with track.path ~prefix: path) lib.tracks.entries
     ) path_opts
 
-let update_after_rescan lib =
+let refresh_after_rescan lib =
   let updated = rescan_done lib in
   if List.mem None updated then
   (
-    update_browser lib;
-    update_views lib;
+    refresh_browser lib;
+    refresh_views lib;
   )
   else if rescan_affects_views lib updated then
-    update_views lib
+    refresh_views lib
 
 
 let reorder lib tab sorting attr_string key =
@@ -819,7 +819,7 @@ let normalize_playlist lib =
   (
     Table.deselect_all lib.artists;
     Table.deselect_all lib.albums;
-    update_views lib;
+    refresh_views lib;
   );
   let dir = Option.get lib.current in
   match dir.tracks_sorting with
@@ -881,7 +881,7 @@ let insert lib pos tracks =
     select lib pos'' (pos'' + len' - 1);
     restore_playlist lib order;
     save_playlist lib;
-    update_views lib;
+    refresh_views lib;
   )
 
 let remove_all lib =
@@ -994,7 +994,7 @@ let to_map_extra lib =
   ]
 
 let of_map lib m =
-  update_browser lib;
+  refresh_browser lib;
   read_map m "browser_scroll" (fun s ->
     lib.browser.vscroll <- scan s "%d" (num 0 (max 0 (length_browser lib - 1))));
   read_map m "browser_current" (fun s ->
@@ -1006,4 +1006,4 @@ let of_map lib m =
       if current_is_playlist lib then rescan_playlist lib `Fast dir.path;
     ) (Array.find_index (fun (dir : dir) -> dir.path = s) lib.browser.entries)
   );
-  update_views lib
+  refresh_views lib
