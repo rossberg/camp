@@ -1434,6 +1434,19 @@ let run_library (st : State.t) =
     );
   );
 
+  (* Keys *)
+
+  if
+    (lib.browser.focus || lib.artists.focus || lib.albums.focus) &&
+    lib.tracks.entries <> [||] &&
+    Ui.key lay.ui ([`Command], `Char 'C')
+  then
+  (
+    (* Press of Copy key: write selected tracks to clipboard *)
+    let s = Track.to_m3u lib.tracks.entries in
+    Api.Clipboard.write win s;
+  );
+
   (* Pane divider *)
 
   let browser_width' = Layout.browser_divider lay lay.browser_width
