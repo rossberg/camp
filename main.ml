@@ -745,10 +745,9 @@ let run_playlist (st : State.t) =
       State.focus_playlist st;
       if Playlist.num_selected pl > 0 then
       (
-        let m = Api.Mouse.pos win in
         Api.Mouse.set_cursor win
           (if
-            Api.inside m (Ui.dim lay.ui (Layout.playlist_area lay)) ||
+            Ui.mouse_inside lay.ui (Layout.playlist_area lay) ||
             match lib.current with
             | Some dir ->
               lay.library_shown && dir.tracks_shown &&
@@ -756,7 +755,7 @@ let run_playlist (st : State.t) =
               let area =
                 if lay.lower_shown then Layout.lower_area else
                 if lay.right_shown then Layout.right_area else Layout.left_area
-              in Api.inside m (Ui.dim lay.ui (area lay))
+              in Ui.mouse_inside lay.ui (area lay)
             | None -> false
           then `Point else `Blocked)
       );
@@ -851,7 +850,6 @@ let run_library (st : State.t) =
   let lib = st.library in
   let lay = st.layout in
   let win = Ui.window lay.ui in
-  let (mx, _) as m = Api.Mouse.pos win in
 
   (* Update after possible window resize *)
   lay.browser_width <-
@@ -905,6 +903,7 @@ let run_library (st : State.t) =
 
   | `Click (Some i) ->
     (* Click on dir: fold/unfold or switch view *)
+    let mx, _ = Api.Mouse.pos win in
     let x, _, _, _ = Ui.dim lay.ui (Layout.browser_area lay) in
     let tw = Api.Draw.text_width win lay.text (Ui.font lay.ui lay.text) pre.(i) in
     if mx < x + tw && (Api.Mouse.is_down `Left || Api.Mouse.is_released `Left) then
@@ -960,8 +959,8 @@ let run_library (st : State.t) =
       State.focus_library browser st;
       Api.Mouse.set_cursor win
         (if
-          Api.inside m (Ui.dim lay.ui (Layout.browser_area lay)) ||
-          Api.inside m (Ui.dim lay.ui (Layout.playlist_area lay))
+          Ui.mouse_inside lay.ui (Layout.browser_area lay) ||
+          Ui.mouse_inside lay.ui (Layout.playlist_area lay)
         then `Point else `Blocked)
     )
 
@@ -1158,8 +1157,8 @@ let run_library (st : State.t) =
         State.focus_library tab st;
         Api.Mouse.set_cursor win
           (if
-            Api.inside m (Ui.dim lay.ui (artists_area lay)) ||
-            Api.inside m (Ui.dim lay.ui (Layout.playlist_area lay))
+            Ui.mouse_inside lay.ui (artists_area lay) ||
+            Ui.mouse_inside lay.ui (Layout.playlist_area lay)
           then `Point else `Blocked)
       );
 
@@ -1252,8 +1251,8 @@ let run_library (st : State.t) =
         State.focus_library tab st;
         Api.Mouse.set_cursor win
           (if
-            Api.inside m (Ui.dim lay.ui (albums_area lay)) ||
-            Api.inside m (Ui.dim lay.ui (Layout.playlist_area lay))
+            Ui.mouse_inside lay.ui (albums_area lay) ||
+            Ui.mouse_inside lay.ui (Layout.playlist_area lay)
           then `Point else `Blocked)
       );
 
@@ -1370,8 +1369,8 @@ let run_library (st : State.t) =
         State.focus_library tab st;
         Api.Mouse.set_cursor win
           (if
-            Api.inside m (Ui.dim lay.ui (tracks_area lay)) ||
-            Api.inside m (Ui.dim lay.ui (Layout.playlist_area lay))
+            Ui.mouse_inside lay.ui (tracks_area lay) ||
+            Ui.mouse_inside lay.ui (Layout.playlist_area lay)
           then `Point else `Blocked)
       );
 
