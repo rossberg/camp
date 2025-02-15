@@ -1137,16 +1137,12 @@ let run_library (st : State.t) =
         dir.artists_columns
     in
 
-    let selected = tab.selected in
     let sorting = convert_sorting dir.artists_columns dir.artists_sorting in
     (match artists_table lay cols (Some (headings, sorting)) tab pp_row with
     | `None | `Scroll | `Move _ -> ()
 
     | `Select ->
-      (* TODO: allow multiple selections *)
       State.focus_library tab st;
-      if Table.num_selected tab > 1 then
-        tab.selected <- selected;  (* override *)
       Library.refresh_albums lib;
 
     | `Sort i ->
@@ -1182,11 +1178,8 @@ let run_library (st : State.t) =
 
     | `Click _ ->
       (* Single-click: grab focus *)
-      (* TODO: allow multiple selections *)
-      if Table.num_selected tab > 1 then
-        tab.selected <- selected;  (* override *)
-      Library.refresh_albums lib;
       State.focus_library tab st;
+      Library.refresh_albums lib;
 
     | `Drag _ ->
       (* Drag: adjust cursor *)

@@ -681,43 +681,37 @@ let refresh lib tab sorting attr_string key iter_db =
 let refresh_tracks lib =
   refresh lib lib.tracks tracks_sorting track_attr_string (track_key lib)
     (fun dir f ->
-      (* TODO: filter by multiple artists and albums *)
-      let artist =
-        match Table.first_selected lib.artists with
-        | Some i -> lib.artists.entries.(i).name
-        | None -> ""
+      let artists =
+        if Table.(num_selected lib.artists = length lib.artists) then [||] else
+        Array.map artist_key (Table.selected lib.artists)
       and albums =
         if Table.(num_selected lib.albums = length lib.albums) then [||] else
-        let albums = Table.selected lib.albums in
-        if Array.exists (fun (a : album) -> a.meta = None) albums then [||] else
-        Array.map (fun (a : album) -> (Option.get a.meta).albumtitle) albums
+        Array.map album_key (Table.selected lib.albums)
       in
       if dir.path = "" then
-        Db.iter_tracks_for_path lib.db "%" artist albums f
+        Db.iter_tracks_for_path lib.db "%" artists albums f
       else if Data.is_dir dir then
         let path = Filename.concat dir.path "%" in
-        Db.iter_tracks_for_path lib.db path artist albums f
+        Db.iter_tracks_for_path lib.db path artists albums f
       else if Data.is_playlist dir then
-        Db.iter_playlist_tracks_for_path lib.db dir.path artist albums f
+        Db.iter_playlist_tracks_for_path lib.db dir.path artists albums f
     )
 
 let refresh_albums lib =
   refresh_tracks lib;
   refresh lib lib.albums albums_sorting album_attr_string album_key
     (fun dir f ->
-      (* TODO: filter by multiple artists *)
-      let artist =
-        match Table.first_selected lib.artists with
-        | Some i -> lib.artists.entries.(i).name
-        | None -> ""
+      let artists =
+        if Table.(num_selected lib.artists = length lib.artists) then [||] else
+        Array.map artist_key (Table.selected lib.artists)
       in
       if dir.path = "" then
-        Db.iter_tracks_for_path_as_albums lib.db "%" artist f
+        Db.iter_tracks_for_path_as_albums lib.db "%" artists f
       else if Data.is_dir dir then
         let path = Filename.concat dir.path "%" in
-        Db.iter_tracks_for_path_as_albums lib.db path artist f
+        Db.iter_tracks_for_path_as_albums lib.db path artists f
       else if Data.is_playlist dir then
-        Db.iter_playlist_tracks_for_path_as_albums lib.db dir.path artist f
+        Db.iter_playlist_tracks_for_path_as_albums lib.db dir.path artists f
     )
 
 let refresh_artists lib =

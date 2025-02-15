@@ -98,8 +98,11 @@ let to_status = function
   | _ -> `Undet
 
 
-let tuple n = "(" ^ String.concat ", " (List.init n (Fun.const "?")) ^ ")"
-let tuples n m = String.concat ", " (List.init m (Fun.const (tuple n)))
+let paren s = "(" ^ s ^ ")"
+let list ss = String.concat ", " ss
+let tuple k n = paren (list (List.init n (fun i -> "?" ^ string_of_int (k + i))))
+let tuples k n m = list (List.init m (fun i -> (tuple (k + i*n) n)))
+
 
 let file_cols = 3
 let format_cols = 7
@@ -497,6 +500,10 @@ let create_tracks = create_table
       cover BLOB,
       status INT NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS TracksArtist ON Tracks(artist);
+    CREATE INDEX IF NOT EXISTS TracksTitle ON Tracks(title);
+    CREATE INDEX IF NOT EXISTS TracksAlbumArtist ON Tracks(albumartist);
+    CREATE INDEX IF NOT EXISTS TracksAlbumTitle ON Tracks(albumtitle);
   "
 
 let track_cols = 24
@@ -549,8 +556,8 @@ let iter_tracks_for_path_single = stmt
     FROM Tracks
     WHERE
       (path LIKE ?1) AND
-      (?2 = '' OR artist = ?2 OR albumartist = ?2) AND
-      (?3 = '' OR albumtitle = ?3);
+      (?2 = '%' OR artist = ?2 OR albumartist = ?2) AND
+      (?3 = '%' OR albumtitle = ?3);
   " |>
   fun stmt db path artist album ->
     iter_table [|of_text path; of_text artist; of_text album|] (to_track 0)
@@ -561,27 +568,45 @@ let iter_tracks_for_path_multi db path artist albums = stmt @@
     SELECT rowid, *
     FROM Tracks
     WHERE
-      (path LIKE ?1)
-      AND (?2 = '' OR artist = ?2 OR albumartist = ?2)
-  " ^
-  (match albums with
-  | [||] -> ""
-  | [|_|] -> " AND albumtitle = ?"
-  | _ -> " AND albumtitle IN " ^ tuple (Array.length albums)
-  ) ^
-  "
-    ;
+      (path LIKE ?1) AND
+      (?2 = '%' OR artist = ?2 OR albumartist = ?2) AND
+      (albumtitle IN " ^ tuple 3 (Array.length albums) ^ ");
   " |>
   fun stmt ->
     let album_binds = Array.map of_text albums in
     iter_table (Array.append [|of_text path; of_text artist|] album_binds)
       (to_track 0) stmt db
 
-let iter_tracks_for_path db path artist albums f =
-  match albums with
-  | [||] -> iter_tracks_for_path_single db path artist "" f
-  | [|album|] -> iter_tracks_for_path_single db path artist album f
-  | albums -> iter_tracks_for_path_multi db path artist albums f
+let iter_tracks_for_path_multi_multi db path artists albums = stmt @@
+  "
+    WITH Artists (name) AS (VALUES " ^ tuples 2 1 (Array.length artists) ^ ")
+    SELECT Tracks.rowid, Tracks.*
+    FROM Tracks JOIN Artists
+      ON Artists.name = artist
+      OR Artists.name = albumartist
+    WHERE path LIKE ?1
+  " ^
+    (if albums = [||] then "" else "
+      AND albumtitle IN " ^
+        tuple (2 + Array.length artists) (Array.length albums)) ^
+  " ;
+  " |>
+  fun stmt ->
+    let artist_binds = Array.map of_text artists in
+    let album_binds = Array.map of_text albums in
+    iter_table (Array.concat [[|of_text path|]; artist_binds; album_binds])
+      (to_track 0) stmt db
+
+let iter_tracks_for_path db path artists albums f =
+  if Array.length artists > 1 then
+    iter_tracks_for_path_multi_multi db path artists albums f
+  else if Array.length albums > 1 then
+    let artist = if artists = [||] then "%" else artists.(0) in
+    iter_tracks_for_path_multi db path artist albums f
+  else
+    let artist = if artists = [||] then "%" else artists.(0) in
+    let album = if albums = [||] then "%" else albums.(0) in
+    iter_tracks_for_path_single db path artist album f
 
 
 let iter_tracks_for_path_as_artists = stmt
@@ -603,7 +628,7 @@ let iter_tracks_for_path_as_artists = stmt
   fun stmt db path ->
     iter_table [|of_text path|] (to_artist 0) stmt db
 
-let iter_tracks_for_path_as_albums = stmt
+let iter_tracks_for_path_as_albums_single = stmt
   "
     SELECT
       NULL,
@@ -632,11 +657,56 @@ let iter_tracks_for_path_as_albums = stmt
       cover,
       MAX(status)
     FROM Tracks
-    WHERE path LIKE ?1 AND (?2 = '' OR artist = ?2 OR albumartist = ?2)
+    WHERE path LIKE ?1 AND (?2 = '%' OR artist = ?2 OR albumartist = ?2)
     GROUP BY albumartist, albumtitle, codec, label;
   " |>
   fun stmt db path artist ->
     iter_table [|of_text path; of_text artist|] (to_album 0) stmt db
+
+let iter_tracks_for_path_as_albums_multi db path artists = stmt @@
+  "
+    WITH Artists (name) AS (VALUES " ^ tuples 2 1 (Array.length artists) ^ ")
+    SELECT
+      NULL,
+      path,
+      SUM(filesize),
+      MAX(filetime),
+      MAX(fileage),
+      codec,
+      MIN(channels),
+      MIN(depth),
+      MIN(rate),
+      AVG(bitrate),
+      SUM(size),
+      SUM(time),
+      albumartist,
+      albumtitle,
+      COUNT(track),
+      COUNT(DISTINCT disc),
+      albumartist,
+      albumtitle,
+      MAX(date),
+      label,
+      country,
+      SUM(length),
+      MAX(rating),
+      cover,
+      MAX(status)
+    FROM Tracks JOIN Artists
+      ON Artists.name = artist
+      OR Artists.name = albumartist
+    WHERE path LIKE ?1
+    GROUP BY albumartist, albumtitle, codec, label;
+  " |>
+  fun stmt ->
+    let artist_binds = Array.map of_text artists in
+    iter_table (Array.append [|of_text path|] artist_binds) (to_album 0) stmt db
+
+let iter_tracks_for_path_as_albums db path artists f =
+  match artists with
+  | [||] -> iter_tracks_for_path_as_albums_single db path "%" f
+  | [|artist|] -> iter_tracks_for_path_as_albums_single db path artist f
+  | artists -> iter_tracks_for_path_as_albums_multi db path artists f
 
 
 let insert_track = stmt
@@ -658,7 +728,7 @@ let create_playlists = create_table
   "
     CREATE TABLE IF NOT EXISTS Playlists
     (
-      path TEXT NONT NULL,
+      path TEXT NOT NULL,
       pos INT NOT NULL,
       track TEXT NOT NULL,
       name TEXT,
@@ -737,7 +807,7 @@ let insert_playlists = stmt
 let insert_playlists_bulk db path items = stmt @@
   "
     INSERT OR REPLACE INTO Playlists
-    VALUES " ^ tuples 7 (List.length items) ^ ";
+    VALUES " ^ tuples 1 7 (List.length items) ^ ";
   " |>
   fun stmt ->
     let& () = db in
@@ -765,12 +835,12 @@ let iter_playlist_tracks_for_path_single = stmt
       Tracks.rowid, Tracks.*,
       Playlists.pos, Playlists.track,
       Playlists.artist, Playlists.title, Playlists.time
-    FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
+    FROM Playlists LEFT JOIN Tracks ON Tracks.path = Playlists.track
     WHERE
       (Playlists.path = ?1) AND
-      (?2 = '' OR Tracks.artist = ?2 OR albumartist = ?2 OR
+      (?2 = '%' OR Tracks.artist = ?2 OR albumartist = ?2 OR
         Playlists.artist = ?2) AND
-      (?3 = '' OR albumtitle = ?3);
+      (?3 = '%' OR albumtitle = ?3);
   " |>
   fun stmt db path artist album ->
     iter_table [|of_text path; of_text artist; of_text album|]
@@ -782,30 +852,56 @@ let iter_playlist_tracks_for_path_multi db path artist albums = stmt @@
       Tracks.rowid, Tracks.*,
       Playlists.pos, Playlists.track,
       Playlists.artist, Playlists.title, Playlists.time
-    FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
+    FROM Playlists LEFT JOIN Tracks ON Tracks.path = Playlists.track
     WHERE
-      (Playlists.path = ?1)
-      AND (?2 = '' OR Tracks.artist = ?2 OR albumartist = ?2 OR
-        Playlists.artist = ?2)
-  " ^
-  (match albums with
-  | [||] -> ""
-  | [|_|] -> " AND albumtitle = ?"
-  | _ -> " AND albumtitle IN " ^ tuple (Array.length albums)
-  ) ^
-  "
-    ;
+      (Playlists.path = ?1) AND
+      (?2 = '%' OR Tracks.artist = ?2 OR albumartist = ?2 OR
+        Playlists.artist = ?2) AND
+      (albumtitle IN " ^ tuple 3 (Array.length albums) ^ ");
   " |>
   fun stmt ->
     let album_binds = Array.map of_text albums in
     iter_table (Array.append [|of_text path; of_text artist|] album_binds)
       (to_playlist_track 0) stmt db
 
-let iter_playlist_tracks_for_path db path artist albums f =
-  match albums with
-  | [||] -> iter_playlist_tracks_for_path_single db path artist "" f
-  | [|album|] -> iter_playlist_tracks_for_path_single db path artist album f
-  | albums -> iter_playlist_tracks_for_path_multi db path artist albums f
+let iter_playlist_tracks_for_path_multi_multi db path artists albums = stmt @@
+  "
+    WITH Artists (name) AS (VALUES " ^ tuples 2 1 (Array.length artists) ^ ")
+    SELECT
+      Tracks.rowid, Tracks.*,
+      Playlists.pos, Playlists.track,
+      Playlists.artist, Playlists.title, Playlists.time
+    FROM
+      Playlists
+      LEFT JOIN Tracks
+        ON Tracks.path = Playlists.track
+      JOIN Artists
+        ON Artists.name = Tracks.artist
+        OR Artists.name = albumartist
+        OR Artists.name = Playlists.artist
+    WHERE Playlists.path = ?1
+  " ^
+    (if albums = [||] then "" else "
+      AND albumtitle IN " ^
+        tuple (2 + Array.length artists) (Array.length albums)) ^
+  " ;
+  " |>
+  fun stmt ->
+    let artist_binds = Array.map of_text artists in
+    let album_binds = Array.map of_text albums in
+    iter_table (Array.concat [[|of_text path|]; artist_binds; album_binds])
+      (to_playlist_track 0) stmt db
+
+let iter_playlist_tracks_for_path db path artists albums f =
+  if Array.length artists > 1 then
+    iter_playlist_tracks_for_path_multi_multi db path artists albums f
+  else if Array.length albums > 1 then
+    let artist = if artists = [||] then "%" else artists.(0) in
+    iter_playlist_tracks_for_path_multi db path artist albums f
+  else
+    let artist = if artists = [||] then "%" else artists.(0) in
+    let album = if albums = [||] then "%" else albums.(0) in
+    iter_playlist_tracks_for_path_single db path artist album f
 
 
 let iter_playlist_tracks_for_path_as_artists = stmt
@@ -851,7 +947,7 @@ let iter_playlist_tracks_for_path_as_artists = stmt
   fun stmt db path ->
     iter_table [|of_text path|] (to_artist 0) stmt db
 
-let iter_playlist_tracks_for_path_as_albums = stmt
+let iter_playlist_tracks_for_path_as_albums_single = stmt
   "
     SELECT
       NULL,
@@ -888,14 +984,64 @@ let iter_playlist_tracks_for_path_as_albums = stmt
       cover,
       NULL,
       MAX(status)
-    FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
+    FROM Playlists LEFT JOIN Tracks ON Tracks.path = Playlists.track
     WHERE
       (Playlists.path = ?1) AND
-      (?2 = '' OR Tracks.artist = ?2 OR albumartist = ?2 OR Playlists.artist = ?2)
+      (?2 = '%' OR Tracks.artist = ?2 OR albumartist = ?2 OR Playlists.artist = ?2)
     GROUP BY aartist, atitle, codec, label;
   " |>
   fun stmt db path artist ->
     iter_table [|of_text path; of_text artist|] (to_album 0) stmt db
+
+let iter_playlist_tracks_for_path_as_albums_multi db path artists = stmt @@
+  "
+    WITH Artists (name) AS (VALUES " ^ tuples 2 1 (Array.length artists) ^ ")
+    SELECT
+      NULL,
+      Playlists.track,
+      SUM(filesize),
+      MAX(filetime),
+      MAX(fileage),
+      codec,
+      MIN(channels),
+      MIN(depth),
+      MIN(rate),
+      AVG(bitrate),
+      SUM(size),
+      SUM(Tracks.time),
+      Playlists.artist,
+      Playlists.title,
+      COUNT(Playlists.track),
+      COUNT(DISTINCT disc),
+      Artists.name,
+      albumtitle,
+      MAX(date),
+      label,
+      country,
+      SUM(Tracks.length),
+      MAX(rating),
+      cover,
+      NULL,
+      MAX(status)
+    FROM
+      Playlists
+      LEFT JOIN Tracks ON Tracks.path = Playlists.track
+      JOIN Artists
+        ON Artists.name = Tracks.artist
+        OR Artists.name = albumartist
+        OR Artists.name = Playlists.artist
+    WHERE Playlists.path = ?1
+    GROUP BY Artists.name, albumtitle, codec, label;
+  " |>
+  fun stmt ->
+    let artist_binds = Array.map of_text artists in
+    iter_table (Array.append [|of_text path|] artist_binds) (to_album 0) stmt db
+
+let iter_playlist_tracks_for_path_as_albums db path artists f =
+  match artists with
+  | [||] -> iter_playlist_tracks_for_path_as_albums_single db path "%" f
+  | [|artist|] -> iter_playlist_tracks_for_path_as_albums_single db path artist f
+  | artists -> iter_playlist_tracks_for_path_as_albums_multi db path artists f
 
 (*
 let iter_tracks_and_playlist_tracks_for_path = stmt
