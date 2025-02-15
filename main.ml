@@ -376,7 +376,7 @@ let run_toggle_panes (st : State.t) =
   (
     (* Otherwise: keep or toggle *)
     lay.library_shown <- library_shown';
-    if not library_shown' then Library.defocus st.library;
+    if not library_shown' then State.focus_playlist st;
   );
 
   (* Minimize button *)
@@ -1107,7 +1107,7 @@ let run_library (st : State.t) =
   lay.lower_shown <- show_tracks && (show_artists || show_albums);
 
 
-  (* Error pane *)
+  (* Info pane *)
 
   Layout.info_pane lay;
 
@@ -1201,7 +1201,7 @@ let run_library (st : State.t) =
       if Api.Key.are_modifiers_down [] then
       (
         State.focus_library tab st;
-        set_drop_cursor st;
+        if Table.num_selected lib.artists > 0 then set_drop_cursor st;
       );
 
     | `Drop ->
@@ -1286,7 +1286,7 @@ let run_library (st : State.t) =
       if Api.Key.are_modifiers_down [] then
       (
         State.focus_library tab st;
-        set_drop_cursor st;
+        if Table.num_selected lib.albums > 0 then set_drop_cursor st;
       );
 
     | `Drop ->
@@ -1353,7 +1353,7 @@ let run_library (st : State.t) =
 
     let sorting = convert_sorting dir.tracks_columns dir.tracks_sorting in
     (match tracks_table lay cols (Some (headings, sorting)) tab pp_row with
-    | `None | `Scroll | `Move _ -> ()
+    | `None | `Scroll -> ()
 
     | `Select ->
       State.focus_library tab st;
@@ -1397,18 +1397,61 @@ let run_library (st : State.t) =
       (* Single-click: grab focus *)
       State.focus_library tab st;
 
-    | `Drag _ ->
-      (* Drag: adjust cursor *)
+    | `Move delta ->
+      (* Cmd-cursor movement: move selection *)
+      if Data.is_playlist dir then
+        Library.move_selected lib delta;
+
+    | `Drag (delta, way) ->
+      (* Drag: move selection if inside *)
       if Api.Key.are_modifiers_down [] then
       (
         State.focus_library tab st;
-        set_drop_cursor st;
-      );
+        if Library.num_selected lib > 0 then set_drop_cursor st;
+
+        if Data.is_playlist dir then
+        (
+          (* Invarian as for playlist view *)
+          (match way with
+          | `Start ->
+            (* Start of drag & drop: remember original configuration *)
+            Table.push_undo lib.tracks;
+          | `Outward ->
+            (* Leaving area: snap back to original state *)
+            Table.pop_undo lib.tracks
+          | `Inward ->
+            (* Reentering area: restore updated state *)
+            Table.pop_redo lib.tracks
+          | `Inside | `Outside -> ()
+          );
+
+          if delta <> 0 && Library.num_selected lib > 0 then
+          (
+            match way with
+            | `Start | `Inside | `Inward ->
+              Library.move_selected lib delta;
+              (* Erase intermediate new state *)
+              Table.drop_undo lib.tracks;
+            | `Outside | `Outward ->
+              (* Temporarily restore new state, modify, and immediately undo *)
+              (* Restore new state *)
+              Table.pop_redo lib.tracks;
+              Library.move_selected lib delta;
+              (* Erase intermediate new state *)
+              Table.drop_undo lib.tracks;
+              (* Undo new state, recovering original *)
+              Table.pop_undo lib.tracks;
+          )
+        )
+      )
 
     | `Drop ->
       if not (Ui.mouse_inside lay.ui (tracks_area lay)) then
       (
         (* Drag & drop originating from tracks *)
+
+        (* Dropping outside tracks: drop aux redo for new state *)
+        Table.drop_redo lib.tracks;
 
         (* Drag & drop onto playlist or browser: send tracks to playlist *)
         let tracks = Library.selected lib in
