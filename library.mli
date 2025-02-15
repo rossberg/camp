@@ -31,6 +31,11 @@ type error = string
 val ok : t -> error list
 
 
+(* Error Message *)
+
+val error : t -> string -> unit
+
+
 (* Persistance *)
 
 val to_map : t -> Storage.map

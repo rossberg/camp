@@ -1035,7 +1035,9 @@ let run_library (st : State.t) =
     | Some i when browser.entries.(i).parent = Some "" ->
       Library.remove_dirs lib [browser.entries.(i).path];
       Library.refresh_views lib
-    | _ -> Layout.browser_error_box lay;  (* flash *)
+    | _ ->
+      Library.error lib "Cannot remove non-root directories";
+      Layout.browser_error_box lay;  (* flash *)
   );
 
   (* Scanning indicator *)
@@ -1111,9 +1113,22 @@ let run_library (st : State.t) =
 
   Layout.error_box lay;
   let now = Unix.gettimeofday () in
-  if now -. lib.error_time < 10.0 then
-    Layout.error_text lay (Ui.error_color lay.ui) `Regular true
-      lib.error;
+  if lib.error <> "" && now -. lib.error_time < 10.0 then
+    Layout.error_text lay (Ui.error_color lay.ui) `Regular true lib.error
+  else
+  (
+    let tr = Table.length lib.tracks in
+    let al = Table.length lib.albums in
+    let ar = Table.length lib.artists in
+    let trs = Table.num_selected lib.tracks in
+    let als = Table.num_selected lib.albums in
+    let ars = Table.num_selected lib.artists in
+    let sel n = if n = 0 then "" else string_of_int n ^ "/" in
+    let plu n = if n = 1 then "s" else "" in
+    Layout.error_text lay (Ui.text_color lay.ui) `Regular true
+      (fmt "%s%d tracks%s, %s%d album%s, %s%d artist%s"
+        (sel trs) tr (plu tr) (sel als) al (plu al) (sel ars) ar (plu ar))
+  );
 
 
   (* Artists view *)

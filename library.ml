@@ -98,6 +98,13 @@ let make db =
   }
 
 
+(* Error Messages *)
+
+let error lib msg =
+  lib.error <- msg;
+  lib.error_time <- Unix.gettimeofday ()
+
+
 (* Attributes *)
 
 let attr_prop = function
@@ -579,8 +586,7 @@ let add_dirs lib paths pos =
     refresh_browser lib;
     true
   with Failure msg ->
-    lib.error <- msg;
-    lib.error_time <- Unix.gettimeofday ();
+    error lib msg;
     false
 
 
