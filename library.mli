@@ -73,6 +73,8 @@ val remove_dirs : t -> path list -> unit
 val current_is_playlist : t -> bool
 val current_is_shown_playlist : t -> bool
 
+val has_track : t -> track -> bool
+
 
 (* Views *)
 

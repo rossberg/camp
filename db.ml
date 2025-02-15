@@ -209,16 +209,12 @@ let count_table stmt db =
   let* () = Sqlite3.step stmt in
   Sqlite3.column_int stmt 0
 
-let exist_in_table' n stmt db path =
+let mem_table stmt db path =
   let& () = db in
   let stmt = prepare db stmt in
-  for i = 1 to n do
-    let* () = bind_text stmt i path in ()
-  done;
+  let* () = bind_text stmt 1 path in
   let* () = Sqlite3.step stmt in
   Sqlite3.column_int stmt 0 > 0
-
-let exist_in_table = exist_in_table' 1
 
 let find_in_table of_data stmt db path =
   let& () = db in
@@ -250,6 +246,15 @@ let delete_from_table_prefix stmt db path =
   let* () = Sqlite3.step stmt in
   ()
 
+let update_pos_in_table stmt db path first delta =
+  let& () = db in
+  let stmt = prepare db stmt in
+  let* () = bind_text_opt stmt 1 path in
+  let* () = bind_int stmt 2 first in
+  let* () = bind_int stmt 3 delta in
+  let* () = Sqlite3.step stmt in
+  ()
+
 let iter_table binds of_data stmt db f =
   let& () = db in
   let stmt = prepare db stmt in
@@ -262,26 +267,26 @@ let iter_table binds of_data stmt db f =
 (* Dirs *)
 
 let create_dirs = create_table
-{|
-  CREATE TABLE IF NOT EXISTS Dirs
-  (
-    path TEXT NOT NULL PRIMARY KEY,
-    parent TEXT,
-    name TEXT NOT NULL,
-    pos INT NOT NULL,
-    nest INT NOT NULL,
-    folded INT NOT NULL,
-    shown INT NOT NULL,
-    divider_w INT NOT NULL,
-    divider_h INT NOT NULL,
-    artists_col TEXT NOT NULL,
-    albums_col TEXT NOT NULL,
-    tracks_col TEXT NOT NULL,
-    artists_sort TEXT NOT NULL,
-    albums_sort TEXT NOT NULL,
-    tracks_sort TEXT NOT NULL
-  );
-|}
+  "
+    CREATE TABLE IF NOT EXISTS Dirs
+    (
+      path TEXT NOT NULL PRIMARY KEY,
+      parent TEXT,
+      name TEXT NOT NULL,
+      pos INT NOT NULL,
+      nest INT NOT NULL,
+      folded INT NOT NULL,
+      shown INT NOT NULL,
+      divider_w INT NOT NULL,
+      divider_h INT NOT NULL,
+      artists_col TEXT NOT NULL,
+      albums_col TEXT NOT NULL,
+      tracks_col TEXT NOT NULL,
+      artists_sort TEXT NOT NULL,
+      albums_sort TEXT NOT NULL,
+      tracks_sort TEXT NOT NULL
+    );
+  "
 
 let to_dir i data : dir =
   {
@@ -333,50 +338,41 @@ let bind_dir stmt i (dir : dir) =
   return
 
 
-let count_dirs = count_table @@ stmt
-{|
-  SELECT COUNT(*) FROM Dirs;
-|}
+let count_dirs = stmt
+  "
+    SELECT COUNT(*) FROM Dirs;
+  " |> count_table
 
-let exists_dir = exist_in_table @@ stmt
-{|
-  SELECT COUNT(*) FROM Dirs WHERE path = ?;
-|}
+let mem_dir = stmt
+  "
+    SELECT COUNT(*) FROM Dirs WHERE path = ?;
+  " |> mem_table
 
-let find_dir = find_in_table (to_dir 0) @@ stmt
-{|
-  SELECT rowid, * FROM Dirs WHERE path = ?;
-|}
+let find_dir = stmt
+  "
+    SELECT rowid, * FROM Dirs WHERE path = ?;
+  " |> find_in_table (to_dir 0)
 
-let iter_dirs = iter_table [||] (to_dir 0) @@ stmt
-{|
-  SELECT rowid, * FROM Dirs ORDER BY path DESC;
-|}
+let iter_dirs = stmt
+  "
+    SELECT rowid, * FROM Dirs ORDER BY path DESC;
+  " |> iter_table [||] (to_dir 0)
 
-let insert_dir = insert_into_table bind_dir (fun d id -> d.id <-id) @@ stmt
-{|
-  INSERT OR REPLACE INTO Dirs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-|}
+let insert_dir = stmt
+  "
+    INSERT OR REPLACE INTO Dirs
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  " |> insert_into_table bind_dir (fun d id -> d.id <- id)
 
-let delete_dirs = delete_from_table_prefix @@ stmt
-{|
-  DELETE FROM Dirs WHERE path LIKE ?;
-|}
+let delete_dirs = stmt
+  "
+    DELETE FROM Dirs WHERE path LIKE ?;
+  " |> delete_from_table_prefix
 
-
-let stmt_update_dirs_pos = stmt
-{|
-  UPDATE Dirs SET pos = pos + (?) WHERE parent = ? AND pos >= ?;
-|}
-
-let update_dirs_pos db parent first delta =
-  let& () = db in
-  let stmt = prepare db stmt_update_dirs_pos in
-  let* () = bind_int stmt 1 delta in
-  let* () = bind_text_opt stmt 2 parent in
-  let* () = bind_int stmt 3 first in
-  let* () = Sqlite3.step stmt in
-  ()
+let update_dirs_pos = stmt
+  "
+    UPDATE Dirs SET pos = pos + ?3 WHERE parent = ?1 AND pos >= ?2;
+  " |> update_pos_in_table
 
 
 (* Artists *)
@@ -393,34 +389,34 @@ let to_artist i data : artist =
 (* Albums *)
 
 let create_albums = create_table
-{|
-  CREATE TABLE IF NOT EXISTS Albums
-  (
-    path TEXT NOT NULL PRIMARY KEY,
-    filesize INT,
-    filetime REAL,
-    fileage REAL,
-    codec TEXT,
-    channels INT,
-    depth INT,
-    rate INT,
-    bitrate REAL,
-    size INT,
-    time REAL,
-    artist TEXT,
-    title TEXT,
-    track INT,
-    disc INT,
-    albumartist TEXT,
-    albumtitle TEXT,
-    date TEXT,
-    label TEXT,
-    country TEXT,
-    length REAL,
-    rating INT,
-    cover BLOB
-  );
-|}
+  "
+    CREATE TABLE IF NOT EXISTS Albums
+    (
+      path TEXT NOT NULL PRIMARY KEY,
+      filesize INT,
+      filetime REAL,
+      fileage REAL,
+      codec TEXT,
+      channels INT,
+      depth INT,
+      rate INT,
+      bitrate REAL,
+      size INT,
+      time REAL,
+      artist TEXT,
+      title TEXT,
+      track INT,
+      disc INT,
+      albumartist TEXT,
+      albumtitle TEXT,
+      date TEXT,
+      label TEXT,
+      country TEXT,
+      length REAL,
+      rating INT,
+      cover BLOB
+    );
+  "
 
 let to_album i data : album =
   {
@@ -439,65 +435,66 @@ let bind_album stmt i (album : album) =
   return
 
 
-let count_albums = count_table @@ stmt
-{|
-  SELECT COUNT(*) FROM Albums;
-|}
+let count_albums = stmt
+  "
+    SELECT COUNT(*) FROM Albums;
+  " |> count_table
 
-let exist_album = exist_in_table @@ stmt
-{|
-  SELECT COUNT(*) FROM Albums WHERE path = ?;
-|}
+let mem_album = stmt
+  "
+    SELECT COUNT(*) FROM Albums WHERE path = ?;
+  " |> mem_table
 
-let find_album = find_in_table (to_album 0) @@ stmt
-{|
-  SELECT rowid, * FROM Tracks WHERE path = ?;
-|}
+let find_album = stmt
+  "
+    SELECT rowid, * FROM Tracks WHERE path = ?;
+  " |> find_in_table (to_album 0)
 
-let insert_album = insert_into_table bind_album (fun a id -> a.id <- id) @@ stmt
-{|
-  INSERT OR REPLACE INTO Albums
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-|}
+let insert_album = stmt
+  "
+    INSERT OR REPLACE INTO Albums
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  " |> insert_into_table bind_album (fun a id -> a.id <- id)
 
-let delete_albums = delete_from_table_prefix @@ stmt
-{|
-  DELETE FROM Albums WHERE path LIKE ?;
-|}
+let delete_albums = stmt
+  "
+    DELETE FROM Albums WHERE path LIKE ?;
+  " |> delete_from_table_prefix
 
 
 (* Tracks *)
 
 let create_tracks = create_table
-{|
-  CREATE TABLE IF NOT EXISTS Tracks
-  (
-    path TEXT NOT NULL PRIMARY KEY,
-    filesize INT,
-    filetime REAL,
-    fileage REAL,
-    codec TEXT,
-    channels INT,
-    depth INT,
-    rate INT,
-    bitrate REAL,
-    size INT,
-    time REAL,
-    artist TEXT,
-    title TEXT,
-    track INT,
-    disc INT,
-    albumartist TEXT,
-    albumtitle TEXT,
-    date TEXT,
-    label TEXT,
-    country TEXT,
-    length REAL,
-    rating INT,
-    cover BLOB,
-    status INT NOT NULL
-  );
-|}
+  "
+    CREATE TABLE IF NOT EXISTS Tracks
+    (
+      path TEXT NOT NULL PRIMARY KEY,
+      filesize INT,
+      filetime REAL,
+      fileage REAL,
+      codec TEXT,
+      channels INT,
+      depth INT,
+      rate INT,
+      bitrate REAL,
+      size INT,
+      time REAL,
+      artist TEXT,
+      title TEXT,
+      track INT,
+      disc INT,
+      albumartist TEXT,
+      albumtitle TEXT,
+      date TEXT,
+      label TEXT,
+      country TEXT,
+      length REAL,
+      rating INT,
+      cover BLOB,
+      status INT NOT NULL
+    );
+  "
 
 let track_cols = 24
 
@@ -522,134 +519,122 @@ let bind_track stmt i (track : track) =
   assert (2 + file_cols + format_cols + meta_cols = track_cols);
   return
 
-let count_tracks = count_table @@ stmt
-{|
-  SELECT COUNT(*) FROM Tracks;
-|}
+let count_tracks = stmt
+  "
+    SELECT COUNT(*) FROM Tracks;
+  " |> count_table
 
-let exists_track = exist_in_table @@ stmt
-{|
-  SELECT COUNT(*) FROM Tracks WHERE path = ?;
-|}
+let mem_track = stmt
+  "
+    SELECT COUNT(*) FROM Tracks WHERE path = ?;
+  " |> mem_table
 
-let find_track = find_in_table (to_track 0) @@ stmt
-{|
-  SELECT rowid, * FROM Tracks WHERE path = ?;
-|}
+let find_track = stmt
+  "
+    SELECT rowid, * FROM Tracks WHERE path = ?;
+  " |> find_in_table (to_track 0)
 
-let iter_tracks = iter_table [||] (to_track 0) @@ stmt
-{|
-  SELECT rowid, * FROM Tracks;
-|}
+let iter_tracks = stmt
+  "
+    SELECT rowid, * FROM Tracks;
+  " |> iter_table [||] (to_track 0)
 
-let iter_tracks_for_path db path artist album = db |>
-  iter_table [|
-    of_text path; of_text artist; of_text album;
-  |] (to_track 0) @@ stmt
-{|
-  SELECT rowid, *
-  FROM Tracks
-  WHERE
-    (path LIKE ?1) AND
-    (?2 = '' OR artist = ?2 OR albumartist = ?2) AND
-    (?3 = '' OR albumtitle = ?3);
-|}
-
-let iter_tracks_for_path_as_artists db path = db |>
-  iter_table [|of_text path|] (to_artist 0) @@ stmt
-{|
-  SELECT NULL, artist, SUM(albums), SUM(tracks)
-  FROM (
-    SELECT artist, COUNT(DISTINCT albumtitle) AS albums, COUNT(*) AS tracks
+let iter_tracks_for_path = stmt
+  "
+    SELECT rowid, *
     FROM Tracks
-    WHERE path LIKE ?1
-    GROUP BY artist
-  UNION
-    SELECT albumartist AS artist, COUNT(DISTINCT albumtitle) AS albums, COUNT(*) AS tracks
+    WHERE
+      (path LIKE ?1) AND
+      (?2 = '' OR artist = ?2 OR albumartist = ?2) AND
+      (?3 = '' OR albumtitle = ?3);
+  " |>
+  fun stmt db path artist album ->
+    iter_table [|of_text path; of_text artist; of_text album|] (to_track 0)
+      stmt db
+
+let iter_tracks_for_path_as_artists = stmt
+  "
+    SELECT NULL, artist, SUM(albums), SUM(tracks)
+    FROM (
+      SELECT artist, COUNT(DISTINCT albumtitle) AS albums, COUNT(*) AS tracks
+      FROM Tracks
+      WHERE path LIKE ?1
+      GROUP BY artist
+    UNION
+      SELECT albumartist AS artist, COUNT(DISTINCT albumtitle) AS albums, COUNT(*) AS tracks
+      FROM Tracks
+      WHERE path LIKE ?1 AND artist <> albumartist
+      GROUP BY albumartist
+    )
+    GROUP BY artist;
+  " |>
+  fun stmt db path ->
+    iter_table [|of_text path|] (to_artist 0) stmt db
+
+let iter_tracks_for_path_as_albums = stmt
+  "
+    SELECT
+      NULL,
+      path,
+      SUM(filesize),
+      MAX(filetime),
+      MAX(fileage),
+      codec,
+      MIN(channels),
+      MIN(depth),
+      MIN(rate),
+      AVG(bitrate),
+      SUM(size),
+      SUM(time),
+      albumartist,
+      albumtitle,
+      COUNT(track),
+      COUNT(DISTINCT disc),
+      albumartist,
+      albumtitle,
+      MAX(date),
+      label,
+      country,
+      SUM(length),
+      MAX(rating),
+      cover,
+      MAX(status)
     FROM Tracks
-    WHERE path LIKE ?1 AND artist <> albumartist
-    GROUP BY albumartist
-  )
-  GROUP BY artist;
-|}
-
-let iter_tracks_for_path_as_albums db path artist = db |>
-  iter_table [|of_text path; of_text artist|] (to_album 0) @@ stmt
-{|
-  SELECT
-    NULL,
-    path,
-    SUM(filesize),
-    MAX(filetime),
-    MAX(fileage),
-    codec,
-    MIN(channels),
-    MIN(depth),
-    MIN(rate),
-    AVG(bitrate),
-    SUM(size),
-    SUM(time),
-    albumartist,
-    albumtitle,
-    COUNT(track),
-    COUNT(DISTINCT disc),
-    albumartist,
-    albumtitle,
-    MAX(date),
-    label,
-    country,
-    SUM(length),
-    MAX(rating),
-    cover,
-    MAX(status)
-  FROM Tracks
-  WHERE path LIKE ?1 AND (?2 = '' OR artist = ?2 OR albumartist = ?2)
-  GROUP BY albumartist, albumtitle, codec, label;
-|}
+    WHERE path LIKE ?1 AND (?2 = '' OR artist = ?2 OR albumartist = ?2)
+    GROUP BY albumartist, albumtitle, codec, label;
+  " |>
+  fun stmt db path artist ->
+    iter_table [|of_text path; of_text artist|] (to_album 0) stmt db
 
 
-let insert_track = insert_into_table bind_track (fun t id -> t.id <- id) @@ stmt
-{|
-  INSERT OR REPLACE INTO Tracks
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-|}
+let insert_track = stmt
+  "
+    INSERT OR REPLACE INTO Tracks
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  " |> insert_into_table bind_track (fun t id -> t.id <- id)
 
-let delete_tracks = delete_from_table_prefix @@ stmt
-{|
-  DELETE FROM Tracks WHERE path LIKE ?;
-|}
+let delete_tracks = stmt
+  "
+    DELETE FROM Tracks WHERE path LIKE ?;
+  " |> delete_from_table_prefix
 
 
 (* Playlists *)
 
 let create_playlists = create_table
-{|
-  CREATE TABLE IF NOT EXISTS Playlists
-  (
-    path TEXT NONT NULL,
-    pos INT NOT NULL,
-    track TEXT NOT NULL,
-    name TEXT,
-    artist TEXT,
-    title TEXT,
-    time REAL
-  );
-|}
-
-let to_playlist_entry i data : path * int * M3u.item =
-  to_text (i + 1) data,
-  to_int (i + 2) data,
-  let path = to_text (i + 3) data in
-  let name = to_text_opt (i + 4) data in
-  let time = to_float_opt (i + 5) data in
-  let info : M3u.info option =
-    if name = None && time = None then None else Some
-    {
-      title = Option.value name ~default: "";
-      time = int_of_float (Option.value time ~default: 0.0);
-    }
-  in
-  {path; info}
+  "
+    CREATE TABLE IF NOT EXISTS Playlists
+    (
+      path TEXT NONT NULL,
+      pos INT NOT NULL,
+      track TEXT NOT NULL,
+      name TEXT,
+      artist TEXT,
+      title TEXT,
+      time REAL
+    );
+  "
 
 let to_playlist_track i data : track =
   let track = to_track i data in
@@ -673,7 +658,6 @@ let to_playlist_track i data : track =
       {track with path; meta; status = if meta = None then `Undet else `Predet}
     )
   )
-
 
 let bind_playlist path pos stmt i (item : M3u.item) =
   let* () = bind_text stmt (i + 0) path in
@@ -701,20 +685,22 @@ let bind_playlist path pos stmt i (item : M3u.item) =
   return
 
 
-let count_playlists = count_table @@ stmt
-{|
-  SELECT COUNT(DISTINCT path) FROM Playlists;
-|}
+let count_playlists = stmt
+  "
+    SELECT COUNT(DISTINCT path) FROM Playlists;
+  " |> count_table
 
-let exists_playlists = exist_in_table @@ stmt
-{|
-  SELECT COUNT(*) FROM Playlists WHERE path = ?;
-|}
+let mem_playlist = stmt
+  "
+    SELECT COUNT(*) FROM Playlists WHERE path = ?;
+  " |> mem_table
 
-let insert_playlists db path pos = db |> insert_into_table (bind_playlist path pos) (fun _ _ -> ()) @@ stmt
-{|
-  INSERT OR REPLACE INTO Playlists VALUES (?, ?, ?, ?, ?, ?, ?);
-|}
+let insert_playlists = stmt
+  "
+    INSERT OR REPLACE INTO Playlists VALUES (?, ?, ?, ?, ?, ?, ?);
+  " |>
+  fun stmt db path pos ->
+    insert_into_table (bind_playlist path pos) (fun _ _ -> ()) stmt db
 
 let insert_playlists_bulk db path items =
   if items <> [] then
@@ -729,143 +715,147 @@ let insert_playlists_bulk db path items =
   let* () = Sqlite3.step stmt in
   ()
 
-let delete_playlists = delete_from_table_prefix @@ stmt
-{|
-  DELETE FROM Playlists WHERE path LIKE ?;
-|}
+let delete_playlists = stmt
+  "
+    DELETE FROM Playlists WHERE path LIKE ?;
+  " |> delete_from_table_prefix
 
-let clear_playlists = clear_table @@ stmt
-{|
-  DELETE FROM Playlists;
-|}
+let clear_playlists = stmt
+  "
+    DELETE FROM Playlists;
+  " |> clear_table
 
 
-let iter_playlist_tracks_for_path_as_artists db path = db |>
-  iter_table [|of_text path|] (to_artist 0) @@ stmt
-{|
-  SELECT NULL, aartist, SUM(albums), SUM(tracks)
-  FROM (
+let iter_playlist_tracks_for_path_as_artists = stmt
+  "
+    SELECT NULL, aartist, SUM(albums), SUM(tracks)
+    FROM (
+      SELECT
+        CASE
+          WHEN albumartist NOT NULL THEN albumartist
+          WHEN Tracks.artist NOT NULL THEN Tracks.artist
+          WHEN Playlists.artist NOT NULL THEN Playlists.artist
+          ELSE '[unknown]'
+        END AS aartist,
+        COUNT(DISTINCT
+          CASE
+            WHEN albumtitle NOT NULL THEN albumtitle
+            ELSE '[unknown]'
+          END
+        ) AS albums,
+        COUNT(*) AS tracks
+      FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
+      WHERE Playlists.path = ?1
+      GROUP BY aartist
+    UNION
+      SELECT
+        CASE
+          WHEN albumartist NOT NULL THEN albumartist
+          ELSE '[unknown]'
+        END AS aartist,
+        COUNT(DISTINCT
+          CASE
+            WHEN albumtitle NOT NULL THEN albumtitle
+            ELSE '[unknown]'
+          END
+        ) AS albums,
+        COUNT(*) AS tracks
+      FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
+      WHERE Playlists.path = ?1 AND Tracks.artist <> albumartist
+      GROUP BY albumartist
+    )
+    GROUP BY aartist;
+  " |>
+  fun stmt db path ->
+    iter_table [|of_text path|] (to_artist 0) stmt db
+
+let iter_playlist_tracks_for_path_as_albums = stmt
+  "
     SELECT
+      NULL,
+      Playlists.track,
+      SUM(filesize),
+      MAX(filetime),
+      MAX(fileage),
+      codec,
+      MIN(channels),
+      MIN(depth),
+      MIN(rate),
+      AVG(bitrate),
+      SUM(size),
+      SUM(Tracks.time),
+      Playlists.artist,
+      Playlists.title,
+      COUNT(Playlists.track),
+      COUNT(DISTINCT disc),
       CASE
         WHEN albumartist NOT NULL THEN albumartist
         WHEN Tracks.artist NOT NULL THEN Tracks.artist
         WHEN Playlists.artist NOT NULL THEN Playlists.artist
-        ELSE "[unknown]"
+        ELSE '[unknown]'
       END AS aartist,
-      COUNT(DISTINCT
-        CASE
-          WHEN albumtitle NOT NULL THEN albumtitle
-          ELSE "[unknown]"
-        END
-      ) AS albums,
-      COUNT(*) AS tracks
-    FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
-    WHERE Playlists.path = ?1
-    GROUP BY aartist
-  UNION
-    SELECT
       CASE
-        WHEN albumartist NOT NULL THEN albumartist
-        ELSE "[unknown]"
-      END AS aartist,
-      COUNT(DISTINCT
-        CASE
-          WHEN albumtitle NOT NULL THEN albumtitle
-          ELSE "[unknown]"
-        END
-      ) AS albums,
-      COUNT(*) AS tracks
+        WHEN albumtitle NOT NULL THEN albumtitle
+        ELSE '[unknown]'
+      END AS atitle,
+      MAX(date),
+      label,
+      country,
+      SUM(Tracks.length),
+      MAX(rating),
+      cover,
+      NULL,
+      MAX(status)
     FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
-    WHERE Playlists.path = ?1 AND Tracks.artist <> albumartist
-    GROUP BY albumartist
-  )
-  GROUP BY aartist;
-|}
+    WHERE
+      (Playlists.path = ?1) AND
+      (?2 = '' OR Tracks.artist = ?2 OR albumartist = ?2 OR Playlists.artist = ?2)
+    GROUP BY aartist, atitle, codec, label;
+  " |>
+  fun stmt db path artist ->
+    iter_table [|of_text path; of_text artist|] (to_album 0) stmt db
 
-let iter_playlist_tracks_for_path_as_albums db path artist = db |>
-  iter_table [|of_text path; of_text artist|] (to_album 0) @@ stmt
-{|
-  SELECT
-    NULL,
-    Playlists.track,
-    SUM(filesize),
-    MAX(filetime),
-    MAX(fileage),
-    codec,
-    MIN(channels),
-    MIN(depth),
-    MIN(rate),
-    AVG(bitrate),
-    SUM(size),
-    SUM(Tracks.time),
-    Playlists.artist,
-    Playlists.title,
-    COUNT(Playlists.track),
-    COUNT(DISTINCT disc),
-    CASE
-      WHEN albumartist NOT NULL THEN albumartist
-      WHEN Tracks.artist NOT NULL THEN Tracks.artist
-      WHEN Playlists.artist NOT NULL THEN Playlists.artist
-      ELSE "[unknown]"
-    END AS aartist,
-    CASE
-      WHEN albumtitle NOT NULL THEN albumtitle
-      ELSE "[unknown]"
-    END AS atitle,
-    MAX(date),
-    label,
-    country,
-    SUM(Tracks.length),
-    MAX(rating),
-    cover,
-    NULL,
-    MAX(status)
-  FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
-  WHERE
-    (Playlists.path = ?1) AND
-    (?2 = '' OR Tracks.artist = ?2 OR albumartist = ?2 OR Playlists.artist = ?2)
-  GROUP BY aartist, atitle, codec, label;
-|}
+let iter_playlist_tracks_for_path = stmt
+  "
+    SELECT
+      Tracks.rowid, Tracks.*,
+      Playlists.pos, Playlists.track,
+      Playlists.artist, Playlists.title, Playlists.time
+    FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
+    WHERE
+      (Playlists.path = ?1) AND
+      (?2 = '' OR Tracks.artist = ?2 OR albumartist = ?2 OR
+        Playlists.artist = ?2) AND
+      (?3 = '' OR albumtitle = ?3);
+  " |>
+  fun stmt db path artist album ->
+    iter_table [|of_text path; of_text artist; of_text album|]
+      (to_playlist_track 0) stmt db
 
-let iter_playlist_tracks_for_path db path artist album = db |>
-  iter_table [|
-    of_text path; of_text artist; of_text album;
-  |] (to_playlist_track 0) @@ stmt
-{|
-  SELECT
-    Tracks.rowid, Tracks.*,
-    Playlists.pos, Playlists.track, Playlists.artist, Playlists.title, Playlists.time
-  FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
-  WHERE
-    (Playlists.path = ?1) AND
-    (?2 = '' OR Tracks.artist = ?2 OR albumartist = ?2 OR Playlists.artist = ?2) AND
-    (?3 = '' OR albumtitle = ?3);
-|}
-
-
-let iter_tracks_and_playlist_tracks_for_path db path artist album with_pos = db |>
-  iter_table [|
-    of_text path; of_text artist; of_text album; of_bool with_pos;
-  |] (to_playlist_track 0) @@ stmt
-{|
-  SELECT Tracks.rowid, Tracks.*, NULL, NULL, NULL, NULL, NULL
-  FROM Tracks
-  WHERE
-    (Tracks.path LIKE ?1) AND
-    (?2 = '' OR Tracks.artist = ?2 OR albumartist = ?2) AND
-    (?3 = '' OR albumtitle = ?3)
-  UNION
-  SELECT
-    Tracks.rowid, Tracks.*,
-    CASE WHEN ?4 THEN Playlists.pos ELSE NULL END,
-    Playlists.track, Playlists.artist, Playlists.title, Playlists.time
-  FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
-  WHERE
-    (Playlists.path LIKE ?1) AND
-    (?2 = '' OR Tracks.artist = ?2 OR albumartist = ?2 OR Playlists.artist = ?2) AND
-    (?3 = '' OR albumtitle = ?3) AND
-    (?4 OR NOT (Playlists.track LIKE 'separator://%'));
-|}
+let iter_tracks_and_playlist_tracks_for_path = stmt
+  "
+    SELECT Tracks.rowid, Tracks.*, NULL, NULL, NULL, NULL, NULL
+    FROM Tracks
+    WHERE
+      (Tracks.path LIKE ?1) AND
+      (?2 = '' OR Tracks.artist = ?2 OR albumartist = ?2) AND
+      (?3 = '' OR albumtitle = ?3)
+    UNION
+    SELECT
+      Tracks.rowid, Tracks.*,
+      CASE WHEN ?4 THEN Playlists.pos ELSE NULL END,
+      Playlists.track, Playlists.artist, Playlists.title, Playlists.time
+    FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
+    WHERE
+      (Playlists.path LIKE ?1) AND
+      (?2 = '' OR Tracks.artist = ?2 OR albumartist = ?2 OR
+        Playlists.artist = ?2) AND
+      (?3 = '' OR albumtitle = ?3) AND
+      (?4 OR NOT (Playlists.track LIKE 'separator://%'));
+  " |>
+  fun stmt db path artist album with_pos ->
+    iter_table [|of_text path; of_text artist; of_text album; of_bool with_pos|]
+      (to_playlist_track 0) stmt db
 
 
 (* Initialization *)

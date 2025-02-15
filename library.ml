@@ -294,7 +294,7 @@ let rescan_dir_tracks lib mode (dir : Data.dir) =
           | None -> Data.make_track path
         in
         (* Parent may have been deleted in the mean time... *)
-        if Db.exists_dir lib.db dir.path then
+        if Db.mem_dir lib.db dir.path then
           rescan_track lib mode track
       )
     ) (Sys.readdir dir.path)
@@ -354,7 +354,7 @@ let rescan_dir lib mode (origin : Data.dir) =
             dir.name <- Filename.remove_extension dir.name;
           dir.folded <- true;
           (* Root may have been deleted in the mean time... *)
-          if Db.exists_dir lib.db origin.path then
+          if Db.mem_dir lib.db origin.path then
             Db.insert_dir lib.db dir;
           dir
       in
@@ -379,7 +379,7 @@ let rescan_dir lib mode (origin : Data.dir) =
         dir.name <- Filename.remove_extension dir.name;
         dir.folded <- true;
         (* Root may have been deleted in the mean time... *)
-        if Db.exists_dir lib.db origin.path then
+        if Db.mem_dir lib.db origin.path then
           Db.insert_dir lib.db dir;
         dir
     in
@@ -422,6 +422,8 @@ let _ = queue_rescan_dir_tracks := rescan_dir_tracks
 (* Browser *)
 
 let length_browser lib = Table.length lib.browser
+
+let has_track lib track = Db.mem_track lib.db track.path
 
 
 let defocus lib =
