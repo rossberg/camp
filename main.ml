@@ -1341,7 +1341,7 @@ let run_library (st : State.t) =
         | `Invalid -> Ui.warn_color lay.ui
         | `Undet -> Ui.semilit_color (Ui.text_color lay.ui)
         | `Predet | `Det ->
-          if Library.has_track lib track then
+          if Data.is_separator track || Library.has_track lib track then
             Ui.text_color lay.ui
           else
             Ui.warn_color lay.ui
