@@ -686,19 +686,19 @@ let refresh_tracks lib =
         match Table.first_selected lib.artists with
         | Some i -> lib.artists.entries.(i).name
         | None -> ""
-      and album =
-        match Table.first_selected lib.albums with
-        | Some i when lib.albums.entries.(i).meta <> None ->
-          (Option.get lib.albums.entries.(i).meta).albumtitle
-        | _ -> ""
+      and albums =
+        if Table.(num_selected lib.albums = length lib.albums) then [||] else
+        let albums = Table.selected lib.albums in
+        if Array.exists (fun (a : album) -> a.meta = None) albums then [||] else
+        Array.map (fun (a : album) -> (Option.get a.meta).albumtitle) albums
       in
       if dir.path = "" then
-        Db.iter_tracks_for_path lib.db "%" artist album f
+        Db.iter_tracks_for_path lib.db "%" artist albums f
       else if Data.is_dir dir then
         let path = Filename.concat dir.path "%" in
-        Db.iter_tracks_for_path lib.db path artist album f
+        Db.iter_tracks_for_path lib.db path artist albums f
       else if Data.is_playlist dir then
-        Db.iter_playlist_tracks_for_path lib.db dir.path artist album f
+        Db.iter_playlist_tracks_for_path lib.db dir.path artist albums f
     )
 
 let refresh_albums lib =
@@ -808,7 +808,7 @@ let save_playlist lib =
     let s = M3u.make_ext items in
     Out_channel.with_open_bin dir.path (fun file -> output_string file s);
     Db.delete_playlists lib.db dir.path;
-    Db.insert_playlists_bulk lib.db dir.path items;
+    if items <> [] then Db.insert_playlists_bulk lib.db dir.path items;
   with exn -> Storage.log
     ("error writing playlist " ^ dir.path ^ ": " ^ Printexc.to_string exn)
 
