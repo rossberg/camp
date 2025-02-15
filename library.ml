@@ -9,10 +9,10 @@ type db = Db.t
 
 type scan =
 {
-  dir_queue : (path option * (unit -> unit)) Safe_queue.t;
-  file_queue : (path option * (unit -> unit)) Safe_queue.t;
-  dir_busy : bool Atomic.t;
-  file_busy : bool Atomic.t;
+  dir_queue : (bool * path * (unit -> unit)) Safe_queue.t;
+  file_queue : (bool * path * (unit -> unit)) Safe_queue.t;
+  dir_busy : string option Atomic.t;
+  file_busy : string option Atomic.t;
   completed : path option list Atomic.t;
 }
 
@@ -58,11 +58,11 @@ let rec complete scan path =
     complete scan path
 
 let rec scanner scan queue busy () =
-  Atomic.set busy false;
-  let path, f = Safe_queue.take queue in
-  Atomic.set busy true;
+  let local, path, f = Safe_queue.take queue in
+  Atomic.set busy (Some path);
   f ();
-  complete scan path;
+  Atomic.set busy None;
+  complete scan (if local then Some path else None);
   scanner scan queue busy ()
 
 let make_scan () =
@@ -70,8 +70,8 @@ let make_scan () =
     {
       dir_queue = Safe_queue.create ();
       file_queue = Safe_queue.create ();
-      dir_busy = Atomic.make false;
-      file_busy = Atomic.make false;
+      dir_busy = Atomic.make None;
+      file_busy = Atomic.make None;
       completed = Atomic.make [];
     }
   in
@@ -399,20 +399,20 @@ let rescan_dir lib mode (origin : Data.dir) =
     ("error scanning directory " ^ origin.path ^ ": " ^ Printexc.to_string exn)
 
 
-let rescan_dir lib mode dir =
-  Safe_queue.add (None, fun () -> rescan_dir lib mode dir)
+let rescan_dir lib mode (dir : dir) =
+  Safe_queue.add (false, dir.path, fun () -> rescan_dir lib mode dir)
     lib.scan.dir_queue
 
 let rescan_playlist lib mode path =
-  Safe_queue.add (Some path, fun () -> rescan_playlist lib mode path)
+  Safe_queue.add (true, path, fun () -> rescan_playlist lib mode path)
     lib.scan.file_queue
 
 let rescan_track lib mode track =
-  Safe_queue.add (Some track.path, fun () -> rescan_track lib mode track)
+  Safe_queue.add (true, track.path, fun () -> rescan_track lib mode track)
     lib.scan.file_queue
 
 let rescan_dir_tracks lib mode (dir : dir) =
-  Safe_queue.add (Some dir.path, fun () -> rescan_dir_tracks lib mode dir)
+  Safe_queue.add (true, dir.path, fun () -> rescan_dir_tracks lib mode dir)
     lib.scan.dir_queue
 
 
@@ -420,8 +420,11 @@ let rescan_dirs lib mode dirs = Array.iter (rescan_dir lib mode) dirs
 let rescan_root lib mode = rescan_dirs lib mode lib.root.children
 let rescan_tracks lib mode tracks = Array.iter (rescan_track lib mode) tracks
 
-let rescan_busy lib = Atomic.(get lib.scan.dir_busy || get lib.scan.file_busy)
 let rescan_done lib = Atomic.exchange lib.scan.completed []
+let rescan_busy lib =
+  match Atomic.get lib.scan.dir_busy with
+  | None -> Atomic.get lib.scan.file_busy
+  | some -> some
 
 let _ = queue_rescan_dir_tracks := rescan_dir_tracks
 

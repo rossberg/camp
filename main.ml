@@ -876,6 +876,8 @@ let symbol_empty = " ○"
 let symbol_folded = "►" (* "▸" *)
 let symbol_unfolded = "▼" (* "▾" *)
 
+let spin = [|"|"; "/"; "-"; "\\"|]
+
 let convert_sorting columns sorting =
   let index attr = Array.find_index (fun (a, _) -> a = attr) columns in
   List.map (fun (attr, order) -> Option.get (index attr), order) sorting
@@ -914,7 +916,19 @@ let run_library (st : State.t) =
       if dir.nest = -1 then "" else String.make (2 * dir.nest) ' ' ^ sym ^ " "
     ) browser.entries
   in
-  let pp_row i = c, [|pre.(i) ^ browser.entries.(i).name|]in
+  let pp_row i =
+    let dir = browser.entries.(i) in
+    let spinning =
+      match Library.rescan_busy lib with
+      | None -> false
+      | Some path ->
+        path = dir.path ||
+        dir.folded && String.starts_with path ~prefix: dir.path
+    in
+    let spin = if not spinning then "" else
+      " " ^ spin.(Api.Draw.frame win / 3 mod Array.length spin)
+    in c, [|pre.(i) ^ dir.name ^ spin|]
+  in
 
   let dir = Library.selected_dir lib in
   let selected = browser.selected in
@@ -1042,8 +1056,8 @@ let run_library (st : State.t) =
 
   (* Scanning indicator *)
   Layout.scan_label lay;
-  Layout.scan_indicator lay (Library.rescan_busy lib);
-  if Layout.scan_button lay && not (Library.rescan_busy lib) then
+  Layout.scan_indicator lay (Library.rescan_busy lib <> None);
+  if Layout.scan_button lay && Library.rescan_busy lib = None then
   (
     (* Inactive scanning indicator clicked: rescan *)
     let mode = if Api.Key.is_modifier_down `Shift then `Thorough else `Fast in
@@ -1333,7 +1347,7 @@ let run_library (st : State.t) =
       let track = tab.entries.(i) in
       let c =
         if (track.status = `Undet || track.status = `Predet)
-        && not (Library.rescan_busy lib) then
+        && Library.rescan_busy lib = None then
           Track.update track;
         match track.status with
         | _ when track.path = current -> `White

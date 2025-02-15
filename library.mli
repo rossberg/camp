@@ -52,7 +52,7 @@ val rescan_root : t -> scan_mode -> unit
 val rescan_dirs : t -> scan_mode -> dir array -> unit
 val rescan_tracks : t -> scan_mode -> track array -> unit
 
-val rescan_busy : t -> bool
+val rescan_busy : t -> string option
 
 val refresh_after_rescan : t -> unit
 
