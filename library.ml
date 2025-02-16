@@ -156,26 +156,26 @@ let _fmt_date_time t =
     tm.tm_hour tm.tm_min tm.tm_sec
 
 let nonzero zero f x = if x = zero then "" else f x
-let nonzero_int x = nonzero 0 string_of_int x
+let nonzero_int w x = nonzero 0 (fmt "%*d" w) x (* leading spaces for sorting *)
 let nonempty f x attr = match x with None -> "" | Some x -> f x attr
 
 
 let file_attr_string path (file : file) = function
   | `FilePath -> path
-  | `FileSize -> nonzero 0.0 (fmt "%.1f MB") (float file.size /. 2.0 ** 20.0)
+  | `FileSize -> nonzero 0.0 (fmt "%3.1f MB") (float file.size /. 2.0 ** 20.0)
   | `FileTime -> nonzero 0.0 fmt_date file.time
 
 let rec format_attr_string (format : Format.t) = function
   | `Length -> nonzero 0.0 fmt_time format.time
   | `Codec -> format.codec
-  | `Channels -> nonzero_int format.channels
+  | `Channels -> nonzero_int 2 format.channels
   | `Depth ->
     let depth = format.bitrate /. float format.rate /. float format.channels in
     let fmts : _ format =
       if float format.depth = Float.round depth then "%.0f" else "%.1f"
     in nonzero 0.0 (fmt fmts) depth
-  | `SampleRate -> nonzero 0.0 (fmt "%.1f KHz") (float format.rate /. 1000.0)
-  | `Bitrate -> nonzero 0.0 (fmt "%.0f kbps") (format.bitrate /. 1000.0)
+  | `SampleRate -> nonzero 0.0 (fmt "%3.1f KHz") (float format.rate /. 1000.0)
+  | `Bitrate -> nonzero 0.0 (fmt "%4.0f kbps") (format.bitrate /. 1000.0)
   | `Rate ->
     let attr =
       match format.codec with
@@ -188,12 +188,12 @@ let meta_attr_string (meta : Meta.t) = function
   | `Title -> meta.title
   | `AlbumArtist -> meta.albumartist
   | `AlbumTitle -> meta.albumtitle
-  | `Track -> nonzero_int meta.track
-  | `Tracks -> nonzero_int meta.track (* TODO: set and use tracks *)
-  | `Disc -> nonzero_int meta.disc
-  | `Discs -> nonzero_int meta.disc (* TODO: set and use discs *)
+  | `Track -> nonzero_int 3 meta.track
+  | `Tracks -> nonzero_int 3 meta.track (* TODO: set and use tracks *)
+  | `Disc -> nonzero_int 2 meta.disc
+  | `Discs -> nonzero_int 2 meta.disc (* TODO: set and use discs *)
   | `Date -> meta.date_txt
-  | `Year -> nonzero_int meta.year
+  | `Year -> nonzero_int 4 meta.year
   | `Label -> meta.label
   | `Country -> meta.country
   | `Length -> nonzero 0.0 fmt_time meta.length
@@ -222,8 +222,8 @@ let length_attr_string' format meta =
 
 let artist_attr_string (artist : artist) = function
   | `Artist -> artist.name
-  | `Tracks -> string_of_int artist.tracks
-  | `Albums -> string_of_int artist.albums
+  | `Tracks -> fmt "%4d" artist.tracks
+  | `Albums -> fmt "%3d" artist.albums
 
 let album_attr_string (album : album) = function
   | `AlbumArtist -> artist_attr_string' `AlbumArtist album.path album.meta
@@ -234,7 +234,7 @@ let album_attr_string (album : album) = function
   | #meta_attr as attr -> nonempty meta_attr_string album.meta attr
 
 let track_attr_string (track : track) = function
-  | `Pos -> nonzero 0 (fmt "%3d") (track.pos + 1)
+  | `Pos -> nonzero_int 3 (track.pos + 1)
   | `Artist -> artist_attr_string' `Artist track.path track.meta
   | `Title -> title_attr_string' `Title track.path track.meta
   | `Length -> length_attr_string' track.format track.meta
