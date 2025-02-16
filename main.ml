@@ -497,9 +497,8 @@ let drop_on_browser (st : State.t) tracks =
           let s' = In_channel.(with_open_bin dir.path input_all) in
           Out_channel.(with_open_bin dir.path
             (fun file -> output_string file s'; output_string file s))
-        with exn -> Storage.log
-           ("error modifying playlist " ^ dir.path ^ ": " ^
-             Printexc.to_string exn)
+        with exn ->
+          Storage.log_exn "file" exn ("modifying playlist " ^ dir.path)
         );
         if Library.selected_dir lib = Some i then
         (
@@ -1517,6 +1516,10 @@ let run_library (st : State.t) =
 
 let rec run (st : State.t) =
   State.ok st;
+  (try run' st with exn -> Storage.log_exn "internal" exn "");
+  run st
+
+and run' (st : State.t) =
   let lay = st.layout in
   let win = Ui.window lay.ui in
   if Api.Window.closed win then exit 0;
@@ -1579,9 +1582,7 @@ let rec run (st : State.t) =
     then Layout.(control_h lay + playlist_min lay, -1)
     else Layout.(control_h lay, control_h lay)
   in
-  Ui.finish lay.ui (Layout.margin lay) (minw, minh) (maxw, maxh);
-
-  run st
+  Ui.finish lay.ui (Layout.margin lay) (minw, minh) (maxw, maxh)
 
 
 (* Startup *)
@@ -1608,6 +1609,5 @@ let _main =
     let st = startup () in
     run st
   with exn ->
-    prerr_endline ("internal error: " ^ Printexc.to_string exn);
-    Printexc.print_backtrace stderr;
+    Storage.log_exn "internal" exn "";
     Stdlib.exit 2

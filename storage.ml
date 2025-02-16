@@ -67,25 +67,29 @@ let log msg =
   !append_fwd log_file (fun file -> Out_channel.output_string file msg');
   Out_channel.flush_all ()
 
+let log_exn cause exn msg =
+  let msg' = if msg = "" then "" else " " ^ msg in
+  log (cause ^ " error " ^ Printexc.to_string exn ^ msg' ^ "\n" ^
+    Printexc.get_backtrace ())
+
 
 (* Loading & Saving *)
 
-let log_error op filename exn =
-  log ("exception " ^ Printexc.to_string exn ^ " while " ^ op ^ " " ^ filename
-    ^ "\n" ^ Printexc.get_backtrace ())
+let log_io_error op filename exn =
+  log_exn "file" exn ("while " ^ op ^ " " ^ filename)
 
 let load filename f =
   try
     In_channel.with_open_bin (path filename) f
   with Sys_error _ | End_of_file | Scanf.Scan_failure _ | Failure _ as exn ->
-    log_error "loading" filename exn
+    log_io_error "loading" filename exn
 
 let save filename f =
   try
     if not (Sys.file_exists dir) then Sys.mkdir dir 0o770;
     Out_channel.with_open_bin (path filename) f
   with Sys_error _ as exn ->
-    log_error "saving" filename exn
+    log_io_error "saving" filename exn
 
 let append filename f =
   try
@@ -93,7 +97,7 @@ let append filename f =
     Out_channel.(with_open_gen [Open_binary; Open_creat; Open_append; Open_nonblock])
       0o660 (path filename) f
   with Sys_error _ as exn ->
-    log_error "appending to" filename exn
+    log_io_error "appending to" filename exn
 
 let _ = append_fwd := append
 
@@ -106,7 +110,7 @@ type map = string Map.t
 let read_map map key f =
   match Map.find_opt key map with
   | None -> ()
-  | Some value -> try f value with exn -> log_error "reading key" key exn
+  | Some value -> try f value with exn -> log_io_error "reading key" key exn
 
 let combine_map map1 map2 =
   Map.union (fun key _ _ -> failwith ("conflicting key: " ^ key)) map1 map2

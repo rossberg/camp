@@ -15,6 +15,7 @@ val clear_temp : unit -> unit
 (* Logging *)
 
 val log : string -> unit
+val log_exn : string -> exn -> string -> unit
 val log_clear : unit -> unit
 
 (* Loading & Saving *)

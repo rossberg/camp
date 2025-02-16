@@ -285,8 +285,8 @@ let rescan_track lib mode track =
       track.file.age <- Unix.gettimeofday ();
       Db.insert_track lib.db track;
     )
-  with exn -> Storage.log
-    ("error scanning track " ^ track.path ^ ": " ^ Printexc.to_string exn)
+  with exn ->
+    Storage.log_exn "file" exn ("scanning track " ^ track.path)
 
 
 let rescan_dir_tracks lib mode (dir : Data.dir) =
@@ -305,8 +305,8 @@ let rescan_dir_tracks lib mode (dir : Data.dir) =
           rescan_track lib mode track
       )
     ) (Sys.readdir dir.path)
-  with exn -> Storage.log
-    ("error scanning dir " ^ dir.path ^ ": " ^ Printexc.to_string exn)
+  with exn ->
+    Storage.log_exn "file" exn ("scanning tracks in directory " ^ dir.path)
 
 let rescan_playlist lib _mode path =
   try
@@ -315,8 +315,8 @@ let rescan_playlist lib _mode path =
     let items' = List.map (M3u.resolve (Filename.dirname path)) items in
     Db.delete_playlists lib.db path;
     Db.insert_playlists_bulk lib.db path items';
-  with exn -> Storage.log
-    ("error scanning playlist " ^ path ^ ": " ^ Printexc.to_string exn)
+  with exn ->
+    Storage.log_exn "file" exn ("scanning playlist " ^ path)
 
 
 let queue_rescan_dir_tracks = ref (fun _ -> assert false)
@@ -395,8 +395,8 @@ let rescan_dir lib mode (origin : Data.dir) =
 
   try
     ignore (scan_dir origin.path (origin.nest - 1))
-  with exn -> Storage.log
-    ("error scanning directory " ^ origin.path ^ ": " ^ Printexc.to_string exn)
+  with exn ->
+    Storage.log_exn "file" exn ("scanning directory " ^ origin.path)
 
 
 let rescan_dir lib mode (dir : dir) =
@@ -812,8 +812,8 @@ let save_playlist lib =
     Out_channel.with_open_bin dir.path (fun file -> output_string file s);
     Db.delete_playlists lib.db dir.path;
     if items <> [] then Db.insert_playlists_bulk lib.db dir.path items;
-  with exn -> Storage.log
-    ("error writing playlist " ^ dir.path ^ ": " ^ Printexc.to_string exn)
+  with exn ->
+    Storage.log_exn "file" exn ("writing playlist " ^ dir.path)
 
 
 (* Before editing, normalise playlist to pos-order to enable correct undo *)

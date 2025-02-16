@@ -292,7 +292,7 @@ let sorting_of_string to_attr s =
   try
     sorting_of_string' to_attr s 0
   with exn ->
-    Storage.log ("malformed sorting format: " ^ s);
+    Storage.log_exn "internal" exn ("malformed sorting format: " ^ s);
     raise exn
 
 let string_of_column (attr, w) = string_of_attr attr ^ string_of_int w
@@ -308,7 +308,7 @@ let columns_of_string to_attr s =
     Array.of_list (List.map (column_of_string to_attr)
       (List.filter ((<>) "") (String.split_on_char ' ' s)))
   with exn ->
-    Storage.log ("malformed columns format: " ^ s);
+    Storage.log_exn "internal" exn ("malformed columns format: " ^ s);
     raise exn
 
 let to_artist_attr = function
