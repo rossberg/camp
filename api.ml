@@ -531,15 +531,15 @@ end
 
 (* Audio *)
 
-type audio = unit
+type audio = Mutex.t
 type sound = {music : Raylib.Music.t; format : Format.t; temp : path option (* for UTF-8 workaround *)}
 
 module Audio =
 struct
-  let init () = Raylib.init_audio_device ()
+  let init () = Raylib.init_audio_device (); Mutex.create ()
 
   let silent = ref None
-  let silence () =
+  let silence _ =
     match !silent with
     | Some sound -> sound
     | None ->
@@ -552,7 +552,7 @@ struct
 
   let retain = ref []
 
-  let load () path =
+  let load _ path =
     if not (Sys.file_exists path) then silence () else
     (* Raylib can't handle UTF-8 file paths, so copy those to temp file. *)
     let path' = if Unicode.is_ascii path then path else Storage.copy_to_temp path in
@@ -574,28 +574,35 @@ struct
       {music; format; temp = if path' = path then None else Some path'}
     )
 
-  let free () sound =
-    Raylib.stop_music_stream sound.music;
-    Option.iter Storage.remove_temp sound.temp;
-    Raylib.unload_music_stream sound.music
+  let protect m f sound = Mutex.protect m (fun () -> f sound)
 
-  let play () sound = Raylib.play_music_stream sound.music
-  let stop () sound = Raylib.stop_music_stream sound.music
-  let pause () sound = Raylib.pause_music_stream sound.music
-  let resume () sound =
-    Raylib.resume_music_stream sound.music;
-    Raylib.update_music_stream sound.music
+  let free m sound =
+    Mutex.protect m (fun () ->
+      Raylib.stop_music_stream sound.music;
+      Option.iter Storage.remove_temp sound.temp;
+      Raylib.unload_music_stream sound.music
+    )
 
-  let is_playing () sound = Raylib.is_music_stream_playing sound.music
-  let volume () sound x = Raylib.set_music_volume sound.music x
-  let length () sound = Raylib.get_music_time_length sound.music
-  let played () sound = Raylib.get_music_time_played sound.music
-  let seek () sound t = Raylib.seek_music_stream sound.music t
+  let refill m sound = protect m Raylib.update_music_stream sound.music
+  let play m sound = protect m Raylib.play_music_stream sound.music
+  let stop m sound = protect m Raylib.stop_music_stream sound.music
+  let pause m sound = protect m Raylib.pause_music_stream sound.music
+  let resume m sound =
+    Mutex.protect m (fun () ->
+      Raylib.resume_music_stream sound.music;
+      Raylib.update_music_stream sound.music
+    )
 
-  let channels () sound = sound.format.channels
-  let rate () sound = sound.format.rate
-  let depth () sound = sound.format.depth
-  let bitrate () sound = sound.format.bitrate
+  let is_playing m sound = protect m Raylib.is_music_stream_playing sound.music
+  let volume _ sound x = Raylib.set_music_volume sound.music x
+  let length m sound = protect m Raylib.get_music_time_length sound.music
+  let played m sound = protect m Raylib.get_music_time_played sound.music
+  let seek m sound t = protect m Raylib.seek_music_stream sound.music t
+
+  let channels _ sound = sound.format.channels
+  let rate _ sound = sound.format.rate
+  let depth _ sound = sound.format.depth
+  let bitrate _ sound = sound.format.bitrate
 end
 
 

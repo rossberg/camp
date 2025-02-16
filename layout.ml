@@ -83,7 +83,7 @@ let power_button g = Ui.button g.ui (0, shown_x g, power_y g, shown_w, power_h) 
 let power_label g = Ui.label g.ui (0, shown_x g, power_y g + power_h + 1, shown_w, label_h g) `Center "POWER"
 let minimize_button g = Ui.mouse g.ui (0, shown_x g, power_y g, shown_w, power_h) `Right
 
-let shown_indicator y g = Ui.indicator g.ui (0, shown_indicator_x g, y - indicator_w g - 1, indicator_w g, indicator_w g)
+let shown_indicator y g = Ui.indicator g.ui `Green (0, shown_indicator_x g, y - indicator_w g - 1, indicator_w g, indicator_w g)
 let shown_button y ch g = Ui.button g.ui (0, shown_x g, y, shown_w, shown_h) ([], `Char ch)
 let shown_label y txt g = Ui.label g.ui (0, shown_x g, y + shown_h + 1, shown_w, label_h g) `Center txt
 
@@ -190,7 +190,7 @@ let mode_indicator_x g x = function
   | `Left -> x + 4
   | `Right -> x + mode_w - indicator_w g - 4
 
-let mode_indicator i al g = Ui.indicator g.ui (0, mode_indicator_x g (mode_x g i) al, mode_y g - indicator_w g - 1, indicator_w g, indicator_w g)
+let mode_indicator i al g = Ui.indicator g.ui `Green (0, mode_indicator_x g (mode_x g i) al, mode_y g - indicator_w g - 1, indicator_w g, indicator_w g)
 let mode_button i ch g = Ui.button g.ui (0, mode_x g i, mode_y g, mode_w, mode_h) ([], `Char ch)
 let mode_label i label g = Ui.label g.ui (0, mode_x g i, mode_y g + mode_h + 1, mode_w, label_h g) `Center label
 
@@ -258,7 +258,7 @@ let scan_w = 32
 let scan_y g = margin g
 let scan_indicator_w g = indicator_w g + 5
 let scan_indicator_area g = (2, margin g + (scan_w - scan_indicator_w g)/2, scan_y g + label_h g + 2, scan_indicator_w g, scan_indicator_w g)
-let scan_indicator g = Ui.indicator g.ui (scan_indicator_area g)
+let scan_indicator g = Ui.indicator g.ui `Yellow (scan_indicator_area g)
 let scan_button g = Ui.mouse g.ui (scan_indicator_area g) `Left
 let scan_label g = Ui.label g.ui (2, margin g, scan_y g, scan_w, label_h g) `Center "SCANNING"
 
@@ -267,7 +267,7 @@ let view_h = 12
 let view_x g i = - margin g - view_w - i*(view_w + 8) - 2
 let view_y g = margin g + indicator_w g + 1
 let view_indicator_x g x = x + (view_w - indicator_w g)/2 + 1
-let view_indicator i g = Ui.indicator g.ui (2, view_indicator_x g (view_x g i), view_y g - indicator_w g - 1, indicator_w g, indicator_w g)
+let view_indicator i g = Ui.indicator g.ui `Green (2, view_indicator_x g (view_x g i), view_y g - indicator_w g - 1, indicator_w g, indicator_w g)
 let view_button i g = Ui.button g.ui (2, view_x g i, view_y g, view_w, view_h) ([], `None)
 let view_label i label g = Ui.label g.ui (2, view_x g i - 4, view_y g + view_h + 1, view_w + 8, label_h g) `Center label
 

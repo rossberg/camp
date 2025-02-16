@@ -207,6 +207,7 @@ sig
   val stop : audio -> sound -> unit
   val pause : audio -> sound -> unit
   val resume : audio -> sound -> unit
+  val refill : audio -> sound -> unit
   val volume : audio -> sound -> float -> unit
   val is_playing : audio -> sound -> bool
   val length : audio -> sound -> time

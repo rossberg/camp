@@ -1587,6 +1587,14 @@ and run' (st : State.t) =
 
 (* Startup *)
 
+let rec refill_audio (ctl : Control.t) () =
+  let silence = ctl.sound = Api.Audio.silence ctl.audio in
+  let playing = Api.Audio.is_playing ctl.audio ctl.sound in
+  if playing && not silence then Api.Audio.refill ctl.audio ctl.sound;
+  Unix.sleepf 0.02;
+  (*Domain.cpu_relax ();*)
+  refill_audio ctl ()
+
 let startup () =
   Storage.clear_temp ();
   let db = Db.init () in
@@ -1595,6 +1603,7 @@ let startup () =
   let audio = Api.Audio.init () in
   let rst = ref (State.make ui audio db) in
   let st = if State.load !rst then !rst else State.make ui audio db in
+  ignore (Domain.spawn (refill_audio st.control));
   at_exit (fun () ->
     State.save st;
     Api.Audio.free audio st.control.sound;

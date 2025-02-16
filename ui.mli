@@ -59,7 +59,7 @@ val start : t -> unit
 val finish : t -> int -> size -> size -> unit
 
 val label : t -> area -> align -> string -> unit
-val indicator : t -> area -> bool -> unit
+val indicator : t -> color -> area -> bool -> unit
 val lcd : t -> area -> char -> unit
 
 val box : t -> area -> color -> unit

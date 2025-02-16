@@ -385,9 +385,9 @@ let colored_label ui c r align s =
 let label ui r align s =
   colored_label ui `White r align s
 
-let indicator ui r on =
+let indicator ui c r on =
   let x, y, w, h = dim ui r in
-  Draw.fill_circ ui.win x y w h (if on then `Green else unlit_color `Green);
+  Draw.fill_circ ui.win x y w h (if on then c else unlit_color c);
   Draw.fill_circ ui.win (x + w/4) (y + h/4) (min 2 (w/3)) (min 2 (h/3))
     (`Trans (`White, if on then 0xe0 else 0x30));
   Draw.circ ui.win x y w h (border ui `Untouched)
