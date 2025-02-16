@@ -282,6 +282,7 @@ let create_dirs = create_table
       pos INT NOT NULL,
       nest INT NOT NULL,
       folded INT NOT NULL,
+      search TEXT NOT NULL,
       shown INT NOT NULL,
       divider_w INT NOT NULL,
       divider_h INT NOT NULL,
@@ -304,17 +305,18 @@ let to_dir i data : dir =
     pos = to_int (i + 4) data;
     nest = to_int (i + 5) data;
     folded = to_bool (i + 6) data;
-    artists_shown = to_int (i + 7) data land 1 <> 0;
-    albums_shown = to_int (i + 7) data land 2 <> 0;
-    tracks_shown = to_int (i + 7) data land 4 <> 0;
-    divider_width = to_int (i + 8) data;
-    divider_height = to_int (i + 9) data;
-    artists_columns = artist_columns_of_string (to_text (i + 10) data);
-    albums_columns = album_columns_of_string (to_text (i + 11) data);
-    tracks_columns = track_columns_of_string (to_text (i + 12) data);
-    artists_sorting = artist_sorting_of_string (to_text (i + 13) data);
-    albums_sorting = album_sorting_of_string (to_text (i + 14) data);
-    tracks_sorting = track_sorting_of_string (to_text (i + 15) data);
+    search = to_text (i + 7) data;
+    artists_shown = to_int (i + 8) data land 1 <> 0;
+    albums_shown = to_int (i + 8) data land 2 <> 0;
+    tracks_shown = to_int (i + 8) data land 4 <> 0;
+    divider_width = to_int (i + 9) data;
+    divider_height = to_int (i + 10) data;
+    artists_columns = artist_columns_of_string (to_text (i + 11) data);
+    albums_columns = album_columns_of_string (to_text (i + 12) data);
+    tracks_columns = track_columns_of_string (to_text (i + 13) data);
+    artists_sorting = artist_sorting_of_string (to_text (i + 14) data);
+    albums_sorting = album_sorting_of_string (to_text (i + 15) data);
+    tracks_sorting = track_sorting_of_string (to_text (i + 16) data);
   }
 
 let bind_dir stmt i (dir : dir) =
@@ -326,21 +328,22 @@ let bind_dir stmt i (dir : dir) =
   let* () = bind_int stmt (i + 3) dir.pos in
   let* () = bind_int stmt (i + 4) dir.nest in
   let* () = bind_bool stmt (i + 5) dir.folded in
-  let* () = bind_int stmt (i + 6)
+  let* () = bind_text stmt (i + 6) dir.search in
+  let* () = bind_int stmt (i + 7)
     Bool.(
       to_int dir.artists_shown +
       to_int dir.albums_shown lsl 1 +
       to_int dir.tracks_shown lsl 2
     )
   in
-  let* () = bind_int stmt (i + 7) dir.divider_width in
-  let* () = bind_int stmt (i + 8) dir.divider_height in
-  let* () = bind_text stmt (i + 9) (string_of_artist_columns dir.artists_columns) in
-  let* () = bind_text stmt (i + 10) (string_of_album_columns dir.albums_columns) in
-  let* () = bind_text stmt (i + 11) (string_of_track_columns dir.tracks_columns) in
-  let* () = bind_text stmt (i + 12) (string_of_artist_sorting dir.artists_sorting) in
-  let* () = bind_text stmt (i + 13) (string_of_album_sorting dir.albums_sorting) in
-  let* () = bind_text stmt (i + 14) (string_of_track_sorting dir.tracks_sorting) in
+  let* () = bind_int stmt (i + 8) dir.divider_width in
+  let* () = bind_int stmt (i + 9) dir.divider_height in
+  let* () = bind_text stmt (i + 10) (string_of_artist_columns dir.artists_columns) in
+  let* () = bind_text stmt (i + 11) (string_of_album_columns dir.albums_columns) in
+  let* () = bind_text stmt (i + 12) (string_of_track_columns dir.tracks_columns) in
+  let* () = bind_text stmt (i + 13) (string_of_artist_sorting dir.artists_sorting) in
+  let* () = bind_text stmt (i + 14) (string_of_album_sorting dir.albums_sorting) in
+  let* () = bind_text stmt (i + 15) (string_of_track_sorting dir.tracks_sorting) in
   return
 
 
@@ -367,7 +370,7 @@ let iter_dirs = stmt
 let insert_dir = stmt
   "
     INSERT OR REPLACE INTO Dirs
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   " |> insert_into_table bind_dir (fun d id -> d.id <- id)
 
 let delete_dirs = stmt

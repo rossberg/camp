@@ -1119,6 +1119,22 @@ let run_library (st : State.t) =
   lay.right_shown <- show_artists && show_albums;
   lay.lower_shown <- show_tracks && (show_artists || show_albums);
 
+  (* Search *)
+  Layout.search_label lay;
+  Layout.search_box lay;
+  if have_dir then
+  (
+    let s', scroll', sel' =
+      Layout.search_text lay dir.search lib.search_scroll lib.search_sel in
+    dir.search <- s';
+    lib.search_scroll <- scroll';
+    if sel' <> None then
+    (
+      State.focus_library lib.browser st;
+      Library.focus_search lib sel';
+    )
+  );
+
 
   (* Info pane *)
 

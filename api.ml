@@ -310,6 +310,8 @@ struct
   let text_width () h f s =
     fst (point_of_vec2 (Raylib.measure_text_ex f s (float h) 1.0))
 
+  let text_spacing () _h _f = 1
+
   let image () x y scale img =
     let v = vec2_of_point (x, y) in
     Raylib.draw_texture_ex img v 0.0 (float scale) Raylib.Color.white
@@ -509,6 +511,8 @@ struct
   let is_down k = Raylib.is_key_down (key k)
   let is_pressed k = Raylib.is_key_pressed (key k)
   let is_repeated k = Raylib.is_key_pressed_repeat (key k)
+  let is_pressed_or_repeated k =
+    Raylib.(is_key_pressed (key k) || is_key_pressed_repeat (key k))
   let is_released k = Raylib.is_key_released (key k)
 
   let shift = [`Shift `Left; `Shift `Right]
@@ -526,6 +530,8 @@ struct
     Array.for_all (fun key ->
       is_modifier_down key = List.mem key modifiers
     ) all_modifiers
+
+  let char () = Raylib.get_char_pressed ()
 end
 
 

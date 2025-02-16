@@ -283,8 +283,16 @@ let tracks_indicator = view_indicator 0
 let tracks_button = view_button 0
 let tracks_label = view_label 0 "TRACKS"
 
+(* Search *)
+let search_label_w _g = 30
+let search_x g = margin g + search_label_w g + 3
+let search_y g = 2 * margin g + indicator_w g + view_h + label_h g
+let search_label g = Ui.label g.ui (2, margin g, search_y g + (text_h g - label_h g)/2, search_label_w g, label_h g) `Left "SEARCH"
+let search_box g = Ui.box g.ui (2, search_x g, search_y g, - divider_w g, text_h g) `Black
+let search_text g = Ui.edit_text g.ui (2, search_x g, search_y g, - divider_w g - 2, text_h g)
+
 (* Browser *)
-let browser_y g = margin g + indicator_w g + view_h + label_h g + 10
+let browser_y g = search_y g + text_h g + margin g
 let browser_area g = (2, margin g, browser_y g, - divider_w g, - bottom_h g)
 let browser_table g = Ui.rich_table g.ui (browser_area g) 0 (text_h g) (scrollbar_w g) 0
 let browser_mouse g = Ui.rich_table_mouse g.ui (browser_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) false

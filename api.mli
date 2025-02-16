@@ -123,6 +123,7 @@ sig
   val gradient : window -> int -> int -> int -> int -> color -> orientation -> color -> unit
   val text : window -> int -> int -> int -> color -> font -> string -> unit
   val text_width : window -> int -> font -> string -> int
+  val text_spacing : window -> int -> font -> int
   val image : window -> int -> int -> int -> image -> unit
 end
 
@@ -185,9 +186,12 @@ sig
   val is_down : key -> bool
   val is_pressed : key -> bool
   val is_repeated : key -> bool
+  val is_pressed_or_repeated : key -> bool
   val is_released : key -> bool
   val is_modifier_down : modifier -> bool
   val are_modifiers_down : modifier list -> bool
+
+  val char : unit -> Uchar.t
 end
 
 

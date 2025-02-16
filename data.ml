@@ -48,6 +48,7 @@ type dir =
   mutable pos : int;
   mutable children : dir array;
   mutable folded : bool;
+  mutable search : string;
   mutable artists_shown : bool;
   mutable albums_shown : bool;
   mutable tracks_shown : bool;
@@ -155,6 +156,7 @@ let make_dir path parent nest pos : dir =
     pos;
     children = [||];
     folded = false;
+    search = "";
     artists_shown = false;
     albums_shown = false;
     tracks_shown = true;
