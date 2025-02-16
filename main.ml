@@ -1153,10 +1153,10 @@ let run_library (st : State.t) =
     let als = Table.num_selected lib.albums in
     let ars = Table.num_selected lib.artists in
     let sel n = if n = 0 then "" else string_of_int n ^ "/" in
-    let plu n = if n = 1 then "s" else "" in
+    let plu n = if n = 1 then "" else "s" in
     Layout.error_text lay (Ui.text_color lay.ui) `Regular true
-      (fmt "%s%d tracks%s, %s%d album%s, %s%d artist%s"
-        (sel trs) tr (plu tr) (sel als) al (plu al) (sel ars) ar (plu ar))
+      (fmt "%s%d artist%s, %s%d album%s, %s%d track%s"
+        (sel ars) ar (plu ar) (sel als) al (plu al) (sel trs) tr (plu tr))
   );
 
 
