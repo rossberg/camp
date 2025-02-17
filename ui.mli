@@ -45,7 +45,7 @@ val font : t -> int -> Api.font
 
 type way = [`Start | `Inside | `Outside | `Outward | `Inward]
 
-val key : t -> modifier list * key -> bool
+val key : t -> modifier list * key -> bool -> bool
 val mouse : t -> area -> side -> bool
 val drag : t -> area -> size -> [`Drag of size * way | `Drop | `Click | `None]
 val wheel : t -> area -> float
@@ -68,8 +68,8 @@ val color_text : t -> area -> align -> color -> inversion -> bool -> string -> u
 val edit_text : t -> area -> string -> int -> (int * int) option -> string * int * (int * int) option
 val ticker : t -> area -> string -> unit
 
-val button : t -> area -> ?protrude: bool -> modifier list * key -> bool option -> bool
-val labeled_button : t -> area -> ?protrude: bool -> int -> string -> modifier list * key -> bool option -> bool
+val button : t -> area -> ?protrude: bool -> modifier list * key -> bool -> bool option -> bool
+val labeled_button : t -> area -> ?protrude: bool -> int -> string -> modifier list * key -> bool -> bool option -> bool
 
 val progress_bar : t -> area -> float -> float
 val volume_bar : t -> area -> float -> float

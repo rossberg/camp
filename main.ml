@@ -68,6 +68,7 @@ let run_control (st : State.t) =
   let playing = Api.Audio.is_playing ctl.audio ctl.sound in
   let paused = not playing && elapsed > 0.0 in
   let stopped = not playing && not paused in
+  let focus = pl.table.focus || not lay.library_shown in
 
   (* LCD *)
   Layout.info_box lay;
@@ -152,12 +153,12 @@ let run_control (st : State.t) =
   let volume' =
     Layout.volume_bar lay ctl.volume +.
     0.05 *. Layout.volume_wheel lay +.
-    0.05 *. (float_of_bool (Layout.volup_key lay) -.
-    float_of_bool (Layout.voldown_key lay))
+    0.05 *. (float_of_bool (Layout.volup_key lay focus) -.
+    float_of_bool (Layout.voldown_key lay focus))
   in
   Layout.mute_text lay (Ui.error_color lay.ui) `Inverted ctl.mute "MUTE";
   let mute' =
-    if Layout.mute_button lay || Layout.mute_key lay
+    if Layout.mute_button lay || Layout.mute_key lay focus
     then not ctl.mute
     else ctl.mute
   in
@@ -176,8 +177,8 @@ let run_control (st : State.t) =
     if length > 0.0 && not silence then elapsed /. length else 0.0 in
   let progress' =
     Layout.seek_bar lay progress +.
-    0.05 *. float_of_bool (Layout.ff_key lay) -.
-    0.05 *. float_of_bool (Layout.rw_key lay)
+    0.05 *. float_of_bool (Layout.ff_key lay focus) -.
+    0.05 *. float_of_bool (Layout.rw_key lay focus)
   in
   if progress' <> progress && not silence then
   (
@@ -204,8 +205,8 @@ let run_control (st : State.t) =
   let len = Playlist.length pl in
   let _, _, _, h = Ui.dim lay.ui (Layout.playlist_area lay) in
   let page = max 1 (int_of_float (Float.floor (float h /. float lay.text))) in
-  let bwd = if Layout.bwd_button lay (Some false) then -1 else 0 in
-  let fwd = if Layout.fwd_button lay (Some false) then +1 else 0 in
+  let bwd = if Layout.bwd_button lay focus (Some false) then -1 else 0 in
+  let fwd = if Layout.fwd_button lay focus (Some false) then +1 else 0 in
   let off = if len = 0 then 0 else bwd + fwd in
   if off <> 0 then
   (
@@ -215,7 +216,7 @@ let run_control (st : State.t) =
     Playlist.adjust_scroll pl page;
   );
 
-  let playing' = Layout.play_button lay (Some playing) in
+  let playing' = Layout.play_button lay focus (Some playing) in
   if stopped && playing' && len > 0 then
   (
     (* Click on play button: start track *)
@@ -223,7 +224,7 @@ let run_control (st : State.t) =
     Playlist.adjust_scroll pl page;
   );
 
-  let paused' = Layout.pause_button lay (Some paused) in
+  let paused' = Layout.pause_button lay focus (Some paused) in
   if playing' && paused' then
   (
     (* Click on pause button when playing: pause track *)
@@ -235,7 +236,7 @@ let run_control (st : State.t) =
     Api.Audio.resume ctl.audio ctl.sound;
   );
 
-  if Layout.stop_button lay (Some false) && not stopped then
+  if Layout.stop_button lay focus (Some false) && not stopped then
   (
     (* Click on stop button when playing: stop track *)
     Api.Audio.pause ctl.audio ctl.sound;
@@ -246,14 +247,14 @@ let run_control (st : State.t) =
     Playlist.adjust_scroll pl page;
   );
 
-  if Layout.eject_button lay (Some false) then
+  if Layout.eject_button lay focus (Some false) then
   (
     (* Click on eject button: stop and clear playlist *)
     Control.eject ctl;
     Playlist.remove_all pl;
   );
 
-  if Layout.start_stop_key lay then
+  if Layout.start_stop_key lay focus then
   (
     (* Press of space key: pause or resume *)
     if playing then
@@ -1124,14 +1125,20 @@ let run_library (st : State.t) =
   Layout.search_box lay;
   if have_dir then
   (
-    let s', scroll', sel' =
-      Layout.search_text lay dir.search lib.search_scroll lib.search_sel in
-    dir.search <- s';
-    lib.search_scroll <- scroll';
-    if sel' <> None then
+    if Layout.search_button lay then
+      (* Click on Search label: clear search *)
+      dir.search <- ""
+    else
     (
-      State.focus_library lib.browser st;
-      Library.focus_search lib sel';
+      let s', scroll', sel' =
+        Layout.search_text lay dir.search lib.search_scroll lib.search_sel in
+      dir.search <- s';
+      lib.search_scroll <- scroll';
+      if sel' <> None then
+      (
+        State.focus_library lib.browser st;
+        Library.focus_search lib sel';
+      )
     )
   );
 
@@ -1510,9 +1517,9 @@ let run_library (st : State.t) =
   (* Keys *)
 
   if
-    (lib.browser.focus || lib.artists.focus || lib.albums.focus) &&
-    lib.tracks.entries <> [||] &&
     Ui.key lay.ui ([`Command], `Char 'C')
+      ( (lib.browser.focus || lib.artists.focus || lib.albums.focus) &&
+        lib.tracks.entries <> [||] )
   then
   (
     (* Press of Copy key: write selected tracks to clipboard *)

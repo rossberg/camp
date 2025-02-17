@@ -291,8 +291,8 @@ let key_status' _ui key =
   else
     `Untouched
 
-let key_status ui (modifiers, key) =
-  if not (Api.Key.are_modifiers_down modifiers) then
+let key_status ui (modifiers, key) focus =
+  if not (focus && Api.Key.are_modifiers_down modifiers) then
     `Untouched
   else
     key_status' ui key
@@ -363,7 +363,7 @@ let drag_status ui r (stepx, stepy) =
 let wheel_status ui r =
   if inside (Mouse.pos ui.win) r then snd (Mouse.wheel ui.win) else 0.0
 
-let key ui modkey = (key_status ui modkey = `Pressed)
+let key ui modkey focus = (key_status ui modkey focus = `Pressed)
 let mouse ui r side = (mouse_status ui (dim ui r) side = `Released)
 let wheel ui r = wheel_status ui (dim ui r)
 let drag ui r eps = drag_status ui (dim ui r) eps
@@ -462,10 +462,10 @@ let lcd ui r d =
 
 (* Passive UI Elements *)
 
-let element ui r modkey =
+let element ui r ?(focus = false) modkey =
   let r' = dim ui r in
   r',
-  match mouse_status ui r' `Left, key_status ui modkey with
+  match mouse_status ui r' `Left, key_status ui modkey focus with
   | `Released, _ | _, `Released -> `Released
   | `Pressed, _ | _, `Pressed -> `Pressed
   | `Hovered, _ | _, `Hovered -> `Hovered
@@ -506,8 +506,8 @@ let ticker ui r s =
 
 (* Buttons *)
 
-let button ui r ?(protrude=true) modkey active =
-  let (x, y, w, h), status = element ui r modkey in
+let button ui r ?(protrude=true) modkey focus active =
+  let (x, y, w, h), status = element ui r modkey ~focus in
   let img = get_img ui ui.img_button in
   let sx, sy = if status = `Pressed then 800, 400 else 0, 200 in
   Draw.clip ui.win x y w h;
@@ -524,9 +524,9 @@ let button ui r ?(protrude=true) modkey active =
   | Some active -> if status = `Released then not active else active
 
 
-let labeled_button ui r ?(protrude=true) hsym txt modkey active =
-  let (x, y, w, h), status = element ui r modkey in
-  let result = button ui r ~protrude modkey active in
+let labeled_button ui r ?(protrude=true) hsym txt modkey focus active =
+  let (x, y, w, h), status = element ui r modkey ~focus in
+  let result = button ui r ~protrude modkey focus active in
   let c =
     match active with
     | None -> `Gray 0x60
