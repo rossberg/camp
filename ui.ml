@@ -1098,6 +1098,18 @@ let find_prev_char s i =
     if j + n = i then j else find (j + n)
   in find 0
 
+let find_next_word s i =
+  let rec find j =
+    if j = String.length s || j > i && s.[j - 1] = ' ' && s.[j] <> ' ' then j else
+    find (j + 1)
+  in find i
+
+let find_prev_word s i =
+  let rec find j =
+    if j = 0 || j < i && s.[j - 1] = ' ' && s.[j] <> ' ' then j else
+    find (j - 1)
+  in find i
+
 let find_pos ui x h font s =
   let b = Bytes.of_string s in
   (* TODO: use binary instead of linear search *)
@@ -1120,7 +1132,12 @@ let edit_text ui area s scroll selection =
     let mx, _ = Mouse.pos ui.win in
     let i = find_pos ui (mx - x + scroll) h font s in
     if Key.are_modifiers_down [] then
-      Some (i, i)
+      if Mouse.is_doubleclick `Left then
+        let j = find_next_word s i in
+        Some (find_prev_word s j, j)
+      else if Mouse.is_pressed `Left then
+        Some (i, i)
+      else selection
     else if Key.are_modifiers_down [`Shift] then
       match selection with
       | None -> Some (i, i)
@@ -1227,7 +1244,13 @@ let edit_text ui area s scroll selection =
     )
     else if Key.are_modifiers_down [`Command] then
     (
-      if Key.is_pressed_or_repeated (`Char 'A') then
+      if Key.is_pressed_or_repeated (`Arrow `Left) && sec > 0 then
+        let l' = find_prev_word s sec in
+        s, scroll', Some (l', l'), false
+      else if Key.is_pressed_or_repeated (`Arrow `Right) && sec < len then
+        let l' = find_next_word s sec in
+        s, scroll', Some (l', l'), false
+      else if Key.is_pressed_or_repeated (`Char 'A') then
         s, scroll', Some (0, len), false
       else if Key.is_pressed_or_repeated (`Char 'N') then
         s, scroll', Some (prim, prim), false
@@ -1248,7 +1271,18 @@ let edit_text ui area s scroll selection =
       else
         s, scroll', Some (prim, sec), false
     )
+    else if Key.are_modifiers_down [`Command; `Shift] then
+    (
+      if Key.is_pressed_or_repeated (`Arrow `Left) && sec > 0 then
+        let sec' = find_prev_word s sec in
+        s, scroll', Some (prim, sec'), false
+      else if Key.is_pressed_or_repeated (`Arrow `Right) && sec < len then
+        let sec' = find_next_word s sec in
+        s, scroll', Some (prim, sec'), false
+      else
+        s, scroll', Some (prim, sec), false
+    )
     else
       s, scroll', Some (prim, sec), false
 
-    (* TODO: undo *)
+    (* TODO: undo? *)
