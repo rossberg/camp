@@ -1134,7 +1134,7 @@ let edit_text ui area s scroll selection =
     Draw.clip ui.win x y w h;
     Draw.text ui.win (x - scroll) y h c font s;
     Draw.unclip ui.win;
-    s, scroll, None
+    s, scroll, None, false
 
   | Some (prim, sec) ->
     let prim, sec = min prim len, min sec len in
@@ -1175,78 +1175,80 @@ let edit_text ui area s scroll selection =
       Buffer.add_utf_8_uchar buf ch;
       Buffer.add_string buf sr;
       let l' = l + Uchar.utf_8_byte_length ch in
-      Buffer.contents buf, scroll', Some (l', l')
+      Buffer.contents buf, scroll', Some (l', l'), false
     )
     else if Key.are_modifiers_down [] then
     (
-      if
+      if Key.is_pressed `Return || Key.is_pressed `Enter then
+        s, scroll', Some (sec, sec), true
+      else if
         Key.is_pressed_or_repeated `Delete ||
         Key.is_pressed_or_repeated `Backspace
       then
       (
         if l <> r then
-          sl ^ sr, scroll', Some (l, l)
+          sl ^ sr, scroll', Some (l, l), false
         else if r < len && Key.is_pressed_or_repeated `Delete then
           let n = find_next_char sr 0 in
-          sl ^ String.sub sr n (len - r - n), scroll', Some (l, l)
+          sl ^ String.sub sr n (len - r - n), scroll', Some (l, l), false
         else if l > 0 && Key.is_pressed_or_repeated `Backspace then
           let n = find_prev_char sl l in
-          String.sub sl 0 n ^ sr, scroll', Some (n, n)
+          String.sub sl 0 n ^ sr, scroll', Some (n, n), false
         else
-          s, scroll', Some (l, r)
+          s, scroll', Some (l, r), false
       )
       else if Key.is_pressed_or_repeated (`Arrow `Left) && l > 0 then
         let l' = find_prev_char s l in
-        s, scroll', Some (l', l')
+        s, scroll', Some (l', l'), false
       else if Key.is_pressed_or_repeated (`Arrow `Right) && r < len then
         let r' = find_next_char s r in
-        s, scroll', Some (r', r')
+        s, scroll', Some (r', r'), false
       else if Key.is_pressed_or_repeated (`End `Up) then
-        s, scroll', Some (0, 0)
+        s, scroll', Some (0, 0), false
       else if Key.is_pressed_or_repeated (`End `Down) then
-        s, scroll', Some (len, len)
+        s, scroll', Some (len, len), false
       else
-        s, scroll', Some (prim, sec)
+        s, scroll', Some (prim, sec), false
     )
     else if Key.are_modifiers_down [`Shift] then
     (
       if Key.is_pressed_or_repeated (`Arrow `Left) && sec > 0 then
         let sec' = find_prev_char s sec in
-        s, scroll', Some (prim, sec')
+        s, scroll', Some (prim, sec'), false
       else if Key.is_pressed_or_repeated (`Arrow `Right) && sec < len then
         let sec' = find_next_char s sec in
-        s, scroll', Some (prim, sec')
+        s, scroll', Some (prim, sec'), false
       else if Key.is_pressed_or_repeated (`End `Up) then
-        s, scroll', Some (prim, 0)
+        s, scroll', Some (prim, 0), false
       else if Key.is_pressed_or_repeated (`End `Down) then
-        s, scroll', Some (prim, len)
+        s, scroll', Some (prim, len), false
       else
-        s, scroll', Some (prim, sec)
+        s, scroll', Some (prim, sec), false
     )
     else if Key.are_modifiers_down [`Command] then
     (
       if Key.is_pressed_or_repeated (`Char 'A') then
-        s, scroll', Some (0, len)
+        s, scroll', Some (0, len), false
       else if Key.is_pressed_or_repeated (`Char 'N') then
-        s, scroll', Some (prim, prim)
+        s, scroll', Some (prim, prim), false
       else if Key.is_pressed_or_repeated (`Char 'X') && l <> r then
         let sm = String.sub s l (r - l) in
         Clipboard.write ui.win sm;
-        sl ^ sr, scroll', Some (l, l)
+        sl ^ sr, scroll', Some (l, l), false
       else if Key.is_pressed_or_repeated (`Char 'C') && l <> r then
         let sm = String.sub s l (r - l) in
         Clipboard.write ui.win sm;
-        s, scroll', Some (prim, sec)
+        s, scroll', Some (prim, sec), false
       else if Key.is_pressed_or_repeated (`Char 'V') then
         match Clipboard.read ui.win with
-        | None -> s, scroll', Some (prim, sec)
+        | None -> s, scroll', Some (prim, sec), false
         | Some sp ->
           let i = l + String.length sp in
-          sl ^ sp ^ sr, scroll', Some (i, i)
+          sl ^ sp ^ sr, scroll', Some (i, i), false
       else
-        s, scroll', Some (prim, sec)
+        s, scroll', Some (prim, sec), false
     )
     else
-      s, scroll', Some (prim, sec)
+      s, scroll', Some (prim, sec), false
 
     (* TODO: undo *)

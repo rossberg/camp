@@ -1126,11 +1126,19 @@ let run_library (st : State.t) =
   if have_dir then
   (
     if Layout.search_button lay then
+    (
       (* Click on Search label: clear search *)
-      dir.search <- ""
+      if dir.search <> "" then
+      (
+        dir.search <- "";
+        Library.refresh_views lib;
+        Library.update_dir lib dir;
+      )
+    )
     else
     (
-      let s', scroll', sel' =
+      let old = dir.search in
+      let s', scroll', sel', return =
         Layout.search_text lay dir.search lib.search_scroll lib.search_sel in
       dir.search <- s';
       lib.search_scroll <- scroll';
@@ -1138,6 +1146,11 @@ let run_library (st : State.t) =
       (
         State.focus_library lib.browser st;
         Library.focus_search lib sel';
+      );
+      if return || s' <> old && (s' = "" || s'.[String.length s' - 1] = ' ') then
+      (
+        Library.refresh_views lib;
+        Library.update_dir lib dir;
       )
     )
   );
