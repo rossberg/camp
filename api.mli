@@ -138,6 +138,7 @@ type key =
   | `Page of face
   | `End of face
   | `Return
+  | `Enter
   | `Tab
   | `Escape
   | `Backspace

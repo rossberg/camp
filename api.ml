@@ -183,7 +183,7 @@ struct
     let glyphs = Ctypes.(CArray.make int (max - min)) in
     for i = min to max - 1 do Ctypes.CArray.set glyphs (i - min) i done;
     let font = Raylib.load_font_ex path size (Some glyphs) in
-    Raylib.(set_texture_filter (Font.texture font) TextureFilter.Bilinear);
+    Raylib.(set_texture_filter (Font.texture font) TextureFilter.Point);
     font
 
 (* Can't get SDF to work. Translated from https://github.com/raysan5/raylib/blob/master/examples/text/text_font_sdf.c
@@ -328,6 +328,7 @@ type key =
   | `Page of face
   | `End of face
   | `Return
+  | `Enter
   | `Tab
   | `Escape
   | `Backspace
@@ -482,6 +483,7 @@ struct
     | `End `Up -> Raylib.Key.Home
     | `End `Down -> Raylib.Key.End
     | `Return -> Raylib.Key.Enter
+    | `Enter -> Raylib.Key.Kp_enter
     | `Tab -> Raylib.Key.Tab
     | `Escape -> Raylib.Key.Escape
     | `Backspace -> Raylib.Key.Backspace
