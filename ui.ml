@@ -1195,49 +1195,49 @@ let edit_text ui area s scroll selection =
         else
           s, scroll', Some (l, r)
       )
-      else if Key.is_pressed (`Arrow `Left) && l > 0 then
+      else if Key.is_pressed_or_repeated (`Arrow `Left) && l > 0 then
         let l' = find_prev_char s l in
         s, scroll', Some (l', l')
-      else if Key.is_pressed (`Arrow `Right) && r < len then
+      else if Key.is_pressed_or_repeated (`Arrow `Right) && r < len then
         let r' = find_next_char s r in
         s, scroll', Some (r', r')
-      else if Key.is_pressed (`End `Up) then
+      else if Key.is_pressed_or_repeated (`End `Up) then
         s, scroll', Some (0, 0)
-      else if Key.is_pressed (`End `Down) then
+      else if Key.is_pressed_or_repeated (`End `Down) then
         s, scroll', Some (len, len)
       else
         s, scroll', Some (prim, sec)
     )
     else if Key.are_modifiers_down [`Shift] then
     (
-      if Key.is_pressed (`Arrow `Left) && sec > 0 then
+      if Key.is_pressed_or_repeated (`Arrow `Left) && sec > 0 then
         let sec' = find_prev_char s sec in
         s, scroll', Some (prim, sec')
-      else if Key.is_pressed (`Arrow `Right) && sec < len then
+      else if Key.is_pressed_or_repeated (`Arrow `Right) && sec < len then
         let sec' = find_next_char s sec in
         s, scroll', Some (prim, sec')
-      else if Key.is_pressed (`End `Up) then
+      else if Key.is_pressed_or_repeated (`End `Up) then
         s, scroll', Some (prim, 0)
-      else if Key.is_pressed (`End `Down) then
+      else if Key.is_pressed_or_repeated (`End `Down) then
         s, scroll', Some (prim, len)
       else
         s, scroll', Some (prim, sec)
     )
     else if Key.are_modifiers_down [`Command] then
     (
-      if Key.is_pressed (`Char 'A') then
+      if Key.is_pressed_or_repeated (`Char 'A') then
         s, scroll', Some (0, len)
-      else if Key.is_pressed (`Char 'N') then
+      else if Key.is_pressed_or_repeated (`Char 'N') then
         s, scroll', Some (prim, prim)
-      else if Key.is_pressed (`Char 'X') && l <> r then
+      else if Key.is_pressed_or_repeated (`Char 'X') && l <> r then
         let sm = String.sub s l (r - l) in
         Clipboard.write ui.win sm;
         sl ^ sr, scroll', Some (l, l)
-      else if Key.is_pressed (`Char 'C') && l <> r then
+      else if Key.is_pressed_or_repeated (`Char 'C') && l <> r then
         let sm = String.sub s l (r - l) in
         Clipboard.write ui.win sm;
         s, scroll', Some (prim, sec)
-      else if Key.is_pressed (`Char 'V') then
+      else if Key.is_pressed_or_repeated (`Char 'V') then
         match Clipboard.read ui.win with
         | None -> s, scroll', Some (prim, sec)
         | Some sp ->

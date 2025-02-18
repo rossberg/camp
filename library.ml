@@ -112,7 +112,7 @@ let error lib msg =
 (* Attributes *)
 
 let attr_prop = function
-  | `Pos -> "Pos", `Right
+  | `Pos -> "#   ", `Right
   | `FilePath -> "File Path", `Left
   | `FileSize -> "File Size", `Right
   | `FileTime -> "File Date", `Left
