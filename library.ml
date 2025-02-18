@@ -26,8 +26,7 @@ type t =
   mutable artists : artist Table.t;
   mutable albums : album Table.t;
   mutable tracks : track Table.t;
-  mutable search_scroll : int;
-  mutable search_sel : (int * int) option;
+  mutable search : Edit.t;
   mutable error : string;
   mutable error_time : time;
 }
@@ -95,8 +94,7 @@ let make db =
     artists = Table.make 0;
     albums = Table.make 0;
     tracks = Table.make 100;
-    search_scroll = 0;
-    search_sel = None;
+    search = Edit.make 100;
     error = "";
     error_time = 0.0;
   }
@@ -445,15 +443,15 @@ let defocus lib =
   lib.artists.focus <- false;
   lib.albums.focus <- false;
   lib.tracks.focus <- false;
-  lib.search_sel <- None
+  lib.search.focus <- false
 
 let focus_browser lib =
   defocus lib;
   lib.browser.focus <- true
 
-let focus_search lib sel =
+let focus_search lib =
   defocus lib;
-  lib.search_sel <- sel
+  lib.search.focus <- true
 
 
 let selected_dir lib =
@@ -472,6 +470,7 @@ let select_dir lib i =
   if lib.current <> Some dir then
   (
     lib.current <- Some dir;
+    Edit.set lib.search dir.search;
     Table.clear_undo lib.tracks;
     Db.clear_playlists lib.db;
     if Data.is_playlist_path dir.path then
@@ -1030,6 +1029,7 @@ let of_map lib m =
       let dir = lib.browser.entries.(i) in
       lib.current <- Some dir;
       select_dir lib i;
+      Edit.set lib.search dir.search;
       if current_is_playlist lib then rescan_playlist lib `Fast dir.path;
     ) (Array.find_index (fun (dir : dir) -> dir.path = s) lib.browser.entries)
   );

@@ -14,8 +14,7 @@ type t =
   mutable artists : artist Table.t;
   mutable albums : album Table.t;
   mutable tracks : track Table.t;
-  mutable search_scroll : int;
-  mutable search_sel : (int * int) option;
+  mutable search : Edit.t;
   mutable error : string;
   mutable error_time : time;
 }
@@ -65,7 +64,7 @@ val length_browser : t -> int
 
 val fold_dir : t -> dir -> bool -> unit
 
-val focus_search : t -> (int * int) option -> unit
+val focus_search : t -> unit
 val focus_browser : t -> unit
 val refresh_browser : t -> unit
 

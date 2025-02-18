@@ -172,13 +172,11 @@ let make_undo tab =
     undo_selected = tab.selected;
   }
 
-let take n xs = List.filteri (fun i _ -> i < n - 1) xs
-
 let push_undo tab =
   if tab.undo_depth > 0 then
   (
     if List.length !(tab.undos) >= tab.undo_depth then
-      tab.undos := take tab.undo_depth !(tab.undos);
+      tab.undos := List.take tab.undo_depth !(tab.undos);
     tab.undos := make_undo tab :: !(tab.undos);
     tab.redos := []
   )

@@ -1285,4 +1285,23 @@ let edit_text ui area s scroll selection =
     else
       s, scroll', Some (prim, sec), false
 
-    (* TODO: undo? *)
+
+let rich_edit_text ui area (edit : Edit.t) =
+  let sel = if edit.focus then edit.sel_range else None in
+  let s', scroll', sel', return = edit_text ui area edit.text edit.scroll sel in
+  Edit.set edit s';
+  edit.scroll <- scroll';
+  if sel' <> None then edit.sel_range <- sel';
+
+  if edit.focus then
+  (
+    if Key.is_pressed_or_repeated (`Char 'Z') then
+    (
+      if Key.are_modifiers_down [`Command] then
+        Edit.pop_undo edit
+      else if Key.are_modifiers_down [`Command; `Shift] then
+        Edit.pop_redo edit
+    )
+  );
+
+  return

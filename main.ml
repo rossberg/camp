@@ -1128,29 +1128,29 @@ let run_library (st : State.t) =
     if Layout.search_button lay then
     (
       (* Click on Search label: clear search *)
-      if dir.search <> "" then
+      if lib.search.text <> "" then
       (
+        Edit.clear lib.search;
         dir.search <- "";
-        Library.refresh_views lib;
         Library.update_dir lib dir;
+        Library.refresh_views lib;
       )
     )
     else
     (
-      let old = dir.search in
-      let s', scroll', sel', return =
-        Layout.search_text lay dir.search lib.search_scroll lib.search_sel in
-      dir.search <- s';
-      lib.search_scroll <- scroll';
-      if sel' <> None then
+      let old = lib.search.text in
+      let return = Layout.search_text lay lib.search in
+      if lib.search.sel_range <> None then
       (
         State.focus_library lib.browser st;
-        Library.focus_search lib sel';
+        Library.focus_search lib;
       );
-      if return || s' <> old && (s' = "" || s'.[String.length s' - 1] = ' ') then
+      let s = lib.search.text in
+      if return || s <> old && (s = "" || s.[String.length s - 1] = ' ') then
       (
-        Library.refresh_views lib;
+        dir.search <- s;
         Library.update_dir lib dir;
+        Library.refresh_views lib;
       )
     )
   );
