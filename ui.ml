@@ -1081,22 +1081,46 @@ let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
       )
       else `None
     )
-    else `None
+    else
+    (
+      let ch = Key.char () in
+      if ch >= Uchar.of_int 32 then
+      (
+        (* Plain character pressed: scroll to first entry *)
+        let b = Bytes.make 8 '\000' in
+        let s = Bytes.sub_string b 0 (Bytes.set_utf_8_uchar b 0 ch) in
+        let col =
+          match header_opt with
+          | Some (_, (col, _)::_) -> col
+          | _ -> 0
+        in
+        let rec find i =
+          if i = Table.length tab then i else
+          let _, row = pp_row i in  (* TODO: only pp relevant column *)
+          if Data.compare_utf_8 s row.(col) <= 0 then i else find (i + 1)
+        in
+        let i = find 0 in
+        if i < len then
+        (
+          tab.vscroll <- clamp 0 (max 0 (len - page)) i;
+          `Scroll
+        )
+        else `None
+      )
+      else `None
+    )
   )
 
 
 (* Edit Text *)
 
 let find_next_char s i =
-  let b = Bytes.of_string s in
-  i + Uchar.utf_decode_length (Bytes.get_utf_8_uchar b i)
+  i + Uchar.utf_decode_length (String.get_utf_8_uchar s i)
 
 let find_prev_char s i =
-  let b = Bytes.of_string s in
   let rec find j =
-    let n = Uchar.utf_decode_length (Bytes.get_utf_8_uchar b j) in
-    if j + n = i then j else find (j + n)
-  in find 0
+    if Char.code s.[j] land 0xc0 = 0x80 then find (j - 1) else j
+  in find (i - 1)
 
 let find_next_word s i =
   let rec find j =
@@ -1111,11 +1135,9 @@ let find_prev_word s i =
   in find i
 
 let find_pos ui x h font s =
-  let b = Bytes.of_string s in
-  (* TODO: use binary instead of linear search *)
   let rec find i =
     if i = String.length s then i else
-    let n = Uchar.utf_decode_length (Bytes.get_utf_8_uchar b i) in
+    let n = Uchar.utf_decode_length (String.get_utf_8_uchar s i) in
     let s' = String.sub s 0 (i + n) in
     let w = Draw.text_width ui.win h font s' in
     if w > x then i else find (i + n)
@@ -1291,7 +1313,11 @@ let rich_edit_text ui area (edit : Edit.t) =
   let s', scroll', sel', ch = edit_text ui area edit.text edit.scroll sel in
   Edit.set edit s';
   edit.scroll <- scroll';
-  if sel' <> None then edit.sel_range <- sel';
+  if sel' <> None then
+  (
+    edit.sel_range <- sel';
+    edit.focus <- true;
+  );
 
   if edit.focus then
   (

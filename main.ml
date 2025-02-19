@@ -1137,7 +1137,7 @@ let run_library (st : State.t) =
     else
     (
       let ch = Layout.search_text lay lib.search in
-      if lib.search.sel_range <> None then
+      if lib.search.focus then
       (
         (* Have or gained focus: make sure it's consistent *)
         State.focus_library lib.browser st;

@@ -357,9 +357,11 @@ let search_of_string s =
 
 module UCol = Camomile.UCol.Make (Camomile.UTF8)
 
+let compare_utf_8 s1 s2 = UCol.compare ~prec: `Primary s1 s2
+
 let compare_attr : 'a. ([< any_attr] as 'a) -> _ = function
   | `Artist | `Title | `AlbumArtist | `AlbumTitle | `Country | `Label ->
-    fun s1 s2 -> UCol.compare ~prec: `Primary s1 s2
+    fun s1 s2 -> compare_utf_8 s1 s2
   | _ -> compare
 
 let rec compare_attrs sorting ss1 ss2 =
