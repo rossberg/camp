@@ -1,4 +1,4 @@
-(* Immediate-style GUI abstractions *)
+(* Immediate-style GUI widgets *)
 
 open Api
 

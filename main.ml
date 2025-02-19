@@ -530,11 +530,15 @@ let set_drop_cursor (st : State.t) =
     (if droppable then `Point else `Blocked)
 
 
+(* Edit Pane *)
+
 let run_edit (st : State.t) =
   let pl = st.playlist in
   let lib = st.library in
   let lay = st.layout in
   let win = Ui.window lay.ui in
+
+  Layout.edit_pane lay;
 
   let pl_focus = pl.table.focus in
   let lib_focus = lib.tracks.focus || lib.albums.focus || lib.artists.focus ||
@@ -712,6 +716,13 @@ let run_edit (st : State.t) =
         List.iter (fun arg -> exec st.config.exec_tag ["/add"; arg]) !args;
       )
     ) |> ignore;
+  );
+
+  (* Save button *)
+  if Layout.save_button lay None then
+  (
+    (* Click on Save button: save playlist *)
+    (* TODO: file dialog for chosing file path and name *)
   )
 
 
@@ -849,13 +860,6 @@ let run_playlist (st : State.t) =
   (
     (* Files drop: insert paths at pointed position *)
     drop_on_playlist st (expand_paths dropped);
-  );
-
-  (* Save button *)
-  if Layout.save_button lay None then
-  (
-    (* Click on Save button: save playlist *)
-    (* TODO: file dialog for chosing file path and name *)
   );
 
   (* Playlist total *)
@@ -1126,10 +1130,10 @@ let run_library (st : State.t) =
 
   Layout.info_pane lay;
 
-  Layout.error_box lay;
+  Layout.msg_box lay;
   let now = Unix.gettimeofday () in
   if lib.error <> "" && now -. lib.error_time < 10.0 then
-    Layout.error_text lay (Ui.error_color lay.ui) `Regular true lib.error
+    Layout.msg_text lay (Ui.error_color lay.ui) `Regular true lib.error
   else
   (
     let tr = Table.length lib.tracks in
@@ -1140,7 +1144,7 @@ let run_library (st : State.t) =
     let ars = Table.num_selected lib.artists in
     let sel n = if n = 0 then "" else string_of_int n ^ "/" in
     let plu n = if n = 1 then "" else "s" in
-    Layout.error_text lay (Ui.text_color lay.ui) `Regular true
+    Layout.msg_text lay (Ui.text_color lay.ui) `Regular true
       (fmt "%s%d artist%s, %s%d album%s, %s%d track%s"
         (sel ars) ar (plu ar) (sel als) al (plu al) (sel trs) tr (plu tr))
   );
@@ -1545,8 +1549,8 @@ and run' (st : State.t) =
   if not (Api.Window.is_minimized win) then
   (
     if playlist_shown then run_playlist st;
-    if playlist_shown then run_edit st;
     if library_shown then run_library st;
+    if playlist_shown || library_shown then run_edit st;
   );
   run_toggle_panes st;
 
@@ -1558,9 +1562,13 @@ and run' (st : State.t) =
   lay.text <- clamp 8 64 text';
 
   (* Adjust window size *)
+  let extra_w = if lay.library_shown then lay.library_width else 0 in
+  let extra_h =
+    if lay.playlist_shown then lay.playlist_height else
+    if lay.library_shown then Layout.bottom_h lay else 0
+  in
   Api.Window.set_size win
-    (Layout.control_w lay + (if lay.library_shown then lay.library_width else 0))
-    (Layout.control_h lay + (if lay.playlist_shown then lay.playlist_height else 0));
+    (Layout.control_w lay + extra_w) (Layout.control_h lay + extra_h);
 
   (* Adjust window position after opening/closing library *)
   let dx =
