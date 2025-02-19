@@ -295,7 +295,7 @@ let search_text g = Ui.rich_edit_text g.ui (2, search_x g + 2, search_y g, - div
 (* Browser *)
 let browser_y g = search_y g + text_h g + margin g
 let browser_area g = (2, margin g, browser_y g, - divider_w g, - bottom_h g)
-let browser_table g = Ui.rich_table g.ui (browser_area g) 0 (text_h g) (scrollbar_w g) 0
+let browser_table g = Ui.browser g.ui (browser_area g) (text_h g) (scrollbar_w g) 0
 let browser_mouse g = Ui.rich_table_mouse g.ui (browser_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) false
 let browser_error_box g = Ui.box g.ui (browser_area g) (Ui.error_color g.ui)
 

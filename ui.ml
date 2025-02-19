@@ -1112,6 +1112,73 @@ let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
   )
 
 
+(* Browser *)
+
+let symbol_empty = " ○"
+let symbol_folded = "►" (* "▸" *)
+let symbol_unfolded = "▼" (* "▾" *)
+
+let browser ui area rh sw sh (tab : _ Table.t) pp_entry =
+  let cols = [|-1, `Left|] in
+  let c = text_color ui in
+  let pp_pre nest folded =
+    let sym =
+      match folded with
+      | None -> symbol_empty
+      | Some true -> symbol_folded
+      | Some false -> symbol_unfolded
+    in if nest = -1 then "" else String.make (2 * nest) ' ' ^ sym ^ " "
+  in
+  let pp_row i =
+    let nest, folded, name = pp_entry i in
+    c, [|pp_pre nest folded ^ name|]
+  in
+
+  let selected = tab.selected in
+  (match rich_table ui area 0 rh sw sh cols None tab pp_row with
+  | `None -> `None
+  | `Scroll -> `Scroll
+  | `Move i -> `Move i
+  | `Drag (i, way) -> `Drag (i, way)
+  | `Drop -> `Drop
+  | `Sort _ | `Arrange -> assert false
+
+  | `Select ->
+    (* TODO: allow multiple selections *)
+    if Table.num_selected tab <= 1 then `Select else
+    (
+      tab.selected <- selected;  (* override *)
+      `None
+    )
+
+  | `Click None -> `Click None
+  | `Click (Some i) ->
+    (* Click on entry *)
+    let mx, _ = Mouse.pos ui.win in
+    let x, _, _, _ = dim ui area in
+    let nest, folded, _ = pp_entry i in
+    let tw = Draw.text_width ui.win rh (font ui rh) (pp_pre nest folded) in
+    if mx + tab.hscroll < x + tw
+    && Mouse.(is_down `Left || is_released `Left) then
+    (
+      (* CLick on triangle *)
+      tab.selected <- selected;  (* override selection change *)
+      if Mouse.is_released `Left then
+        `Fold i
+      else
+        `None
+    )
+    else
+    (
+      (* Click on name *)
+      (* TODO: allow multiple selections *)
+      if Table.num_selected tab > 1 then
+        tab.selected <- selected;  (* override *)
+      `Click (Some i)
+    )
+  )
+
+
 (* Edit Text *)
 
 let find_next_char s i =

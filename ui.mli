@@ -114,3 +114,21 @@ val rich_table :
 val rich_table_inner : t -> area -> int -> int  -> int -> int -> bool -> area
 val rich_table_mouse : t -> area -> int -> int  -> int -> int -> bool ->
   'a Table.t -> int option
+
+val browser :
+  t ->
+  area ->
+  int ->  (* row height *)
+  int ->  (* vertical scroll bar width *)
+  int ->  (* horizontal scroll bar height (can be 0) *)
+  'a Table.t ->                           (* data *)
+  (int -> int * bool option * string) ->  (* entry generator *)
+    [ `Click of int option
+    | `Select
+    | `Scroll
+    | `Move of int
+    | `Fold of int
+    | `Drag of int * way
+    | `Drop
+    | `None
+    ]

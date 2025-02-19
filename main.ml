@@ -872,10 +872,6 @@ let run_playlist (st : State.t) =
 
 (* Library Panes *)
 
-let symbol_empty = " ○"
-let symbol_folded = "►" (* "▸" *)
-let symbol_unfolded = "▼" (* "▾" *)
-
 let spin = [|"|"; "/"; "-"; "\\"|]
 
 let convert_sorting columns sorting =
@@ -905,18 +901,7 @@ let run_library (st : State.t) =
   (* Browser *)
   let browser = lib.browser in
 
-  let cols = [|-1, `Left|] in
-  let c = Ui.text_color lay.ui in
-  let pre =
-    Array.map (fun (dir : Data.dir) ->
-      let sym =
-        if dir.children = [||] then symbol_empty else
-        if dir.folded then symbol_folded else symbol_unfolded
-      in
-      if dir.nest = -1 then "" else String.make (2 * dir.nest) ' ' ^ sym ^ " "
-    ) browser.entries
-  in
-  let pp_row i =
+  let pp_entry i =
     let dir = browser.entries.(i) in
     let spinning =
       match Library.rescan_busy lib with
@@ -927,20 +912,17 @@ let run_library (st : State.t) =
     in
     let spin = if not spinning then "" else
       " " ^ spin.(Api.Draw.frame win / 3 mod Array.length spin)
-    in c, [|pre.(i) ^ dir.name ^ spin|]
+    and folded = if dir.children = [||] then None else Some dir.folded in
+    dir.nest, folded, dir.name ^ spin
   in
 
   let dir = Library.selected_dir lib in
-  let selected = browser.selected in
-  (match Layout.browser_table lay cols None browser pp_row with
+  (match Layout.browser_table lay browser pp_entry with
   | `None | `Scroll | `Move _ -> ()
-  | `Sort _ | `Arrange -> assert false
 
   | `Select ->
     (* TODO: allow multiple selections *)
     State.focus_library browser st;
-    if Table.num_selected browser > 1 then
-      browser.selected <- selected;  (* override *)
     if Library.selected_dir lib <> dir then
     (
       (match Library.selected_dir lib with
@@ -951,47 +933,35 @@ let run_library (st : State.t) =
       Library.refresh_views lib;
     );
 
+  | `Fold i ->
+    (* CLick on triangle: fold/unfold entry *)
+    let dir = browser.entries.(i) in
+    Library.fold_dir lib dir (not dir.folded)
+
   | `Click (Some i) ->
-    (* Click on dir: fold/unfold or switch view *)
-    let mx, _ = Api.Mouse.pos win in
-    let x, _, _, _ = Ui.dim lay.ui (Layout.browser_area lay) in
-    let tw = Api.Draw.text_width win lay.text (Ui.font lay.ui lay.text) pre.(i) in
-    if mx < x + tw && (Api.Mouse.is_down `Left || Api.Mouse.is_released `Left) then
+    (* Click on dir name: switch view *)
+    (* TODO: allow multiple selections *)
+    if Api.Mouse.is_pressed `Left then
+      State.focus_library browser st;
+    if Library.selected_dir lib <> dir then
     (
-      (* CLick on triangle: fold/unfold entry *)
-      let dir = browser.entries.(i) in
-      browser.selected <- selected;  (* override selection change *)
-      if Api.Mouse.is_released `Left then
-        Library.fold_dir lib dir (not dir.folded);
-    )
-    else
+      Library.select_dir lib i;  (* do bureaucracy *)
+      Library.deselect_all lib;
+      Library.refresh_views lib;
+    );
+    if Api.Mouse.is_doubleclick `Left then
     (
-      (* Click on directory name: change view if necessary *)
-      (* TODO: allow multiple selections *)
-      if Table.num_selected browser > 1 then
-        browser.selected <- selected;  (* override *)
-      if Api.Mouse.is_pressed `Left then
-        State.focus_library browser st;
-      if Library.selected_dir lib <> dir then
+      (* Double-click on directory name: send track view to playlist *)
+      Table.deselect_all lib.artists;  (* deactivate possible inner filters *)
+      Table.deselect_all lib.albums;
+      Library.refresh_albums lib;
+      let tracks = lib.tracks.entries in
+      if tracks <> [||] then
       (
-        Library.select_dir lib i;  (* do bureaucracy *)
-        Library.deselect_all lib;
-        Library.refresh_views lib;
-      );
-      if Api.Mouse.is_doubleclick `Left then
-      (
-        (* Double-click on directory name: send track view to playlist *)
-        Table.deselect_all lib.artists;  (* deactivate possible inner filters *)
-        Table.deselect_all lib.albums;
-        Library.refresh_albums lib;
-        let tracks = lib.tracks.entries in
-        if tracks <> [||] then
-        (
-          Playlist.replace_all pl lib.tracks.entries;
-          State.focus_playlist st;
-          Control.eject st.control;
-          Control.switch st.control tracks.(0) true;
-        )
+        Playlist.replace_all pl lib.tracks.entries;
+        State.focus_playlist st;
+        Control.eject st.control;
+        Control.switch st.control tracks.(0) true;
       )
     )
 
