@@ -38,6 +38,8 @@ type 'attr columns = ('attr * int) array
 
 (* Data *)
 
+type search = string array
+
 type dir =
 {
   mutable id : id;
@@ -47,8 +49,8 @@ type dir =
   mutable name : string;
   mutable pos : int;
   mutable children : dir array;
+  mutable search : search;
   mutable folded : bool;
-  mutable search : string;
   mutable artists_shown : bool;
   mutable albums_shown : bool;
   mutable tracks_shown : bool;
@@ -146,6 +148,9 @@ let tracks_columns : track_attr columns =
 |]
 
 
+let make_search () : search =
+  [||]
+
 let make_dir path parent nest pos : dir =
   {
     id = -1L;
@@ -155,8 +160,8 @@ let make_dir path parent nest pos : dir =
     nest;
     pos;
     children = [||];
+    search = make_search ();
     folded = false;
-    search = "";
     artists_shown = false;
     albums_shown = false;
     tracks_shown = true;
@@ -341,6 +346,11 @@ let track_sorting_of_string s = sorting_of_string to_track_attr s
 let artist_columns_of_string s = columns_of_string to_artist_attr s
 let album_columns_of_string s = columns_of_string to_album_attr s
 let track_columns_of_string s = columns_of_string to_track_attr s
+
+
+let string_of_search search =  String.concat " " (Array.to_list search)
+let search_of_string s =
+  Array.of_list (List.filter ((<>) "") (String.split_on_char ' ' s))
 
 
 (* String Comparison *)

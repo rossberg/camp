@@ -306,8 +306,8 @@ let to_dir i data : dir =
     children = [||];
     pos = to_int (i + 4) data;
     nest = to_int (i + 5) data;
+    search = search_of_string (to_text (i + 7) data);
     folded = to_bool (i + 6) data;
-    search = to_text (i + 7) data;
     artists_shown = to_int (i + 8) data land 1 <> 0;
     albums_shown = to_int (i + 8) data land 2 <> 0;
     tracks_shown = to_int (i + 8) data land 4 <> 0;
@@ -330,7 +330,7 @@ let bind_dir stmt i (dir : dir) =
   let* () = bind_int stmt (i + 3) dir.pos in
   let* () = bind_int stmt (i + 4) dir.nest in
   let* () = bind_bool stmt (i + 5) dir.folded in
-  let* () = bind_text stmt (i + 6) dir.search in
+  let* () = bind_text stmt (i + 6) (string_of_search dir.search) in
   let* () = bind_int stmt (i + 7)
     Bool.(
       to_int dir.artists_shown +

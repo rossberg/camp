@@ -1151,7 +1151,7 @@ let edit_text ui area s scroll selection =
     Draw.clip ui.win x y w h;
     Draw.text ui.win (x - scroll) y h c font s;
     Draw.unclip ui.win;
-    s, scroll, None, false
+    s, scroll, None, Uchar.of_int 0
 
   | Some (prim, sec) ->
     let prim, sec = min prim len, min sec len in
@@ -1192,103 +1192,103 @@ let edit_text ui area s scroll selection =
       Buffer.add_utf_8_uchar buf ch;
       Buffer.add_string buf sr;
       let l' = l + Uchar.utf_8_byte_length ch in
-      Buffer.contents buf, scroll', Some (l', l'), false
+      Buffer.contents buf, scroll', Some (l', l'), ch
     )
     else if Key.are_modifiers_down [] then
     (
       if Key.is_pressed `Return || Key.is_pressed `Enter then
-        s, scroll', Some (sec, sec), true
+        s, scroll', Some (sec, sec), Uchar.of_char '\n'
       else if
         Key.is_pressed_or_repeated `Delete ||
         Key.is_pressed_or_repeated `Backspace
       then
       (
         if l <> r then
-          sl ^ sr, scroll', Some (l, l), false
+          sl ^ sr, scroll', Some (l, l), ch
         else if r < len && Key.is_pressed_or_repeated `Delete then
           let n = find_next_char sr 0 in
-          sl ^ String.sub sr n (len - r - n), scroll', Some (l, l), false
+          sl ^ String.sub sr n (len - r - n), scroll', Some (l, l), ch
         else if l > 0 && Key.is_pressed_or_repeated `Backspace then
           let n = find_prev_char sl l in
-          String.sub sl 0 n ^ sr, scroll', Some (n, n), false
+          String.sub sl 0 n ^ sr, scroll', Some (n, n), ch
         else
-          s, scroll', Some (l, r), false
+          s, scroll', Some (l, r), ch
       )
       else if Key.is_pressed_or_repeated (`Arrow `Left) && l > 0 then
         let l' = find_prev_char s l in
-        s, scroll', Some (l', l'), false
+        s, scroll', Some (l', l'), ch
       else if Key.is_pressed_or_repeated (`Arrow `Right) && r < len then
         let r' = find_next_char s r in
-        s, scroll', Some (r', r'), false
+        s, scroll', Some (r', r'), ch
       else if Key.is_pressed_or_repeated (`End `Up) then
-        s, scroll', Some (0, 0), false
+        s, scroll', Some (0, 0), ch
       else if Key.is_pressed_or_repeated (`End `Down) then
-        s, scroll', Some (len, len), false
+        s, scroll', Some (len, len), ch
       else
-        s, scroll', Some (prim, sec), false
+        s, scroll', Some (prim, sec), ch
     )
     else if Key.are_modifiers_down [`Shift] then
     (
       if Key.is_pressed_or_repeated (`Arrow `Left) && sec > 0 then
         let sec' = find_prev_char s sec in
-        s, scroll', Some (prim, sec'), false
+        s, scroll', Some (prim, sec'), ch
       else if Key.is_pressed_or_repeated (`Arrow `Right) && sec < len then
         let sec' = find_next_char s sec in
-        s, scroll', Some (prim, sec'), false
+        s, scroll', Some (prim, sec'), ch
       else if Key.is_pressed_or_repeated (`End `Up) then
-        s, scroll', Some (prim, 0), false
+        s, scroll', Some (prim, 0), ch
       else if Key.is_pressed_or_repeated (`End `Down) then
-        s, scroll', Some (prim, len), false
+        s, scroll', Some (prim, len), ch
       else
-        s, scroll', Some (prim, sec), false
+        s, scroll', Some (prim, sec), ch
     )
     else if Key.are_modifiers_down [`Command] then
     (
       if Key.is_pressed_or_repeated (`Arrow `Left) && sec > 0 then
         let l' = find_prev_word s sec in
-        s, scroll', Some (l', l'), false
+        s, scroll', Some (l', l'), ch
       else if Key.is_pressed_or_repeated (`Arrow `Right) && sec < len then
         let l' = find_next_word s sec in
-        s, scroll', Some (l', l'), false
+        s, scroll', Some (l', l'), ch
       else if Key.is_pressed_or_repeated (`Char 'A') then
-        s, scroll', Some (0, len), false
+        s, scroll', Some (0, len), ch
       else if Key.is_pressed_or_repeated (`Char 'N') then
-        s, scroll', Some (prim, prim), false
+        s, scroll', Some (prim, prim), ch
       else if Key.is_pressed_or_repeated (`Char 'X') && l <> r then
         let sm = String.sub s l (r - l) in
         Clipboard.write ui.win sm;
-        sl ^ sr, scroll', Some (l, l), false
+        sl ^ sr, scroll', Some (l, l), ch
       else if Key.is_pressed_or_repeated (`Char 'C') && l <> r then
         let sm = String.sub s l (r - l) in
         Clipboard.write ui.win sm;
-        s, scroll', Some (prim, sec), false
+        s, scroll', Some (prim, sec), ch
       else if Key.is_pressed_or_repeated (`Char 'V') then
         match Clipboard.read ui.win with
-        | None -> s, scroll', Some (prim, sec), false
+        | None -> s, scroll', Some (prim, sec), ch
         | Some sp ->
           let i = l + String.length sp in
-          sl ^ sp ^ sr, scroll', Some (i, i), false
+          sl ^ sp ^ sr, scroll', Some (i, i), ch
       else
-        s, scroll', Some (prim, sec), false
+        s, scroll', Some (prim, sec), ch
     )
     else if Key.are_modifiers_down [`Command; `Shift] then
     (
       if Key.is_pressed_or_repeated (`Arrow `Left) && sec > 0 then
         let sec' = find_prev_word s sec in
-        s, scroll', Some (prim, sec'), false
+        s, scroll', Some (prim, sec'), ch
       else if Key.is_pressed_or_repeated (`Arrow `Right) && sec < len then
         let sec' = find_next_word s sec in
-        s, scroll', Some (prim, sec'), false
+        s, scroll', Some (prim, sec'), ch
       else
-        s, scroll', Some (prim, sec), false
+        s, scroll', Some (prim, sec), ch
     )
     else
-      s, scroll', Some (prim, sec), false
+      s, scroll', Some (prim, sec), ch
 
 
 let rich_edit_text ui area (edit : Edit.t) =
   let sel = if edit.focus then edit.sel_range else None in
-  let s', scroll', sel', return = edit_text ui area edit.text edit.scroll sel in
+  let s', scroll', sel', ch = edit_text ui area edit.text edit.scroll sel in
   Edit.set edit s';
   edit.scroll <- scroll';
   if sel' <> None then edit.sel_range <- sel';
@@ -1304,4 +1304,4 @@ let rich_edit_text ui area (edit : Edit.t) =
     )
   );
 
-  return
+  ch

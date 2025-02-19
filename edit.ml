@@ -86,7 +86,8 @@ let set' ed s i n =
   )
 
 let set ed s =
-  set' ed s 0 (- String.length s)
+  set' ed s 0 0;
+  ed.sel_range <- Some (String.length s, String.length s)
 
 let insert ed i s =
   set' ed String.(sub ed.text 0 i ^ s ^ sub ed.text i (length s - i))

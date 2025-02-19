@@ -1131,26 +1131,22 @@ let run_library (st : State.t) =
       if lib.search.text <> "" then
       (
         Edit.clear lib.search;
-        dir.search <- "";
-        Library.update_dir lib dir;
-        Library.refresh_views lib;
+        Library.set_search lib (Data.make_search ());
       )
     )
     else
     (
-      let old = lib.search.text in
-      let return = Layout.search_text lay lib.search in
+      let ch = Layout.search_text lay lib.search in
       if lib.search.sel_range <> None then
       (
+        (* Have or gained focus: make sure it's consistent *)
         State.focus_library lib.browser st;
         Library.focus_search lib;
       );
-      let s = lib.search.text in
-      if return || s <> old && (s = "" || s.[String.length s - 1] = ' ') then
+      if ch = Uchar.of_char '\n' || ch = Uchar.of_char ' ' then
       (
-        dir.search <- s;
-        Library.update_dir lib dir;
-        Library.refresh_views lib;
+        (* Entered Space or Return: update search in dir *)
+        Library.set_search lib (Data.search_of_string lib.search.text);
       )
     )
   );

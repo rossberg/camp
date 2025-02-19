@@ -82,6 +82,8 @@ val current_is_shown_playlist : t -> bool
 
 val has_track : t -> track -> bool
 
+val set_search : t -> search -> unit
+
 
 (* Views *)
 

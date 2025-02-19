@@ -454,32 +454,40 @@ let focus_search lib =
   lib.search.focus <- true
 
 
+let update_dir lib dir =
+  Db.update_dir lib.db dir
+
+let set_dir_opt lib dir_opt =
+  Option.iter (fun (dir : dir) ->
+    let search = Data.search_of_string lib.search.text in
+    if search <> dir.search then
+    (
+      dir.search <- search;
+      update_dir lib dir;
+    )
+  ) lib.current;
+  Table.deselect_all lib.browser;
+  Table.clear_undo lib.tracks;
+  Db.clear_playlists lib.db;
+  lib.current <- dir_opt
+
 let selected_dir lib =
   Table.first_selected lib.browser
 
 let deselect_dir lib =
-  Table.deselect_all lib.browser;
-  lib.current <- None;
-  Table.clear_undo lib.tracks;
-  Db.clear_playlists lib.db
+  set_dir_opt lib None
 
 let select_dir lib i =
-  Table.deselect_all lib.browser;
-  Table.select lib.browser i i;
   let dir = lib.browser.entries.(i) in
   if lib.current <> Some dir then
   (
-    lib.current <- Some dir;
-    Edit.set lib.search dir.search;
-    Table.clear_undo lib.tracks;
-    Db.clear_playlists lib.db;
+    set_dir_opt lib (Some dir);
+    Table.select lib.browser i i;
+    Edit.set lib.search (Data.string_of_search dir.search);
     if Data.is_playlist_path dir.path then
       rescan_playlist lib false dir.path;
   )
 
-
-let update_dir lib dir =
-  Db.update_dir lib.db dir
 
 let refresh_browser lib =
   let rec entries (dir : dir) acc =
@@ -607,6 +615,7 @@ let remove_dir lib path =
   match Array.find_index (fun (r : Data.dir) -> r.path = dirpath) roots with
   | None -> ()
   | Some pos ->
+    lib.current <- None;
     Db.delete_dirs lib.db dirpath;
     Db.delete_albums lib.db dirpath;
     Db.delete_tracks lib.db dirpath;
@@ -620,7 +629,6 @@ let remove_dir lib path =
           root.pos <- i; root
       );
     Db.update_dirs_pos lib.db None pos (-1);
-    lib.current <- None;
     refresh_browser lib
 
 let remove_dirs lib paths =
@@ -704,18 +712,14 @@ let refresh_tracks lib =
       and albums =
         if Table.(num_selected lib.albums = length lib.albums) then [||] else
         Array.map album_key (Table.selected lib.albums)
-      and searches =
-        if dir.search = "" then [||] else
-        let words = String.split_on_char ' ' dir.search in
-        Array.of_list (List.filter ((<>) "") words)
       in
       if dir.path = "" then
-        Db.iter_tracks_for_path lib.db "%" artists albums searches f
+        Db.iter_tracks_for_path lib.db "%" artists albums dir.search f
       else if Data.is_dir dir then
         let path = Filename.concat dir.path "%" in
-        Db.iter_tracks_for_path lib.db path artists albums searches f
+        Db.iter_tracks_for_path lib.db path artists albums dir.search f
       else if Data.is_playlist dir then
-        Db.iter_playlist_tracks_for_path lib.db dir.path artists albums searches f
+        Db.iter_playlist_tracks_for_path lib.db dir.path artists albums dir.search f
     )
 
 let refresh_albums lib =
@@ -725,36 +729,27 @@ let refresh_albums lib =
       let artists =
         if Table.(num_selected lib.artists = length lib.artists) then [||] else
         Array.map artist_key (Table.selected lib.artists)
-      and searches =
-        if dir.search = "" then [||] else
-        let words = String.split_on_char ' ' dir.search in
-        Array.of_list (List.filter ((<>) "") words)
       in
       if dir.path = "" then
-        Db.iter_tracks_for_path_as_albums lib.db "%" artists searches f
+        Db.iter_tracks_for_path_as_albums lib.db "%" artists dir.search f
       else if Data.is_dir dir then
         let path = Filename.concat dir.path "%" in
-        Db.iter_tracks_for_path_as_albums lib.db path artists searches f
+        Db.iter_tracks_for_path_as_albums lib.db path artists dir.search f
       else if Data.is_playlist dir then
-        Db.iter_playlist_tracks_for_path_as_albums lib.db dir.path artists searches f
+        Db.iter_playlist_tracks_for_path_as_albums lib.db dir.path artists dir.search f
     )
 
 let refresh_artists lib =
   refresh_albums lib;
   refresh lib lib.artists artists_sorting artist_attr_string artist_key
     (fun dir f ->
-      let searches =
-        if dir.search = "" then [||] else
-        let words = String.split_on_char ' ' dir.search in
-        Array.of_list (List.filter ((<>) "") words)
-      in
       if dir.path = "" then
-        Db.iter_tracks_for_path_as_artists lib.db "%" searches f
+        Db.iter_tracks_for_path_as_artists lib.db "%" dir.search f
       else if Data.is_dir dir then
         let path = Filename.concat dir.path "%" in
-        Db.iter_tracks_for_path_as_artists lib.db path searches f
+        Db.iter_tracks_for_path_as_artists lib.db path dir.search f
       else if Data.is_playlist dir then
-        Db.iter_playlist_tracks_for_path_as_artists lib.db dir.path searches f
+        Db.iter_playlist_tracks_for_path_as_artists lib.db dir.path dir.search f
     )
 
 let refresh_views lib = refresh_artists lib
@@ -799,6 +794,14 @@ let reorder_albums lib =
 
 let reorder_tracks lib =
   reorder lib lib.tracks tracks_sorting track_attr_string (track_key lib)
+
+
+let set_search lib search =
+  Option.iter (fun (dir : dir) ->
+    dir.search <- search;
+    update_dir lib dir;
+    refresh_views lib;
+  ) lib.current
 
 
 (* Playlist Editing *)
@@ -1026,10 +1029,9 @@ let of_map lib m =
   read_map m "browser_current" (fun s ->
     lib.current <- Db.find_dir lib.db s;
     Option.iter (fun i ->
-      let dir = lib.browser.entries.(i) in
-      lib.current <- Some dir;
       select_dir lib i;
-      Edit.set lib.search dir.search;
+      let dir = lib.browser.entries.(i) in
+      Edit.set lib.search (Data.string_of_search dir.search);
       if current_is_playlist lib then rescan_playlist lib `Fast dir.path;
     ) (Array.find_index (fun (dir : dir) -> dir.path = s) lib.browser.entries)
   );
