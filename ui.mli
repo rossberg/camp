@@ -34,6 +34,8 @@ val text_color : t -> color
 val warn_color : t -> color
 val error_color : t -> color
 val hover_color : t -> color
+val active_color : t -> color
+val inactive_color : t -> color
 val unlit_color : color -> color
 val semilit_color : color -> color
 
@@ -70,7 +72,7 @@ val edit_text : t -> area -> string -> int -> (int * int) option -> string * int
 val rich_edit_text : t -> area -> Edit.t -> Uchar.t
 
 val button : t -> area -> ?protrude: bool -> modifier list * key -> bool -> bool option -> bool
-val labeled_button : t -> area -> ?protrude: bool -> int -> string -> modifier list * key -> bool -> bool option -> bool
+val labeled_button : t -> area -> ?protrude: bool -> int -> color -> string -> modifier list * key -> bool -> bool option -> bool
 
 val progress_bar : t -> area -> float -> float
 val volume_bar : t -> area -> float -> float
@@ -121,8 +123,8 @@ val browser :
   int ->  (* row height *)
   int ->  (* vertical scroll bar width *)
   int ->  (* horizontal scroll bar height (can be 0) *)
-  'a Table.t ->                           (* data *)
-  (int -> int * bool option * string) ->  (* entry generator *)
+  'a Table.t ->                                   (* data *)
+  (int -> int * bool option * color * string) ->  (* entry generator *)
     [ `Click of int option
     | `Select
     | `Scroll

@@ -93,7 +93,7 @@ struct
 
   let init x y w h s =
     Raylib.(set_trace_log_level TraceLogLevel.Warning);
-    Raylib.(set_exit_key Key.Null);
+    Raylib.(set_exit_key Key.Enter);
 
     (* Discover screen geometry by opening a dummy window and maximise it. *)
     Raylib.(set_config_flags
@@ -183,7 +183,7 @@ struct
     let glyphs = Ctypes.(CArray.make int (max - min)) in
     for i = min to max - 1 do Ctypes.CArray.set glyphs (i - min) i done;
     let font = Raylib.load_font_ex path size (Some glyphs) in
-    Raylib.(set_texture_filter (Font.texture font) TextureFilter.Point);
+    (*Raylib.(set_texture_filter (Font.texture font) TextureFilter.Point);*)
     font
 
 (* Can't get SDF to work. Translated from https://github.com/raysan5/raylib/blob/master/examples/text/text_font_sdf.c

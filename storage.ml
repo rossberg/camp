@@ -6,10 +6,15 @@ type path = string
 
 module Dirs = Directories.Base_dirs ()
 
+let home =
+  match Dirs.home_dir with
+  | Some path -> Fpath.to_string path
+  | None -> Sys.getcwd ()
+
 let dir =
   match Dirs.data_local_dir with
   | Some path -> Filename.concat (Fpath.to_string path) App.name
-  | None -> "."
+  | None -> Filename.concat home ("." ^ App.name)
 
 let path filename =
   Filename.concat dir filename

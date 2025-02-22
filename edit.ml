@@ -99,3 +99,7 @@ let remove ed i n =
 
 let clear ed =
   set' ed "" 0 0
+
+
+let move_begin ed = ed.sel_range <- Some (0, 0)
+let move_end ed = ed.sel_range <- Some (String.length ed.text, String.length ed.text)

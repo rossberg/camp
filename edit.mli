@@ -26,6 +26,9 @@ val insert : t -> int -> string -> unit
 val remove : t -> int -> int -> unit
 val clear : t -> unit
 
+val move_begin : t -> unit
+val move_end : t -> unit
+
 
 (* Undo *)
 

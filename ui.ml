@@ -33,7 +33,7 @@ let make win =
   Window.set_icon win icon;
   { win;
     palette = 0;
-    panes = Array.make 4 (0, 0, 0, 0);
+    panes = Array.make 10 (0, 0, 0, 0);
     mouse_owned = false;
     drag_origin = no_drag;
     drag_extra = No_drag;
@@ -65,7 +65,7 @@ let pane ui i r =
   let n = Array.length ui.panes in
   if i >= n then
     ui.panes <-
-      Array.init (2*n) (fun i -> if i < n then ui.panes.(i) else (0, 0, 0, 0));
+      Array.init (2*i) (fun i -> if i < n then ui.panes.(i) else (0, 0, 0, 0));
   ui.panes.(i) <- (x, y, w, h)
 
 
@@ -124,12 +124,14 @@ let set_palette ui i = ui.palette <- i
 
 let unlit_alpha = 0x30
 let semilit_alpha = 0x60
-let unlit_color c = Api.Color.darken unlit_alpha c (*`Trans (c, unlit_alpha)*)
-let semilit_color c = Api.Color.darken semilit_alpha c (*`Trans (c, semilit_alpha)*)
+let unlit_color c = Color.darken unlit_alpha c (*`Trans (c, unlit_alpha)*)
+let semilit_color c = Color.darken semilit_alpha c (*`Trans (c, semilit_alpha)*)
 let text_color ui = palettes.(ui.palette).text
 let warn_color ui = palettes.(ui.palette).warn
 let error_color ui = palettes.(ui.palette).error
 let hover_color ui = palettes.(ui.palette).hover
+let active_color _ui = `RGB 0x40ff40
+let inactive_color _ui = `Gray 0xc0
 
 let modal c = function
   | true -> c
@@ -363,7 +365,7 @@ let drag_status ui r (stepx, stepy) =
 let wheel_status ui r =
   if inside (Mouse.pos ui.win) r then snd (Mouse.wheel ui.win) else 0.0
 
-let key ui modkey focus = (key_status ui modkey focus = `Pressed)
+let key ui modkey focus = (key_status ui modkey focus = `Released)
 let mouse ui r side = (mouse_status ui (dim ui r) side = `Released)
 let wheel ui r = wheel_status ui (dim ui r)
 let drag ui r eps = drag_status ui (dim ui r) eps
@@ -524,14 +526,14 @@ let button ui r ?(protrude=true) modkey focus active =
   | Some active -> if status = `Released then not active else active
 
 
-let labeled_button ui r ?(protrude=true) hsym txt modkey focus active =
+let labeled_button ui r ?(protrude=true) hsym c txt modkey focus active =
   let (x, y, w, h), status = element ui r modkey ~focus in
   let result = button ui r ~protrude modkey focus active in
   let c =
     match active with
-    | None -> `Gray 0x60
-    | Some false -> `Gray 0xc0
-    | Some true -> `RGB 0x40ff40
+    | None -> Color.darken semilit_alpha (inactive_color ui)
+    | Some false -> inactive_color ui
+    | Some true -> c
   in
   let xsym = (x + (w - hsym)/2) in
   let ysym = (y + (h - hsym)/2) + Bool.to_int (status = `Pressed) in
@@ -554,6 +556,12 @@ let labeled_button ui r ?(protrude=true) hsym txt modkey focus active =
     Draw.arrow ui.win xsym ysym hsym (hsym/2) c `Up;
     Draw.fill ui.win xsym (ysym + hsym - hsym/3) hsym (hsym/3) c;
   | s ->
+    let c =
+      match active with
+      | None -> Color.darken semilit_alpha `White
+      | Some false -> `White
+      | Some true -> c
+    in
     let (i, x', y', w', _) = r in
     colored_label ui c (i, x' + 1, y' + (h - hsym)/2, w' - 1, hsym) `Center s
   );
@@ -1120,17 +1128,16 @@ let symbol_unfolded = "▼" (* "▾" *)
 
 let browser ui area rh sw sh (tab : _ Table.t) pp_entry =
   let cols = [|-1, `Left|] in
-  let c = text_color ui in
   let pp_pre nest folded =
     let sym =
       match folded with
       | None -> symbol_empty
       | Some true -> symbol_folded
       | Some false -> symbol_unfolded
-    in if nest = -1 then "" else String.make (2 * nest) ' ' ^ sym ^ " "
+    in if nest = -1 then "" else String.make (3 * nest) ' ' ^ sym ^ " "
   in
   let pp_row i =
-    let nest, folded, name = pp_entry i in
+    let nest, folded, c, name = pp_entry i in
     c, [|pp_pre nest folded ^ name|]
   in
 
@@ -1156,7 +1163,7 @@ let browser ui area rh sw sh (tab : _ Table.t) pp_entry =
     (* Click on entry *)
     let mx, _ = Mouse.pos ui.win in
     let x, _, _, _ = dim ui area in
-    let nest, folded, _ = pp_entry i in
+    let nest, folded, _, _ = pp_entry i in
     let tw = Draw.text_width ui.win rh (font ui rh) (pp_pre nest folded) in
     if mx + tab.hscroll < x + tw
     && Mouse.(is_down `Left || is_released `Left) then

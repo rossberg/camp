@@ -1,5 +1,7 @@
 (* Program State *)
 
+type filesel_op = [`LoadPlaylist | `SavePlaylist of Data.track Table.t]
+
 type t =
 {
   config : Config.t;
@@ -7,6 +9,7 @@ type t =
   control : Control.t;
   playlist : Playlist.t;
   library : Library.t;
+  filesel : filesel_op Filesel.t;
 }
 
 
@@ -19,6 +22,7 @@ let make ui audio db =
     control = Control.make audio;
     playlist = Playlist.make ();
     library = Library.make db;
+    filesel = Filesel.make ();
   }
 
 
@@ -37,6 +41,22 @@ let layout_ok layout =
   check "browser width in range" (layout.browser_width <= layout.library_width - 40) @
   []
 
+let focus st =
+  let pl = st.playlist in
+  let lib = st.library in
+  let fs = st.filesel in
+  List.filter snd [
+    "playlist", pl.table.focus;
+    "browser", lib.browser.focus;
+    "tracks", lib.tracks.focus;
+    "albums", lib.albums.focus;
+    "artists", lib.artists.focus;
+    "search", lib.search.focus;
+    "directories", fs.dirs.focus;
+    "files", fs.files.focus;
+    "input", fs.input.focus;
+  ]
+
 let rec ok st =
   match
     Config.ok st.config @
@@ -44,11 +64,15 @@ let rec ok st =
     Control.ok st.control @
     Playlist.ok st.playlist @
     Library.ok st.library @
+    Filesel.ok st.filesel @
+    check "at most one focus" (List.length (focus st) <= 1) @
     check "playlist empty when no current track"
       (st.control.current <> None || st.playlist.table.entries = [||]) @
     check "at most one selection"
       (not (Table.has_selection st.playlist.table &&
         Table.has_selection st.library.tracks)) @
+    check "file selection with op"
+      (st.layout.filesel_shown = (st.filesel.op <> None)) @
     []
   with
   | errors when errors <> [] ->
@@ -70,15 +94,25 @@ and dump st errors =
 
 (* Focus *)
 
+let defocus_all st =
+  Playlist.defocus st.playlist;
+  Library.defocus st.library;
+  Filesel.defocus st.filesel
+
 let focus_playlist st =
   Library.deselect_all st.library;
-  Library.defocus st.library;
+  defocus_all st;
   Playlist.focus st.playlist
 
 let focus_library (table : _ Table.t) st =
   Playlist.deselect_all st.playlist;
-  Playlist.defocus st.playlist;
-  Library.defocus st.library;
+  defocus_all st;
+  table.focus <- true
+
+let focus_filesel (table : _ Table.t) st =
+  Playlist.deselect_all st.playlist;
+  Library.deselect_all st.library;
+  defocus_all st;
   table.focus <- true
 
 
@@ -96,6 +130,10 @@ let num_pair lx ly hx hy x y = num lx hx x, num ly hy y
 let layout_to_map lay =
   let open Layout in
   let x, y = Api.Window.pos (Ui.window lay.ui) in
+  let x =
+    if lay.library_shown || not lay.filesel_shown then x
+    else x + lay.library_width
+  in
   Map.of_list
   [
     "win_pos", fmt "%d, %d" x y;
@@ -109,6 +147,7 @@ let layout_to_map lay =
     "browser_width", fmt "%d" lay.browser_width;
     "upper_height", fmt "%d" lay.upper_height;
     "left_width", fmt "%d" lay.left_width;
+    "directories_width", fmt "%d" lay.directories_width;
   ]
 
 let layout_of_map lay m =  (* assumes playlist and library already loaded *)
@@ -137,6 +176,9 @@ let layout_of_map lay m =  (* assumes playlist and library already loaded *)
     lay.left_width <- scan s "%d" (num (left_min lay) (left_max lay)));
   read_map m "upper_height" (fun s ->
     lay.upper_height <- scan s "%d" (num (upper_min lay) (upper_max lay)));
+  read_map m "directories_width" (fun s ->
+    lay.directories_width <- scan s "%d"
+      (num (directories_min lay) (directories_max lay)));
   Api.Draw.start win `Black;
   Option.iter (fun (x, y) -> Api.Window.set_pos win x y) !xy;
   Api.Window.set_size win (ww + lay.library_width) (wh + lay.playlist_height);
@@ -156,6 +198,7 @@ let to_map st =
     Control.to_map st.control;
     Playlist.to_map st.playlist;
     Library.to_map st.library;
+    Filesel.to_map st.filesel;
   ]
 
 let to_map_extra st =
@@ -165,6 +208,7 @@ let to_map_extra st =
     Control.to_map_extra st.control;
     Playlist.to_map_extra st.playlist;
     Library.to_map_extra st.library;
+    Filesel.to_map_extra st.filesel;
   ]
 
 let to_string st = string_of_map (to_map_extra st)
@@ -184,6 +228,7 @@ let load st =
   Control.of_map st.control map;
   Playlist.of_map st.playlist map;
   Library.of_map st.library map;
+  Filesel.of_map st.filesel map;
 
   focus_playlist st;
   if st.control.current = None && Playlist.length st.playlist > 0 then

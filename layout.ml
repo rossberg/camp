@@ -9,6 +9,7 @@ type t =
   mutable margin : int;
   mutable text : int;
   mutable label : int;
+  mutable button_label : int;
   mutable gutter : int;
   mutable scrollbar : int;
   mutable playlist_shown : bool;
@@ -16,7 +17,9 @@ type t =
   mutable library_shown : bool;
   mutable library_width : int;
   mutable library_side : Api.side;
+  mutable filesel_shown : bool;
   mutable browser_width : int;
+  mutable directories_width : int;
   mutable left_width : int;
   mutable right_shown : bool;
   mutable upper_height : int;
@@ -29,6 +32,7 @@ let make ui =
     margin = 10;
     text = 13;
     label = 8;
+    button_label = 9;
     gutter = 7;
     scrollbar = 11;
     playlist_shown = false;
@@ -36,7 +40,9 @@ let make ui =
     library_shown = false;
     library_width = 600;
     library_side = `Left;
+    filesel_shown = false;
     browser_width = 100;
+    directories_width = 120;
     left_width = 200;
     right_shown = false;
     upper_height = 200;
@@ -49,6 +55,7 @@ let divider_w g = g.margin
 
 let text_h g = g.text
 let label_h g = g.label
+let button_label_h g = g.button_label
 let gutter_w g = g.gutter
 let scrollbar_w g = g.scrollbar
 let indicator_w _g = 7
@@ -62,7 +69,7 @@ let control_min_h = 160
 let control_w _g = control_min_w
 let control_h _g = control_min_h
 
-let playlist_x g = if g.library_shown && g.library_side = `Left then g.library_width else 0
+let playlist_x g = if (g.library_shown || g.filesel_shown) && g.library_side = `Left then g.library_width else 0
 let library_x g = if g.library_side = `Left then 0 else control_w g - margin g
 let library_w g = g.library_width
 
@@ -168,7 +175,7 @@ let fps_key g = Ui.key g.ui ([`Command], `Char 'U') true
 (* Control buttons *)
 let ctl_w = 40
 let ctl_h = 30
-let control_button i sym ch g = Ui.labeled_button g.ui (cp, margin g + i * ctl_w, - 8 - ctl_h, ctl_w, ctl_h) ~protrude: false 10 sym ([], `Char ch)
+let control_button i sym ch g = Ui.labeled_button g.ui (cp, margin g + i * ctl_w, - 8 - ctl_h, ctl_w, ctl_h) ~protrude: false 10 (Ui.active_color g.ui) sym ([], `Char ch)
 
 let bwd_button = control_button 0 "<<" 'Z'
 let play_button = control_button 1 ">" 'X'
@@ -239,7 +246,7 @@ let edit_pane g = Ui.pane g.ui ep (playlist_x g, - bottom_h g, control_w g, bott
 (* Buttons *)
 let edit_w = 25
 let edit_h = 20
-let edit_button i j label key g = Ui.labeled_button g.ui (ep, margin g + i*5 + j*edit_w, - edit_h, edit_w, edit_h) (label_h g) label key true
+let edit_button i j label key g = Ui.labeled_button g.ui (ep, margin g + i*5 + j*edit_w, - edit_h, edit_w, edit_h) (button_label_h g) (Ui.inactive_color g.ui) label key true
 
 let sep_button = edit_button 0 0 "SEP" ([`Command], `Char ' ')
 let del_button = edit_button 1 1 "DEL" ([], `Delete)
@@ -249,6 +256,7 @@ let undo_button = edit_button 2 4 "UNDO" ([`Command], `Char 'Z')
 let redo_button = edit_button 2 5 "REDO" ([`Shift; `Command], `Char 'Z')
 let tag_button = edit_button 3 6 "TAG" ([`Command], `Char 'T')
 let save_button = edit_button 4 7 "SAVE" ([`Command], `Char 'S')
+let load_button = edit_button 4 8 "LOAD" ([`Command], `Char 'O')
 
 let cut_key g = Ui.key g.ui ([`Command], `Char 'X') true
 let copy_key g = Ui.key g.ui ([`Command], `Char 'C') true
@@ -343,12 +351,12 @@ let right_mouse g = Ui.rich_table_mouse g.ui (right_area g) (gutter_w g) (text_h
 let right_view = right_pane, right_area, right_table
 
 (* Lower view (optional) *)
-let dp = rp + 1
-let lower_pane g = Ui.pane g.ui dp (left_x g, g.upper_height, library_w g - g.browser_width, lower_h g)
+let lp = rp + 1
+let lower_pane g = Ui.pane g.ui lp (left_x g, g.upper_height, library_w g - g.browser_width, lower_h g)
 
-let lower_divider g = Ui.divider g.ui (dp, 0, 0, -1, divider_w g) `Vertical
+let lower_divider g = Ui.divider g.ui (lp, 0, 0, -1, divider_w g) `Vertical
 
-let lower_area g = (dp, 0, divider_w g, -1, -1)
+let lower_area g = (lp, 0, divider_w g, -1, -1)
 let lower_table g = Ui.rich_table g.ui (lower_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g)
 let lower_mouse g = Ui.rich_table_mouse g.ui (lower_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
 
@@ -357,7 +365,7 @@ let lower_view = lower_pane, lower_area, lower_table
 
 (* Message Pane *)
 
-let mp = dp + 1
+let mp = lp + 1
 let info_pane g = Ui.pane g.ui mp (library_x g + g.browser_width, - bottom_h g, library_w g - g.browser_width, bottom_h g)
 
 let msg_x = 0
@@ -366,18 +374,64 @@ let msg_box g = Ui.box g.ui (mp, msg_x, footer_y g, msg_w g, text_h g) `Black
 let msg_text g = Ui.color_text g.ui (mp, msg_x, footer_y g, msg_w g - 2, text_h g) `Left
 
 
+(* Directories Pane *)
+
+let dp = mp + 1
+let directories_pane g = Ui.pane g.ui dp (library_x g, 0, g.directories_width, -1)
+
+(* Divider *)
+let directories_divider g = Ui.divider g.ui (dp, - divider_w g, margin g, divider_w g, - bottom_h g) `Horizontal
+
+(* Directories Browser *)
+let directories_area g = (dp, margin g, margin g, - divider_w g, - bottom_h g)
+let directories_table g = Ui.browser g.ui (directories_area g) (text_h g) (scrollbar_w g) (scrollbar_w g)
+let directories_mouse g = Ui.rich_table_mouse g.ui (directories_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) false
+
+(* Buttons *)
+let select_w g = (g.directories_width - margin g - divider_w g) / 2
+let select_h = edit_h
+let select_button i c label key g = Ui.labeled_button g.ui (dp, margin g + i * select_w g, - select_h, select_w g, select_h) (button_label_h g + 2) (c g.ui) label key true
+
+let ok_button = select_button 0 Ui.active_color "OK" ([], `Return)
+let overwrite_button = select_button 0 Ui.error_color "OVERWRITE" ([], `None)
+let cancel_button = select_button 1 Ui.inactive_color "CANCEL" ([], `Escape)
+
+let return_key g = Ui.key g.ui ([], `Return) true
+
+
+(* Files Pane *)
+
+let fp = dp + 1
+let files_pane g = Ui.pane g.ui fp (library_x g + g.directories_width, 0, library_w g - g.directories_width, -1)
+
+(* Table *)
+let files_area g = (fp, 0, margin g, -1, -bottom_h g)
+let files_table g = Ui.rich_table g.ui (files_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g)
+let files_mouse g = Ui.rich_table_mouse g.ui (files_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
+
+(* Input field *)
+let file_label_w _g = 20
+let file_label g = Ui.label g.ui (fp, 0, footer_y g + (text_h g - label_h g + 1)/2, file_label_w g, label_h g) `Left "FILE"
+let file_button g = Ui.mouse g.ui (fp, margin g, footer_y g, file_label_w g, text_h g) `Left
+let file_box g = Ui.box g.ui (fp, file_label_w g, footer_y g, - divider_w g, text_h g) `Black
+let file_text g = Ui.rich_edit_text g.ui (fp, file_label_w g + 2, footer_y g, - divider_w g - 2, text_h g)
+
+
 (* Resizing limits *)
 
 let browser_min _g = 150
+let directories_min _g = 150
 let left_min _g = 100
 let right_min _g = 100
 let views_min g = left_min g + right_min g
-let library_min g = browser_min g + views_min g
+let files_min _g = 100
+let library_min g = max (browser_min g + views_min g) (directories_min g + files_min g)
 
 let upper_min g = margin g + 3 * (text_h g) + scrollbar_w g + 3
 let lower_min g = divider_w g + 3 * (text_h g) + scrollbar_w g + 3
 
 let browser_max g = g.library_width - views_min g
+let directories_max g = g.library_width - files_min g
 let left_max g = g.library_width - g.browser_width - right_min g
 let upper_max g = control_h g + g.playlist_height - bottom_h g - lower_min g
 

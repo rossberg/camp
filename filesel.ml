@@ -1,0 +1,355 @@
+(* Playlist *)
+
+type path = Data.path
+type time = Data.time
+
+type file =
+{
+  name : string;
+  size : int;
+  time : time;
+  is_dir : bool;
+}
+
+type dir =
+{
+  path : path;
+  nest : int;
+  mutable folded : bool;
+  mutable children : dir array;
+  mutable files : file array;
+}
+
+type 'a t =
+{
+  mutable op : 'a option;
+  mutable path : path;
+  roots : dir array;
+  dirs : dir Table.t;
+  files : file Table.t;
+  input : Edit.t;
+  mutable columns : int array;
+}
+
+
+(* Validation *)
+
+type error = string
+
+let check msg b = if b then [] else [msg]
+
+let ok fs =
+  check "one directory selected" (Table.num_selected fs.dirs = 1) @
+  check "at most one directory selected" (Table.num_selected fs.files <= 1) @
+  check "dir selection consistent with path"
+    ( fs.dirs.entries.(Option.get (Table.first_selected fs.dirs)).path = fs.path ) @
+  check "file selection empty or consistent with input"
+    ( match Table.first_selected fs.files with
+      | None -> true
+      | Some i -> fs.files.entries.(i).is_dir || fs.files.entries.(i).name = fs.input.text ) @
+  []
+
+
+(* Refresh *)
+
+let refresh_files fs =
+  let i = Option.get (Table.first_selected fs.dirs) in
+  let dir = fs.dirs.entries.(i) in
+  Table.deselect_all fs.files;
+  fs.files.entries <- dir.files;
+  Table.adjust_scroll fs.files (Some 0) 4
+
+let refresh_dirs fs =
+  let rec entries (dirs : dir array) i acc =
+    if i = Array.length dirs then acc else
+    let dir = dirs.(i) in
+    let acc' = entries dirs (i + 1) acc in
+    dir :: (if dir.folded then acc' else entries dir.children 0 acc')
+  in
+  let selection = Table.save_selection fs.dirs in
+  fs.dirs.entries <- Array.of_list (entries fs.roots 0 []);
+  Table.restore_selection fs.dirs selection (fun dir -> dir.path);
+  Table.adjust_scroll fs.files (Table.first_selected fs.files) 4
+
+
+(* Constructor *)
+
+let make_file path name =
+  try
+    let st = Unix.stat path in
+    let is_dir = (st.st_kind = Unix.S_DIR) in
+    Unix.access path (if is_dir then Unix.[R_OK; X_OK] else Unix.[R_OK]);
+    Some {
+      name;
+      size = st.st_size;
+      time = st.st_mtime;
+      is_dir;
+    }
+  with _ -> None
+
+let make_dir path nest =
+  {
+    path;
+    nest;
+    folded = true;
+    children = [||];
+    files = [||];
+  }
+
+let roots () =
+  if not Sys.win32 then [make_dir Filename.dir_sep 0] else
+  let rec detect c =
+    if c > 'Z' then [] else
+    let drive = String.make 1 c ^ ":\\" in
+    let roots' = detect (Char.chr (Char.code c + 1)) in
+    if Sys.file_exists drive then
+      (make_dir drive 0)::roots'
+    else
+      roots'
+  in detect 'A'
+
+let dir_of_file path nest file =
+  make_dir (Filename.concat path file.name) nest
+
+let proper name = name <> "" && name.[0] <> '.' && name.[0] <> '$'
+
+let populate_dir (dir : dir) =
+  if dir.files = [||] && dir.children = [||] then
+  try
+    let names = Sys.readdir dir.path in
+    Array.sort Data.compare_utf_8 names;
+    let names = List.filter proper (Array.to_list names) in
+    let paths = List.map (Filename.concat dir.path) names in
+    let files_opt = List.map2 make_file paths names in
+    let files = List.filter_map Fun.id files_opt in
+    let dirs, files' = List.partition (fun file -> file.is_dir) files in
+    dir.children <-
+      Array.of_list (List.map (dir_of_file dir.path (dir.nest + 1)) dirs);
+    dir.files <- Array.append (Array.of_list dirs) (Array.of_list files');
+  with Sys_error _ -> ()
+
+let rec populate_path' root path : dir =
+  let dirpath = Filename.dirname path in
+  let parent =
+    if dirpath = path then root else
+    populate_path' root dirpath
+  in
+  parent.folded <- false;
+  Array.iter populate_dir parent.children;
+  Option.get
+    (Array.find_opt (fun (dir : dir) -> dir.path = path) parent.children)
+
+let populate_path fs =
+  let root = make_dir "" (-1) in
+  root.children <- fs.roots;
+  let dir = populate_path' root fs.path in
+  Array.iter populate_dir dir.children;
+  dir
+
+let make () =
+  let roots = Array.of_list (roots ()) in
+  let fs =
+    {
+      op = None;
+      path = Storage.home;
+      roots;
+      dirs = Table.make 0;
+      files = Table.make 0;
+      input = Edit.make 100;
+      columns = [|12; 200; 80; 80|];
+    }
+  in
+  ignore (populate_path fs);
+  refresh_dirs fs;
+  let i = Array.find_index (fun (dir : dir) -> dir.path = fs.path) fs.dirs.entries in
+  Table.select fs.dirs (Option.get i) (Option.get i);
+  refresh_files fs;
+  fs
+
+
+(* Focus *)
+
+let defocus fs =
+  fs.dirs.focus <- false;
+  fs.files.focus <- false;
+  fs.input.focus <- false
+
+let focus_directories fs =
+  defocus fs;
+  fs.dirs.focus <- true
+
+let focus_files fs =
+  defocus fs;
+  fs.files.focus <- true
+
+let focus_input fs =
+  defocus fs;
+  fs.input.focus <- true
+
+
+(* Navigation *)
+
+let selected_dir fs =
+  Option.get (Table.first_selected fs.dirs)
+
+let selected_file fs = Table.first_selected fs.files
+
+let select_dir fs i =
+  Table.deselect_all fs.dirs;
+  Table.deselect_all fs.files;
+  Table.select fs.dirs i i;
+  let dir = fs.dirs.entries.(i) in
+  fs.path <- dir.path;
+  populate_dir dir;
+  refresh_files fs
+
+let set_dir_path fs path =
+  if path <> fs.path then
+  (
+    let old = fs.path in
+    try
+      fs.path <- path;
+      let dir = populate_path fs in
+      refresh_dirs fs;
+      let i = Array.find_index ((==) dir) fs.dirs.entries in
+      select_dir fs (Option.get i);
+    with Sys_error _ ->
+      fs.path <- old;
+  )
+
+let select_file fs i =
+  Table.deselect_all fs.files;
+  Table.select fs.files i i;
+  let file = fs.files.entries.(i) in
+  Edit.set fs.input file.name
+
+let deselect_file fs =
+  Table.deselect_all fs.files
+
+let deselect_file_if_input_differs fs =
+  match Table.first_selected fs.files with
+  | Some i when fs.files.entries.(i).name <> fs.input.text ->
+    deselect_file fs
+  | _ -> ()
+
+
+let fold_dir fs dir status =
+  if status <> dir.folded then
+  (
+    dir.folded <- status;
+    if status
+    && String.starts_with fs.path ~prefix: (Filename.concat dir.path "") then
+      set_dir_path fs dir.path
+    else
+      refresh_dirs fs;
+  )
+
+
+(* Input *)
+
+let current_file_path fs =
+  if fs.input.text = "" then None else
+  Some (Filename.concat fs.path fs.input.text)
+
+let current_file_exists fs =
+  match current_file_path fs with
+  | None -> false
+  | Some path -> Sys.file_exists path && not (Sys.is_directory path)
+
+let current_sel_is_dir fs =
+  match selected_file fs with
+  | None -> false
+  | Some i -> fs.files.entries.(i).is_dir
+
+
+let reset fs =
+  fs.op <- None;
+  deselect_file fs;
+  Edit.clear fs.input
+
+
+(* Formatting *)
+
+let columns fs =
+  let w = fs.columns in
+  [|w.(0), `Left; w.(1), `Left; w.(2), `Right; w.(3), `Right|]
+
+let headings = [|""; "File Name"; "File Size"; "File Date"|]
+
+let string_of_mode is_dir = if is_dir then "►" else "   "
+let string_of_size size = Data.fmt "%3.1f MB" (float size /. 2.0 ** 20.0)
+
+let string_of_col file = function
+  | 0 -> string_of_mode file.is_dir
+  | 1 -> file.name
+  | 2 -> string_of_size file.size
+  | 3 -> Data.string_of_date_time file.time
+  | _ -> ""
+
+let row file = Array.init 4 (string_of_col file)
+
+
+(* Ordering *)
+
+let reorder_files fs k =
+  let key file =
+    if k = 0 then
+      string_of_col file 0 ^ string_of_col file 1
+    else
+      string_of_col file k
+  in
+  let enriched =
+    Array.map (fun (file : file) -> key file, file) fs.files.entries in
+  let cmp e1 e2 = Data.compare_utf_8 (fst e1) (fst e2) in
+  let cmp' =
+    if
+      Array.find_mapi (fun i e ->
+        if i = 0 || cmp enriched.(i - 1) e <= 0 then None else Some ()
+      ) enriched = None
+    then
+      cmp
+    else
+      fun e1 e2 -> cmp e2 e1
+  in
+  Array.stable_sort cmp' enriched;
+  let selection = Table.save_selection fs.files in
+  fs.files.entries <- Array.map snd enriched;
+  Table.restore_selection fs.files selection (fun (file : file) -> file.name)
+
+
+(* Persistance *)
+
+open Storage
+
+let of_map fs m =
+  read_map m "file_path" (fun s -> set_dir_path fs s);
+  read_map m "file_cols" (fun s ->
+    fs.columns <- Array.of_list
+      (List.filter_map int_of_string_opt (String.split_on_char ' ' s))
+  )
+
+let to_map fs =
+  Map.of_list
+  [
+    "file_path", fs.path;
+    "file_cols", String.concat " "
+      (Array.to_list (Array.map string_of_int fs.columns));
+  ]
+
+let to_map_extra fs =
+  Map.of_list
+  [
+    "file_roots", String.concat " "
+      Array.(to_list (map (fun (dir : dir) -> dir.path) fs.roots));
+    "file_dirs", string_of_int (Table.length fs.dirs);
+    "file_files", string_of_int (Table.length fs.files);
+    "file_dir",
+      (match Table.first_selected fs.dirs with
+      | Some i -> fs.dirs.entries.(i).path
+      | None -> "");
+    "file_file",
+      (match Table.first_selected fs.files with
+      | Some i -> fs.files.entries.(i).name
+      | None -> "");
+    "file_input", fs.input.text;
+  ]

@@ -68,7 +68,7 @@ let run_control (st : State.t) =
   let playing = Api.Audio.is_playing ctl.audio ctl.sound in
   let paused = not playing && elapsed > 0.0 in
   let stopped = not playing && not paused in
-  let focus = pl.table.focus || not lay.library_shown in
+  let focus = pl.table.focus || not (lay.library_shown || lay.filesel_shown) in
 
   (* LCD *)
   Layout.info_box lay;
@@ -359,10 +359,13 @@ let run_toggle_panes (st : State.t) =
   && not (Api.Key.is_modifier_down `Shift) then
   (
     (* Library was off: show; switch side if window is at respective border *)
-    if lay.library_side = `Left && wx <= sx then
-      lay.library_side <- `Right;
-    if lay.library_side = `Right && wx + Layout.control_w lay >= sx + sw then
-      lay.library_side <- `Left;
+    if not lay.filesel_shown then
+    (
+      if lay.library_side = `Left && wx <= sx then
+        lay.library_side <- `Right;
+      if lay.library_side = `Right && wx + Layout.control_w lay >= sx + sw then
+        lay.library_side <- `Left;
+    );
     lay.library_shown <- library_shown';
   )
   else if
@@ -377,8 +380,10 @@ let run_toggle_panes (st : State.t) =
   (
     (* Otherwise: keep or toggle *)
     lay.library_shown <- library_shown';
-    if not library_shown' then State.focus_playlist st;
+    if not library_shown' then Library.defocus st.library;
   );
+
+  if not (library_shown' || lay.filesel_shown) then State.focus_playlist st;
 
   (* Minimize button *)
   if Layout.minimize_button lay then
@@ -458,6 +463,7 @@ let drop (st : State.t) tracks table_mouse (module View : TracksView) =
   Option.iter (fun pos ->
     (* Drag & drop onto table: send tracks there *)
     View.insert view pos tracks;
+    State.defocus_all st;
     View.focus tab st;
     Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
   ) (table_mouse lay tab)
@@ -719,10 +725,33 @@ let run_edit (st : State.t) =
   );
 
   (* Save button *)
-  if Layout.save_button lay None then
+  let pl_save_avail = pl_focus in
+  let lib_save_avail = lib_focus &&
+    (match lib.current with Some dir -> dir.tracks_shown | None -> false) in
+  let save_avail = not lay.filesel_shown && (pl_save_avail || lib_save_avail) in
+  if Layout.save_button lay (if save_avail then Some false else None) then
   (
     (* Click on Save button: save playlist *)
-    (* TODO: file dialog for chosing file path and name *)
+    let tab = if pl_save_avail then st.playlist.table else st.library.tracks in
+    st.filesel.op <- Some (`SavePlaylist tab);
+    st.layout.filesel_shown <- true;
+    Edit.set st.filesel.input ".m3u";
+    Edit.move_begin st.filesel.input;
+    State.defocus_all st;
+    Filesel.focus_input st.filesel;
+  );
+
+  (* Load button *)
+  let load_avail = pl_focus in
+  if Layout.load_button lay (if load_avail then Some false else None) then
+  (
+    (* Click on Load button: load playlist *)
+    st.filesel.op <- Some `LoadPlaylist;
+    st.layout.filesel_shown <- true;
+    Edit.set st.filesel.input ".m3u";
+    Edit.move_begin st.filesel.input;
+    State.defocus_all st;
+    Filesel.focus_input st.filesel;
   )
 
 
@@ -904,6 +933,8 @@ let run_library (st : State.t) =
 
   (* Browser *)
   let browser = lib.browser in
+  let current =
+    match st.control.current with Some track -> track.path | None -> "" in
 
   let pp_entry i =
     let dir = browser.entries.(i) in
@@ -916,8 +947,13 @@ let run_library (st : State.t) =
     in
     let spin = if not spinning then "" else
       " " ^ spin.(Api.Draw.frame win / 3 mod Array.length spin)
-    and folded = if dir.children = [||] then None else Some dir.folded in
-    dir.nest, folded, dir.name ^ spin
+    and folded = if dir.children = [||] then None else Some dir.folded
+    and c =
+      if dir.path = Filename.(concat (dirname current) "")
+      || dir.folded && String.starts_with ~prefix: dir.path current
+      then `White
+      else Ui.text_color lay.ui
+    in dir.nest, folded, c, dir.name ^ spin
   in
 
   let dir = Library.selected_dir lib in
@@ -938,7 +974,7 @@ let run_library (st : State.t) =
     );
 
   | `Fold i ->
-    (* CLick on triangle: fold/unfold entry *)
+    (* Click on triangle: fold/unfold entry *)
     let dir = browser.entries.(i) in
     Library.fold_dir lib dir (not dir.folded)
 
@@ -1107,21 +1143,19 @@ let run_library (st : State.t) =
         Edit.clear lib.search;
         Library.set_search lib (Data.make_search ());
       )
-    )
-    else
+    );
+
+    let ch = Layout.search_text lay lib.search in
+    if lib.search.focus then
     (
-      let ch = Layout.search_text lay lib.search in
-      if lib.search.focus then
-      (
-        (* Have or gained focus: make sure it's consistent *)
-        State.focus_library lib.browser st;
-        Library.focus_search lib;
-      );
-      if ch = Uchar.of_char '\n' || ch = Uchar.of_char ' ' then
-      (
-        (* Entered Space or Return: update search in dir *)
-        Library.set_search lib (Data.search_of_string lib.search.text);
-      )
+      (* Have or gained focus: make sure it's consistent *)
+      State.defocus_all st;
+      Library.focus_search lib;
+    );
+    if ch = Uchar.of_char '\n' || ch = Uchar.of_char ' ' then
+    (
+      (* Entered Space or Return: update search in dir *)
+      Library.set_search lib (Data.search_of_string lib.search.text);
     )
   );
 
@@ -1344,8 +1378,6 @@ let run_library (st : State.t) =
       Array.map (fun (attr, cw) -> cw, Library.attr_align attr) dir.tracks_columns
     and headings =
       Array.map (fun (attr, _) -> Library.attr_name attr) dir.tracks_columns
-    and current =
-      match st.control.current with Some track -> track.path | None -> ""
     in
 
     let pp_row i =
@@ -1430,7 +1462,7 @@ let run_library (st : State.t) =
 
         if Data.is_playlist dir then
         (
-          (* Invarian as for playlist view *)
+          (* Invariant as for playlist view *)
           (match way with
           | `Start ->
             (* Start of drag & drop: remember original configuration *)
@@ -1470,7 +1502,8 @@ let run_library (st : State.t) =
         (* Drag & drop originating from tracks *)
 
         (* Dropping outside tracks: drop aux redo for new state *)
-        Table.drop_redo lib.tracks;
+        if Data.is_playlist dir then
+          Table.drop_redo lib.tracks;
 
         (* Drag & drop onto playlist or browser: send tracks to playlist *)
         let tracks = Library.selected lib in
@@ -1518,6 +1551,233 @@ let run_library (st : State.t) =
   lay.browser_width <- browser_width'
 
 
+(* File Selection *)
+
+let run_filesel (st : State.t) =
+  let fs = st.filesel in
+  let lay = st.layout in
+
+  (* Update after possible window resize *)
+  lay.directories_width <-
+    clamp (Layout.directories_min lay) (Layout.directories_max lay)
+    lay.directories_width;
+
+  (* Directories *)
+
+  Layout.directories_pane lay;
+
+  let dirs = fs.dirs in
+
+  let pp_entry i =
+    let dir = dirs.entries.(i) in
+    let folded = if dir.children = [||] then None else Some dir.folded in
+    let name =
+      if Filename.dirname dir.path <> dir.path then
+        Filename.basename dir.path
+      else if dir.path = Filename.dir_sep then
+        dir.path
+      else  (* Special case for Windows drives: strip slash *)
+        String.(sub dir.path 0 (length dir.path - length Filename.dir_sep))
+    and c = if dir.path = Storage.home then `White else Ui.text_color lay.ui in
+    dir.nest, folded, c, name
+  in
+
+  let dir = Filesel.selected_dir fs in
+  (match Layout.directories_table lay dirs pp_entry with
+  | `None | `Scroll | `Move _ | `Drag _ | `Drop -> ()
+
+  | `Select ->
+    (* Select dir: refresh file list *)
+    State.focus_filesel dirs st;
+    if Table.num_selected dirs = 0 then
+      Filesel.select_dir fs dir  (* override *)
+    else
+      let dir = dirs.entries.(Filesel.selected_dir fs) in
+      Filesel.set_dir_path fs dir.path;
+
+  | `Fold i ->
+    (* Click on triangle: fold/unfold entry *)
+    let dir = dirs.entries.(i) in
+    Filesel.fold_dir fs dir (not dir.folded)
+
+  | `Click (Some i) ->
+    (* Click on dir name: switch view *)
+    if Api.Mouse.is_pressed `Left then
+      State.focus_filesel dirs st;
+    if Table.num_selected dirs = 0 then
+      Filesel.select_dir fs dir  (* override *)
+    else
+      let dir = dirs.entries.(i) in
+      Filesel.set_dir_path fs dir.path;
+
+  | `Click None ->
+    (* Click into empty space: focus *)
+    State.focus_filesel dirs st;
+    if Table.num_selected dirs = 0 then
+      Filesel.select_dir fs dir;  (* override *)
+  );
+
+
+  (* Files *)
+
+  Layout.files_pane lay;
+
+  let files = fs.files in
+  let cols = Filesel.columns fs in
+
+  let pp_row i =
+    let file = files.entries.(i) in
+    (if file.name = fs.input.text then `White else Ui.text_color lay.ui),
+    Filesel.row file
+  in
+
+  let ok =
+    match Layout.files_table lay cols (Some (Filesel.headings, [])) files pp_row with
+    | `None | `Scroll | `Move _ | `Drag _ | `Drop -> false
+
+    | `Click (Some i) when Api.Mouse.is_doubleclick `Left ->
+      (* Double-click on file: change dir or copy to input and accept *)
+      let file = files.entries.(i) in
+      if not file.is_dir then
+        Edit.set fs.input file.name;
+      true
+
+    | `Select | `Click (Some _) ->
+      State.focus_filesel files st;
+      Option.iter (fun i ->
+        let file = files.entries.(i) in
+        if not file.is_dir then
+          Edit.set fs.input file.name
+      ) (Filesel.selected_file fs);
+      false
+
+    | `Sort i ->
+      (* Click on column header: reorder view accordingly *)
+      Filesel.reorder_files fs i;
+      false
+
+    | `Arrange ->
+      (* Column resizing: update column widths *)
+      Array.mapi_inplace (fun i _ -> fst cols.(i)) fs.columns;
+      false
+
+    | `Click None ->
+      (* Click into empty space: focus *)
+      State.focus_filesel files st;
+      false
+  in
+
+  (* Input *)
+  Layout.file_label lay;
+  Layout.file_box lay;
+  if Layout.file_button lay then
+  (
+    (* Click on File label: clear search *)
+    if fs.input.text <> "" then
+      Edit.clear fs.input;
+  );
+
+  let ch = Layout.file_text lay fs.input in
+  if fs.input.focus then
+  (
+    (* Have or gained focus: make sure it's consistent *)
+    Filesel.deselect_file fs;
+    State.defocus_all st;
+    Filesel.focus_input fs;
+  );
+  let ok = ok || ch = Uchar.of_char '\n' in
+
+  (* Buttons *)
+
+  let is_write = fs.op <> Some `LoadPlaylist in
+  let is_valid = fs.input.text <> "" && fs.input.text.[0] <> '.' in
+  let dir_avail =
+    fs.dirs.focus || fs.files.focus && Filesel.current_sel_is_dir fs in
+  let file_avail = not dir_avail && Filesel.current_file_exists fs in
+  let overwrite_avail = file_avail && is_write in
+  let ok_avail =
+    not (dir_avail || overwrite_avail) && (file_avail || is_write && is_valid) in
+
+  let ok_button lay =
+    ok_avail && not (Layout.ok_button lay (Some true)) ||
+    not ok_avail && Layout.ok_button lay None
+  and overwrite_button lay =
+    not (Layout.overwrite_button lay (Some true))
+  in
+
+  if
+    overwrite_avail && overwrite_button lay ||
+    not overwrite_avail && ok_button lay ||
+    dir_avail && Layout.return_key lay ||
+    (ok_avail || dir_avail) && ok
+  then
+  (
+    if dir_avail then
+    (
+      (* Return or double-click on directory *)
+      let dir = fs.dirs.entries.(Filesel.selected_dir fs) in
+      if fs.dirs.focus then
+        (* Folded directory in dirs view: unfold *)
+        Filesel.fold_dir fs dir (not dir.folded)
+      else
+        (* Directory in files view: open *)
+        let file = fs.files.entries.(Option.get (Filesel.selected_file fs)) in
+        Filesel.set_dir_path fs (Filename.concat dir.path file.name)
+    )
+    else
+    (
+      (* Return, double-click, or OK button on regular file *)
+      let path = Option.get (Filesel.current_file_path fs) in
+      (match fs.op with
+      | None -> assert false
+
+      | Some `LoadPlaylist ->
+        (try
+          let tracks =
+            In_channel.with_open_bin path (fun file ->
+              Track.of_m3u (In_channel.input_all file)
+            )
+          in
+          Playlist.replace_all st.playlist tracks;
+          State.focus_playlist st;
+          Control.eject st.control;
+          Control.switch st.control tracks.(0) true;
+        with Sys_error _ ->
+          Library.error st.library ("Error reading file " ^ path);
+          Layout.browser_error_box lay;  (* flash *)
+        )
+
+      | Some (`SavePlaylist tab) ->
+        (try
+          Out_channel.with_open_bin path (fun file ->
+            Out_channel.output_string file (Track.to_m3u tab.entries)
+          )
+        with Sys_error _ ->
+          Library.error st.library ("Error writing file " ^ path);
+          Layout.browser_error_box lay;  (* flash *)
+        )
+      );
+      Filesel.reset fs;
+      lay.filesel_shown <- false;
+      State.focus_playlist st;
+    )
+  );
+
+  if Layout.cancel_button lay (Some false) && not ok then
+  (
+    Filesel.reset fs;
+    lay.filesel_shown <- false;
+    State.focus_playlist st;
+  );
+
+  (* Pane divider *)
+
+  let directories_width' = Layout.directories_divider lay lay.directories_width
+    (Layout.directories_min lay) (Layout.directories_max lay) in
+  (* Possible drag of divider: update pane width *)
+  lay.directories_width <- directories_width'
+
+
 (* Runner *)
 
 let rec run (st : State.t) =
@@ -1533,24 +1793,27 @@ and run' (st : State.t) =
   (* Start drawing *)
   Ui.start lay.ui;
 
-  (* Update geometry *)
-  let ww, wh = Api.Window.size win in
-  if lay.playlist_shown then lay.playlist_height <- wh - Layout.control_h lay;
-  if lay.library_shown then lay.library_width <- ww - Layout.control_w lay;
-
   (* Remember current geometry for later *)
   let playlist_shown = lay.playlist_shown in
   let library_shown = lay.library_shown in
+  let filesel_shown = lay.filesel_shown in
+  let overlay_shown = library_shown || filesel_shown in
   let library_side = lay.library_side in
   let library_width = lay.library_width in
+
+  (* Update geometry *)
+  let ww, wh = Api.Window.size win in
+  if playlist_shown then lay.playlist_height <- wh - Layout.control_h lay;
+  if overlay_shown then lay.library_width <- ww - Layout.control_w lay;
 
   (* Run panes *)
   run_control st;
   if not (Api.Window.is_minimized win) then
   (
     if playlist_shown then run_playlist st;
-    if library_shown then run_library st;
-    if playlist_shown || library_shown then run_edit st;
+    if filesel_shown then run_filesel st
+    else if library_shown then run_library st;
+    if playlist_shown || overlay_shown then run_edit st;
   );
   run_toggle_panes st;
 
@@ -1562,17 +1825,18 @@ and run' (st : State.t) =
   lay.text <- clamp 8 64 text';
 
   (* Adjust window size *)
-  let extra_w = if lay.library_shown then lay.library_width else 0 in
+  let overlay_shown' = lay.library_shown || lay.filesel_shown in
+  let extra_w = if overlay_shown' then lay.library_width else 0 in
   let extra_h =
     if lay.playlist_shown then lay.playlist_height else
-    if lay.library_shown then Layout.bottom_h lay else 0
+    if overlay_shown' then Layout.bottom_h lay else 0
   in
   Api.Window.set_size win
     (Layout.control_w lay + extra_w) (Layout.control_h lay + extra_h);
 
   (* Adjust window position after opening/closing library *)
   let dx =
-    match library_shown, lay.library_shown, library_side, lay.library_side with
+    match overlay_shown, overlay_shown', library_side, lay.library_side with
     | false, true, _, `Left
     | true, true, `Right, `Left -> -lay.library_width  (* opened on the left *)
     | true, false, `Left, _
@@ -1584,7 +1848,7 @@ and run' (st : State.t) =
 
   (* Finish drawing *)
   let minw, maxw =
-    if library_shown
+    if overlay_shown
     then Layout.(control_w lay + library_min lay, -1)
     else Layout.(control_w lay, control_w lay)
   and minh, maxh =

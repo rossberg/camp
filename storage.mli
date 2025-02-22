@@ -6,6 +6,8 @@ type path = string
 
 val path : string -> path
 
+val home : path
+
 (* Temporary Files *)
 
 val copy_to_temp : path -> path

@@ -242,6 +242,23 @@ let is_invalid track =
 
 (* String Conversion *)
 
+let fmt = Printf.sprintf
+
+let string_of_time t =
+  let t' = int_of_float (Float.trunc t) in
+  fmt "%d:%02d" (t' / 60) (t' mod  60)
+
+let string_of_date t =
+  let tm = Unix.localtime t in
+  fmt "%04d-%02d-%02d" (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
+
+let string_of_date_time t =
+  let tm = Unix.localtime t in
+  fmt "%04d-%02d-%02d %02d:%02d:%02d"
+    (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
+    tm.tm_hour tm.tm_min tm.tm_sec
+
+
 let string_of_order = function
   | `Asc -> "+"
   | `Desc -> "-"

@@ -141,22 +141,6 @@ let attr_name attr = fst (attr_prop (attr :> any_attr))
 let attr_align attr = snd (attr_prop (attr :> any_attr))
 
 
-let fmt = Printf.sprintf
-
-let fmt_time t =
-  let t' = int_of_float (Float.trunc t) in
-  fmt "%d:%02d" (t' / 60) (t' mod  60)
-
-let fmt_date t =
-  let tm = Unix.localtime t in
-  fmt "%04d-%02d-%02d" (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
-
-let _fmt_date_time t =
-  let tm = Unix.localtime t in
-  fmt "%04d-%02d-%02d %02d:%02d:%02d"
-    (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
-    tm.tm_hour tm.tm_min tm.tm_sec
-
 let nonzero zero f x = if x = zero then "" else f x
 let nonzero_int w x = nonzero 0 (fmt "%*d" w) x (* leading spaces for sorting *)
 let nonempty f x attr = match x with None -> "" | Some x -> f x attr
@@ -165,10 +149,10 @@ let nonempty f x attr = match x with None -> "" | Some x -> f x attr
 let file_attr_string path (file : file) = function
   | `FilePath -> path
   | `FileSize -> nonzero 0.0 (fmt "%3.1f MB") (float file.size /. 2.0 ** 20.0)
-  | `FileTime -> nonzero 0.0 fmt_date file.time
+  | `FileTime -> nonzero 0.0 string_of_date file.time
 
 let rec format_attr_string (format : Format.t) = function
-  | `Length -> nonzero 0.0 fmt_time format.time
+  | `Length -> nonzero 0.0 string_of_time format.time
   | `Codec -> format.codec
   | `Channels -> nonzero_int 2 format.channels
   | `Depth ->
@@ -198,7 +182,7 @@ let meta_attr_string (meta : Meta.t) = function
   | `Year -> nonzero_int 4 meta.year
   | `Label -> meta.label
   | `Country -> meta.country
-  | `Length -> nonzero 0.0 fmt_time meta.length
+  | `Length -> nonzero 0.0 string_of_time meta.length
   | `Rating ->
     let star = "*" in  (* TODO: "★" *)
     let len = String.length star in
