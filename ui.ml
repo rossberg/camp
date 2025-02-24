@@ -1,6 +1,7 @@
 (* Immediate-style GUI widgets *)
 
 open Api
+open Audio_file
 
 
 (* State *)

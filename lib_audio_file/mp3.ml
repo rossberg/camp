@@ -184,7 +184,7 @@ let read_format_from ic =
   {f with encoding; bitrate; frames; time; size; offset}
 
 let read_format path =
-  In_channel.with_open_bin path read_format_from
+  File.with_open_in `Bin path read_format_from
 
 
 let _require b msg pos errors =
@@ -222,4 +222,4 @@ let analyze_from ic =
   {format; id3v1; id3v2}, !errors
 
 let analyze path =
-  In_channel.with_open_bin path analyze_from
+  File.with_open_in `Bin path analyze_from

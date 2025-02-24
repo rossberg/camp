@@ -51,11 +51,15 @@ val localtime : time -> Unix.tm
 type mode = [`Bin | `Text]
 
 val check : path -> unit
-val open_in : path -> mode -> in_channel
-val open_out : path -> mode -> out_channel
+val open_in : mode -> path -> in_channel
+val open_out : mode -> path -> out_channel
+val open_append : mode -> path -> out_channel
+val with_open_in : mode -> path -> (in_channel -> 'a) -> 'a
+val with_open_out : mode -> path -> (out_channel -> 'a) -> 'a
+val with_open_append : mode -> path -> (out_channel -> 'a) -> 'a
 
-val load : path -> mode -> string
-val store : path -> mode -> string -> unit
+val load : mode -> path -> string
+val store : mode -> path -> string -> unit
 val copy : path -> path -> unit
 val delete : path -> unit
 

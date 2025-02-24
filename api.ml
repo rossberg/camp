@@ -5,8 +5,8 @@ open Audio_file
 
 (* Base types *)
 
-type path = string
-type time = float
+type path = File.path
+type time = File.time
 
 
 (* Geometry helpers *)
@@ -191,7 +191,7 @@ struct
     let font = Raylib.load_font_ex path size None in
     Raylib.Font.set_base_size font size;
     Raylib.Font.set_glyph_padding font 0;
-    let data = In_channel.(with_open_bin path input_all) in
+    let data = File.load `Bin path in
     let glyphs = Raylib.load_font_data data (String.length data) size
       Ctypes.(from_voidp int null) 0 Raylib.FontType.(to_int Sdf) in
     Raylib.Font.set_glyphs font (Ctypes.CArray.from_ptr glyphs 95);

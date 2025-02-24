@@ -2,7 +2,7 @@
   (public_name kamp)
   (name main)
   (modules
-    safe_queue file
+    safe_queue
     edit table
     data track db state storage
     control playlist library filesel config

@@ -96,11 +96,7 @@ let normalize path =
 let stat path =
   if not Sys.win32 || String.length path < 256 then Unix.stat path else
   (* Unix.stat doesn't like Windows UNC prefix *)
-  let cwd = Sys.getcwd () in
-  Sys.chdir (normalize (dir path));
-  let st = Unix.stat (name path) in
-  Sys.chdir cwd;
-  st
+  Unix.stat (normalize path)
 
 let exists path =
   if not Sys.win32 || String.length path < 256 then Sys.file_exists path else
@@ -111,8 +107,7 @@ let is_dir path =
   String.ends_with ~suffix: sep path ||
   if not Sys.win32 || String.length path < 256 then Sys.is_directory path else
   (* Sys.is_directory doesn't like Windows UNC prefix *)
-  try (stat path).st_kind = S_DIR with
-    Unix.Unix_error _ -> false
+  try (stat path).st_kind = S_DIR with Unix.Unix_error _ -> false
 
 let size path = (stat path).Unix.st_size
 let time path = (stat path).Unix.st_mtime
@@ -134,30 +129,37 @@ let check path =
   if not (exists path) then
     raise (Unix.Unix_error (Unix.ENOENT, "check", path))
 
-let open_in path mode =
-  (match mode with `Bin -> open_in_bin | `Text -> open_in) (normalize path)
+let open_in mode path =
+  In_channel.(match mode with `Bin -> open_bin | `Text -> open_text)
+    (normalize path)
 
-let open_out path mode =
-  (match mode with `Bin -> open_out_bin | `Text -> open_out) (normalize path)
+let open_out mode path  =
+  Out_channel.(match mode with `Bin -> open_bin | `Text -> open_text)
+    (normalize path)
 
-let load path mode =
-  let file = open_in path mode in
-  let len = in_channel_length file in
-  let buf = Bytes.make len '\x00' in
-  let rec loop i n =
-    match input file buf i n with
-    | 0 -> i
-    | k when k = n -> i + n
-    | k -> loop (i + k) (n - k)
-  in
-  let s = Bytes.sub_string buf 0 (loop 0 len) in
-  close_in file;
-  s
+let open_append mode path  =
+  let mode = Out_channel.(match mode with `Bin -> Open_binary | `Text -> Open_text) in
+  Out_channel.(open_gen [mode; Open_creat; Open_append; Open_nonblock])
+    0o660 (normalize path)
 
-let store path mode s =
-  let file = open_out path mode in
-  output_string file s;
-  close_out file
+let with_open_in mode path  f =
+  In_channel.(match mode with `Bin -> with_open_bin | `Text -> with_open_text)
+    (normalize path) f
+
+let with_open_out mode path f =
+  Out_channel.(match mode with `Bin -> with_open_bin | `Text -> with_open_text)
+    (normalize path) f
+
+let with_open_append mode path f =
+  let mode = Out_channel.(match mode with `Bin -> Open_binary | `Text -> Open_text) in
+  Out_channel.(with_open_gen [mode; Open_creat; Open_append; Open_nonblock])
+    0o660 (normalize path) f
+
+
+let load mode path = with_open_in mode path In_channel.input_all
+
+let store mode path s =
+  with_open_out mode path (fun file -> Out_channel.output_string file s)
 
 
 let chunk_size = 0x1_0000_0000
@@ -179,15 +181,15 @@ let copy src_path dst_path =
   )
   else
   (
-    let src = open_in src_path `Bin in
-    let dst = open_out dst_path `Bin in
-    let len = ref 1 in
-    while !len > 0 do
-      len := input src buf 0 chunk_size;
-      output dst buf 0 !len
-    done;
-    close_in src;
-    close_out dst
+    with_open_in `Bin src_path (fun src ->
+      with_open_out `Bin dst_path (fun dst ->
+        let len = ref 1 in
+        while !len > 0 do
+          len := input src buf 0 chunk_size;
+          Out_channel.output dst buf 0 !len
+        done
+      )
+    )
   );
   set_time dst_path (time src_path)
 

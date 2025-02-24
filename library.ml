@@ -233,7 +233,7 @@ let track_attr_string (track : track) = function
 
 type scan_mode = [`Fast | `Thorough]
 
-let rescan_track lib mode track =
+let rescan_track' _lib mode track =
   let old = {track with id = track.id} in
   try
     if not (File.exists track.path) then
@@ -246,14 +246,14 @@ let rescan_track lib mode track =
     )
     else if not (Data.is_track_path track.path) then
     (
-      let stats = Unix.stat track.path in
+      let stats = File.stat track.path in
       track.file.size <- stats.st_size;
       track.file.time <- stats.st_mtime;
       track.status <- `Invalid;
     )
     else
     (
-      let stats = Unix.stat track.path in
+      let stats = File.stat track.path in
       track.file.size <- stats.st_size;
       track.file.time <- stats.st_mtime;
       if
@@ -266,17 +266,20 @@ let rescan_track lib mode track =
         track.status <- `Det;
       )
     );
-    if track <> old then
-    (
-      track.file.age <- Unix.gettimeofday ();
-      Db.insert_track lib.db track;
-    )
+    let changed = track <> old in
+    if changed then track.file.age <- Unix.gettimeofday ();
+    changed
   with exn ->
-    Storage.log_exn "file" exn ("scanning track " ^ track.path)
+    Storage.log_exn "file" exn ("scanning track " ^ track.path);
+    false
 
+let rescan_track lib mode track =
+  if rescan_track' lib mode track then
+    Db.insert_track lib.db track
 
 let rescan_dir_tracks lib mode (dir : Data.dir) =
   try
+    let changed = ref [] in
     Array.iter (fun file ->
       let path = dir.path ^ file in
       if not (File.is_dir path) && Data.is_track_path path then
@@ -286,17 +289,19 @@ let rescan_dir_tracks lib mode (dir : Data.dir) =
           | Some track -> track
           | None -> Data.make_track path
         in
-        (* Parent may have been deleted in the mean time... *)
-        if Db.mem_dir lib.db dir.path then
-          rescan_track lib mode track
+        if rescan_track' lib mode track then
+          changed := track :: !changed
       )
-    ) (File.read_dir dir.path)
+    ) (File.read_dir dir.path);
+    (* Parent may have been deleted in the mean time... *)
+    if !changed <> [] && Db.mem_dir lib.db dir.path then
+      Db.insert_tracks_bulk lib.db !changed
   with exn ->
     Storage.log_exn "file" exn ("scanning tracks in directory " ^ dir.path)
 
 let rescan_playlist lib _mode path =
   try
-    let s = In_channel.(with_open_bin path input_all) in
+    let s = File.load `Bin path in
     let items = M3u.parse_ext s in
     let items' = List.map (M3u.resolve (File.dir path)) items in
     Db.delete_playlists lib.db path;
@@ -324,6 +329,7 @@ let rescan_dir lib mode (origin : Data.dir) =
         None
 
   and scan_dir path nest' =
+    Domain.cpu_relax ();
     let nest = nest' + 1 in
     let dirs = Option.value ~default: [] in
     match
@@ -524,7 +530,7 @@ let load_dirs lib =
   );
 
   let rec treeify (parent : dir) children : dir list -> _ = function
-    | dir::dirs when String.starts_with dir.path ~prefix: parent.path ->
+    | dir::dirs when String.starts_with ~prefix: parent.path dir.path ->
       let dirs' = if Data.is_dir dir then treeify dir [] dirs else dirs in
       treeify parent (dir::children) dirs'
     | dirs ->
@@ -552,8 +558,8 @@ let make_root lib path pos =
     match
       Array.find_opt (fun (dir : dir) ->
         path = dir.path ||
-        String.starts_with dir.path ~prefix: dirpath ||
-        String.starts_with dirpath ~prefix: dir.path
+        String.starts_with ~prefix: dirpath dir.path ||
+        String.starts_with ~prefix: dir.path dirpath
       ) lib.root.children
     with
     | Some dir ->
@@ -746,10 +752,10 @@ let rescan_affects_views lib path_opts =
     List.exists (function
       | None -> true
       | Some path ->
-        String.starts_with path ~prefix: dir.path ||
+        String.starts_with ~prefix: dir.path path ||
         not (Data.is_dir dir) &&
         Array.exists (fun track ->
-          String.starts_with track.path ~prefix: path) lib.tracks.entries
+          String.starts_with ~prefix: path track.path) lib.tracks.entries
     ) path_opts
 
 let refresh_after_rescan lib =
@@ -817,7 +823,7 @@ let save_playlist lib =
   try
     let items = Array.to_list (Array.map (Track.to_m3u_item) tracks) in
     let s = M3u.make_ext items in
-    Out_channel.with_open_bin dir.path (fun file -> output_string file s);
+    File.store `Bin dir.path s;
     Db.delete_playlists lib.db dir.path;
     if items <> [] then Db.insert_playlists_bulk lib.db dir.path items;
   with exn ->

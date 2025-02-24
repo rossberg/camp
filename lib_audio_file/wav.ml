@@ -65,4 +65,4 @@ let read_format_from ic =
   { resolution; rate; channels; depth; size }, List.rev !errors
 
 let read_format path =
-  fst (In_channel.with_open_bin path read_format_from)
+  fst (File.with_open_in `Bin path read_format_from)

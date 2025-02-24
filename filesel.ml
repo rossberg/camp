@@ -1,7 +1,9 @@
 (* Playlist *)
 
-type path = Data.path
-type time = Data.time
+open Audio_file
+
+type path = File.path
+type time = File.time
 
 type file =
 {
@@ -76,7 +78,7 @@ let refresh_dirs fs =
 
 let make_file path name =
   try
-    let st = Unix.stat path in
+    let st = File.stat path in
     let is_dir = (st.st_kind = Unix.S_DIR) in
     Unix.access path (if is_dir then Unix.[R_OK; X_OK] else Unix.[R_OK]);
     Some {
@@ -236,7 +238,7 @@ let fold_dir fs dir status =
   (
     dir.folded <- status;
     if status
-    && String.starts_with fs.path ~prefix: (File.(//) dir.path "") then
+    && String.starts_with ~prefix: (File.(//) dir.path "") fs.path then
       set_dir_path fs dir.path
     else
       refresh_dirs fs;

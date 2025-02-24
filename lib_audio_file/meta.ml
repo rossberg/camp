@@ -19,7 +19,7 @@ type tag =
 let load_tag path : tag option =
   progress ();
   let tag_opt, errors =
-    In_channel.with_open_bin path (fun file ->
+    File.with_open_in `Bin path (fun file ->
       try
         match Filename.extension path with
         | ".mp3" ->

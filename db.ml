@@ -771,12 +771,24 @@ let iter_tracks_for_path_as_albums db path artists searches f =
     iter_tracks_for_path_as_albums_single db path artist f
 
 
-let insert_track = stmt
+let insert_track = stmt @@
+  "
+    INSERT OR REPLACE INTO Tracks VALUES " ^ tuple 1 track_cols ^ ";
+  " |> insert_into_table bind_track (fun t id -> t.id <- id)
+
+let insert_tracks_bulk db tracks = stmt @@
   "
     INSERT OR REPLACE INTO Tracks
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-  " |> insert_into_table bind_track (fun t id -> t.id <- id)
+    VALUES " ^ tuples 1 track_cols (List.length tracks) ^ ";
+  " |>
+  fun stmt ->
+    let& () = db in
+    let stmt = prepare db stmt in
+    List.iteri (fun i track ->
+      let* () = bind_track stmt (1 + i * track_cols) track in ()
+    ) tracks;
+    let* () = Sqlite3.step stmt in
+    ()
 
 let delete_tracks = stmt
   "
@@ -799,6 +811,9 @@ let create_playlists = create_table
       time REAL
     );
   "
+
+let playlist_cols = 7
+
 
 let to_playlist_track i data : track =
   let track = to_track i data in
@@ -859,9 +874,9 @@ let mem_playlist = stmt
     SELECT COUNT(*) FROM Playlists WHERE path = ?;
   " |> mem_table
 
-let insert_playlists = stmt
+let insert_playlists = stmt @@
   "
-    INSERT OR REPLACE INTO Playlists VALUES (?, ?, ?, ?, ?, ?, ?);
+    INSERT OR REPLACE INTO Playlists VALUES " ^ tuple 1 playlist_cols ^ ";
   " |>
   fun stmt db path pos ->
     insert_into_table (bind_playlist path pos) (fun _ _ -> ()) stmt db
@@ -869,13 +884,14 @@ let insert_playlists = stmt
 let insert_playlists_bulk db path items = stmt @@
   "
     INSERT OR REPLACE INTO Playlists
-    VALUES " ^ tuples 1 7 (List.length items) ^ ";
+    VALUES " ^ tuples 1 playlist_cols (List.length items) ^ ";
   " |>
   fun stmt ->
     let& () = db in
     let stmt = prepare db stmt in
     List.iteri (fun i item ->
-      let* () = bind_playlist path (i + 1) stmt (1 + i * 7) item in ()
+      let* () = bind_playlist path (i + 1) stmt (1 + i * playlist_cols) item in
+      ()
     ) items;
     let* () = Sqlite3.step stmt in
     ()

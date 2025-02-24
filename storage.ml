@@ -1,5 +1,8 @@
 (* File Management *)
 
+open Audio_file
+
+
 (* Directories *)
 
 type path = string
@@ -22,22 +25,13 @@ let path filename =
 
 (* Temporary Files *)
 
-let buf_size = 0x400_000
-let buf = Bytes.create buf_size
 let temp_dir = File.(data_dir // "temp")
 
 let copy_to_temp path =
   if not (File.exists temp_dir) then File.create_dir temp_dir;
   let ext = File.extension path in
   let path' = File.temp (Some temp_dir) "temp" ext in
-  In_channel.with_open_bin path (fun ic ->
-    Out_channel.with_open_bin path' (fun oc ->
-      let rec loop () =
-        let i = In_channel.input ic buf 0 buf_size in
-        if i > 0 then (Out_channel.output oc buf 0 i; loop ())
-      in loop ()
-    )
-  );
+  File.copy path path';
   path'
 
 let delete_temp path =
@@ -56,8 +50,7 @@ let clear_temp () =
 
 let log_file = "error.log"
 
-let log_clear () =
-  Out_channel.with_open_bin (path log_file) ignore
+let log_clear () = File.store `Bin (path log_file) ""
 
 let append_fwd = ref (fun _ -> assert false)
 
@@ -85,22 +78,21 @@ let log_io_error op filename exn =
 
 let load filename f =
   try
-    In_channel.with_open_bin (path filename) f
+    File.with_open_in `Bin (path filename) f
   with Sys_error _ | End_of_file | Scanf.Scan_failure _ | Failure _ as exn ->
     log_io_error "loading" filename exn
 
 let save filename f =
   try
     if not (File.exists data_dir) then File.create_dir data_dir;
-    Out_channel.with_open_bin (path filename) f
+    File.with_open_out `Bin (path filename) f
   with Sys_error _ as exn ->
     log_io_error "saving" filename exn
 
 let append filename f =
   try
     if not (File.exists data_dir) then File.create_dir data_dir;
-    Out_channel.(with_open_gen [Open_binary; Open_creat; Open_append; Open_nonblock])
-      0o660 (path filename) f
+    File.with_open_append `Bin (path filename) f
   with Sys_error _ as exn ->
     log_io_error "appending to" filename exn
 

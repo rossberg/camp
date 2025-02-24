@@ -401,7 +401,7 @@ let expand_paths paths =
     tracks := track :: !tracks
   in
   let add_playlist path =
-    let s = In_channel.(with_open_bin path input_all) in
+    let s = File.load `Bin path in
     List.iter (fun item -> add_track (Track.of_m3u_item item)) (M3u.parse_ext s)
   in
   let rec add_path path =
@@ -501,9 +501,8 @@ let drop_on_browser (st : State.t) tracks =
          * asynchronous, write to file directly *)
         (try
           let s = Track.to_m3u tracks in
-          let s' = In_channel.(with_open_bin dir.path input_all) in
-          Out_channel.(with_open_bin dir.path
-            (fun file -> output_string file s'; output_string file s))
+          let s' = File.load `Bin dir.path in
+          File.store `Bin dir.path (s' ^ s)
         with exn ->
           Storage.log_exn "file" exn ("modifying playlist " ^ dir.path)
         );
@@ -933,7 +932,7 @@ let run_library (st : State.t) =
 
   (* Browser *)
   let browser = lib.browser in
-  let current =
+  let current_path =
     match st.control.current with Some track -> track.path | None -> "" in
 
   let pp_entry i =
@@ -943,14 +942,14 @@ let run_library (st : State.t) =
       | None -> false
       | Some path ->
         path = dir.path ||
-        dir.folded && String.starts_with path ~prefix: dir.path
+        dir.folded && String.starts_with ~prefix: dir.path path
     in
     let spin = if not spinning then "" else
       " " ^ spin.(Api.Draw.frame win / 3 mod Array.length spin)
     and folded = if dir.children = [||] then None else Some dir.folded
     and c =
-      if dir.path = File.(dir current // "")
-      || dir.folded && String.starts_with ~prefix: dir.path current
+      if dir.path = File.(dir current_path // "")
+      || dir.folded && String.starts_with ~prefix: dir.path current_path
       then `White
       else Ui.text_color lay.ui
     in dir.nest, folded, c, dir.name ^ spin
@@ -1387,7 +1386,7 @@ let run_library (st : State.t) =
         && Library.rescan_busy lib = None then
           Track.update track;
         match track.status with
-        | _ when track.path = current -> `White
+        | _ when track.path = current_path -> `White
         | `Absent -> Ui.error_color lay.ui
         | `Invalid -> Ui.warn_color lay.ui
         | `Undet -> Ui.semilit_color (Ui.text_color lay.ui)
@@ -1734,11 +1733,7 @@ let run_filesel (st : State.t) =
 
       | Some `LoadPlaylist ->
         (try
-          let tracks =
-            In_channel.with_open_bin path (fun file ->
-              Track.of_m3u (In_channel.input_all file)
-            )
-          in
+          let tracks = Track.of_m3u (File.load `Bin path) in
           Playlist.replace_all st.playlist tracks;
           State.focus_playlist st;
           Control.eject st.control;
@@ -1750,9 +1745,7 @@ let run_filesel (st : State.t) =
 
       | Some (`SavePlaylist tab) ->
         (try
-          Out_channel.with_open_bin path (fun file ->
-            Out_channel.output_string file (Track.to_m3u tab.entries)
-          )
+          File.store `Bin path (Track.to_m3u tab.entries)
         with Sys_error _ ->
           Library.error st.library ("Error writing file " ^ path);
           Layout.browser_error_box lay;  (* flash *)

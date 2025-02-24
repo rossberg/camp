@@ -85,7 +85,7 @@ let rec read_magic ic =
   if input_char ic <> 'C' then read_magic ic
 
 let read_format path =
-  In_channel.with_open_bin path (fun ic ->
+  File.with_open_in `Bin path (fun ic ->
     (try read_magic ic with End_of_file -> failwith "Flac.read_format");
     fst (read_format_from ic)
   )
@@ -104,4 +104,4 @@ let rec analyze_from ic =
   | _ -> seek_in ic (offset + 1); analyze_from ic
 
 let analyze path =
-  In_channel.with_open_bin path analyze_from
+  File.with_open_in `Bin path analyze_from
