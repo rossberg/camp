@@ -25,11 +25,10 @@ type t =
 
 let no_drag = (min_int, min_int)
 
-let (//) = Filename.concat
-let assets = Filename.dirname Sys.argv.(0) // "assets"
+let assets = File.(dir Sys.argv.(0) // "assets")
 
 let make win =
-  let icon = Image.load_raw (assets // "icon.png") in
+  let icon = Image.load_raw File.(assets // "icon.png") in
   Window.set_icon win icon;
   { win;
     palette = 0;
@@ -158,7 +157,7 @@ let font' ui h file min max fonts =
     f
 
 let font ui h =
-  font' ui h (assets // "tahoma.ttf") 0x0020 0x2800 ui.fonts
+  font' ui h File.(assets // "tahoma.ttf") 0x0020 0x2800 ui.fonts
 
 
 (* Images *)
@@ -167,7 +166,7 @@ let get_img ui rimg =
   match !rimg with
   | `Loaded img -> img
   | `Unloaded file ->
-    let img = Image.load ui.win (assets // file) in
+    let img = Image.load ui.win File.(assets // file) in
     rimg := `Loaded img;
     img
 

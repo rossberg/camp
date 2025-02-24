@@ -6,12 +6,12 @@ type path = string
 
 val path : string -> path
 
-val home : path
+val home_dir : path
 
 (* Temporary Files *)
 
 val copy_to_temp : path -> path
-val remove_temp : path -> unit
+val delete_temp : path -> unit
 val clear_temp : unit -> unit
 
 (* Logging *)

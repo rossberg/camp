@@ -121,7 +121,7 @@ let run_control (st : State.t) =
   if not silence then
   (
     let track = Option.get ctl.current in
-    let ext = Filename.extension track.path in
+    let ext = File.extension track.path in
     let format = if ext = "" || ext.[0] <> '.' then "???" else
       String.uppercase_ascii (String.sub ext 1 (String.length ext - 1)) in
     let bitrate = Api.Audio.bitrate ctl.audio ctl.sound in
@@ -406,10 +406,10 @@ let expand_paths paths =
   in
   let rec add_path path =
     try
-      if Sys.file_exists path && Sys.is_directory path then
+      if File.exists_dir path then
         Array.iter (fun file ->
-          add_path (Filename.concat path file)
-        ) (Sys.readdir path)
+          add_path File.(path // file)
+        ) (File.read_dir path)
       else if Data.is_playlist_path path then
         add_playlist path
       else if Data.is_track_path path then
@@ -884,7 +884,7 @@ let run_playlist (st : State.t) =
   );
 
   (* Playlist drag & drop *)
-  let dropped = Api.File.dropped win in
+  let dropped = Api.Files.dropped win in
   if dropped <> [] then
   (
     (* Files drop: insert paths at pointed position *)
@@ -949,7 +949,7 @@ let run_library (st : State.t) =
       " " ^ spin.(Api.Draw.frame win / 3 mod Array.length spin)
     and folded = if dir.children = [||] then None else Some dir.folded
     and c =
-      if dir.path = Filename.(concat (dirname current) "")
+      if dir.path = File.(dir current // "")
       || dir.folded && String.starts_with ~prefix: dir.path current
       then `White
       else Ui.text_color lay.ui
@@ -1037,7 +1037,7 @@ let run_library (st : State.t) =
   );
 
   (* Browser drag & drop *)
-  let dropped = Api.File.dropped win in
+  let dropped = Api.Files.dropped win in
   if dropped <> [] then
   (
     Option.iter (fun pos ->
@@ -1513,7 +1513,7 @@ let run_library (st : State.t) =
     );
 
     (* Playlist drag & drop *)
-    let dropped = Api.File.dropped win in
+    let dropped = Api.Files.dropped win in
     if dropped <> [] then
     (
       (* Files drop: insert paths at pointed position *)
@@ -1572,13 +1572,14 @@ let run_filesel (st : State.t) =
     let dir = dirs.entries.(i) in
     let folded = if dir.children = [||] then None else Some dir.folded in
     let name =
-      if Filename.dirname dir.path <> dir.path then
-        Filename.basename dir.path
-      else if dir.path = Filename.dir_sep then
+      if File.dir dir.path <> dir.path then
+        File.name dir.path
+      else if dir.path = File.sep then
         dir.path
       else  (* Special case for Windows drives: strip slash *)
-        String.(sub dir.path 0 (length dir.path - length Filename.dir_sep))
-    and c = if dir.path = Storage.home then `White else Ui.text_color lay.ui in
+        String.(sub dir.path 0 (length dir.path - length File.sep))
+    and c =
+      if dir.path = Storage.home_dir then `White else Ui.text_color lay.ui in
     dir.nest, folded, c, name
   in
 
@@ -1715,14 +1716,14 @@ let run_filesel (st : State.t) =
     if dir_avail then
     (
       (* Return or double-click on directory *)
-      let dir = fs.dirs.entries.(Filesel.selected_dir fs) in
+      let dir' = fs.dirs.entries.(Filesel.selected_dir fs) in
       if fs.dirs.focus then
         (* Folded directory in dirs view: unfold *)
-        Filesel.fold_dir fs dir (not dir.folded)
+        Filesel.fold_dir fs dir' (not dir'.folded)
       else
         (* Directory in files view: open *)
         let file = fs.files.entries.(Option.get (Filesel.selected_file fs)) in
-        Filesel.set_dir_path fs (Filename.concat dir.path file.name)
+        Filesel.set_dir_path fs File.(dir'.path // file.name)
     )
     else
     (

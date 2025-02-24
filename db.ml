@@ -395,7 +395,7 @@ let update_dirs_pos = stmt
 let to_artist i data : artist =
   {
     id = to_id_default i data;
-    name = to_text (i + 1) data;
+    name = to_default to_text "[unknown]" (i + 1) data;
     albums = to_int (i + 2) data;
     tracks = to_int (i + 3) data;
   }
@@ -518,14 +518,15 @@ let create_tracks = create_table
 let track_cols = 24
 
 let to_track i data : track =
+  let path = to_text_default (i + 1) data in
   {
     id = to_id_default i data;
-    path = to_text_default (i + 1) data;
+    path = path;
     file = to_file (i + 2) data;
     format = to_format (i + 2 + file_cols) data;
     meta = to_meta (i + 2 + file_cols + format_cols) data;
     album = None;
-    pos = -1;
+    pos = (match Track.(pos_artist_title (fields_of_path path)) with Some (i, _, _) -> i | None -> -1);
     status = to_status (to_int_default (i + 2 + file_cols + format_cols + meta_cols) data);
   }
 
@@ -754,7 +755,7 @@ let iter_tracks_for_path_as_albums_search db path artists searches = stmt @@
     " ^ artists_filter 2 artists ^ "
     WHERE path LIKE ?1
     " ^ search_filter (2 + Array.length artists) searches ^ "
-    GROUP BY albumartist, albumtitle, codec, label;
+    GROUP BY albumartist, albumtitle, path;
   " |>
   fun stmt ->
     let artist_binds = Array.map of_text artists in
@@ -829,14 +830,14 @@ let bind_playlist path pos stmt i (item : M3u.item) =
   Option.iter (fun (info : M3u.info) ->
     let* () = bind_text stmt (i + 3) info.title in
     let* () = bind_float stmt (i + 6) (float info.time) in
-    match Track.artist_title_of_name info.title with
+    match Track.(artist_title (fields_of_name info.title)) with
     | Some (artist, title) ->
       let* () = bind_text stmt (i + 4) artist in
       let* () = bind_text stmt (i + 5) title in
       ()
     | None ->
-      match Track.artist_title_of_path path with
-      | Some (artist, title) ->
+      match Track.(pos_artist_title (fields_of_path path)) with
+      | Some (_, artist, title) ->
         let* () = bind_text stmt (i + 4) artist in
         let* () = bind_text stmt (i + 5) title in
         ()

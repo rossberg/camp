@@ -156,7 +156,7 @@ let make_dir path parent nest pos : dir =
     id = -1L;
     path;
     parent;
-    name = if path = "" then path else Filename.basename path;
+    name = if path = "" then path else File.dir path;
     nest;
     pos;
     children = [||];
@@ -222,8 +222,8 @@ let make_separator () : track =
 
 (* Properties *)
 
-let parent_path path = Filename.(concat (dirname path) "")
-let is_dir_path path = String.ends_with path ~suffix: Filename.dir_sep 
+let parent_path path = File.(dir path // "")
+let is_dir_path path = String.ends_with path ~suffix: File.sep 
 let is_playlist_path path = M3u.is_known_ext path
 let is_track_path path = Format.is_known_ext path || M3u.is_separator path
 

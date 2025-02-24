@@ -551,9 +551,8 @@ struct
     match !silent with
     | Some sound -> sound
     | None ->
-      let (//) = Filename.concat in
-      let assets = Filename.dirname Sys.argv.(0) // "assets" in
-      let music = Raylib.load_music_stream (assets // "silence.mp3") in  (* TODO *)
+      let assets = File.(dir Sys.argv.(0) // "assets") in
+      let music = Raylib.load_music_stream File.(assets // "silence.mp3") in  (* TODO *)
       let sound = {music; format = Format.unknown; temp = None} in
       silent := Some sound;
       sound
@@ -561,7 +560,7 @@ struct
   let retain = ref []
 
   let load _ path =
-    if not (Sys.file_exists path) then silence () else
+    if not (File.exists path) then silence () else
     (* Raylib can't handle UTF-8 file paths, so copy those to temp file. *)
     let path' = if Unicode.is_ascii path then path else Storage.copy_to_temp path in
     let format = try Format.read path' with _ -> Format.unknown in
@@ -587,7 +586,7 @@ struct
   let free m sound =
     Mutex.protect m (fun () ->
       Raylib.stop_music_stream sound.music;
-      Option.iter Storage.remove_temp sound.temp;
+      Option.iter Storage.delete_temp sound.temp;
       Raylib.unload_music_stream sound.music
     )
 
@@ -616,7 +615,7 @@ end
 
 (* Files *)
 
-module File =
+module Files =
 struct
   let paths = ref []
 

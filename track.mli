@@ -11,8 +11,11 @@ val name_of_path : path -> string
 val name_of_meta : path -> Meta.t -> string
 val name : track -> string
 
-val artist_title_of_name : string -> (string * string) option
-val artist_title_of_path : path -> (string * string) option
+val fields_of_name : string -> string list
+val fields_of_path : path -> string list
+
+val pos_artist_title : string list -> (int * string * string) option
+val artist_title : string list -> (string * string) option
 
 val time : track -> time
 

@@ -228,7 +228,7 @@ end
 
 (* Files *)
 
-module File :
+module Files :
 sig
   val dropped : window -> path list
 end

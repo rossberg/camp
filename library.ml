@@ -191,15 +191,15 @@ let meta_attr_string (meta : Meta.t) = function
 let artist_attr_string' attr path meta =
   let s = nonempty meta_attr_string meta attr in
   if s <> "" then s else
-  match Track.artist_title_of_path path with
-  | Some (artist, _) -> artist
+  match Track.(pos_artist_title (fields_of_path path)) with
+  | Some (_, artist, _) -> artist
   | None -> "[unknown]"
 
 let title_attr_string' attr path meta =
   let s = nonempty meta_attr_string meta attr in
   if s <> "" then s else
-  match Track.artist_title_of_path path with
-  | Some (_, title) -> title
+  match Track.(pos_artist_title (fields_of_path path)) with
+  | Some (_, _, title) -> title
   | None -> "[unknown]"
 
 let length_attr_string' format meta =
@@ -236,11 +236,11 @@ type scan_mode = [`Fast | `Thorough]
 let rescan_track lib mode track =
   let old = {track with id = track.id} in
   try
-    if not (Sys.file_exists track.path) then
+    if not (File.exists track.path) then
     (
       track.status <- `Absent;
     )
-    else if Sys.is_directory track.path then
+    else if File.is_dir track.path then
     (
       track.status <- `Invalid;
     )
@@ -279,7 +279,7 @@ let rescan_dir_tracks lib mode (dir : Data.dir) =
   try
     Array.iter (fun file ->
       let path = dir.path ^ file in
-      if not (Sys.is_directory path) && Data.is_track_path path then
+      if not (File.is_dir path) && Data.is_track_path path then
       (
         let track =
           match Db.find_track lib.db path with
@@ -290,7 +290,7 @@ let rescan_dir_tracks lib mode (dir : Data.dir) =
         if Db.mem_dir lib.db dir.path then
           rescan_track lib mode track
       )
-    ) (Sys.readdir dir.path)
+    ) (File.read_dir dir.path)
   with exn ->
     Storage.log_exn "file" exn ("scanning tracks in directory " ^ dir.path)
 
@@ -298,7 +298,7 @@ let rescan_playlist lib _mode path =
   try
     let s = In_channel.(with_open_bin path input_all) in
     let items = M3u.parse_ext s in
-    let items' = List.map (M3u.resolve (Filename.dirname path)) items in
+    let items' = List.map (M3u.resolve (File.dir path)) items in
     Db.delete_playlists lib.db path;
     Db.insert_playlists_bulk lib.db path items';
   with exn ->
@@ -310,7 +310,7 @@ let queue_rescan_dir_tracks = ref (fun _ -> assert false)
 let rescan_dir lib mode (origin : Data.dir) =
   (* TODO: bulk insert for performance *)
   let rec scan_path path nest =
-    if Sys.is_directory path then
+    if File.is_dir path then
       if Data.is_track_path path then
         scan_album path nest
       else
@@ -328,23 +328,23 @@ let rescan_dir lib mode (origin : Data.dir) =
     let dirs = Option.value ~default: [] in
     match
       Array.fold_left (fun r file ->
-        match r, scan_path (Filename.concat path file) nest with
+        match r, scan_path File.(path // file) nest with
         | None, None -> None
         | dirs1, dirs2 -> Some (dirs dirs1 @ dirs dirs2)
-      ) None (Sys.readdir path)
+      ) None (File.read_dir path)
     with
     | None -> None
     | Some dirs ->
       let dir =
         if nest = origin.nest then origin else
-        let dirpath = Filename.concat path "" in
+        let dirpath = File.(path // "") in
         match Db.find_dir lib.db dirpath with
         | Some dir -> dir
         | None ->
           let parent = Some (Data.parent_path path) in
           let dir = Data.make_dir dirpath parent nest 0 in  (* TODO: pos *)
           if Data.is_track_path path then
-            dir.name <- Filename.remove_extension dir.name;
+            dir.name <- File.remove_extension dir.name;
           dir.folded <- true;
           (* Root may have been deleted in the mean time... *)
           if Db.mem_dir lib.db origin.path then
@@ -369,7 +369,7 @@ let rescan_dir lib mode (origin : Data.dir) =
       | None ->
         let parent = Some (Data.parent_path path) in
         let dir = Data.make_dir path parent (nest + 1) 0 in  (* TODO: pos *)
-        dir.name <- Filename.remove_extension dir.name;
+        dir.name <- File.remove_extension dir.name;
         dir.folded <- true;
         (* Root may have been deleted in the mean time... *)
         if Db.mem_dir lib.db origin.path then
@@ -542,13 +542,13 @@ let load_dirs lib =
 
 
 let make_root lib path pos =
-  if not (Sys.file_exists path) then
+  if not (File.exists path) then
     failwith (path ^ " does not exist")
-  else if not (Sys.is_directory path) then
+  else if not (File.is_dir path) then
     failwith (path ^ " is not a directory")
   else
   (
-    let dirpath = Filename.concat path "" in
+    let dirpath = File.(path // "") in
     match
       Array.find_opt (fun (dir : dir) ->
         path = dir.path ||
@@ -594,7 +594,7 @@ let add_dirs lib paths pos =
 
 
 let remove_dir lib path =
-  let dirpath = Filename.concat path "" in
+  let dirpath = File.(path // "") in
   let roots = lib.root.children in
   match Array.find_index (fun (r : Data.dir) -> r.path = dirpath) roots with
   | None -> ()
@@ -700,7 +700,7 @@ let refresh_tracks lib =
       if dir.path = "" then
         Db.iter_tracks_for_path lib.db "%" artists albums dir.search f
       else if Data.is_dir dir then
-        let path = Filename.concat dir.path "%" in
+        let path = File.(//) dir.path "%" in
         Db.iter_tracks_for_path lib.db path artists albums dir.search f
       else if Data.is_playlist dir then
         Db.iter_playlist_tracks_for_path lib.db dir.path artists albums dir.search f
@@ -717,7 +717,7 @@ let refresh_albums lib =
       if dir.path = "" then
         Db.iter_tracks_for_path_as_albums lib.db "%" artists dir.search f
       else if Data.is_dir dir then
-        let path = Filename.concat dir.path "%" in
+        let path = File.(//) dir.path "%" in
         Db.iter_tracks_for_path_as_albums lib.db path artists dir.search f
       else if Data.is_playlist dir then
         Db.iter_playlist_tracks_for_path_as_albums lib.db dir.path artists dir.search f
@@ -730,7 +730,7 @@ let refresh_artists lib =
       if dir.path = "" then
         Db.iter_tracks_for_path_as_artists lib.db "%" dir.search f
       else if Data.is_dir dir then
-        let path = Filename.concat dir.path "%" in
+        let path = File.(//) dir.path "%" in
         Db.iter_tracks_for_path_as_artists lib.db path dir.search f
       else if Data.is_playlist dir then
         Db.iter_playlist_tracks_for_path_as_artists lib.db dir.path dir.search f

@@ -9,8 +9,8 @@ open Data
 let name_separator = String.make 80 '-'
 
 let name_of_path path =
-  let file = Filename.basename path in
-  if Format.is_known_ext file then Filename.remove_extension file else file
+  let file = File.name path in
+  if Format.is_known_ext file then File.remove_extension file else file
 
 let name_of_artist_title artist title =
   let artist = if artist = "" then "[unknown]" else artist in
@@ -32,28 +32,45 @@ let name track =
   | None -> name_of_path track.path
 
 
-let artist_title_of_name name =
-  let rec find i =
-    match String.index_from_opt name i '-' with
-    | None -> None
-    | Some i ->
-      if i >= String.length name - 1 then None else
-      if name.[i - 1] <> ' ' || name.[i + 1] <> ' ' then find (i + 2) else
-      Some String.(sub name 0 (i - 1), sub name (i + 2) (length name - i - 2))
-  in find 1
+let fields_of_name name =
+  let len = String.length name in
+  let rec find i j =
+    if i >= len then [] else
+    if j >= len then [String.sub name i (len - i)] else
+    match String.index_from_opt name j '-' with
+    | Some j when j < len - 1 ->
+      if name.[j - 1] <> ' ' || name.[j + 1] <> ' ' then
+        find i (j + 2)
+      else
+        String.sub name i (j - i - 1) :: find (j + 2) (j + 4)
+    | _ -> [String.sub name i (len - i)]
+  in find 0 2
 
-let is_digit_or_dot c = c = '.' || c >= '0' && c <= '9'
+let fields_of_path path =
+  if M3u.is_separator path then
+    [name_separator; name_separator]
+  else
+    fields_of_name File.(remove_extension (name path))
 
-let artist_title_of_path path =
-  if M3u.is_separator path then Some (name_separator, name_separator) else
-  let name = Filename.(remove_extension (basename path)) in
-  match artist_title_of_name name with
-  | None -> None
-  | Some (pre, rest) as result when String.for_all is_digit_or_dot pre ->
-    (* In case there is a position as well *)
-    let result' = artist_title_of_name rest in
-    if result' = None then result else result'
-  | result -> result
+let int_of_pos s =
+  match String.index_opt s '.' with
+  | None -> int_of_string_opt s
+  | Some i -> int_of_string_opt (String.sub s (i + 1) (String.length s - i - 1))
+
+let artist_title = function
+  | artist :: title :: rest -> Some (artist, String.concat " - " (title::rest))
+  | title :: [] -> Some ("[unknown]", title)
+  | [] -> None
+
+let pos_artist_title = function
+  | [] -> None
+  | ([_] | [_; _]) as fields ->
+    Option.map (fun (artist, title) -> -1, artist, title) (artist_title fields)
+  | pos :: rest ->
+    match int_of_pos pos, artist_title rest with
+    | Some pos, Some (artist, title) -> Some (pos - 1, artist, title)
+    | _, _ ->
+      Option.map (fun (artist, title) -> -1, artist, title) (artist_title rest)
 
 
 let time track =
@@ -90,7 +107,7 @@ let of_m3u_item (item : M3u.item) =
         Option.iter (fun (artist, title) ->
           let meta = Meta.meta track.path None in
           track.meta <- Some {meta with artist; title; length = float info.time}
-        ) (artist_title_of_name info.title)
+        ) (artist_title (fields_of_name info.title))
       ) item.info;
     track
   )
@@ -119,7 +136,7 @@ let rec updater () =
   let track = Safe_queue.take queue in
   if M3u.is_separator track.path then
     track.status <- `Det
-  else if not (Sys.file_exists track.path) then
+  else if not (File.exists track.path) then
     track.status <- `Absent
   else if not (Format.is_known_ext track.path) then
     track.status <- `Invalid

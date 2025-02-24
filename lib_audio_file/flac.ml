@@ -78,9 +78,15 @@ let rec read_format_from ic =
   else
     (seek_in ic (pos + length); read_format_from ic)
 
+let rec read_magic ic =
+  if input_char ic <> 'f' then read_magic ic else
+  if input_char ic <> 'L' then read_magic ic else
+  if input_char ic <> 'a' then read_magic ic else
+  if input_char ic <> 'C' then read_magic ic
+
 let read_format path =
   In_channel.with_open_bin path (fun ic ->
-    if really_input_string ic 4 <> "fLaC" then failwith "Flac.read_format";
+    (try read_magic ic with End_of_file -> failwith "Flac.read_format");
     fst (read_format_from ic)
   )
 

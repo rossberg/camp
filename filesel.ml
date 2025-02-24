@@ -97,29 +97,27 @@ let make_dir path nest =
   }
 
 let roots () =
-  if not Sys.win32 then [make_dir Filename.dir_sep 0] else
+  if not Sys.win32 then [make_dir File.sep 0] else
   let rec detect c =
     if c > 'Z' then [] else
     let drive = String.make 1 c ^ ":\\" in
     let roots' = detect (Char.chr (Char.code c + 1)) in
-    if Sys.file_exists drive then
+    if File.exists drive then
       (make_dir drive 0)::roots'
     else
       roots'
   in detect 'A'
 
 let dir_of_file path nest file =
-  make_dir (Filename.concat path file.name) nest
-
-let proper name = name <> "" && name.[0] <> '.' && name.[0] <> '$'
+  make_dir File.(path // file.name) nest
 
 let populate_dir (dir : dir) =
   if dir.files = [||] && dir.children = [||] then
   try
-    let names = Sys.readdir dir.path in
+    let names = File.read_dir dir.path in
     Array.sort Data.compare_utf_8 names;
-    let names = List.filter proper (Array.to_list names) in
-    let paths = List.map (Filename.concat dir.path) names in
+    let names = List.filter File.is_proper (Array.to_list names) in
+    let paths = List.map (File.(//) dir.path) names in
     let files_opt = List.map2 make_file paths names in
     let files = List.filter_map Fun.id files_opt in
     let dirs, files' = List.partition (fun file -> file.is_dir) files in
@@ -129,7 +127,7 @@ let populate_dir (dir : dir) =
   with Sys_error _ -> ()
 
 let rec populate_path' root path : dir =
-  let dirpath = Filename.dirname path in
+  let dirpath = File.dir path in
   let parent =
     if dirpath = path then root else
     populate_path' root dirpath
@@ -151,7 +149,7 @@ let make () =
   let fs =
     {
       op = None;
-      path = Storage.home;
+      path = Storage.home_dir;
       roots;
       dirs = Table.make 0;
       files = Table.make 0;
@@ -238,7 +236,7 @@ let fold_dir fs dir status =
   (
     dir.folded <- status;
     if status
-    && String.starts_with fs.path ~prefix: (Filename.concat dir.path "") then
+    && String.starts_with fs.path ~prefix: (File.(//) dir.path "") then
       set_dir_path fs dir.path
     else
       refresh_dirs fs;
@@ -249,12 +247,12 @@ let fold_dir fs dir status =
 
 let current_file_path fs =
   if fs.input.text = "" then None else
-  Some (Filename.concat fs.path fs.input.text)
+  Some File.(fs.path // fs.input.text)
 
 let current_file_exists fs =
   match current_file_path fs with
   | None -> false
-  | Some path -> Sys.file_exists path && not (Sys.is_directory path)
+  | Some path -> File.exists path && not (File.is_dir path)
 
 let current_sel_is_dir fs =
   match selected_file fs with

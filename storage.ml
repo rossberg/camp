@@ -6,30 +6,30 @@ type path = string
 
 module Dirs = Directories.Base_dirs ()
 
-let home =
+let home_dir =
   match Dirs.home_dir with
   | Some path -> Fpath.to_string path
-  | None -> Sys.getcwd ()
+  | None -> File.current_dir ()
 
-let dir =
+let data_dir =
   match Dirs.data_local_dir with
-  | Some path -> Filename.concat (Fpath.to_string path) App.name
-  | None -> Filename.concat home ("." ^ App.name)
+  | Some path -> File.(Fpath.to_string path // App.name)
+  | None -> File.(home_dir // ("." ^ App.name))
 
 let path filename =
-  Filename.concat dir filename
+  File.(data_dir // filename)
 
 
 (* Temporary Files *)
 
 let buf_size = 0x400_000
 let buf = Bytes.create buf_size
-let temp_dir = Filename.concat dir "temp"
+let temp_dir = File.(data_dir // "temp")
 
 let copy_to_temp path =
-  if not (Sys.file_exists temp_dir) then Sys.mkdir temp_dir 0o770;
-  let ext = Filename.extension path in
-  let path' = Filename.temp_file ~temp_dir "temp" ext in
+  if not (File.exists temp_dir) then File.create_dir temp_dir;
+  let ext = File.extension path in
+  let path' = File.temp (Some temp_dir) "temp" ext in
   In_channel.with_open_bin path (fun ic ->
     Out_channel.with_open_bin path' (fun oc ->
       let rec loop () =
@@ -40,15 +40,15 @@ let copy_to_temp path =
   );
   path'
 
-let remove_temp path =
-  try Sys.remove path with Sys_error _ -> ()
+let delete_temp path =
+  try File.delete path with Sys_error _ -> ()
 
 let clear_temp () =
-  if Sys.file_exists temp_dir && Sys.is_directory temp_dir then
+  if File.exists_dir temp_dir then
   (
     Array.iter (fun file ->
-      try Sys.remove (Filename.concat temp_dir file) with Sys_error _ -> ()
-    ) (Sys.readdir temp_dir)
+      try File.delete File.(temp_dir // file) with Sys_error _ -> ()
+    ) (File.read_dir temp_dir)
   )
 
 
@@ -91,14 +91,14 @@ let load filename f =
 
 let save filename f =
   try
-    if not (Sys.file_exists dir) then Sys.mkdir dir 0o770;
+    if not (File.exists data_dir) then File.create_dir data_dir;
     Out_channel.with_open_bin (path filename) f
   with Sys_error _ as exn ->
     log_io_error "saving" filename exn
 
 let append filename f =
   try
-    if not (Sys.file_exists dir) then Sys.mkdir dir 0o770;
+    if not (File.exists data_dir) then File.create_dir data_dir;
     Out_channel.(with_open_gen [Open_binary; Open_creat; Open_append; Open_nonblock])
       0o660 (path filename) f
   with Sys_error _ as exn ->
