@@ -510,7 +510,7 @@ let drop_on_browser (st : State.t) tracks =
         (
           Library.deselect_dir lib;  (* force reload *)
           Library.select_dir lib i;
-          Library.refresh_views lib;
+          Library.refresh_artists lib;
         );
       )
     ) (Layout.browser_mouse lay browser)
@@ -904,11 +904,21 @@ let run_playlist (st : State.t) =
 
 (* Library Panes *)
 
-let spin = [|"|"; "/"; "-"; "\\"|]
+let spins = [|"|"; "/"; "-"; "\\"|]
+let spin win = spins.(Api.Draw.frame win / 3 mod Array.length spins)
 
 let convert_sorting columns sorting =
   let index attr = Array.find_index (fun (a, _) -> a = attr) columns in
   List.map (fun (attr, order) -> Option.get (index attr), order) sorting
+
+let busy_artists = Table.make 0
+let busy_albums = Table.make 0
+let busy_tracks = Table.make 0
+
+let _ =
+  busy_artists.entries <- [|Data.make_artist ""|];
+  busy_albums.entries <- [|Data.make_album ""|];
+  busy_tracks.entries <- [|Data.make_track ""|]
 
 
 let run_library (st : State.t) =
@@ -944,8 +954,7 @@ let run_library (st : State.t) =
         path = dir.path ||
         dir.folded && String.starts_with ~prefix: dir.path path
     in
-    let spin = if not spinning then "" else
-      " " ^ spin.(Api.Draw.frame win / 3 mod Array.length spin)
+    let spin = if not spinning then "" else " " ^ spin win
     and folded = if dir.children = [||] then None else Some dir.folded
     and c =
       if dir.path = File.(dir current_path // "")
@@ -969,7 +978,7 @@ let run_library (st : State.t) =
       | Some i -> Library.select_dir lib i  (* do bureaucracy *)
       );
       Library.deselect_all lib;
-      Library.refresh_views lib;
+      Library.refresh_artists lib;
     );
 
   | `Fold i ->
@@ -986,14 +995,20 @@ let run_library (st : State.t) =
     (
       Library.select_dir lib i;  (* do bureaucracy *)
       Library.deselect_all lib;
-      Library.refresh_views lib;
+      Library.refresh_artists lib;
     );
     if Api.Mouse.is_doubleclick `Left then
     (
       (* Double-click on directory name: send track view to playlist *)
-      Table.deselect_all lib.artists;  (* deactivate possible inner filters *)
-      Table.deselect_all lib.albums;
-      Library.refresh_albums lib;
+      let n_artists = Table.num_selected lib.artists in
+      let n_albums = Table.num_selected lib.albums in
+      if n_artists <> 0 && n_artists <> Table.length lib.artists
+      || n_albums <> 0 && n_albums <> Table.length lib.albums then
+      (
+        Table.deselect_all lib.artists;   (* deactivate inner filters *)
+        Table.deselect_all lib.albums;
+        Library.refresh_albums_sync lib;  (* could be slow... *)
+      );
       let tracks = lib.tracks.entries in
       if tracks <> [||] then
       (
@@ -1008,7 +1023,7 @@ let run_library (st : State.t) =
     (* Click into empty space: deselect everything *)
     Library.deselect_dir lib;
     Library.deselect_all lib;
-    Library.refresh_views lib;
+    Library.refresh_artists lib;
     State.focus_library browser st;
 
   | `Drag _ ->
@@ -1044,8 +1059,9 @@ let run_library (st : State.t) =
         if i = pos then j else
         find_root_pos (i + 1) (if browser.entries.(i).nest = 0 then j + 1 else j)
       in
+      (* TODO: asynchronous *)
       if Library.add_dirs lib dropped (find_root_pos 0 0) then
-        Library.refresh_views lib
+        Library.refresh_artists lib
       else
         Layout.browser_error_box lay;  (* flash *)
     ) (Layout.browser_mouse lay browser)
@@ -1056,8 +1072,9 @@ let run_library (st : State.t) =
   (
     match Library.selected_dir lib with
     | Some i when browser.entries.(i).parent = Some "" ->
+      (* TODO: asynchronous? *)
       Library.remove_dirs lib [browser.entries.(i).path];
-      Library.refresh_views lib
+      Library.refresh_artists lib
     | _ ->
       Library.error lib "Cannot remove non-root directories";
       Layout.browser_error_box lay;  (* flash *)
@@ -1190,7 +1207,8 @@ let run_library (st : State.t) =
     let artists_pane, artists_area, artists_table = Layout.left_view in
     artists_pane lay;
 
-    let tab = lib.artists in
+    let busy = Library.refresh_artists_busy lib in
+    let tab = if busy then busy_artists else lib.artists in
     let cols =
       Array.map (fun (attr, cw) -> cw, Library.attr_align attr) dir.artists_columns
     and headings =
@@ -1198,10 +1216,14 @@ let run_library (st : State.t) =
     in
 
     let pp_row i =
-      let artist = tab.entries.(i) in
-      Ui.text_color lay.ui,
-      Array.map (fun (attr, _) -> Library.artist_attr_string artist attr)
-        dir.artists_columns
+      let fields =
+        if busy then
+          Array.mapi (fun j _ -> if j = 0 then spin win else "") dir.artists_columns
+        else
+          let artist = tab.entries.(i) in
+          Array.map (fun (attr, _) -> Library.artist_attr_string artist attr)
+            dir.artists_columns
+      in Ui.text_color lay.ui, fields
     in
 
     let sorting = convert_sorting dir.artists_columns dir.artists_sorting in
@@ -1232,8 +1254,12 @@ let run_library (st : State.t) =
 
     | `Click (Some _i) when Api.Mouse.is_doubleclick `Left ->
       (* Double-click on track: clear playlist and send tracks to it *)
-      Table.deselect_all lib.albums;  (* deactivate possible inner filter *)
-      Library.refresh_tracks lib;
+      let n_albums = Table.num_selected lib.albums in
+      if n_albums <> 0 && n_albums <> Table.length lib.albums then
+      (
+        Table.deselect_all lib.albums;    (* deactivate inner filter *)
+        Library.refresh_tracks_sync lib;  (* could be slow... *)
+      );
       let tracks = lib.tracks.entries in
       if tracks <> [||] then
       (
@@ -1277,7 +1303,8 @@ let run_library (st : State.t) =
       Layout.(if lay.right_shown then right_view else left_view) in
     albums_pane lay;
 
-    let tab = lib.albums in
+    let busy = Library.refresh_albums_busy lib in
+    let tab = if busy then busy_albums else lib.albums in
     let cols =
       Array.map (fun (attr, cw) -> cw, Library.attr_align attr) dir.albums_columns
     and headings =
@@ -1285,10 +1312,14 @@ let run_library (st : State.t) =
     in
 
     let pp_row i =
-      let album = tab.entries.(i) in
-      Ui.text_color lay.ui,
-      Array.map (fun (attr, _) -> Library.album_attr_string album attr)
-        dir.albums_columns
+      let fields =
+        if busy then
+          Array.mapi (fun j _ -> if j = 0 then spin win else "") dir.albums_columns
+        else
+          let album = tab.entries.(i) in
+          Array.map (fun (attr, _) -> Library.album_attr_string album attr)
+            dir.albums_columns
+      in Ui.text_color lay.ui, fields
     in
 
     let sorting = convert_sorting dir.albums_columns dir.albums_sorting in
@@ -1372,7 +1403,8 @@ let run_library (st : State.t) =
       Layout.(if lay.lower_shown then lower_view else left_view) in
     tracks_pane lay;
 
-    let tab = lib.tracks in
+    let busy = Library.refresh_tracks_busy lib in
+    let tab = if busy then busy_tracks else lib.tracks in
     let cols =
       Array.map (fun (attr, cw) -> cw, Library.attr_align attr) dir.tracks_columns
     and headings =
@@ -1380,25 +1412,29 @@ let run_library (st : State.t) =
     in
 
     let pp_row i =
-      let track = tab.entries.(i) in
-      let c =
-        if (track.status = `Undet || track.status = `Predet)
-        && Library.rescan_busy lib = None then
-          Track.update track;
-        match track.status with
-        | _ when track.path = current_path -> `White
-        | `Absent -> Ui.error_color lay.ui
-        | `Invalid -> Ui.warn_color lay.ui
-        | `Undet -> Ui.semilit_color (Ui.text_color lay.ui)
-        | `Predet | `Det ->
-          if Data.is_separator track || Library.has_track lib track then
-            Ui.text_color lay.ui
-          else
-            Ui.warn_color lay.ui
-      in
-      c,
-      Array.map (fun (attr, _) -> Library.track_attr_string track attr)
-        dir.tracks_columns
+      if busy then
+        Ui.text_color lay.ui,
+        Array.mapi (fun j _ -> if j = 0 then spin win else "") dir.tracks_columns
+      else
+        let track = tab.entries.(i) in
+        let c =
+          if (track.status = `Undet || track.status = `Predet)
+          && Library.rescan_busy lib = None then
+            Track.update track;
+          match track.status with
+          | _ when track.path = current_path -> `White
+          | `Absent -> Ui.error_color lay.ui
+          | `Invalid -> Ui.warn_color lay.ui
+          | `Undet -> Ui.semilit_color (Ui.text_color lay.ui)
+          | `Predet | `Det ->
+            if Data.is_separator track || Library.has_track lib track then
+              Ui.text_color lay.ui
+            else
+              Ui.warn_color lay.ui
+        in
+        c,
+        Array.map (fun (attr, _) -> Library.track_attr_string track attr)
+          dir.tracks_columns
     in
 
     let sorting = convert_sorting dir.tracks_columns dir.tracks_sorting in
@@ -1865,13 +1901,20 @@ let rec refill_audio (ctl : Control.t) () =
 
 let startup () =
   Storage.clear_temp ();
+Printf.printf "Database init...\n%!";
   let db = Db.init () in
+Printf.printf "Window init...\n%!";
   let win = Api.Window.init 0 0 Layout.control_min_w Layout.control_min_h App.name in
+Printf.printf "Interface init...\n%!";
   let ui = Ui.make win in
+Printf.printf "Audio init...\n%!";
   let audio = Api.Audio.init () in
+Printf.printf "State init...\n%!";
   let rst = ref (State.make ui audio db) in
+Printf.printf "State load...\n%!";
   let st = if State.load !rst then !rst else State.make ui audio db in
   ignore (Domain.spawn (refill_audio st.control));
+Printf.printf "Run...\n%!";
   at_exit (fun () ->
     State.save st;
     Api.Audio.free audio st.control.sound;

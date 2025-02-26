@@ -94,10 +94,16 @@ val artist_attr_string : artist -> artist_attr -> string
 val album_attr_string : album -> album_attr -> string
 val track_attr_string : track -> track_attr -> string
 
+val refresh_artists_sync : t -> unit
+val refresh_albums_sync : t -> unit
+val refresh_tracks_sync : t -> unit
 val refresh_artists : t -> unit
 val refresh_albums : t -> unit
 val refresh_tracks : t -> unit
-val refresh_views : t -> unit
+
+val refresh_artists_busy : t -> bool
+val refresh_albums_busy : t -> bool
+val refresh_tracks_busy : t -> bool
 
 val reorder_artists : t -> unit
 val reorder_albums : t -> unit

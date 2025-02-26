@@ -6,6 +6,7 @@ type 'a undo
 
 type 'a t =
 {
+  mutable mutex : Mutex.t;
   mutable entries : 'a array;
   mutable pos : int option;                (* current position in table *)
   mutable focus : bool;

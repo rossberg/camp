@@ -14,6 +14,7 @@ type 'a undo =
 
 type 'a t =
 {
+  mutable mutex : Mutex.t;
   mutable entries : 'a array;
   mutable pos : int option;                (* current position in table *)
   mutable focus : bool;
@@ -31,6 +32,7 @@ type 'a t =
 
 let make undo_depth =
   {
+    mutex = Mutex.create ();
     entries = [||];
     pos = None;
     focus = false;

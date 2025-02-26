@@ -14,6 +14,12 @@ type scan =
   dir_busy : string option Atomic.t;
   file_busy : string option Atomic.t;
   completed : path option list Atomic.t;
+  artists_refresh : (unit -> unit) option Atomic.t;
+  albums_refresh : (unit -> unit) option Atomic.t;
+  tracks_refresh : (unit -> unit) option Atomic.t;
+  artists_busy : bool Atomic.t;
+  albums_busy : bool Atomic.t;
+  tracks_busy : bool Atomic.t;
 }
 
 type t =
@@ -58,6 +64,34 @@ let rec complete scan path =
   if not (Atomic.compare_and_set scan.completed paths (path::paths)) then
     complete scan path
 
+let rec refresher scan () =
+  (match Atomic.exchange scan.artists_refresh None with
+  | Some f ->
+    Atomic.set scan.artists_busy true;
+    Atomic.set scan.albums_busy true;
+    Atomic.set scan.tracks_busy true;
+    f ();
+    Atomic.set scan.artists_busy false;
+    Atomic.set scan.albums_busy false;
+    Atomic.set scan.tracks_busy false;
+  | None ->
+    match Atomic.exchange scan.albums_refresh None with
+    | Some f ->
+      Atomic.set scan.albums_busy true;
+      Atomic.set scan.tracks_busy true;
+      f ();
+      Atomic.set scan.albums_busy false;
+      Atomic.set scan.tracks_busy false;
+    | None ->
+      match Atomic.exchange scan.tracks_refresh None with
+      | Some f ->
+        Atomic.set scan.tracks_busy true;
+        f ();
+        Atomic.set scan.tracks_busy false;
+      | None -> ()
+  );
+  refresher scan ()
+
 let rec scanner scan queue busy () =
   let local, path, f = Safe_queue.take queue in
   Atomic.set busy (Some path);
@@ -74,10 +108,17 @@ let make_scan () =
       dir_busy = Atomic.make None;
       file_busy = Atomic.make None;
       completed = Atomic.make [];
+      artists_refresh = Atomic.make None;
+      albums_refresh = Atomic.make None;
+      tracks_refresh = Atomic.make None;
+      artists_busy = Atomic.make false;
+      albums_busy = Atomic.make false;
+      tracks_busy = Atomic.make false;
     }
   in
   ignore (Domain.spawn (scanner scan scan.dir_queue scan.dir_busy));
   ignore (Domain.spawn (scanner scan scan.file_queue scan.file_busy));
+  ignore (Domain.spawn (refresher scan));
   scan
 
 let make db =
@@ -681,19 +722,21 @@ let sort_entries entries sorting attr_string =
   Array.stable_sort cmp enriched;
   Array.map snd enriched
 
-let refresh lib tab sorting attr_string key iter_db =
-  let selection = Table.save_selection tab in
-  let entries' = ref [||] in
-  Option.iter (fun (dir : dir) ->
-    let entries = ref [] in
-    iter_db dir (fun e -> entries := e :: !entries);
-    entries' := sort_entries (Array.of_list !entries) (sorting dir) attr_string;
-  ) lib.current;
-  tab.entries <- !entries';
-  Table.adjust_pos tab;
-  Table.restore_selection tab selection key
+let refresh lib (tab : _ Table.t) sorting attr_string key iter_db =
+  Mutex.protect tab.mutex (fun () ->
+    let selection = Table.save_selection tab in
+    let entries' = ref [||] in
+    Option.iter (fun (dir : dir) ->
+      let entries = ref [] in
+      iter_db dir (fun e -> entries := e :: !entries);
+      entries' := sort_entries (Array.of_list !entries) (sorting dir) attr_string;
+    ) lib.current;
+    tab.entries <- !entries';
+    Table.adjust_pos tab;
+    Table.restore_selection tab selection key
+  )
 
-let refresh_tracks lib =
+let refresh_tracks_sync lib =
   refresh lib lib.tracks tracks_sorting track_attr_string (track_key lib)
     (fun dir f ->
       let artists =
@@ -712,8 +755,8 @@ let refresh_tracks lib =
         Db.iter_playlist_tracks_for_path lib.db dir.path artists albums dir.search f
     )
 
-let refresh_albums lib =
-  refresh_tracks lib;
+let refresh_albums_sync lib =
+  refresh_tracks_sync lib;
   refresh lib lib.albums albums_sorting album_attr_string album_key
     (fun dir f ->
       let artists =
@@ -729,8 +772,8 @@ let refresh_albums lib =
         Db.iter_playlist_tracks_for_path_as_albums lib.db dir.path artists dir.search f
     )
 
-let refresh_artists lib =
-  refresh_albums lib;
+let refresh_artists_sync lib =
+  refresh_albums_sync lib;
   refresh lib lib.artists artists_sorting artist_attr_string artist_key
     (fun dir f ->
       if dir.path = "" then
@@ -742,7 +785,21 @@ let refresh_artists lib =
         Db.iter_playlist_tracks_for_path_as_artists lib.db dir.path dir.search f
     )
 
-let refresh_views lib = refresh_artists lib
+let refresh_tracks lib =
+  Atomic.set lib.scan.tracks_refresh (Some (fun () -> refresh_tracks_sync lib))
+
+let refresh_albums lib =
+  Atomic.set lib.scan.tracks_refresh None;
+  Atomic.set lib.scan.albums_refresh (Some (fun () -> refresh_albums_sync lib))
+
+let refresh_artists lib =
+  Atomic.set lib.scan.tracks_refresh None;
+  Atomic.set lib.scan.albums_refresh None;
+  Atomic.set lib.scan.artists_refresh (Some (fun () -> refresh_artists_sync lib))
+
+let refresh_artists_busy lib = Atomic.get lib.scan.artists_busy
+let refresh_albums_busy lib = Atomic.get lib.scan.albums_busy
+let refresh_tracks_busy lib = Atomic.get lib.scan.tracks_busy
 
 
 let rescan_affects_views lib path_opts =
@@ -763,10 +820,10 @@ let refresh_after_rescan lib =
   if List.mem None updated then
   (
     refresh_browser lib;
-    refresh_views lib;
+    refresh_artists lib;
   )
   else if rescan_affects_views lib updated then
-    refresh_views lib
+    refresh_artists lib
 
 
 let reorder lib tab sorting attr_string key =
@@ -790,7 +847,7 @@ let set_search lib search =
   Option.iter (fun (dir : dir) ->
     dir.search <- search;
     update_dir lib dir;
-    refresh_views lib;
+    refresh_artists lib;
   ) lib.current
 
 
@@ -838,7 +895,7 @@ let normalize_playlist lib =
   (
     Table.deselect_all lib.artists;
     Table.deselect_all lib.albums;
-    refresh_views lib;
+    refresh_artists_sync lib;
   );
   let dir = Option.get lib.current in
   match dir.tracks_sorting with
@@ -900,7 +957,7 @@ let insert lib pos tracks =
     select lib pos'' (pos'' + len' - 1);
     restore_playlist lib order;
     save_playlist lib;
-    refresh_views lib;
+    refresh_artists_sync lib;
   )
 
 let remove_all lib =
@@ -1025,4 +1082,4 @@ let of_map lib m =
       if current_is_playlist lib then rescan_playlist lib `Fast dir.path;
     ) (Array.find_index (fun (dir : dir) -> dir.path = s) lib.browser.entries)
   );
-  refresh_views lib
+  refresh_artists lib
