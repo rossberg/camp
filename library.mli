@@ -82,8 +82,6 @@ val current_is_shown_playlist : t -> bool
 
 val has_track : t -> track -> bool
 
-val set_search : t -> search -> unit
-
 
 (* Views *)
 
@@ -97,9 +95,13 @@ val track_attr_string : track -> track_attr -> string
 val refresh_artists_sync : t -> unit
 val refresh_albums_sync : t -> unit
 val refresh_tracks_sync : t -> unit
+val refresh_artists_albums_tracks_sync : t -> unit
+val refresh_albums_tracks_sync : t -> unit
 val refresh_artists : t -> unit
 val refresh_albums : t -> unit
 val refresh_tracks : t -> unit
+val refresh_artists_albums_tracks : t -> unit
+val refresh_albums_tracks : t -> unit
 
 val refresh_artists_busy : t -> bool
 val refresh_albums_busy : t -> bool
@@ -127,6 +129,8 @@ val select_invert : t -> unit
 
 val select : t -> int -> int -> unit
 val deselect : t -> int -> int -> unit
+
+val set_search : t -> search -> unit
 
 
 (* Playlist Editing *)

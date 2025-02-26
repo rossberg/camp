@@ -944,6 +944,7 @@ let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
         let default = if i < len then (i, i) else (0, 0) in
         let pos1, pos2 = Option.value tab.sel_range ~default in
         let i' = max 0 (min i (len - 1)) in
+        let old_selection = tab.selected in
         if tab.sel_range = None || Table.is_selected tab pos1 then
         (
           (* Entry was already selected: deselect old range, select new range *)
@@ -958,6 +959,8 @@ let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
         );
         if Mouse.is_pressed `Left then
           `Click (if i < len then Some i else None)
+        else if Table.IntSet.equal tab.selected old_selection then
+          `None
         else
           `Select
       )
