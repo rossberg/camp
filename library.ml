@@ -341,6 +341,9 @@ let rescan_playlist lib _mode path =
 
 let queue_rescan_dir_tracks = ref (fun _ -> assert false)
 
+let rec flatten_dir (dir : dir) =
+  dir :: List.concat_map flatten_dir (Array.to_list dir.children)
+
 let rescan_dir lib mode (origin : Data.dir) =
   (* TODO: bulk insert for performance *)
   let rec scan_path path nest =
@@ -381,9 +384,6 @@ let rescan_dir lib mode (origin : Data.dir) =
           if Data.is_track_path path then
             dir.name <- File.remove_extension dir.name;
           dir.folded <- true;
-          (* Root may have been deleted in the mean time... *)
-          if Db.mem_dir lib.db origin.path then
-            Db.insert_dir lib.db dir;
           dir
       in
       (* TODO: remove missing children from DB *)
@@ -406,16 +406,18 @@ let rescan_dir lib mode (origin : Data.dir) =
         let dir = Data.make_dir path parent (nest + 1) 0 in  (* TODO: pos *)
         dir.name <- File.remove_extension dir.name;
         dir.folded <- true;
-        (* Root may have been deleted in the mean time... *)
-        if Db.mem_dir lib.db origin.path then
-          Db.insert_dir lib.db dir;
         dir
     in
     Some [dir]
   in
 
   try
-    ignore (scan_dir origin.path (origin.nest - 1))
+    match scan_dir origin.path (origin.nest - 1) with
+    | None -> ()
+    | Some dirs ->
+      (* Root may have been deleted in the mean time... *)
+      if Db.mem_dir lib.db origin.path then
+        Db.insert_dirs_bulk lib.db (List.concat_map flatten_dir dirs)
   with exn ->
     Storage.log_exn "file" exn ("scanning directory " ^ origin.path)
 

@@ -242,6 +242,24 @@ let insert_into_table bind_x f stmt db x =
   let* () = Sqlite3.step stmt in
   f x (Sqlite3.last_insert_rowid db)
 
+let rec insert_into_table_bulk bind_x cols stmtf db xs =
+  if xs <> [] then
+  (
+    let& () = db in
+    match prepare db (stmtf xs) with
+    | stmt ->
+      List.iteri (fun i x ->
+        let* () = bind_x i stmt (1 + i * cols) x in ()
+      ) xs;
+      let* () = Sqlite3.step stmt in
+      ()
+    | exception Sqlite3.Error _ ->
+      (* Assume the error is due to SQLITE_LIMIT_VARIABLE_NUMBER *)
+      let n = 32766 / (cols + 1) in  (* constant not defined in binding *)
+      insert_into_table_bulk bind_x cols stmtf db (List.take n xs);
+      insert_into_table_bulk bind_x cols stmtf db (List.drop n xs)
+  )
+
 let delete_from_table stmt db path =
   let& () = db in
   let stmt = prepare db stmt in
@@ -296,6 +314,8 @@ let create_dirs = create_table
       tracks_sort TEXT NOT NULL
     );
   "
+
+let dir_cols = 16
 
 let to_dir i data : dir =
   {
@@ -369,11 +389,16 @@ let iter_dirs = stmt
     SELECT rowid, * FROM Dirs ORDER BY path DESC;
   " |> iter_table [||] (to_dir 0)
 
-let insert_dir = stmt
+let insert_dir = stmt @@
+  "
+    INSERT OR REPLACE INTO Dirs VALUES " ^ tuple 1 dir_cols ^ ";
+  " |> insert_into_table bind_dir (fun d id -> d.id <- id)
+
+let insert_dirs_bulk = (fun dirs -> stmt @@
   "
     INSERT OR REPLACE INTO Dirs
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-  " |> insert_into_table bind_dir (fun d id -> d.id <- id)
+    VALUES " ^ tuples 1 dir_cols (List.length dirs) ^ ";
+  ") |> insert_into_table_bulk (Fun.const bind_dir) dir_cols
 
 let update_dir = insert_dir
 
@@ -433,6 +458,8 @@ let create_albums = create_table
     );
   "
 
+let album_cols = 23
+
 let to_album i data : album =
   {
     id = to_id_default i data;
@@ -465,11 +492,9 @@ let find_album = stmt
     SELECT rowid, * FROM Tracks WHERE path = ?;
   " |> find_in_table (to_album 0)
 
-let insert_album = stmt
+let insert_album = stmt @@
   "
-    INSERT OR REPLACE INTO Albums
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    INSERT OR REPLACE INTO Albums VALUES " ^ tuple 1 album_cols ^ ";
   " |> insert_into_table bind_album (fun a id -> a.id <- id)
 
 let delete_albums = stmt
@@ -558,6 +583,22 @@ let iter_tracks = stmt
   "
     SELECT rowid, * FROM Tracks;
   " |> iter_table [||] (to_track 0)
+
+let insert_track = stmt @@
+  "
+    INSERT OR REPLACE INTO Tracks VALUES " ^ tuple 1 track_cols ^ ";
+  " |> insert_into_table bind_track (fun t id -> t.id <- id)
+
+let insert_tracks_bulk = (fun tracks -> stmt @@
+  "
+    INSERT OR REPLACE INTO Tracks
+    VALUES " ^ tuples 1 track_cols (List.length tracks) ^ ";
+  ") |> insert_into_table_bulk (Fun.const bind_track) track_cols
+
+let delete_tracks = stmt
+  "
+    DELETE FROM Tracks WHERE path LIKE ?;
+  " |> delete_from_table_prefix
 
 
 let artists_table k artists =
@@ -771,31 +812,6 @@ let iter_tracks_for_path_as_albums db path artists searches f =
     iter_tracks_for_path_as_albums_single db path artist f
 
 
-let insert_track = stmt @@
-  "
-    INSERT OR REPLACE INTO Tracks VALUES " ^ tuple 1 track_cols ^ ";
-  " |> insert_into_table bind_track (fun t id -> t.id <- id)
-
-let insert_tracks_bulk db tracks = stmt @@
-  "
-    INSERT OR REPLACE INTO Tracks
-    VALUES " ^ tuples 1 track_cols (List.length tracks) ^ ";
-  " |>
-  fun stmt ->
-    let& () = db in
-    let stmt = prepare db stmt in
-    List.iteri (fun i track ->
-      let* () = bind_track stmt (1 + i * track_cols) track in ()
-    ) tracks;
-    let* () = Sqlite3.step stmt in
-    ()
-
-let delete_tracks = stmt
-  "
-    DELETE FROM Tracks WHERE path LIKE ?;
-  " |> delete_from_table_prefix
-
-
 (* Playlists *)
 
 let create_playlists = create_table
@@ -881,20 +897,13 @@ let insert_playlists = stmt @@
   fun stmt db path pos ->
     insert_into_table (bind_playlist path pos) (fun _ _ -> ()) stmt db
 
-let insert_playlists_bulk db path items = stmt @@
+let insert_playlists_bulk db path items = ((fun items -> stmt @@
   "
     INSERT OR REPLACE INTO Playlists
     VALUES " ^ tuples 1 playlist_cols (List.length items) ^ ";
-  " |>
-  fun stmt ->
-    let& () = db in
-    let stmt = prepare db stmt in
-    List.iteri (fun i item ->
-      let* () = bind_playlist path (i + 1) stmt (1 + i * playlist_cols) item in
-      ()
-    ) items;
-    let* () = Sqlite3.step stmt in
-    ()
+  ") |>
+    insert_into_table_bulk (fun i -> bind_playlist path (i + 1)) playlist_cols)
+      db items
 
 let delete_playlists = stmt
   "

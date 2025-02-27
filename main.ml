@@ -1054,7 +1054,6 @@ let run_library (st : State.t) =
         if i = pos then j else
         find_root_pos (i + 1) (if browser.entries.(i).nest = 0 then j + 1 else j)
       in
-      (* TODO: asynchronous *)
       if Library.add_dirs lib dropped (find_root_pos 0 0) then
         Library.refresh_artists_albums_tracks lib
       else
@@ -1067,7 +1066,6 @@ let run_library (st : State.t) =
   (
     match Library.selected_dir lib with
     | Some i when browser.entries.(i).parent = Some "" ->
-      (* TODO: asynchronous? *)
       Library.remove_dirs lib [browser.entries.(i).path];
       Library.refresh_artists_albums_tracks lib
     | _ ->
