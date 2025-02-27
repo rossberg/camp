@@ -405,7 +405,7 @@ let update_dirs_pos = stmt
     UPDATE Dirs SET pos = pos + ?3 WHERE parent = ?1 AND pos >= ?2;
   " |>
   fun stmt db path first delta ->
-    update_in_table [|of_opt of_text path; of_int first; of_int delta|] stmt db
+    update_in_table [|of_text path; of_int first; of_int delta|] stmt db
 
 
 (* Artists *)

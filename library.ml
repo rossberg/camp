@@ -613,12 +613,9 @@ let add_dirs lib paths pos =
         else
           let root = roots.(i - len') in
           root.pos <- i;
-          Db.insert_dir lib.db root;  (* update position *)
           root
       );
-    (* For some reason, this doesn't work with the parent condition
-    Db.update_dirs_pos lib.db None pos (+len');
-    *)
+    Db.update_dirs_pos lib.db "" pos (+ len');
     Array.iter (Db.insert_dir lib.db) roots';
     Array.iter (fun (dir : dir) -> rescan_dir lib `Thorough dir) roots';
     refresh_browser lib;
@@ -646,7 +643,7 @@ let remove_dir lib path =
           let root = roots.(i + 1) in
           root.pos <- i; root
       );
-    Db.update_dirs_pos lib.db None pos (-1);
+    Db.update_dirs_pos lib.db "" pos (-1);
     refresh_browser lib
 
 let remove_dirs lib paths =
