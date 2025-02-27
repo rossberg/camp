@@ -42,7 +42,6 @@ type search = string array
 
 type dir =
 {
-  mutable id : id;
   path : path;  (* primary *)
   parent : path option;
   nest : int;
@@ -73,7 +72,6 @@ type file =
 
 type artist =
 {
-  mutable id : id;
   name : string;  (* primary *)
   mutable albums : int;
   mutable tracks : int;
@@ -81,7 +79,6 @@ type artist =
 
 type album =
 {
-  mutable id : id;
   path : path;  (* primary *)
   file : file;
   mutable format : Format.t option;
@@ -90,7 +87,6 @@ type album =
 
 type track =
 {
-  mutable id : id;
   path : path;  (* primary *)
   file : file;
   mutable format : Format.t option;
@@ -153,7 +149,6 @@ let make_search () : search =
 
 let make_dir path parent nest pos : dir =
   {
-    id = -1L;
     path;
     parent;
     name = if path = "" then path else File.name path;
@@ -187,7 +182,6 @@ let make_file () : file =
 
 let make_artist name : artist =
   {
-    id = -1L;
     name;
     albums = 0;
     tracks = 0;
@@ -195,7 +189,6 @@ let make_artist name : artist =
 
 let make_album path : album =
   {
-    id = -1L;
     path;
     file = make_file ();
     format = None;
@@ -204,7 +197,6 @@ let make_album path : album =
 
 let make_track path : track =
   {
-    id = -1L;
     path;
     file = make_file ();
     format = None;

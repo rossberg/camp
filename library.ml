@@ -263,7 +263,7 @@ let track_attr_string (track : track) = function
 type scan_mode = [`Fast | `Thorough]
 
 let rescan_track' _lib mode track =
-  let old = {track with id = track.id} in
+  let old = {track with path = track.path} in
   try
     if not (File.exists track.path) then
     (
@@ -638,7 +638,6 @@ let remove_dir lib path =
   | Some pos ->
     lib.current <- None;
     Db.delete_dirs lib.db dirpath;
-    Db.delete_albums lib.db dirpath;
     Db.delete_tracks lib.db dirpath;
     Db.delete_playlists lib.db dirpath;
     lib.root.children <-

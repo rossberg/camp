@@ -32,7 +32,6 @@ let bind_bool = Sqlite3.bind_bool
 let bind_int = Sqlite3.bind_int
 let bind_float = Sqlite3.bind_double
 let bind_text = Sqlite3.bind_text
-let bind_id = Sqlite3.bind_int64
 
 let bind_null stmt i = Sqlite3.bind stmt i Sqlite3.Data.NULL
 
@@ -44,7 +43,6 @@ let bind_bool_opt stmt i = bind_opt bind_bool stmt i
 let bind_int_opt stmt i = bind_opt bind_int stmt i
 let bind_float_opt stmt i = bind_opt bind_float stmt i
 let bind_text_opt stmt i = bind_opt bind_text stmt i
-let bind_id_opt stmt i = bind_opt bind_id stmt i
 
 let bind_default bind_x def stmt i v =
   if v = def then bind_null stmt i else bind_x stmt i v
@@ -57,7 +55,6 @@ let of_bool b = Sqlite3.Data.INT (if b then 1L else 0L)
 let of_int i = Sqlite3.Data.INT (Int64.of_int i)
 let of_float z = Sqlite3.Data.FLOAT z
 let of_text s = Sqlite3.Data.TEXT s
-let of_id i = Sqlite3.Data.INT i
 
 let of_opt of_x = function
   | None -> Sqlite3.Data.NULL
@@ -67,13 +64,11 @@ let to_bool i data = Sqlite3.Data.to_bool_exn data.(i)
 let to_int i data = Sqlite3.Data.to_int_exn data.(i)
 let to_float i data = Sqlite3.Data.to_float_exn data.(i)
 let to_text i data = Sqlite3.Data.to_string_exn data.(i)
-let to_id i data = Sqlite3.Data.to_int64_exn data.(i)
 
 let to_bool_opt i data = Sqlite3.Data.to_bool data.(i)
 let to_int_opt i data = Sqlite3.Data.to_int data.(i)
 let to_float_opt i data = Sqlite3.Data.to_float data.(i)
 let to_text_opt i data = Sqlite3.Data.to_string data.(i)
-let to_id_opt i data = Sqlite3.Data.to_int64 data.(i)
 
 let to_default to_x def i data =
   if data.(i) = Sqlite3.Data.NULL then def else to_x i data
@@ -82,7 +77,6 @@ let to_bool_default i data = to_default to_bool false i data
 let to_int_default i data = to_default to_int 0 i data
 let to_float_default i data = to_default to_float 0.0 i data
 let to_text_default i data = to_default to_text "" i data
-let to_id_default i data = to_default to_id (-1L) i data
 
 let to_pair to_x i to_y j data = (to_x i data, to_y j data)
 
@@ -235,12 +229,12 @@ let find_in_table of_data stmt db path =
   let* () = Sqlite3.iter stmt ~f in
   !result
 
-let insert_into_table bind_x f stmt db x =
+let insert_into_table bind_x stmt db x =
   let& () = db in
   let stmt = prepare db stmt in
   let* () = bind_x stmt 1 x in
   let* () = Sqlite3.step stmt in
-  f x (Sqlite3.last_insert_rowid db)
+  ()
 
 let rec insert_into_table_bulk bind_x cols stmtf db xs =
   if xs <> [] then
@@ -253,7 +247,8 @@ let rec insert_into_table_bulk bind_x cols stmtf db xs =
       ) xs;
       let* () = Sqlite3.step stmt in
       ()
-    | exception Sqlite3.Error _ ->
+    | exception (Sqlite3.Error _ as exn) ->
+Printf.printf "Retry %d %s\n%!" (List.length xs) (Printexc.to_string exn);
       (* Assume the error is due to SQLITE_LIMIT_VARIABLE_NUMBER *)
       let n = 32766 / (cols + 1) in  (* constant not defined in binding *)
       insert_into_table_bulk bind_x cols stmtf db (List.take n xs);
@@ -319,26 +314,25 @@ let dir_cols = 16
 
 let to_dir i data : dir =
   {
-    id = to_id i data;
-    path = to_text (i + 1) data;
-    parent = to_text_opt (i + 2) data;
-    name = to_text (i + 3) data;
+    path = to_text (i + 0) data;
+    parent = to_text_opt (i + 1) data;
+    name = to_text (i + 2) data;
     children = [||];
-    pos = to_int (i + 4) data;
-    nest = to_int (i + 5) data;
-    search = search_of_string (to_text (i + 7) data);
-    folded = to_bool (i + 6) data;
-    artists_shown = to_int (i + 8) data land 1 <> 0;
-    albums_shown = to_int (i + 8) data land 2 <> 0;
-    tracks_shown = to_int (i + 8) data land 4 <> 0;
-    divider_width = to_int (i + 9) data;
-    divider_height = to_int (i + 10) data;
-    artists_columns = artist_columns_of_string (to_text (i + 11) data);
-    albums_columns = album_columns_of_string (to_text (i + 12) data);
-    tracks_columns = track_columns_of_string (to_text (i + 13) data);
-    artists_sorting = artist_sorting_of_string (to_text (i + 14) data);
-    albums_sorting = album_sorting_of_string (to_text (i + 15) data);
-    tracks_sorting = track_sorting_of_string (to_text (i + 16) data);
+    pos = to_int (i + 3) data;
+    nest = to_int (i + 4) data;
+    search = search_of_string (to_text (i + 6) data);
+    folded = to_bool (i + 5) data;
+    artists_shown = to_int (i + 7) data land 1 <> 0;
+    albums_shown = to_int (i + 7) data land 2 <> 0;
+    tracks_shown = to_int (i + 7) data land 4 <> 0;
+    divider_width = to_int (i + 8) data;
+    divider_height = to_int (i + 9) data;
+    artists_columns = artist_columns_of_string (to_text (i + 10) data);
+    albums_columns = album_columns_of_string (to_text (i + 11) data);
+    tracks_columns = track_columns_of_string (to_text (i + 12) data);
+    artists_sorting = artist_sorting_of_string (to_text (i + 13) data);
+    albums_sorting = album_sorting_of_string (to_text (i + 14) data);
+    tracks_sorting = track_sorting_of_string (to_text (i + 15) data);
   }
 
 let bind_dir stmt i (dir : dir) =
@@ -381,18 +375,18 @@ let mem_dir = stmt
 
 let find_dir = stmt
   "
-    SELECT rowid, * FROM Dirs WHERE path = ?;
+    SELECT * FROM Dirs WHERE path = ?;
   " |> find_in_table (to_dir 0)
 
 let iter_dirs = stmt
   "
-    SELECT rowid, * FROM Dirs ORDER BY path DESC;
+    SELECT * FROM Dirs ORDER BY path DESC;
   " |> iter_table [||] (to_dir 0)
 
 let insert_dir = stmt @@
   "
     INSERT OR REPLACE INTO Dirs VALUES " ^ tuple 1 dir_cols ^ ";
-  " |> insert_into_table bind_dir (fun d id -> d.id <- id)
+  " |> insert_into_table bind_dir
 
 let insert_dirs_bulk = (fun dirs -> stmt @@
   "
@@ -417,56 +411,26 @@ let update_dirs_pos = stmt
 
 (* Artists *)
 
+let artist_cols = 3
+
 let to_artist i data : artist =
   {
-    id = to_id_default i data;
-    name = to_default to_text "[unknown]" (i + 1) data;
-    albums = to_int (i + 2) data;
-    tracks = to_int (i + 3) data;
+    name = to_default to_text "[unknown]" (i + 0) data;
+    albums = to_int (i + 1) data;
+    tracks = to_int (i + 2) data;
   }
 
 
 (* Albums *)
 
-let create_albums = create_table
-  "
-    CREATE TABLE IF NOT EXISTS Albums
-    (
-      path TEXT NOT NULL PRIMARY KEY,
-      filesize INT,
-      filetime REAL,
-      fileage REAL,
-      codec TEXT,
-      channels INT,
-      depth INT,
-      rate INT,
-      bitrate REAL,
-      size INT,
-      time REAL,
-      artist TEXT,
-      title TEXT,
-      track INT,
-      disc INT,
-      albumartist TEXT,
-      albumtitle TEXT,
-      date TEXT,
-      label TEXT,
-      country TEXT,
-      length REAL,
-      rating INT,
-      cover BLOB
-    );
-  "
-
 let album_cols = 23
 
 let to_album i data : album =
   {
-    id = to_id_default i data;
-    path = to_text_default (i + 1) data;
-    file = to_file (i + 2) data;
-    format = to_format (i + 2 + file_cols) data;
-    meta = to_meta (i + 2 + file_cols + format_cols) data;
+    path = to_text_default (i + 0) data;
+    file = to_file (i + 1) data;
+    format = to_format (i + 1 + file_cols) data;
+    meta = to_meta (i + 1 + file_cols + format_cols) data;
   }
 
 let bind_album stmt i (album : album) =
@@ -475,32 +439,6 @@ let bind_album stmt i (album : album) =
   let* () = bind_opt bind_format stmt (i + 1 + file_cols) album.format in
   let* () = bind_opt bind_meta stmt (i + 1 + file_cols + format_cols) album.meta in
   return
-
-
-let count_albums = stmt
-  "
-    SELECT COUNT(*) FROM Albums;
-  " |> count_table
-
-let mem_album = stmt
-  "
-    SELECT COUNT(*) FROM Albums WHERE path = ?;
-  " |> mem_table
-
-let find_album = stmt
-  "
-    SELECT rowid, * FROM Tracks WHERE path = ?;
-  " |> find_in_table (to_album 0)
-
-let insert_album = stmt @@
-  "
-    INSERT OR REPLACE INTO Albums VALUES " ^ tuple 1 album_cols ^ ";
-  " |> insert_into_table bind_album (fun a id -> a.id <- id)
-
-let delete_albums = stmt
-  "
-    DELETE FROM Albums WHERE path LIKE ?;
-  " |> delete_from_table_prefix
 
 
 (* Tracks *)
@@ -543,16 +481,15 @@ let create_tracks = create_table
 let track_cols = 24
 
 let to_track i data : track =
-  let path = to_text_default (i + 1) data in
+  let path = to_text_default (i + 0) data in
   {
-    id = to_id_default i data;
     path = path;
-    file = to_file (i + 2) data;
-    format = to_format (i + 2 + file_cols) data;
-    meta = to_meta (i + 2 + file_cols + format_cols) data;
+    file = to_file (i + 1) data;
+    format = to_format (i + 1 + file_cols) data;
+    meta = to_meta (i + 1 + file_cols + format_cols) data;
     album = None;
     pos = (match Track.(pos_artist_title (fields_of_path path)) with Some (i, _, _) -> i | None -> -1);
-    status = to_status (to_int_default (i + 2 + file_cols + format_cols + meta_cols) data);
+    status = to_status (to_int_default (i + 1 + file_cols + format_cols + meta_cols) data);
   }
 
 let bind_track stmt i (track : track) =
@@ -563,6 +500,7 @@ let bind_track stmt i (track : track) =
   let* () = bind_int stmt (i + 1 + file_cols + format_cols + meta_cols) (of_status track.status) in
   assert (2 + file_cols + format_cols + meta_cols = track_cols);
   return
+
 
 let count_tracks = stmt
   "
@@ -576,18 +514,18 @@ let mem_track = stmt
 
 let find_track = stmt
   "
-    SELECT rowid, * FROM Tracks WHERE path = ?;
+    SELECT * FROM Tracks WHERE path = ?;
   " |> find_in_table (to_track 0)
 
 let iter_tracks = stmt
   "
-    SELECT rowid, * FROM Tracks;
+    SELECT * FROM Tracks;
   " |> iter_table [||] (to_track 0)
 
 let insert_track = stmt @@
   "
     INSERT OR REPLACE INTO Tracks VALUES " ^ tuple 1 track_cols ^ ";
-  " |> insert_into_table bind_track (fun t id -> t.id <- id)
+  " |> insert_into_table bind_track
 
 let insert_tracks_bulk = (fun tracks -> stmt @@
   "
@@ -600,6 +538,8 @@ let delete_tracks = stmt
     DELETE FROM Tracks WHERE path LIKE ?;
   " |> delete_from_table_prefix
 
+
+(* Complex Queries *)
 
 let artists_table k artists =
   if artists = [||] then "" else
@@ -631,8 +571,7 @@ let search_filter k searches =
   )
 
 let tracks_fields =
-      "Tracks.rowid,
-      Tracks.*"
+      "Tracks.*"
 
 let artists_fields artistfield =
       artistfield ^ " AS name,
@@ -640,8 +579,7 @@ let artists_fields artistfield =
       COUNT(*) AS tracks"
 
 let albums_fields' pathfield artistfield titlefield trackfield albumartistfields =
-      "NULL,
-      " ^ pathfield ^ ",
+      pathfield ^ ",
       SUM(filesize),
       MAX(filetime),
       MAX(fileage),
@@ -732,7 +670,7 @@ let iter_tracks_for_path db path artists albums searches f =
 
 let iter_tracks_for_path_as_artists_single = stmt @@
   "
-    SELECT NULL, name, SUM(albums), SUM(tracks)
+    SELECT name, SUM(albums), SUM(tracks)
     FROM (
       SELECT " ^ artists_fields "artist" ^ "
       FROM Tracks
@@ -751,7 +689,7 @@ let iter_tracks_for_path_as_artists_single = stmt @@
 
 let iter_tracks_for_path_as_artists_search db path searches = stmt @@
   "
-    SELECT NULL, name, SUM(albums), SUM(tracks)
+    SELECT name, SUM(albums), SUM(tracks)
     FROM (
       SELECT " ^ artists_fields "artist" ^ "
       FROM Tracks
@@ -833,19 +771,19 @@ let playlist_cols = 7
 
 let to_playlist_track i data : track =
   let track = to_track i data in
-  track.pos <- to_int_default (i + track_cols + 1) data - 1;
+  track.pos <- to_int_default (i + track_cols + 0) data - 1;
   if track.path <> "" then  (* came from tracks table *)
     track
   else
   (
-    let path = to_text (i + track_cols + 2) data in
+    let path = to_text (i + track_cols + 1) data in
     if M3u.is_separator path then
       {track with path}
     else
     (
-      let artist = to_text_default (i + track_cols + 3) data in
-      let title = to_text_default (i + track_cols + 4) data in
-      let length = to_float_default (i + track_cols + 5) data in
+      let artist = to_text_default (i + track_cols + 2) data in
+      let title = to_text_default (i + track_cols + 3) data in
+      let length = to_float_default (i + track_cols + 4) data in
       let meta =
         if artist = "" && title = "" then None else
         Some {(Meta.meta track.path None) with artist; title; length}
@@ -894,8 +832,7 @@ let insert_playlists = stmt @@
   "
     INSERT OR REPLACE INTO Playlists VALUES " ^ tuple 1 playlist_cols ^ ";
   " |>
-  fun stmt db path pos ->
-    insert_into_table (bind_playlist path pos) (fun _ _ -> ()) stmt db
+  fun stmt db path pos -> insert_into_table (bind_playlist path pos) stmt db
 
 let insert_playlists_bulk db path items = ((fun items -> stmt @@
   "
@@ -945,8 +882,7 @@ let playlist_search_filter k searches =
   )
 
 let playlist_tracks_fields =
-      "Tracks.rowid,
-      Tracks.*,
+      "Tracks.*,
       Playlists.pos,
       Playlists.track,
       Playlists.artist,
@@ -1121,7 +1057,7 @@ let iter_playlist_tracks_for_path_as_albums db path artists searches f =
 (*
 let iter_tracks_and_playlist_tracks_for_path = stmt
   "
-    SELECT Tracks.rowid, Tracks.*, NULL, NULL, NULL, NULL, NULL
+    SELECT Tracks.*, NULL, NULL, NULL, NULL, NULL
     FROM Tracks
     WHERE
       (Tracks.path LIKE ?1) AND
@@ -1129,7 +1065,7 @@ let iter_tracks_and_playlist_tracks_for_path = stmt
       (?3 = '' OR albumtitle = ?3)
     UNION
     SELECT
-      Tracks.rowid, Tracks.*,
+      Tracks.*,
       CASE WHEN ?4 THEN Playlists.pos ELSE NULL END,
       Playlists.track, Playlists.artist, Playlists.title, Playlists.time
     FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
@@ -1153,7 +1089,6 @@ let filename = "library.db"
 let init () =
   let db = Sqlite3.db_open (Storage.path filename) in
   create_dirs db;
-  create_albums db;
   create_tracks db;
   create_playlists db;
   db
