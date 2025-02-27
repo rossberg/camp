@@ -247,8 +247,7 @@ let rec insert_into_table_bulk bind_x cols stmtf db xs =
       ) xs;
       let* () = Sqlite3.step stmt in
       ()
-    | exception (Sqlite3.Error _ as exn) ->
-Printf.printf "Retry %d %s\n%!" (List.length xs) (Printexc.to_string exn);
+    | exception Sqlite3.Error _ ->
       (* Assume the error is due to SQLITE_LIMIT_VARIABLE_NUMBER *)
       let n = 32766 / (cols + 1) in  (* constant not defined in binding *)
       insert_into_table_bulk bind_x cols stmtf db (List.take n xs);

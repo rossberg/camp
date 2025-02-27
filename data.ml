@@ -156,7 +156,7 @@ let make_dir path parent nest pos : dir =
     pos;
     children = [||];
     search = make_search ();
-    folded = false;
+    folded = true;
     artists_shown = false;
     albums_shown = false;
     tracks_shown = true;

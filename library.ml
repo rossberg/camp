@@ -383,7 +383,6 @@ let rescan_dir lib mode (origin : Data.dir) =
           let dir = Data.make_dir dirpath parent nest 0 in  (* TODO: pos *)
           if Data.is_track_path path then
             dir.name <- File.remove_extension dir.name;
-          dir.folded <- true;
           dir
       in
       (* TODO: remove missing children from DB *)
@@ -405,7 +404,6 @@ let rescan_dir lib mode (origin : Data.dir) =
         let parent = Some (Data.parent_path path) in
         let dir = Data.make_dir path parent (nest + 1) 0 in  (* TODO: pos *)
         dir.name <- File.remove_extension dir.name;
-        dir.folded <- true;
         dir
     in
     Some [dir]
