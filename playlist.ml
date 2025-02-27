@@ -22,13 +22,20 @@ type t =
 
 (* Constructor *)
 
+let save_undo_fwd = ref (fun _ -> assert false)
+
 let make () =
-  {
-    table = Table.make 100;
-    total = 0.0, 0;
-    total_selected = 0.0, 0;
-    shuffle = None;
-  }
+  let r = ref None in
+  let pl =
+    {
+      table = Table.make 100 ~save: (!save_undo_fwd r);
+      total = 0.0, 0;
+      total_selected = 0.0, 0;
+      shuffle = None;
+    }
+  in
+  r := Some pl;
+  pl
 
 
 (* Validation *)
@@ -187,6 +194,30 @@ let shuffle_next pl i =
   )
 
 
+(* Undo *)
+
+let pop_unredo pl f list =
+  if !list <> [] then
+  (
+    let shuffled = pl.shuffle <> None in
+    unshuffle pl;  (* prevent nastiness *)
+    f pl.table;
+    if shuffled then shuffle pl pl.table.pos;
+    refresh_total pl;
+  )
+
+let pop_undo pl = pop_unredo pl Table.pop_undo pl.table.undos
+let pop_redo pl = pop_unredo pl Table.pop_redo pl.table.redos
+
+let save_undo tabr () =
+  let tab = Option.get !tabr in
+  let shuffle =
+    Option.map (fun sh -> {sh with pos = sh.pos}) tab.shuffle in
+  fun () -> tab.shuffle <- shuffle
+
+let _ = save_undo_fwd := save_undo
+
+
 (* Selection *)
 
 let has_selection pl = Table.has_selection pl.table
@@ -223,23 +254,6 @@ let deselect pl i0 j0 =
   pl.total_selected <- add_total (sub_total pl.total_selected prev) current
 
 
-(* Undo *)
-
-let pop_unredo pl f list =
-  if !list <> [] then
-  (
-    let shuffled = pl.shuffle <> None in
-    unshuffle pl;  (* prevent nastiness *)
-    f pl.table;
-    if shuffled then shuffle pl pl.table.pos;
-    refresh_total pl;
-  )
-
-let pop_undo pl = pop_unredo pl Table.pop_undo pl.table.undos
-let pop_redo pl = pop_unredo pl Table.pop_redo pl.table.redos
-
-
-
 (* Playlist I/O *)
 
 let playlist_file = "playlist.m3u"
@@ -266,7 +280,8 @@ let insert pl pos tracks =
     Table.deselect_all pl.table;
     Table.insert pl.table pos' tracks;
     Table.select pl.table pos' (pos' + len' - 1);
-    pl.total <- add_total pl.total (fst (range_total pl pos' (pos' + len' - 1)));
+    pl.total <-
+      add_total pl.total (fst (range_total pl pos' (pos' + len' - 1)));
     Option.iter (fun shuffle ->
       shuffle.tracks <-
         Array.init (len + len') (fun i ->
@@ -393,7 +408,7 @@ let to_map pl =
   ]
 
 let to_map_extra pl =
-  Map.of_list
+  Map.of_list @@
   [
     "play_length", fmt "%d" (Table.length pl.table);
     "play_selected", fmt "%d" (Table.IntSet.cardinal pl.table.selected) ^
@@ -406,7 +421,15 @@ let to_map_extra pl =
     (fst pl.total_selected) (snd pl.total_selected);
     "play_undo_length", fmt "%d" (List.length !(pl.table.undos));
     "play_redo_length", fmt "%d" (List.length !(pl.table.redos));
-  ]
+  ] @
+  match pl.shuffle with
+  | None -> []
+  | Some sh ->
+    [
+      "shuffle_length", fmt "%d" (Array.length sh.tracks);
+      "shuffle_pos", fmt "%d" (Option.value sh.pos ~default: (-1));
+      "shuffle_unobserved", fmt "%d" sh.unobserved;
+    ]
 
 let of_map pl m =
   let len = Table.length pl.table in

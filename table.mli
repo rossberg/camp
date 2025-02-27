@@ -17,12 +17,13 @@ type 'a t =
   mutable undos : 'a undo list ref;
   mutable redos : 'a undo list ref;
   mutable undo_depth : int;
+  undo_save : (unit -> unit -> unit) option;
 }
 
 
 (* Constructor *)
 
-val make : int -> 'a t
+val make : ?save : (unit -> unit -> unit) -> int -> 'a t
 
 
 (* Validation *)

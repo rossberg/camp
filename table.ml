@@ -10,6 +10,7 @@ type 'a undo =
   undo_vscroll : int;
   undo_sel_range : (int * int) option;
   undo_selected : IntSet.t;
+  undo_restore : (unit -> unit) option;
 }
 
 type 'a t =
@@ -25,12 +26,13 @@ type 'a t =
   mutable undos : 'a undo list ref;
   mutable redos : 'a undo list ref;
   mutable undo_depth : int;
+  undo_save : (unit -> unit -> unit) option;
 }
 
 
 (* Constructor *)
 
-let make undo_depth =
+let make ?save undo_depth =
   {
     mutex = Mutex.create ();
     entries = [||];
@@ -43,6 +45,7 @@ let make undo_depth =
     undos = ref [];
     redos = ref [];
     undo_depth;
+    undo_save = save;
   }
 
 
@@ -172,6 +175,7 @@ let make_undo tab =
     undo_vscroll = tab.vscroll;
     undo_sel_range = tab.sel_range;
     undo_selected = tab.selected;
+    undo_restore = Option.map (fun f -> f ()) tab.undo_save;
   }
 
 let push_undo tab =
@@ -194,7 +198,8 @@ let pop_unredo tab undos redos =
     tab.pos <- undo.undo_pos;
     tab.vscroll <- undo.undo_vscroll;
     tab.sel_range <- undo.undo_sel_range;
-    tab.selected <- undo.undo_selected
+    tab.selected <- undo.undo_selected;
+    Option.iter (fun f -> f ()) undo.undo_restore
 
 let pop_undo tab = pop_unredo tab tab.undos tab.redos
 let pop_redo tab = pop_unredo tab tab.redos tab.undos
