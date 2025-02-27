@@ -867,8 +867,8 @@ let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
   let shift = Key.are_modifiers_down [`Shift] in
   let command = Key.are_modifiers_down [`Command] in
 
-  let locked = Mutex.try_lock tab.mutex in
-  let len = if locked then Array.length tab.entries else 0 in
+  Mutex.lock tab.mutex;
+  let len = Array.length tab.entries in
   let page = max 1 (int_of_float (Float.floor (float h /. float ch))) in
   (* Correct scrolling position for possible resize *)
   tab.vscroll <- clamp 0 (max 0 (len - page)) tab.vscroll;
@@ -1125,7 +1125,7 @@ let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
   )
   in
 
-  if locked then Mutex.unlock tab.mutex;
+  Mutex.unlock tab.mutex;
   result
 
 

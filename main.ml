@@ -1897,20 +1897,13 @@ let rec refill_audio (ctl : Control.t) () =
 
 let startup () =
   Storage.clear_temp ();
-Printf.printf "Database init...\n%!";
   let db = Db.init () in
-Printf.printf "Window init...\n%!";
   let win = Api.Window.init 0 0 Layout.control_min_w Layout.control_min_h App.name in
-Printf.printf "Interface init...\n%!";
   let ui = Ui.make win in
-Printf.printf "Audio init...\n%!";
   let audio = Api.Audio.init () in
-Printf.printf "State init...\n%!";
   let rst = ref (State.make ui audio db) in
-Printf.printf "State load...\n%!";
   let st = if State.load !rst then !rst else State.make ui audio db in
   ignore (Domain.spawn (refill_audio st.control));
-Printf.printf "Run...\n%!";
   at_exit (fun () ->
     State.save st;
     Api.Audio.free audio st.control.sound;

@@ -97,11 +97,11 @@ val refresh_albums_sync : t -> unit
 val refresh_tracks_sync : t -> unit
 val refresh_artists_albums_tracks_sync : t -> unit
 val refresh_albums_tracks_sync : t -> unit
-val refresh_artists : t -> unit
-val refresh_albums : t -> unit
-val refresh_tracks : t -> unit
-val refresh_artists_albums_tracks : t -> unit
-val refresh_albums_tracks : t -> unit
+val refresh_artists : ?busy: bool -> t -> unit
+val refresh_albums : ?busy: bool -> t -> unit
+val refresh_tracks : ?busy: bool -> t -> unit
+val refresh_artists_albums_tracks : ?busy: bool -> t -> unit
+val refresh_albums_tracks : ?busy: bool -> t -> unit
 
 val refresh_artists_busy : t -> bool
 val refresh_albums_busy : t -> bool

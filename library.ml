@@ -14,9 +14,9 @@ type scan =
   dir_busy : string option Atomic.t;
   file_busy : string option Atomic.t;
   completed : path option list Atomic.t;
-  artists_refresh : (unit -> unit) option Atomic.t;
-  albums_refresh : (unit -> unit) option Atomic.t;
-  tracks_refresh : (unit -> unit) option Atomic.t;
+  artists_refresh : (bool * (unit -> unit)) option Atomic.t;
+  albums_refresh : (bool * (unit -> unit)) option Atomic.t;
+  tracks_refresh : (bool * (unit -> unit)) option Atomic.t;
   artists_busy : bool Atomic.t;
   albums_busy : bool Atomic.t;
   tracks_busy : bool Atomic.t;
@@ -67,9 +67,12 @@ let rec complete scan path =
 let try_refresh action busy =
   match Atomic.exchange action None with
   | None -> false
-  | Some f -> f ();
+  | Some (_, f) ->
+    f ();
     Atomic.set busy false;  (* avoid race condition! *)
-    if Atomic.get action <> None then Atomic.set busy true;
+    Option.iter (fun (keep_busy, _) ->
+      if keep_busy then Atomic.set busy true
+    ) (Atomic.get action);
     true
 
 let rec refresher scan () =
@@ -717,15 +720,15 @@ let refresh lib (tab : _ Table.t) shown sorting attr_string key iter_db =
     Table.adjust_pos tab;
   )
   else
+    let entries' = ref [||] in
+    Option.iter (fun (dir : dir) ->
+      let entries = ref [] in
+      iter_db dir (fun e -> entries := e :: !entries);
+      entries' :=
+        sort_entries (Array.of_list !entries) (sorting dir) attr_string;
+    ) lib.current;
     Mutex.protect tab.mutex (fun () ->
       let selection = Table.save_selection tab in
-      let entries' = ref [||] in
-      Option.iter (fun (dir : dir) ->
-        let entries = ref [] in
-        iter_db dir (fun e -> entries := e :: !entries);
-        entries' :=
-          sort_entries (Array.of_list !entries) (sorting dir) attr_string;
-      ) lib.current;
       tab.entries <- !entries';
       Table.adjust_pos tab;
       Table.restore_selection tab selection key
@@ -788,25 +791,28 @@ let refresh_artists_albums_tracks_sync lib =
   refresh_artists_sync lib;
   refresh_albums_tracks_sync lib
 
-let refresh_tracks lib =
-  Atomic.set lib.scan.tracks_busy true;
-  Atomic.set lib.scan.tracks_refresh (Some (fun () -> refresh_tracks_sync lib))
+let refresh_tracks ?(busy = true) lib =
+  if busy then Atomic.set lib.scan.tracks_busy true;
+  Atomic.set lib.scan.tracks_refresh
+    (Some (busy, fun () -> refresh_tracks_sync lib))
 
-let refresh_albums lib =
-  Atomic.set lib.scan.albums_busy true;
-  Atomic.set lib.scan.albums_refresh (Some (fun () -> refresh_albums_sync lib))
+let refresh_albums ?(busy = true) lib =
+  if busy then Atomic.set lib.scan.albums_busy true;
+  Atomic.set lib.scan.albums_refresh
+    (Some (busy, fun () -> refresh_albums_sync lib))
 
-let refresh_artists lib =
-  Atomic.set lib.scan.artists_busy true;
-  Atomic.set lib.scan.artists_refresh (Some (fun () -> refresh_artists_sync lib))
+let refresh_artists ?(busy = true) lib =
+  if busy then Atomic.set lib.scan.artists_busy true;
+  Atomic.set lib.scan.artists_refresh
+    (Some (busy, fun () -> refresh_artists_sync lib))
 
-let refresh_albums_tracks lib =
-  refresh_albums lib;
-  refresh_tracks lib
+let refresh_albums_tracks ?(busy = true) lib =
+  refresh_albums lib ~busy;
+  refresh_tracks lib ~busy
 
-let refresh_artists_albums_tracks lib =
-  refresh_artists lib;
-  refresh_albums_tracks lib
+let refresh_artists_albums_tracks ?(busy = true) lib =
+  refresh_artists lib ~busy;
+  refresh_albums_tracks lib ~busy
 
 let refresh_artists_busy lib = Atomic.get lib.scan.artists_busy
 let refresh_albums_busy lib = Atomic.get lib.scan.albums_busy
@@ -831,10 +837,10 @@ let refresh_after_rescan lib =
   if List.mem None updated then
   (
     refresh_browser lib;
-    refresh_artists_albums_tracks lib;
+    refresh_artists_albums_tracks lib ~busy: false;
   )
   else if rescan_affects_views lib updated then
-    refresh_artists_albums_tracks lib
+    refresh_artists_albums_tracks lib ~busy: false
 
 
 let reorder lib tab sorting attr_string key =
