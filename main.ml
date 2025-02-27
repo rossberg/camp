@@ -1891,7 +1891,7 @@ let rec refill_audio (ctl : Control.t) () =
   let silence = ctl.sound = Api.Audio.silence ctl.audio in
   let playing = Api.Audio.is_playing ctl.audio ctl.sound in
   if playing && not silence then Api.Audio.refill ctl.audio ctl.sound;
-  Unix.sleepf 0.02;
+  Unix.sleepf 0.01;
   (*Domain.cpu_relax ();*)
   refill_audio ctl ()
 

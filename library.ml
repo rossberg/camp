@@ -413,12 +413,15 @@ let rescan_dir lib mode (origin : Data.dir) =
   in
 
   try
-    match scan_dir origin.path (origin.nest - 1) with
-    | None -> ()
-    | Some dirs ->
-      (* Root may have been deleted in the mean time... *)
-      if Db.mem_dir lib.db origin.path then
-        Db.insert_dirs_bulk lib.db (List.concat_map flatten_dir dirs)
+    if File.exists_dir origin.path then
+    (
+      match scan_dir origin.path (origin.nest - 1) with
+      | None -> ()
+      | Some dirs ->
+        (* Root may have been deleted in the mean time... *)
+        if Db.mem_dir lib.db origin.path then
+          Db.insert_dirs_bulk lib.db (List.concat_map flatten_dir dirs)
+    )
   with exn ->
     Storage.log_exn "file" exn ("scanning directory " ^ origin.path)
 
