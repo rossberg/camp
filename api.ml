@@ -89,11 +89,12 @@ struct
     (fun () ->
       Option.iter (fun (w, h) -> Raylib.set_window_size w h) !next_size;
       next_size := None;
+      Raylib.(set_exit_key Key.Null);  (* seems to be reset somehow? *)
     ) :: !after_frame_finish
 
   let init x y w h s =
     Raylib.(set_trace_log_level TraceLogLevel.Warning);
-    Raylib.(set_exit_key Key.Enter);
+    Raylib.(set_exit_key Key.Null);
 
     (* Discover screen geometry by opening a dummy window and maximise it. *)
     Raylib.(set_config_flags
