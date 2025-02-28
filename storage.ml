@@ -49,26 +49,32 @@ let clear_temp () =
 (* Logging *)
 
 let log_file = "error.log"
-
-let log_clear () = File.store `Bin (path log_file) ""
+let log_mutex = Mutex.create ()
 
 let append_fwd = ref (fun _ -> assert false)
 
+let log_clear () =
+  Mutex.protect log_mutex (fun () -> File.store `Bin (path log_file) "")
+
 let log msg =
-  let tm = Unix.(localtime (time ())) in
-  let msg' = Printf.sprintf
-    "%04d-%02d-%02d %02d:%02d:%02d "
-    (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
-    tm.tm_hour tm.tm_min tm.tm_sec ^ msg ^ "\n"
-  in
-  Out_channel.output_string stderr msg';
-  !append_fwd log_file (fun file -> Out_channel.output_string file msg');
-  Out_channel.flush_all ()
+  Mutex.protect log_mutex (fun () ->
+    let tm = Unix.(localtime (time ())) in
+    let msg' = Printf.sprintf
+      "%04d-%02d-%02d %02d:%02d:%02d "
+      (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
+      tm.tm_hour tm.tm_min tm.tm_sec ^ msg ^ "\n"
+    in
+    Out_channel.output_string stderr msg';
+    !append_fwd log_file (fun file -> Out_channel.output_string file msg');
+    Out_channel.flush_all ()
+  )
 
 let log_exn cause exn msg =
-  let msg' = if msg = "" then "" else " " ^ msg in
-  log (cause ^ " error " ^ Printexc.to_string exn ^ msg' ^ "\n" ^
-    Printexc.get_backtrace ())
+  Mutex.protect log_mutex (fun () ->
+    let msg' = if msg = "" then "" else " " ^ msg in
+    log (cause ^ " error " ^ Printexc.to_string exn ^ msg' ^ "\n" ^
+      Printexc.get_backtrace ())
+  )
 
 
 (* Loading & Saving *)
