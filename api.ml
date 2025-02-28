@@ -544,7 +544,10 @@ type sound = {music : Raylib.Music.t; format : Format.t; temp : path option (* f
 
 module Audio =
 struct
-  let init () = Raylib.init_audio_device (); Mutex.create ()
+  let init () =
+    Raylib.(set_trace_log_level TraceLogLevel.Warning);
+    Raylib.init_audio_device ();
+    Mutex.create ()
 
   let silent = ref None
   let silence _ =

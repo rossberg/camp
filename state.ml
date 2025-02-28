@@ -219,11 +219,10 @@ let save st =
   Storage.save_map state_file (to_map st)
 
 let load st =
-  Playlist.load_playlist st.playlist;
-  Library.load_dirs st.library;
-
   let map = Storage.load_map state_file in
   layout_of_map st.layout map;
+  Playlist.load_playlist st.playlist;
+  Library.load_dirs st.library;
   Config.of_map st.config map;
   Control.of_map st.control map;
   Playlist.of_map st.playlist map;

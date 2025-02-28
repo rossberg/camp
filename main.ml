@@ -1101,7 +1101,10 @@ let run_library (st : State.t) =
     (* Click on Artists button: toggle artist pane *)
     dir.artists_shown <- artists';
     if not (artists' || dir.albums_shown || dir.tracks_shown) then
+    (
       dir.tracks_shown <- true;
+      Library.refresh_tracks lib;
+    );
     Library.refresh_artists lib;
     Library.update_dir lib dir;
   );
@@ -1116,7 +1119,10 @@ let run_library (st : State.t) =
     (* Click on Albums button: toggle artist pane *)
     dir.albums_shown <- albums';
     if not (albums' || dir.artists_shown || dir.tracks_shown) then
+    (
       dir.tracks_shown <- true;
+      Library.refresh_tracks lib;
+    );
     Library.refresh_albums lib;
     Library.update_dir lib dir;
   );
@@ -1131,7 +1137,10 @@ let run_library (st : State.t) =
     (* Click on Tracks button: toggle artist pane *)
     dir.tracks_shown <- tracks';
     if not (tracks' || dir.artists_shown || dir.albums_shown) then
+    (
       dir.artists_shown <- true;
+      Library.refresh_artists lib;
+    );
     Library.refresh_tracks lib;
     Library.update_dir lib dir;
   );
@@ -1898,11 +1907,12 @@ let rec refill_audio (ctl : Control.t) () =
 let startup () =
   Storage.clear_temp ();
   let db = Db.init () in
-  let win = Api.Window.init 0 0 Layout.control_min_w Layout.control_min_h App.name in
-  let ui = Ui.make win in
   let audio = Api.Audio.init () in
-  let rst = ref (State.make ui audio db) in
-  let st = if State.load !rst then !rst else State.make ui audio db in
+  let win =
+    Api.Window.init 0 0 Layout.control_min_w Layout.control_min_h App.name in
+  let ui = Ui.make win in
+  let st0 = State.make ui audio db in
+  let st = if State.load st0 then st0 else State.make ui audio db in
   ignore (Domain.spawn (refill_audio st.control));
   at_exit (fun () ->
     State.save st;

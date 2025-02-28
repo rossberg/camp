@@ -68,7 +68,8 @@ let try_refresh action busy =
   match Atomic.exchange action None with
   | None -> false
   | Some (_, f) ->
-    f ();
+    (try f () with exn ->
+      Storage.log_exn "internal" exn "refreshing view");
     Atomic.set busy false;  (* avoid race condition! *)
     Option.iter (fun (keep_busy, _) ->
       if keep_busy then Atomic.set busy true
