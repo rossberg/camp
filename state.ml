@@ -153,18 +153,18 @@ let layout_to_map lay =
 let layout_of_map lay m =  (* assumes playlist and library already loaded *)
   let open Layout in
   let win = Ui.window lay.ui in
-  let ww, wh = Api.Window.size win in
+  let ww, wh = Layout.(control_min_w, control_min_h) in
   let sx, sy = Api.Window.min_pos win in
   let sw, sh = Api.Window.max_size win in
-  let xy = ref None in
-  read_map m "win_pos" (fun s -> xy :=
-    Some (scan s "%d , %d" (num_pair sx sy (sx + sw - 20) (sy + sh - 20))));
+  let pos = ref (0, 0) in
+  read_map m "win_pos" (fun s -> pos :=
+    scan s "%d , %d" (num_pair sx sy (sx + sw - 20) (sy + sh - 20)));
   read_map m "color_palette" (fun s ->
     Ui.set_palette lay.ui (scan s "%d" (num 0 (Ui.num_palette lay.ui - 1))));
   read_map m "text" (fun s -> lay.text <- scan s "%d" (num 6 64));
   read_map m "play_open" (fun s -> lay.playlist_shown <- scan s "%d" bool);
   read_map m "play_height" (fun s ->
-    lay.playlist_height <- scan s "%d" (num (playlist_min lay) (sh - sy)));
+    lay.playlist_height <- scan s "%d" (num (playlist_min lay) (sh - wh)));
   read_map m "lib_open" (fun s -> lay.library_shown <- scan s "%d" bool);
   read_map m "lib_side" (fun s ->
     lay.library_side <- if scan s "%d" bool then `Right else `Left);
@@ -179,10 +179,7 @@ let layout_of_map lay m =  (* assumes playlist and library already loaded *)
   read_map m "directories_width" (fun s ->
     lay.directories_width <- scan s "%d"
       (num (directories_min lay) (directories_max lay)));
-  Api.Draw.start win `Black;
-  Option.iter (fun (x, y) -> Api.Window.set_pos win x y) !xy;
-  Api.Window.set_size win (ww + lay.library_width) (wh + lay.playlist_height);
-  Api.Draw.finish win
+  !pos
 
 
 (* Persistance *)
@@ -219,10 +216,11 @@ let save st =
   Storage.save_map state_file (to_map st)
 
 let load st =
-  let map = Storage.load_map state_file in
-  layout_of_map st.layout map;
   Playlist.load_playlist st.playlist;
   Library.load_dirs st.library;
+
+  let map = Storage.load_map state_file in
+  let pos = layout_of_map st.layout map in
   Config.of_map st.config map;
   Control.of_map st.control map;
   Playlist.of_map st.playlist map;
@@ -237,4 +235,4 @@ let load st =
       st.control.current;
   );
 
-  try ok st; true with _ -> false
+  try ok st; true, pos with _ -> false, pos

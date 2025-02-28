@@ -98,7 +98,7 @@ struct
 
     (* Discover screen geometry by opening a dummy window and maximise it. *)
     Raylib.(set_config_flags
-      ConfigFlags.[Window_undecorated; (*Window_transparent;*) Window_resizable]);
+      ConfigFlags.[Window_undecorated; Window_resizable]);
     Raylib.init_window 8000 4000 "";
     Raylib.maximize_window ();
     update ();
@@ -126,6 +126,10 @@ struct
   let minimize () = Raylib.minimize_window ()
   let restore () = Raylib.restore_window ()
   let is_minimized () = Raylib.is_window_minimized ()
+
+  let hide () = Raylib.set_window_state [Raylib.ConfigFlags.Window_hidden]
+  let reveal () = Raylib.clear_window_state [Raylib.ConfigFlags.Window_hidden]
+  let is_hidden () = Raylib.is_window_hidden ()
 
   let screen_size () =
     let mon = Raylib.get_current_monitor () in

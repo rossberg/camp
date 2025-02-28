@@ -1891,7 +1891,10 @@ and run' (st : State.t) =
     then Layout.(control_h lay + playlist_min lay, -1)
     else Layout.(control_h lay, control_h lay)
   in
-  Ui.finish lay.ui (Layout.margin lay) (minw, minh) (maxw, maxh)
+  Ui.finish lay.ui (Layout.margin lay) (minw, minh) (maxw, maxh);
+
+  if Api.Window.is_hidden win then  (* after startup *)
+    Api.Window.reveal win
 
 
 (* Startup *)
@@ -1908,11 +1911,18 @@ let startup () =
   Storage.clear_temp ();
   let db = Db.init () in
   let audio = Api.Audio.init () in
-  let win =
-    Api.Window.init 0 0 Layout.control_min_w Layout.control_min_h App.name in
+  let win = Api.Window.init 0 0 0 0 App.name in
+  Api.Window.hide win;  (* hide during initialisation *)
   let ui = Ui.make win in
   let st0 = State.make ui audio db in
-  let st = if State.load st0 then st0 else State.make ui audio db in
+  let success, (x, y) = State.load st0 in
+  let st = if success then st0 else State.make ui audio db in
+  Api.Draw.start win `Black;
+  let w = Layout.control_min_w + st.layout.library_width in
+  let h = Layout.control_min_h + st.layout.playlist_height in
+  Api.Window.set_pos win x y;
+  Api.Window.set_size win w h;
+  Api.Draw.finish win;
   ignore (Domain.spawn (refill_audio st.control));
   at_exit (fun () ->
     State.save st;

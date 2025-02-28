@@ -50,6 +50,10 @@ sig
   val restore : window -> unit
   val is_minimized : window -> bool
 
+  val hide : window -> unit
+  val reveal : window -> unit
+  val is_hidden : window -> bool
+
   val screen_size : window -> size
   val fps : window -> int
 end

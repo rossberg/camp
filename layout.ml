@@ -248,7 +248,7 @@ let edit_w = 25
 let edit_h = 20
 let edit_button i j label key g = Ui.labeled_button g.ui (ep, margin g + i*5 + j*edit_w, - edit_h, edit_w, edit_h) (button_label_h g) (Ui.inactive_color g.ui) label key true
 
-let sep_button = edit_button 0 0 "SEP" ([`Command], `Char ' ')
+let sep_button = edit_button 0 0 "SEP" ([], `Insert)
 let del_button = edit_button 1 1 "DEL" ([], `Delete)
 let crop_button = edit_button 1 2 "CROP" ([`Shift], `Delete)
 let clean_button = edit_button 1 3 "CLEAN" ([`Command], `Delete)
