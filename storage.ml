@@ -70,11 +70,9 @@ let log msg =
   )
 
 let log_exn cause exn msg =
-  Mutex.protect log_mutex (fun () ->
-    let msg' = if msg = "" then "" else " " ^ msg in
-    log (cause ^ " error " ^ Printexc.to_string exn ^ msg' ^ "\n" ^
-      Printexc.get_backtrace ())
-  )
+  let msg' = if msg = "" then "" else " " ^ msg in
+  log (cause ^ " error " ^ Printexc.to_string exn ^ msg' ^ "\n" ^
+    Printexc.get_backtrace ())
 
 
 (* Loading & Saving *)

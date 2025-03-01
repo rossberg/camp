@@ -26,7 +26,7 @@ let load_tag path : tag option =
           let tag_opt, errors = Id3v2.input_tag file in
           Option.map (fun tag -> Id3v2Tag tag) tag_opt, errors
         | ".flac" ->
-          (match Vorbis.input_tag file with
+          (match Vorbis.input_flac_tag file with
           | None, [] ->
             let tag_opt, errors = Id3v2.input_tag file in
             Option.map (fun tag -> Id3v2Tag tag) tag_opt,
@@ -34,6 +34,12 @@ let load_tag path : tag option =
           | tag_opt, errors ->
             Option.map (fun tag -> VorbisTag tag) tag_opt, errors
           )
+        | ".ogg" ->
+          let tag_opt, errors = Vorbis.input_ogg_tag file in
+          Option.map (fun tag -> VorbisTag tag) tag_opt, errors
+        | ".opus" ->
+          let tag_opt, errors = Vorbis.input_opus_tag file in
+          Option.map (fun tag -> VorbisTag tag) tag_opt, errors
         | ext ->
           None, [(0, "unknown file type " ^ ext)]
       with End_of_file ->

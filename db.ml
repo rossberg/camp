@@ -213,6 +213,13 @@ let count_table stmt db =
   let* () = Sqlite3.step stmt in
   Sqlite3.column_int stmt 0
 
+let count_table_prefix stmt db path =
+  let& () = db in
+  let stmt = prepare db stmt in
+  let* () = bind_text stmt 1 (path ^ "%") in
+  let* () = Sqlite3.step stmt in
+  Sqlite3.column_int stmt 0
+
 let mem_table stmt db path =
   let& () = db in
   let stmt = prepare db stmt in
@@ -268,6 +275,26 @@ let delete_from_table_prefix stmt db path =
   let* () = Sqlite3.step stmt in
   ()
 
+let delete_from_table_prefix_except stmt db path =
+  let& () = db in
+  let stmt = prepare db stmt in
+  let* () = bind_text stmt 1 (path ^ "%") in
+  let* () = bind_text stmt 2 (path ^ File.("%" // "%")) in
+  let* () = Sqlite3.step stmt in
+  ()
+
+let delete_from_table_bulk stmtf db paths =
+  if paths <> [] then
+  (
+    let& () = db in
+    let stmt = prepare db (stmtf paths) in
+    List.iteri (fun i path ->
+      let* () = bind_text stmt (1 + i) path in ()
+    ) paths;
+    let* () = Sqlite3.step stmt in
+    ()
+  )
+
 let update_in_table binds stmt db =
   let& () = db in
   let stmt = prepare db stmt in
@@ -282,6 +309,13 @@ let iter_table binds of_data stmt db f =
   let f data = f (of_data data) in
   let* () = Sqlite3.iter stmt ~f in
   ()
+
+let iter_table_prefix of_data stmt db path f =
+  iter_table [|of_text (path ^ "%")|] of_data stmt db f
+
+let iter_table_prefix_except of_data stmt db path f =
+  iter_table [|of_text (path ^ "%"); of_text (path ^ File.("%" // "%"))|]
+    of_data stmt db f
 
 
 (* Dirs *)
@@ -382,6 +416,16 @@ let iter_dirs = stmt
     SELECT * FROM Dirs ORDER BY path DESC;
   " |> iter_table [||] (to_dir 0)
 
+let iter_dirs_for_path = stmt
+  "
+    SELECT * FROM Dirs WHERE path LIKE ? AND NOT (path LIKE ?);
+  " |> iter_table_prefix_except (to_dir 0)
+
+let iter_dirs_for_path_rec = stmt
+  "
+    SELECT * FROM Dirs WHERE path LIKE ?;
+  " |> iter_table_prefix (to_dir 0)
+
 let insert_dir = stmt @@
   "
     INSERT OR REPLACE INTO Dirs VALUES " ^ tuple 1 dir_cols ^ ";
@@ -395,10 +439,26 @@ let insert_dirs_bulk = (fun dirs -> stmt @@
 
 let update_dir = insert_dir
 
-let delete_dirs = stmt
+let delete_dir = stmt
+  "
+    DELETE FROM Dirs WHERE path = ?;
+  " |> delete_from_table
+
+let delete_dirs_for_path = stmt
+  "
+    DELETE FROM Dirs WHERE path LIKE ? AND NOT (path LIKE ?);
+  " |> delete_from_table_prefix_except
+
+let delete_dirs_for_path_rec = stmt
   "
     DELETE FROM Dirs WHERE path LIKE ?;
   " |> delete_from_table_prefix
+
+let delete_dirs_bulk = (fun paths -> stmt @@
+  "
+    DELETE FROM Dirs
+    WHERE " ^ String.concat " OR " (List.map (fun _ -> "path = ?") paths) ^ ";
+  ") |> delete_from_table_bulk
 
 let update_dirs_pos = stmt
   "
@@ -506,6 +566,11 @@ let count_tracks = stmt
     SELECT COUNT(*) FROM Tracks;
   " |> count_table
 
+let count_tracks_for_path_rec = stmt
+  "
+    SELECT COUNT(*) FROM Tracks WHERE path LIKE ?;
+  " |> count_table_prefix
+
 let mem_track = stmt
   "
     SELECT COUNT(*) FROM Tracks WHERE path = ?;
@@ -521,6 +586,16 @@ let iter_tracks = stmt
     SELECT * FROM Tracks;
   " |> iter_table [||] (to_track 0)
 
+let iter_tracks_for_path = stmt
+  "
+    SELECT * FROM Tracks WHERE path LIKE ? AND NOT (path LIKE ?);
+  " |> iter_table_prefix_except (to_track 0)
+
+let iter_tracks_for_path_rec = stmt
+  "
+    SELECT * FROM Tracks WHERE path LIKE ?;
+  " |> iter_table_prefix (to_track 0)
+
 let insert_track = stmt @@
   "
     INSERT OR REPLACE INTO Tracks VALUES " ^ tuple 1 track_cols ^ ";
@@ -532,10 +607,26 @@ let insert_tracks_bulk = (fun tracks -> stmt @@
     VALUES " ^ tuples 1 track_cols (List.length tracks) ^ ";
   ") |> insert_into_table_bulk (Fun.const bind_track) track_cols
 
-let delete_tracks = stmt
+let delete_track = stmt
+  "
+    DELETE FROM Tracks WHERE path = ?;
+  " |> delete_from_table
+
+let delete_tracks_for_path = stmt
+  "
+    DELETE FROM Tracks WHERE path LIKE ? AND NOT (path LIKE ?);
+  " |> delete_from_table_prefix_except
+
+let delete_tracks_for_path_rec = stmt
   "
     DELETE FROM Tracks WHERE path LIKE ?;
   " |> delete_from_table_prefix
+
+let delete_tracks_bulk = (fun paths -> stmt @@
+  "
+    DELETE FROM Tracks
+    WHERE " ^ String.concat " OR " (List.map (fun _ -> "path = ?") paths) ^ ";
+  ") |> delete_from_table_bulk
 
 
 (* Complex Queries *)
@@ -655,7 +746,7 @@ let iter_tracks_for_path_search db path artists albums searches = stmt @@
     iter_table (Array.concat [[|of_text path|]; artist_binds; album_binds; search_binds])
       (to_track 0) stmt db
 
-let iter_tracks_for_path db path artists albums searches f =
+let iter_tracks_for_path_filter db path artists albums searches f =
   if Array.length artists > 1 || searches <> [||] then
     iter_tracks_for_path_search db path artists albums searches f
   else if Array.length albums > 1 then
@@ -841,7 +932,12 @@ let insert_playlists_bulk db path items = ((fun items -> stmt @@
     insert_into_table_bulk (fun i -> bind_playlist path (i + 1)) playlist_cols)
       db items
 
-let delete_playlists = stmt
+let delete_playlists_for_path = stmt
+  "
+    DELETE FROM Playlists WHERE path LIKE ? AND (NOT path LIKE ?);
+  " |> delete_from_table_prefix_except
+
+let delete_playlists_for_path_rec = stmt
   "
     DELETE FROM Playlists WHERE path LIKE ?;
   " |> delete_from_table_prefix

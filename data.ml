@@ -368,6 +368,11 @@ module UCol = Camomile.UCol.Make (Camomile.UTF8)
 
 let compare_utf_8 s1 s2 = UCol.compare ~prec: `Primary s1 s2
 
+let compare_dir (dir1 : dir) (dir2 : dir) =
+  match compare dir1.pos dir2.pos with
+  | 0 -> compare_utf_8 dir1.name dir2.name
+  | i -> i
+
 let compare_attr : 'a. ([< any_attr] as 'a) -> _ = function
   | `Artist | `Title | `AlbumArtist | `AlbumTitle | `Country | `Label ->
     fun s1 s2 -> compare_utf_8 s1 s2

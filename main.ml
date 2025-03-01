@@ -1079,9 +1079,9 @@ let run_library (st : State.t) =
   if Layout.scan_button lay && Library.rescan_busy lib = None then
   (
     (* Inactive scanning indicator clicked: rescan *)
-    let mode = if Api.Key.is_modifier_down `Shift then `Thorough else `Fast in
+    let mode = if Api.Key.is_modifier_down `Shift then `Thorough else `Quick in
     match Library.selected_dir lib with
-    | None | Some 0 -> Library.rescan_root lib mode
+    | None -> Library.rescan_root lib mode
     | Some i ->
       let dir = lib.browser.entries.(i) in
       if Data.is_dir dir then Library.rescan_dirs lib mode [|dir|]

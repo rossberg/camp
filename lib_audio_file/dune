@@ -1,5 +1,11 @@
 (library
   (name audio_file)
-  (modules file mp3 flac wav format unicode m3u id3v1 id3v2 vorbis Jpeg Png meta)
+  (modules
+    file
+    unicode base64
+    jpeg png
+    mp3 ogg opus flac wav format
+    m3u id3v1 id3v2 vorbis meta
+  )
   (libraries unix)
 )

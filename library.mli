@@ -17,6 +17,8 @@ type t =
   mutable search : Edit.t;
   mutable error : string;
   mutable error_time : time;
+  mutable refresh_time : time;
+  mutable has_track : Set.Make(String).t * Set.Make(String).t;
 }
 
 
@@ -47,7 +49,7 @@ val to_map_extra : t -> Storage.map
 
 (* Scanning *)
 
-type scan_mode = [`Fast | `Thorough]
+type scan_mode = [`Quick | `Thorough]
 
 val rescan_root : t -> scan_mode -> unit
 val rescan_dirs : t -> scan_mode -> dir array -> unit

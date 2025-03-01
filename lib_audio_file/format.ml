@@ -37,7 +37,7 @@ let read path =
     {
       codec = "MP3";
       channels = channels;
-      depth = 1024 * mp3.bitrate / mp3.rate / channels;
+      depth = 1000 * mp3.bitrate / mp3.rate / channels;
       rate = mp3.rate;
       bitrate = float (1000 * mp3.bitrate);
       time = mp3.time;
@@ -69,7 +69,31 @@ let read path =
       size = wav.size;
     }
 
-  | ".ogg" -> {unknown with codec = "OGG"}  (* TODO *)
-  | ".opus" -> {unknown with codec = "OPUS"}  (* TODO *)
+  | ".ogg" ->
+    let ogg = Ogg.read_format path in
+    let time = float ogg.samples /. float ogg.rate in
+    {
+      codec = "OGG";
+      channels = ogg.channels;
+      depth = ogg.bitrate_nominal / ogg.rate / ogg.channels;
+      rate = ogg.rate;
+      bitrate = float ogg.bitrate_nominal;
+      time = time;
+      size = ogg.size;
+    }
+
+  | ".opus" ->
+    let opus = Opus.read_format path in
+    let time = float opus.samples /. float opus.rate in
+    let bitrate = float (8 * 48000 * opus.size) /. float opus.samples in
+    {
+      codec = "OPUS";
+      channels = opus.channels;
+      depth = int_of_float bitrate / opus.rate / opus.channels;
+      rate = opus.rate;
+      bitrate = bitrate;
+      time = time;
+      size = opus.size;
+    }
 
   | _ -> unknown

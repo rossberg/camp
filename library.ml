@@ -3,14 +3,17 @@
 open Audio_file
 open Data
 
+module Set = Set.Make(String)
+module Map = Map.Make(String)
+
 
 type time = float
 type db = Db.t
 
 type scan =
 {
-  dir_queue : (bool * path * (unit -> unit)) Safe_queue.t;
-  file_queue : (bool * path * (unit -> unit)) Safe_queue.t;
+  dir_queue : (bool * path * (unit -> bool)) Safe_queue.t;
+  file_queue : (bool * path * (unit -> bool)) Safe_queue.t;
   dir_busy : string option Atomic.t;
   file_busy : string option Atomic.t;
   completed : path option list Atomic.t;
@@ -35,6 +38,8 @@ type t =
   mutable search : Edit.t;
   mutable error : string;
   mutable error_time : time;
+  mutable refresh_time : time;
+  mutable has_track : Set.t * Set.t;
 }
 
 
@@ -87,9 +92,9 @@ let rec refresher scan () =
 let rec scanner scan queue busy () =
   let local, path, f = Safe_queue.take queue in
   Atomic.set busy (Some path);
-  f ();
+  let changed = f () in
   Atomic.set busy None;
-  complete scan (if local then Some path else None);
+  if changed then complete scan (if local then Some path else None);
   scanner scan queue busy ()
 
 let make_scan () =
@@ -116,6 +121,7 @@ let make_scan () =
 let make db =
   let root = Data.make_dir "" None (-1) 0 in
   root.name <- "All";
+  root.folded <- false;
   root.artists_shown <- true;
   root.albums_shown <- true;
   {
@@ -130,6 +136,8 @@ let make db =
     search = Edit.make 100;
     error = "";
     error_time = 0.0;
+    refresh_time = 0.0;
+    has_track = Set.empty, Set.empty;
   }
 
 
@@ -264,7 +272,7 @@ let track_attr_string (track : track) = function
 
 (* Scanning *)
 
-type scan_mode = [`Fast | `Thorough]
+type scan_mode = [`Quick | `Thorough]
 
 let rescan_track' _lib mode track =
   let old = {track with path = track.path} in
@@ -307,72 +315,82 @@ let rescan_track' _lib mode track =
     false
 
 let rescan_track lib mode track =
-  if rescan_track' lib mode track then
-    Db.insert_track lib.db track
+  let changed = rescan_track' lib mode track in
+  if changed then
+    Db.insert_track lib.db track;
+  changed
 
 let rescan_dir_tracks lib mode (dir : Data.dir) =
   try
-    let changed = ref [] in
+    let new_tracks = ref [] in
+    let old_tracks = ref Map.empty in
+    Db.iter_tracks_for_path lib.db dir.path (fun track ->
+      old_tracks := Map.add track.path track !old_tracks
+    );
     Array.iter (fun file ->
       let path = dir.path ^ file in
       if not (File.is_dir path) && Data.is_track_path path then
       (
         let track =
-          match Db.find_track lib.db path with
-          | Some track -> track
+          match Map.find_opt path !old_tracks with
+          | Some track -> old_tracks := Map.remove path !old_tracks; track
           | None -> Data.make_track path
         in
         if rescan_track' lib mode track then
-          changed := track :: !changed
+          new_tracks := track :: !new_tracks
       )
     ) (File.read_dir dir.path);
+    Db.delete_tracks_bulk lib.db (List.map fst (Map.bindings !old_tracks));
     (* Parent may have been deleted in the mean time... *)
-    if !changed <> [] && Db.mem_dir lib.db dir.path then
-      Db.insert_tracks_bulk lib.db !changed
+    if !new_tracks <> [] && Db.mem_dir lib.db dir.path then
+      Db.insert_tracks_bulk lib.db !new_tracks;
+    !old_tracks <> Map.empty || !new_tracks <> []
   with exn ->
-    Storage.log_exn "file" exn ("scanning tracks in directory " ^ dir.path)
+    Storage.log_exn "file" exn ("scanning tracks in directory " ^ dir.path);
+    true
 
 let rescan_playlist lib _mode path =
   try
     let s = File.load `Bin path in
     let items = M3u.parse_ext s in
     let items' = List.map (M3u.resolve (File.dir path)) items in
-    Db.delete_playlists lib.db path;
+    Db.delete_playlists_for_path lib.db path;
     Db.insert_playlists_bulk lib.db path items';
+    true
   with exn ->
-    Storage.log_exn "file" exn ("scanning playlist " ^ path)
+    Storage.log_exn "file" exn ("scanning playlist " ^ path);
+    true
 
 
 let queue_rescan_dir_tracks = ref (fun _ -> assert false)
 
-let rec flatten_dir (dir : dir) =
-  dir :: List.concat_map flatten_dir (Array.to_list dir.children)
-
 let rescan_dir lib mode (origin : Data.dir) =
-  (* TODO: bulk insert for performance *)
+  let new_dirs = ref [] in
+  let old_dirs = ref Map.empty in
+  Db.iter_dirs_for_path_rec lib.db origin.path (fun dir ->
+    old_dirs := Map.add dir.path dir !old_dirs
+  );
+  old_dirs := Map.remove origin.path !old_dirs;
+
   let rec scan_path path nest =
     if File.is_dir path then
-      if Data.is_track_path path then
-        scan_album path nest
-      else
-        scan_dir path nest
+      scan_dir path nest
+    else if Data.is_track_path path then
+      scan_track path
+    else if Data.is_playlist_path path then
+      scan_playlist path nest
     else
-      if Data.is_track_path path then
-        scan_track path
-      else if Data.is_playlist_path path then
-        scan_playlist path nest
-      else
-        None
+      None
 
   and scan_dir path nest' =
     Domain.cpu_relax ();
     let nest = nest' + 1 in
-    let dirs = Option.value ~default: [] in
     match
+      let dirs_of = Option.value ~default: [] in
       Array.fold_left (fun r file ->
         match r, scan_path File.(path // file) nest with
         | None, None -> None
-        | dirs1, dirs2 -> Some (dirs dirs1 @ dirs dirs2)
+        | dirs1, dirs2 -> Some (dirs_of dirs1 @ dirs_of dirs2)
       ) None (File.read_dir path)
     with
     | None -> None
@@ -380,34 +398,33 @@ let rescan_dir lib mode (origin : Data.dir) =
       let dir =
         if nest = origin.nest then origin else
         let dirpath = File.(path // "") in
-        match Db.find_dir lib.db dirpath with
-        | Some dir -> dir
+        match Map.find_opt dirpath !old_dirs with
+        | Some dir -> old_dirs := Map.remove dirpath !old_dirs; dir
         | None ->
           let parent = Some (Data.parent_path path) in
           let dir = Data.make_dir dirpath parent nest 0 in  (* TODO: pos *)
           if Data.is_track_path path then
             dir.name <- File.remove_extension dir.name;
+          new_dirs := dir :: !new_dirs;
           dir
       in
-      (* TODO: remove missing children from DB *)
       dir.children <- Array.of_list dirs;
+      Array.stable_sort Data.compare_dir dir.children;
       !queue_rescan_dir_tracks lib mode dir;
       Some [dir]
-
-  and scan_album path nest =
-    scan_dir path nest (* TODO *)
 
   and scan_track _path =
     Some []  (* deferred to directory scan *)
 
   and scan_playlist path nest =
     let dir =
-      match Db.find_dir lib.db path with
-      | Some dir -> dir
+      match Map.find_opt path !old_dirs with
+      | Some dir -> old_dirs := Map.remove path !old_dirs; dir
       | None ->
         let parent = Some (Data.parent_path path) in
         let dir = Data.make_dir path parent (nest + 1) 0 in  (* TODO: pos *)
         dir.name <- File.remove_extension dir.name;
+        new_dirs := dir :: !new_dirs;
         dir
     in
     Some [dir]
@@ -415,16 +432,18 @@ let rescan_dir lib mode (origin : Data.dir) =
 
   try
     if File.exists_dir origin.path then
-    (
-      match scan_dir origin.path (origin.nest - 1) with
-      | None -> ()
-      | Some dirs ->
-        (* Root may have been deleted in the mean time... *)
-        if Db.mem_dir lib.db origin.path then
-          Db.insert_dirs_bulk lib.db (List.concat_map flatten_dir dirs)
-    )
+      ignore (scan_dir origin.path (origin.nest - 1));
+    Map.iter (fun dirpath _ ->
+      Db.delete_tracks_for_path_rec lib.db dirpath
+    ) !old_dirs;
+    Db.delete_dirs_bulk lib.db (List.map fst (Map.bindings !old_dirs));
+    (* Root may have been deleted in the mean time... *)
+    if !new_dirs <> [] && Db.mem_dir lib.db origin.path then
+      Db.insert_dirs_bulk lib.db !new_dirs;
+    !old_dirs <> Map.empty || !new_dirs <> []
   with exn ->
-    Storage.log_exn "file" exn ("scanning directory " ^ origin.path)
+    Storage.log_exn "file" exn ("scanning directory " ^ origin.path);
+    true
 
 
 let rescan_dir lib mode (dir : dir) =
@@ -461,7 +480,21 @@ let _ = queue_rescan_dir_tracks := rescan_dir_tracks
 
 let length_browser lib = Table.length lib.browser
 
-let has_track lib track = Db.mem_track lib.db track.path
+let has_track lib track =
+  let hasset, hasntset = lib.has_track in
+  if Set.mem track.path hasset then
+    true
+  else if Set.mem track.path hasntset then
+    false
+  else
+    let has = Db.mem_track lib.db track.path in
+    lib.has_track <-
+      (if has then
+         Set.add track.path hasset, hasntset
+      else
+         hasset, Set.add track.path hasntset
+      );
+    has
 
 
 let defocus lib =
@@ -571,16 +604,12 @@ let load_dirs lib =
       treeify parent (dir::children) dirs'
     | dirs ->
       parent.children <- Array.of_list children;
-      let cmp (dir1 : dir) (dir2 : dir) =
-        match compare dir1.pos dir2.pos with
-        | 0 -> compare dir1.name dir2.name
-        | i -> i
-      in Array.stable_sort cmp parent.children; dirs
+      Array.stable_sort Data.compare_dir parent.children; dirs
   in
   lib.root <- List.hd !dirs;
   ignore (treeify lib.root [] (List.tl !dirs));
 
-  rescan_root lib `Fast
+  rescan_root lib `Quick
 
 
 let make_root lib path pos =
@@ -639,9 +668,9 @@ let remove_dir lib path =
   | None -> ()
   | Some pos ->
     lib.current <- None;
-    Db.delete_dirs lib.db dirpath;
-    Db.delete_tracks lib.db dirpath;
-    Db.delete_playlists lib.db dirpath;
+    Db.delete_dirs_for_path_rec lib.db dirpath;
+    Db.delete_tracks_for_path_rec lib.db dirpath;
+    Db.delete_playlists_for_path_rec lib.db dirpath;
     lib.root.children <-
       Array.init (Array.length roots - 1) (fun i ->
         if i < pos then
@@ -717,6 +746,8 @@ let sort_entries entries sorting attr_string =
   Array.stable_sort cmp enriched;
   Array.map snd enriched
 
+let refresh_delay = 5.0
+
 let refresh lib (tab : _ Table.t) shown sorting attr_string key iter_db =
   if lib.current = None || not (shown (Option.get lib.current)) then
   (
@@ -736,9 +767,12 @@ let refresh lib (tab : _ Table.t) shown sorting attr_string key iter_db =
       tab.entries <- !entries';
       Table.adjust_pos tab;
       Table.restore_selection tab selection key
-    )
+    );
+    if lib.refresh_time <> 0.0 then
+      lib.refresh_time <- Unix.gettimeofday () +. refresh_delay
 
 let refresh_tracks_sync lib =
+  lib.has_track <- Set.empty, Set.empty;
   refresh lib lib.tracks tracks_shown tracks_sorting track_attr_string
     (track_key lib)
     (fun dir f ->
@@ -750,10 +784,10 @@ let refresh_tracks_sync lib =
         Array.map album_key (Table.selected lib.albums)
       in
       if dir.path = "" then
-        Db.iter_tracks_for_path lib.db "%" artists albums dir.search f
+        Db.iter_tracks_for_path_filter lib.db "%" artists albums dir.search f
       else if Data.is_dir dir then
         let path = File.(//) dir.path "%" in
-        Db.iter_tracks_for_path lib.db path artists albums dir.search f
+        Db.iter_tracks_for_path_filter lib.db path artists albums dir.search f
       else if Data.is_playlist dir then
         Db.iter_playlist_tracks_for_path lib.db dir.path artists albums dir.search f
     )
@@ -823,6 +857,7 @@ let refresh_albums_busy lib = Atomic.get lib.scan.albums_busy
 let refresh_tracks_busy lib = Atomic.get lib.scan.tracks_busy
 
 
+(*
 let rescan_affects_views lib path_opts =
   match lib.current with
   | None -> false
@@ -845,7 +880,20 @@ let refresh_after_rescan lib =
   )
   else if rescan_affects_views lib updated then
     refresh_artists_albums_tracks lib ~busy: false
+*)
 
+let refresh_after_rescan lib =
+  let updated = rescan_done lib in
+  let now = Unix.gettimeofday () in
+  if updated <> [] && lib.refresh_time = 0.0 then
+    lib.refresh_time <- now +. refresh_delay
+  else if now > lib.refresh_time && lib.refresh_time > 0.0
+  || current_is_playlist lib && Table.length lib.tracks = 0 then
+  (
+    lib.refresh_time <- 0.0;
+    refresh_browser lib;
+    refresh_artists_albums_tracks lib ~busy: false;
+  )
 
 let reorder lib tab sorting attr_string key =
   Option.iter (fun (dir : dir) ->
@@ -902,7 +950,7 @@ let save_playlist lib =
     let items = Array.to_list (Array.map (Track.to_m3u_item) tracks) in
     let s = M3u.make_ext items in
     File.store `Bin dir.path s;
-    Db.delete_playlists lib.db dir.path;
+    Db.delete_playlists_for_path_rec lib.db dir.path;
     if items <> [] then Db.insert_playlists_bulk lib.db dir.path items;
   with exn ->
     Storage.log_exn "file" exn ("writing playlist " ^ dir.path)
@@ -1100,7 +1148,7 @@ let of_map lib m =
       select_dir lib i;
       let dir = lib.browser.entries.(i) in
       Edit.set lib.search (Data.string_of_search dir.search);
-      if current_is_playlist lib then rescan_playlist lib `Fast dir.path;
+      if current_is_playlist lib then rescan_playlist lib `Quick dir.path;
     ) (Array.find_index (fun (dir : dir) -> dir.path = s) lib.browser.entries)
   );
   refresh_artists_albums_tracks lib

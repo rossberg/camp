@@ -46,7 +46,7 @@ let rec input_int_be ic len =
   let byte = input_byte ic in
   byte lsl (8*(len - 1)) + input_int_be ic (len - 1)
 
-let input_comment ic =
+let input_comment_field ic =
   let offset = pos_in ic in
   let length = input_int ic 4 in
   let s = really_input_string ic length in
@@ -60,11 +60,12 @@ let input_comment ic =
 let rec input_comments ic length i =
   if length = 0 then [], [] else
   let errors = ref [] in
-  let comment = seq ("comment " ^ string_of_int i) errors (input_comment ic) in
+  let comment =
+    seq ("comment " ^ string_of_int i) errors (input_comment_field ic) in
   let comments = seq "" errors (input_comments ic (length - 1) (i + 1)) in
   comment @ comments, !errors
 
-let input_vorbis_comment ic =
+let input_comment ic =
   let offset = pos_in ic - 4 in
   let errors = ref [] in
   let vendor_length = input_int ic 4 in
@@ -88,7 +89,7 @@ let input_picture ic =
   let data = really_input_string ic length in
   {picture_type; description; mime; width; height; depth; num_colors; data; offset}
 
-let rec input_metadata ic =
+let rec input_flac_metadata ic =
   let byte = input_byte ic in
   let last_block = byte land 0x80 <> 0 in
   let block_type = byte land 0x7f in
@@ -96,7 +97,7 @@ let rec input_metadata ic =
   let pos = pos_in ic in
   let tag_opt, errors =
     if block_type = 4 then
-      input_vorbis_comment ic
+      input_comment ic
     else if block_type = 6 then
       let picture = input_picture ic in
       Some {vendor = ""; comments = []; pictures = [picture]; offset = 0}, []
@@ -112,7 +113,7 @@ let rec input_metadata ic =
   else if last_block then
     tag_opt, errors
   else
-    let tag_opt', errors' = input_metadata ic in
+    let tag_opt', errors' = input_flac_metadata ic in
     let tag_opt'', errors'' =
       match tag_opt, tag_opt' with
       | None, _ -> tag_opt', []
@@ -129,9 +130,58 @@ let rec input_metadata ic =
     in
     tag_opt'', errors'' @ errors @ errors'
 
-let rec input_tag ic =
+let rec input_flac_tag ic =
   let offset = pos_in ic in
   match really_input_string ic 4 with
   | exception End_of_file -> None, []
-  | "fLaC" -> input_metadata ic
-  | _ -> seek_in ic (offset + 1); input_tag ic
+  | "fLaC" -> input_flac_metadata ic
+  | _ -> seek_in ic (offset + 1); input_flac_tag ic
+
+
+let with_channel_of_string s f =
+  let read, write = Unix.pipe () in
+  let ic = Unix.in_channel_of_descr read in
+  let oc = Unix.out_channel_of_descr write in
+  Fun.protect (fun () ->
+    ignore (Domain.spawn (fun () -> output_string oc s; close_out_noerr oc));
+    f ic
+  ) ~finally: (fun () -> close_out_noerr oc; close_in_noerr ic)
+
+let input_ogg_comment ic =
+  let tag, errors = input_comment ic in
+  Option.map (fun tag ->
+    let pictures =
+      List.filter_map (fun comment ->
+        if comment.key = "METADATA_BLOCK_PICTURE" then
+          try
+            let s = Base64.decode comment.value in
+            let pic = with_channel_of_string s input_picture in
+            Some {pic with offset = comment.offset}
+          with Base64.Invalid -> None
+        else None
+      ) tag.comments
+    in {tag with pictures}
+  ) tag, errors
+
+let rec input_ogg_tag' magic ic =
+  match really_input_string ic 4 with
+  | exception End_of_file -> None, []
+  | "OggS" ->
+    seek_in ic (pos_in ic + 26 - 4);
+    let segments = input_byte ic in
+    if segments = 0 then None, [(pos_in ic - 4, "invalid segment count")] else
+    let _ = seek_in ic (pos_in ic + segments - 1) in
+    let last = input_byte ic in
+    let size = 255 * (segments - 1) + last in
+    let magic' = really_input_string ic (String.length magic) in
+    if magic' = magic then
+      input_ogg_comment ic
+    else
+    (
+      seek_in ic (pos_in ic + size - String.length magic);
+      input_ogg_tag' magic ic
+    )
+  | _ -> None, [(pos_in ic - 4, "malformed page header")]
+
+let input_ogg_tag ic = input_ogg_tag' "\x03vorbis" ic
+let input_opus_tag ic = input_ogg_tag' "OpusTags" ic

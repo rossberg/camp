@@ -97,7 +97,7 @@ let rec analyze_from ic =
   | "fLaC" ->
     let format, errors1 = read_format_from ic in
     seek_in ic 0;
-    let vorbis, errors2 = Vorbis.input_tag ic in
+    let vorbis, errors2 = Vorbis.input_flac_tag ic in
     let errors = errors1 @ errors2 in
     {format; vorbis},
     if offset = 0 then errors else (0, "junk before stream marker") :: errors

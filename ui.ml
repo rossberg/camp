@@ -979,11 +979,12 @@ let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
   in
 
   (* Vertical scrollbar *)
+  let vwheel = not shift && len > page in
   let h' = page * ch in
   let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * ch)) in
   let pos = if len = 0 then 0.0 else float tab.vscroll /. float len in
   let coeff = max 1.0 (float page /. 4.0) /. float (len - page) in
-  let wheel = if not shift then coeff *. wheel_status ui r else 0.0 in
+  let wheel = if vwheel then coeff *. wheel_status ui r else 0.0 in
   let pos' = scroll_bar ui vscroll_area `Vertical pos ext -. wheel in
   let result =
     if result <> `None || pos = pos' then result else
@@ -1001,7 +1002,7 @@ let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
     let vw' = max vw (tab.hscroll + w) in
     let ext = if vw' = 0 then 1.0 else min 1.0 (float w /. float vw') in
     let pos = if vw' = 0 then 0.0 else float tab.hscroll /. float vw' in
-    let wheel = if shift then wheel_status ui r else 0.0 in
+    let wheel = if not vwheel then wheel_status ui r else 0.0 in
     let pos' = scroll_bar ui hscroll_area `Horizontal pos ext -. 0.05 *. wheel in
     if result <> `None || pos = pos' then result else
     (

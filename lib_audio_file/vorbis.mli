@@ -28,4 +28,6 @@ type tag =
 
 type error = int * string
 
-val input_tag : in_channel -> tag option * error list
+val input_flac_tag : in_channel -> tag option * error list
+val input_ogg_tag : in_channel -> tag option * error list
+val input_opus_tag : in_channel -> tag option * error list
