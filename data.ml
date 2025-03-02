@@ -22,7 +22,7 @@ type format_attr =
 
 type meta_attr =
 [
-  | `Artist | `Title | `Track | `Tracks | `Disc | `Discs
+  | `Artist | `Title | `Track | `Tracks | `Disc | `Discs | `Cover
   | `AlbumArtist | `AlbumTitle | `Date | `Year | `Country | `Label | `Rating
 ]
 
@@ -108,6 +108,7 @@ let artists_columns : artist_attr columns =
 
 let albums_columns : album_attr columns =
 [|
+  `Cover, 35;
   `FileTime, 110;
   `Rating, 30;
   `AlbumArtist, 150;
@@ -126,6 +127,7 @@ let albums_columns : album_attr columns =
 let tracks_columns : track_attr columns =
 [|
   `Pos, 20;
+  `Cover, 35;
   `FileTime, 70;
   `Rating, 30;
   `Artist, 150;
@@ -288,6 +290,7 @@ let attr_str =
   `Year, "YER";
   `Label, "LAB";
   `Country, "CTY";
+  `Cover, "COV";
 ]
 
 let string_of_attr attr = List.assoc (attr :> any_attr) attr_str
@@ -327,6 +330,17 @@ let columns_of_string to_attr s =
     Storage.log_exn "internal" exn ("malformed columns format: " ^ s);
     raise exn
 
+(* TODO: this is a temporary conversion hack for retro-introducing covers. *)
+let columns_of_string_add_cover i to_attr s =
+  let columns = columns_of_string to_attr s in
+  if fst columns.(i) = `Cover then columns else
+  Array.init (Array.length columns + 1) (fun j ->
+    match compare j i with
+    | -1 -> columns.(j)
+    | +1 -> columns.(j - 1)
+    | _ -> `Cover, 35
+  )
+
 let to_artist_attr = function
   | #artist_attr as attr -> attr
   | _ -> failwith "to_artist_attr"
@@ -353,8 +367,8 @@ let album_sorting_of_string s = sorting_of_string to_album_attr s
 let track_sorting_of_string s = sorting_of_string to_track_attr s
 
 let artist_columns_of_string s = columns_of_string to_artist_attr s
-let album_columns_of_string s = columns_of_string to_album_attr s
-let track_columns_of_string s = columns_of_string to_track_attr s
+let album_columns_of_string s = columns_of_string_add_cover 0 to_album_attr s
+let track_columns_of_string s = columns_of_string_add_cover 1 to_track_attr s
 
 
 let string_of_search search =  String.concat " " (Array.to_list search)
@@ -376,6 +390,7 @@ let compare_dir (dir1 : dir) (dir2 : dir) =
 let compare_attr : 'a. ([< any_attr] as 'a) -> _ = function
   | `Artist | `Title | `AlbumArtist | `AlbumTitle | `Country | `Label ->
     fun s1 s2 -> compare_utf_8 s1 s2
+  | `Cover -> fun s1 s2 -> compare (String.length s1) (String.length s2)
   | _ -> compare
 
 let rec compare_attrs sorting ss1 ss2 =

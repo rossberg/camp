@@ -96,8 +96,11 @@ sig
   type prepared = image
 
   val load : window -> path -> image
+  val load_from_memory : window -> string (* mime *) -> string -> image
 
   val load_raw : path -> raw
+  val load_raw_from_memory : string -> string -> raw
+
   val extract : raw -> int -> int -> int -> int -> raw
   val prepare : window -> raw -> image
 
@@ -128,7 +131,7 @@ sig
   val text : window -> int -> int -> int -> color -> font -> string -> unit
   val text_width : window -> int -> font -> string -> int
   val text_spacing : window -> int -> font -> int
-  val image : window -> int -> int -> int -> image -> unit
+  val image : window -> int -> int -> float -> image -> unit
 end
 
 

@@ -4,6 +4,13 @@ open Data
 type db = Db.t
 type scan
 
+type cover =
+{
+  image : Api.image;
+  width : int;
+  height : int;
+}
+
 type t =
 {
   db : db;
@@ -18,6 +25,7 @@ type t =
   mutable error : string;
   mutable error_time : time;
   mutable refresh_time : time;
+  mutable covers : cover option Map.Make(String).t;
   mutable has_track : Set.Make(String).t * Set.Make(String).t;
 }
 
@@ -155,3 +163,8 @@ val undo : t -> unit
 val redo : t -> unit
 
 val adjust_scroll : t -> int option -> int -> unit
+
+
+(* Covers *)
+
+val load_cover : t -> Api.window -> track -> cover option

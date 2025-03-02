@@ -225,6 +225,14 @@ struct
 
   let load_raw path = Raylib.load_image path
 
+  let mime_prefix = "image/"
+  let load_raw_from_memory mime data =
+    if not (String.starts_with ~prefix: mime_prefix mime) then
+      failwith "Image.load_from_memory";
+    let n = String.length mime_prefix in
+    let ext = "." ^ String.sub mime n (String.length mime - n) in
+    Raylib.load_image_from_memory ext data (String.length data)
+
   let extract img x y w h =
     Raylib.image_from_image img
       (Raylib.Rectangle.create (float x) (float y) (float w) (float h))
@@ -232,6 +240,8 @@ struct
   let prepare () img = Raylib.load_texture_from_image img
 
   let load () path = prepare () (load_raw path)
+  let load_from_memory () mime data =
+    prepare () (load_raw_from_memory mime data)
 
   let size img = Raylib.Texture.(width img, height img)
 end
@@ -319,7 +329,7 @@ struct
 
   let image () x y scale img =
     let v = vec2_of_point (x, y) in
-    Raylib.draw_texture_ex img v 0.0 (float scale) Raylib.Color.white
+    Raylib.draw_texture_ex img v 0.0 scale Raylib.Color.white
 end
 
 

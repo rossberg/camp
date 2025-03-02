@@ -144,7 +144,7 @@ let rec updater () =
   (
     try
       track.format <- Some (Format.read track.path);
-      let meta = Meta.load track.path ~with_cover: false in
+      let meta = Meta.load track.path in
       if meta.loaded then
       (
         track.meta <- Some meta;

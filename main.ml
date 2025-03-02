@@ -111,6 +111,20 @@ let run_control (st : State.t) =
   (* Possible click on color button: cycle color palette *)
   Ui.set_palette lay.ui ((Ui.get_palette lay.ui + dcol + ncol) mod ncol);
 
+  (* Cover *)
+  if ctl.cover then
+  (
+    Option.iter (fun (track : Data.track) ->
+      Option.iter (fun (cover : Library.cover) ->
+        let x, y, w, h = Ui.dim lay.ui (Layout.cover_area lay) in
+        Api.Draw.clip win x y w h;
+        Api.Draw.image win x y (float w /. float cover.width) cover.image;
+        Api.Draw.unclip win;
+      ) (Library.load_cover st.library win track)
+    ) ctl.current
+  );
+  if Layout.cover_key lay then ctl.cover <- not ctl.cover;
+
   (* FPS *)
   if ctl.fps then
     Layout.fps_text lay `Regular true (fmt "%d FPS" (Api.Window.fps win));

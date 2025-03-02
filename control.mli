@@ -13,6 +13,7 @@ type t =
   mutable timemode : [`Elapse | `Remain];
   mutable repeat : [`None | `One | `All];
   mutable loop : [`None | `A of time | `AB of time * time];
+  mutable cover : bool;
   mutable fps : bool;
 }
 

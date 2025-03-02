@@ -10,6 +10,13 @@ module Map = Map.Make(String)
 type time = float
 type db = Db.t
 
+type cover =
+{
+  image : Api.image;
+  width : int;
+  height : int;
+}
+
 type scan =
 {
   dir_queue : (bool * path * (unit -> bool)) Safe_queue.t;
@@ -39,6 +46,7 @@ type t =
   mutable error : string;
   mutable error_time : time;
   mutable refresh_time : time;
+  mutable covers : cover option Map.t;
   mutable has_track : Set.t * Set.t;
 }
 
@@ -137,6 +145,7 @@ let make db =
     error = "";
     error_time = 0.0;
     refresh_time = 0.0;
+    covers = Map.empty;
     has_track = Set.empty, Set.empty;
   }
 
@@ -176,6 +185,7 @@ let attr_prop = function
   | `Year -> "Year", `Left
   | `Label -> "Label", `Left
   | `Country -> "Country", `Left
+  | `Cover -> "Cover", `Left
   | `None -> assert false
 
 let attr_name attr = fst (attr_prop (attr :> any_attr))
@@ -230,6 +240,7 @@ let meta_attr_string (meta : Meta.t) = function
     let star = "*" in  (* TODO: "★" *)
     let len = String.length star in
     String.init (meta.rating * len) (fun i -> star.[i mod len])
+  | `Cover -> nonempty (fun (pic : Meta.picture) () -> pic.data) meta.cover ()
 
 let artist_attr_string' attr path meta =
   let s = nonempty meta_attr_string meta attr in
@@ -307,7 +318,7 @@ let rescan_track' _lib mode track =
       then
       (
         track.format <- Some (Format.read track.path);
-        track.meta <- Some (Meta.load ~with_cover: false track.path);
+        track.meta <- Some (Meta.load track.path);
         track.status <- `Det;
       )
     );
@@ -1107,6 +1118,25 @@ let redo lib =
   Array.iteri (fun i track -> track.pos <- i) lib.tracks.entries;
   restore_playlist lib order;
   save_playlist lib
+
+
+(* Covers *)
+
+let load_cover lib win track =
+  match Map.find_opt track.path lib.covers with
+  | Some cover_opt -> cover_opt
+  | None ->
+    Option.map (fun (meta : Meta.t) ->
+      Option.map (fun (pic : Meta.picture) ->
+        let cover_opt =
+          match Api.Image.load_from_memory win pic.mime pic.data with
+          | exception _ -> None
+          | image -> Some {image; width = pic.width; height = pic.height}
+        in
+        lib.covers <- Map.add track.path cover_opt lib.covers;
+        cover_opt
+      ) meta.cover
+    ) track.meta |> Option.join |> Option.join
 
 
 (* Persistance *)

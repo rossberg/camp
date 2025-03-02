@@ -187,7 +187,7 @@ let start ui =
     let x = if ww < iw then - (iw - ww)/2 else i*iw in
     for j = 0 to (wh + ih - 1)/ih - 1 do
       let y = if wh < ih then - (ih - wh)/2 else j*ih in
-      Draw.image ui.win x y 1 bg
+      Draw.image ui.win x y 1.0 bg
     done
   done;
 
@@ -513,7 +513,7 @@ let button ui r ?(protrude=true) modkey focus active =
   let img = get_img ui ui.img_button in
   let sx, sy = if status = `Pressed then 800, 400 else 0, 200 in
   Draw.clip ui.win x y w h;
-  Draw.image ui.win (x - sx) (y - sy) 1 img;
+  Draw.image ui.win (x - sx) (y - sy) 1.0 img;
   Draw.unclip ui.win;
   if status <> `Pressed then
   (

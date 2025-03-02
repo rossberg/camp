@@ -13,6 +13,7 @@ type t =
   mutable timemode : [`Elapse | `Remain];
   mutable repeat : [`None | `One | `All];
   mutable loop : [`None | `A of time | `AB of time * time];
+  mutable cover : bool;
   mutable fps : bool;
 }
 
@@ -29,6 +30,7 @@ let make audio =
     timemode = `Elapse;
     repeat = `None;
     loop = `None;
+    cover = true;
     fps = false;
   }
 
@@ -126,6 +128,7 @@ let to_map ctl =
     "play", fmt "%s" (match ctl.current with Some s -> s.path | None -> "");
     "seek", fmt "%.4f" (if length > 0.0 then played /. length else 0.0);
     "timemode", fmt "%d" (Bool.to_int (ctl.timemode = `Remain));
+    "info_cover", fmt "%d" (Bool.to_int ctl.cover);
     "repeat", fmt "%d"
       (match ctl.repeat with
       | `None -> 0
@@ -172,4 +175,5 @@ let of_map ctl m =
       )
   );
   read_map m "timemode" (fun s ->
-    ctl.timemode <- if scan s "%d" bool then `Remain else `Elapse)
+    ctl.timemode <- if scan s "%d" bool then `Remain else `Elapse);
+  read_map m "info_cover" (fun s -> ctl.cover <- scan s "%d" bool)

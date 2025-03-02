@@ -151,13 +151,21 @@ let lcd3 g = Ui.lcd g.ui (cp, lcd_x g 3 + colon_w + lcd_space, lcd_y g, lcd_w, l
 let lcd4 g = Ui.lcd g.ui (cp, lcd_x g 4 + colon_w + lcd_space, lcd_y g, lcd_w, lcd_h)
 let lcd_button g = Ui.mouse g.ui (cp, lcd_x g 0, lcd_y g, colon_w + lcd_x g 4, lcd_h) `Left
 
+(* Cover *)
+let cover_x g = lcd_x g 5 + 30
+let cover_y g = margin g + info_margin g
+let cover_w = 80
+let cover_h = 40
+let cover_area g = (cp, cover_x g, cover_y g, cover_w, cover_h)
+let cover_key g = Ui.key g.ui ([`Command], `Char 'Y') true
+
 (* Info *)
 let seek_h _g = 14
 let seek_y g = info_h g - info_margin g/2 - seek_h g
 let ticker_h _g = 16
-let ticker_y g = seek_y g - ticker_h g - 4
+let ticker_y g = seek_y g - ticker_h g - 3
 let prop_h _g = 12
-let prop_y g = ticker_y g - prop_h g - 4
+let prop_y g = ticker_y g - prop_h g - 2
 
 let prop_text g = Ui.text g.ui (cp, margin g + info_margin g, prop_y g, mute_x g, prop_h g) `Left
 let title_ticker g = Ui.ticker g.ui (cp, margin g + info_margin g, ticker_y g, info_w g - info_margin g, ticker_h g)
@@ -169,7 +177,7 @@ let color_button side g = Ui.mouse g.ui (cp, margin g, color_y g, mute_x g, tick
 let color_button_fwd = color_button `Left
 let color_button_bwd = color_button `Right
 
-let fps_text g = Ui.text g.ui (cp, 130, margin g + info_margin g, 40, 12) `Left
+let fps_text g = Ui.text g.ui (cp, cover_x g + cover_w + 20, margin g + info_margin g, 40, 12) `Left
 let fps_key g = Ui.key g.ui ([`Command], `Char 'U') true
 
 (* Control buttons *)
