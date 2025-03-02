@@ -741,7 +741,11 @@ let run_edit (st : State.t) =
   (* Save button *)
   let pl_save_avail = pl_focus in
   let lib_save_avail = lib_focus &&
-    (match lib.current with Some dir -> dir.tracks_shown | None -> false) in
+    (match lib.current with
+    | Some dir -> dir.tracks_shown <> None
+    | None -> false
+    )
+  in
   let save_avail = not lay.filesel_shown && (pl_save_avail || lib_save_avail) in
   if Layout.save_button lay (if save_avail then Some false else None) then
   (
@@ -1109,6 +1113,11 @@ let run_library (st : State.t) =
   (* Browse modes *)
   let have_dir = lib.current <> None in
   let dir = Option.value lib.current ~default: browser.entries.(0) in
+  let cycle_shown = function
+    | None -> Some `Table
+    | Some `Table -> Some `Grid
+    | Some `Grid -> None
+  in
 
   let artists = have_dir && dir.artists_shown in
   Layout.artists_label lay;
@@ -1119,43 +1128,45 @@ let run_library (st : State.t) =
   (
     (* Click on Artists button: toggle artist pane *)
     dir.artists_shown <- artists';
-    if not (artists' || dir.albums_shown || dir.tracks_shown) then
+    if not (artists' || dir.albums_shown <> None || dir.tracks_shown <> None) then
     (
-      dir.tracks_shown <- true;
+      dir.tracks_shown <- Some `Table;
       Library.refresh_tracks lib;
     );
     Library.refresh_artists lib;
     Library.update_dir lib dir;
   );
 
-  let albums = have_dir && dir.albums_shown in
+  let albums = have_dir && dir.albums_shown <> None in
   Layout.albums_label lay;
-  Layout.albums_indicator lay albums;
+  Layout.albums_indicator1 lay (dir.albums_shown = Some `Table);
+  Layout.albums_indicator2 lay (dir.albums_shown = Some `Grid);
   let albums' =
     Layout.albums_button lay (if have_dir then Some albums else None) in
   if have_dir && albums' <> albums then
   (
     (* Click on Albums button: toggle artist pane *)
-    dir.albums_shown <- albums';
-    if not (albums' || dir.artists_shown || dir.tracks_shown) then
+    dir.albums_shown <- cycle_shown dir.albums_shown;
+    if not (dir.albums_shown <> None || dir.artists_shown || dir.tracks_shown <> None) then
     (
-      dir.tracks_shown <- true;
+      dir.tracks_shown <- Some `Table;
       Library.refresh_tracks lib;
     );
     Library.refresh_albums lib;
     Library.update_dir lib dir;
   );
 
-  let tracks = have_dir && dir.tracks_shown in
+  let tracks = have_dir && dir.tracks_shown <> None in
   Layout.tracks_label lay;
-  Layout.tracks_indicator lay tracks;
+  Layout.tracks_indicator1 lay (dir.tracks_shown = Some `Table);
+  Layout.tracks_indicator2 lay (dir.tracks_shown = Some `Grid);
   let tracks' =
     Layout.tracks_button lay (if have_dir then Some tracks else None) in
   if have_dir && tracks' <> tracks then
   (
     (* Click on Tracks button: toggle artist pane *)
-    dir.tracks_shown <- tracks';
-    if not (tracks' || dir.artists_shown || dir.albums_shown) then
+    dir.tracks_shown <- cycle_shown dir.tracks_shown;
+    if not (dir.tracks_shown <> None || dir.artists_shown || dir.albums_shown <> None) then
     (
       dir.artists_shown <- true;
       Library.refresh_artists lib;
@@ -1165,8 +1176,8 @@ let run_library (st : State.t) =
   );
 
   let show_artists = have_dir && dir.artists_shown && lay.playlist_shown in
-  let show_albums = have_dir && dir.albums_shown && lay.playlist_shown in
-  let show_tracks = not have_dir || dir.tracks_shown || not lay.playlist_shown in
+  let show_albums = have_dir && dir.albums_shown <> None && lay.playlist_shown in
+  let show_tracks = not have_dir || dir.tracks_shown <> None || not lay.playlist_shown in
   lay.right_shown <- show_artists && show_albums;
   lay.lower_shown <- show_tracks && (show_artists || show_albums);
 
@@ -1228,7 +1239,7 @@ let run_library (st : State.t) =
 
   if show_artists then
   (
-    let artists_pane, artists_area, artists_table, artists_spin =
+    let artists_pane, artists_area, artists_table, _grid, artists_spin =
       Layout.left_view in
     artists_pane lay;
 
@@ -1325,7 +1336,7 @@ let run_library (st : State.t) =
 
   if show_albums then
   (
-    let albums_pane, albums_area, albums_table, albums_spin =
+    let albums_pane, albums_area, albums_table, albums_grid, albums_spin =
       Layout.(if lay.right_shown then right_view else left_view) in
     albums_pane lay;
 
@@ -1351,8 +1362,26 @@ let run_library (st : State.t) =
       ) dir.albums_columns
     in
 
+    let pp_cell i =
+      let album = tab.entries.(i) in
+      let img =
+        match Library.load_cover lib win album.path with
+        | Some img -> img
+        | None -> Ui.nocover lay.ui
+      and txt =
+        Library.album_attr_string album `AlbumArtist ^ " - " ^
+        Library.album_attr_string album `AlbumTitle ^ " (" ^
+        Library.album_attr_string album `Year ^ ")"
+      in img, txt
+    in
+
     let sorting = convert_sorting dir.albums_columns dir.albums_sorting in
-    (match albums_table lay cols (Some (headings, sorting)) tab pp_row with
+    let header = Some (headings, sorting) in
+    (match
+      match Option.get dir.albums_shown with
+      | `Table -> albums_table lay cols header tab pp_row
+      | `Grid -> albums_grid lay lay.albums_grid header tab pp_cell
+    with
     | `None | `Scroll | `Move _ -> ()
 
     | `Select ->
@@ -1432,7 +1461,7 @@ let run_library (st : State.t) =
 
   if show_tracks then
   (
-    let tracks_pane, tracks_area, tracks_table, tracks_spin =
+    let tracks_pane, tracks_area, tracks_table, tracks_grid, tracks_spin =
       Layout.(if lay.lower_shown then lower_view else left_view) in
     tracks_pane lay;
 
@@ -1473,8 +1502,26 @@ let run_library (st : State.t) =
       ) dir.tracks_columns
     in
 
+    let pp_cell i =
+      let track = tab.entries.(i) in
+      let img =
+        match Library.load_cover lib win track.path with
+        | Some img -> img
+        | None -> Ui.nocover lay.ui
+      and txt =
+        Library.track_attr_string track `Artist ^ " - " ^
+        Library.track_attr_string track `Title ^ " (" ^
+        Library.track_attr_string track `Year ^ ")"
+      in img, txt
+    in
+
     let sorting = convert_sorting dir.tracks_columns dir.tracks_sorting in
-    (match tracks_table lay cols (Some (headings, sorting)) tab pp_row with
+    let header = Some (headings, sorting) in
+    (match
+      match Option.get dir.tracks_shown with
+      | `Table -> tracks_table lay cols header tab pp_row
+      | `Grid -> tracks_grid lay lay.tracks_grid header tab pp_cell
+    with
     | `None | `Scroll -> ()
 
     | `Select ->
@@ -1618,6 +1665,31 @@ let run_library (st : State.t) =
   );
 
   if Layout.lib_cover_key lay then lib.cover <- not lib.cover;
+
+  let grid_delta n =
+    if n <= 20 then 2 else
+    if n <= 60 then 4 else
+    if n <= 140 then 8 else
+    if n <= 300 then 16 else 32
+  in
+  if lib.albums.focus then
+  (
+    let delta = grid_delta lay.tracks_grid in
+    let grid' = lay.albums_grid +
+      (if Layout.enlarge_grid_key lay then +delta else 0) +
+      (if Layout.reduce_grid_key lay then -delta else 0)
+    in
+    lay.albums_grid <- clamp 10 1000 grid';
+  )
+  else if lib.tracks.focus then
+  (
+    let delta = grid_delta lay.tracks_grid in
+    let grid' = lay.tracks_grid +
+      (if Layout.enlarge_grid_key lay then +delta else 0) +
+      (if Layout.reduce_grid_key lay then -delta else 0)
+    in
+    lay.tracks_grid <- clamp 10 1000 grid';
+  );
 
   (* Pane divider *)
 

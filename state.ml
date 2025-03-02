@@ -148,6 +148,8 @@ let layout_to_map lay =
     "upper_height", fmt "%d" lay.upper_height;
     "left_width", fmt "%d" lay.left_width;
     "directories_width", fmt "%d" lay.directories_width;
+    "albums_grid", fmt "%d" lay.albums_grid;
+    "tracks_grid", fmt "%d" lay.tracks_grid;
   ]
 
 let layout_of_map lay m =  (* assumes playlist and library already loaded *)
@@ -179,6 +181,10 @@ let layout_of_map lay m =  (* assumes playlist and library already loaded *)
   read_map m "directories_width" (fun s ->
     lay.directories_width <- scan s "%d"
       (num (directories_min lay) (directories_max lay)));
+  read_map m "albums_grid"
+    (fun s -> lay.albums_grid <- scan s "%d" (num 10 1000));
+  read_map m "tracks_grid"
+    (fun s -> lay.tracks_grid <- scan s "%d" (num 10 1000));
   !pos
 
 

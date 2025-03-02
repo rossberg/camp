@@ -35,6 +35,8 @@ type order = [`Asc | `Desc]
 type 'attr sorting = ('attr * order) list
 type 'attr columns = ('attr * int) array
 
+type display = [`Table | `Grid]
+
 
 (* Data *)
 
@@ -51,8 +53,8 @@ type dir =
   mutable search : search;
   mutable folded : bool;
   mutable artists_shown : bool;
-  mutable albums_shown : bool;
-  mutable tracks_shown : bool;
+  mutable albums_shown : display option;
+  mutable tracks_shown : display option;
   mutable divider_width : int;
   mutable divider_height : int;
   mutable artists_columns : artist_attr columns;
@@ -108,7 +110,7 @@ let artists_columns : artist_attr columns =
 
 let albums_columns : album_attr columns =
 [|
-  `Cover, 35;
+  `Cover, 30;
   `FileTime, 110;
   `Rating, 30;
   `AlbumArtist, 150;
@@ -127,7 +129,7 @@ let albums_columns : album_attr columns =
 let tracks_columns : track_attr columns =
 [|
   `Pos, 20;
-  `Cover, 35;
+  `Cover, 30;
   `FileTime, 70;
   `Rating, 30;
   `Artist, 150;
@@ -160,8 +162,8 @@ let make_dir path parent nest pos : dir =
     search = make_search ();
     folded = true;
     artists_shown = false;
-    albums_shown = false;
-    tracks_shown = true;
+    albums_shown = None;
+    tracks_shown = Some `Table;
     divider_width = 100;
     divider_height = 100;
     artists_columns = artists_columns;
@@ -338,7 +340,7 @@ let columns_of_string_add_cover i to_attr s =
     match compare j i with
     | -1 -> columns.(j)
     | +1 -> columns.(j - 1)
-    | _ -> `Cover, 35
+    | _ -> `Cover, 30
   )
 
 let to_artist_attr = function

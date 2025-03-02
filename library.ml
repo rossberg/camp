@@ -131,7 +131,7 @@ let make db =
   root.name <- "All";
   root.folded <- false;
   root.artists_shown <- true;
-  root.albums_shown <- true;
+  root.albums_shown <- Some `Table;
   {
     db;
     scan = make_scan ();
@@ -599,7 +599,7 @@ let current_is_playlist lib =
 let current_is_shown_playlist lib =
   match lib.current with
   | None -> false
-  | Some dir -> dir.tracks_shown && Data.is_playlist dir
+  | Some dir -> dir.tracks_shown <> None && Data.is_playlist dir
 
 
 (* Roots *)
@@ -732,8 +732,8 @@ let deselect lib i j = Table.deselect lib.tracks i j
 
 
 let artists_shown dir = dir.artists_shown
-let albums_shown dir = dir.albums_shown
-let tracks_shown dir = dir.tracks_shown
+let albums_shown dir = dir.albums_shown <> None
+let tracks_shown dir = dir.tracks_shown <> None
 
 let artists_sorting dir = dir.artists_sorting
 let albums_sorting dir = dir.albums_sorting

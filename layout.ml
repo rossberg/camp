@@ -24,6 +24,8 @@ type t =
   mutable right_shown : bool;
   mutable upper_height : int;
   mutable lower_shown : bool;
+  mutable albums_grid : int;
+  mutable tracks_grid : int;
 }
 
 let make ui =
@@ -47,6 +49,8 @@ let make ui =
     right_shown = false;
     upper_height = 200;
     lower_shown = false;
+    albums_grid = 100;
+    tracks_grid = 100;
   }
 
 
@@ -245,6 +249,9 @@ let playlist_total_text g = Ui.text g.ui (pp, total_x g, total_y g, total_w g - 
 let enlarge_key g = Ui.key g.ui ([`Command], `Char '+') true
 let reduce_key g = Ui.key g.ui ([`Command], `Char '-') true
 
+let enlarge_grid_key g = Ui.key g.ui ([`Command; `Shift], `Char '+') true
+let reduce_grid_key g = Ui.key g.ui ([`Command; `Shift], `Char '-') true
+
 
 (* Edit Pane *)
 
@@ -292,20 +299,26 @@ let view_w = 25
 let view_h = 12
 let view_x g i = - margin g - view_w - i*(view_w + 8) - 2
 let view_y g = margin g + indicator_w g + 1
-let view_indicator_x g x = x + (view_w - indicator_w g)/2 + 1
-let view_indicator i g = Ui.indicator g.ui `Green (bp, view_indicator_x g (view_x g i), view_y g - indicator_w g - 1, indicator_w g, indicator_w g)
+let view_indicator_x g x = function
+  | `Center -> x + (view_w - indicator_w g)/2 + 1
+  | `Left -> x + 4
+  | `Right -> x + view_w - indicator_w g - 4
+
+let view_indicator i al g = Ui.indicator g.ui `Green (bp, view_indicator_x g (view_x g i) al, view_y g - indicator_w g - 1, indicator_w g, indicator_w g)
 let view_button i g = Ui.button g.ui (bp, view_x g i, view_y g, view_w, view_h) ([], `None) false
 let view_label i label g = Ui.label g.ui (bp, view_x g i - 4, view_y g + view_h + 1, view_w + 8, label_h g) `Center label
 
-let artists_indicator = view_indicator 2
+let artists_indicator = view_indicator 2 `Center
 let artists_button = view_button 2
 let artists_label = view_label 2 "ARTISTS"
 
-let albums_indicator = view_indicator 1
+let albums_indicator1 = view_indicator 1 `Left
+let albums_indicator2 = view_indicator 1 `Right
 let albums_button = view_button 1
 let albums_label = view_label 1 "ALBUMS"
 
-let tracks_indicator = view_indicator 0
+let tracks_indicator1 = view_indicator 0 `Left
+let tracks_indicator2 = view_indicator 0 `Right
 let tracks_button = view_button 0
 let tracks_label = view_label 0 "TRACKS"
 
@@ -342,10 +355,11 @@ let left_pane g = Ui.pane g.ui lp (left_x g, 0, left_w g, upper_h g)
 
 let left_area g = (lp, 0, margin g, -1, -1)
 let left_table g = Ui.rich_table g.ui (left_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g)
+let left_grid g iw = Ui.grid_table g.ui (left_area g) (gutter_w g) iw (text_h g) (scrollbar_w g)
 let left_mouse g = Ui.rich_table_mouse g.ui (left_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
 let left_spin g = Ui.text g.ui (lp, 4, margin g + text_h g + 4, -1, text_h g) `Left `Regular true
 
-let left_view = left_pane, left_area, left_table, left_spin
+let left_view = left_pane, left_area, left_table, left_grid, left_spin
 
 (* Upper right view (optional) *)
 let rp = lp + 1
@@ -355,10 +369,11 @@ let right_divider g = Ui.divider g.ui (rp, 0, 0, divider_w g, -1) `Horizontal
 
 let right_area g = (rp, divider_w g, margin g, -1, -1)
 let right_table g = Ui.rich_table g.ui (right_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g)
+let right_grid g iw = Ui.grid_table g.ui (right_area g) (gutter_w g) iw (text_h g) (scrollbar_w g)
 let right_mouse g = Ui.rich_table_mouse g.ui (right_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
 let right_spin g = Ui.text g.ui (rp, divider_w g + 4, margin g + text_h g + 4, -1, text_h g) `Left `Regular true
 
-let right_view = right_pane, right_area, right_table, right_spin
+let right_view = right_pane, right_area, right_table, right_grid, right_spin
 
 (* Lower view (optional) *)
 let lp = rp + 1
@@ -368,10 +383,11 @@ let lower_divider g = Ui.divider g.ui (lp, 0, 0, -1, divider_w g) `Vertical
 
 let lower_area g = (lp, 0, divider_w g, -1, -1)
 let lower_table g = Ui.rich_table g.ui (lower_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g)
+let lower_grid g iw = Ui.grid_table g.ui (lower_area g) (gutter_w g) iw (text_h g) (scrollbar_w g)
 let lower_mouse g = Ui.rich_table_mouse g.ui (lower_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
 let lower_spin g = Ui.text g.ui (lp, 4, divider_w g + text_h g + 4, -1, text_h g) `Left `Regular true
 
-let lower_view = lower_pane, lower_area, lower_table, lower_spin
+let lower_view = lower_pane, lower_area, lower_table, lower_grid, lower_spin
 
 (* Keys *)
 let lib_cover_key g = Ui.key g.ui ([`Command; `Shift], `Char 'Y') true

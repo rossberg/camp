@@ -23,7 +23,6 @@ type area = pane * int * int * int * int
 val dim : t -> area -> rect
 val mouse_inside : t -> area -> bool
 
-
 (* Colors *)
 
 val num_palette : t -> int
@@ -42,6 +41,10 @@ val semilit_color : color -> color
 (* Fonts *)
 
 val font : t -> int -> Api.font
+
+(* Images *)
+
+val nocover : t -> Api.image
 
 (* Input elements *)
 
@@ -131,6 +134,30 @@ val browser :
     | `Scroll
     | `Move of int
     | `Fold of int
+    | `Drag of int * way
+    | `Drop
+    | `None
+    ]
+
+val grid : t -> area -> int -> int -> int ->
+  (image * color * inversion * string) option array array -> (int * int) option
+
+val grid_table :
+  t ->
+  area ->
+  int ->    (* gutter width *)
+  int ->    (* image width/height *)
+  int ->    (* text height *)
+  int ->    (* vertical scroll bar width *)
+  heading option ->
+  'a Table.t ->
+  (int -> Api.image * string) ->
+    [ `Click of int option
+    | `Select
+    | `Scroll
+    | `Sort of int
+    | `Arrange
+    | `Move of int
     | `Drag of int * way
     | `Drop
     | `None

@@ -81,6 +81,9 @@ let to_text_default i data = to_default to_text "" i data
 let to_pair to_x i to_y j data = (to_x i data, to_y j data)
 
 
+let set_bit i b = if b then 1 lsl i else 0
+let get_bit i n = n land (1 lsl i) <> 0
+
 let of_status = function
   | `Undet -> 0
   | `Predet -> 1
@@ -95,6 +98,16 @@ let to_status = function
   | -2 -> `Absent
   | _ -> `Undet
 
+let of_display i j = function
+  | None -> 0
+  | Some `Table -> set_bit i true
+  | Some `Grid -> set_bit i true + set_bit j true
+
+let to_display i j n =
+  match get_bit i n, get_bit j n with
+  | false, _ -> None
+  | true, false -> Some `Table
+  | true, true -> Some `Grid
 
 let paren s = "(" ^ s ^ ")"
 let list ss = String.concat ", " ss
@@ -355,9 +368,9 @@ let to_dir i data : dir =
     nest = to_int (i + 4) data;
     search = search_of_string (to_text (i + 6) data);
     folded = to_bool (i + 5) data;
-    artists_shown = to_int (i + 7) data land 1 <> 0;
-    albums_shown = to_int (i + 7) data land 2 <> 0;
-    tracks_shown = to_int (i + 7) data land 4 <> 0;
+    artists_shown = get_bit 0 (to_int (i + 7) data);
+    albums_shown = to_display 1 3 (to_int (i + 7) data);
+    tracks_shown = to_display 2 4 (to_int (i + 7) data);
     divider_width = to_int (i + 8) data;
     divider_height = to_int (i + 9) data;
     artists_columns = artist_columns_of_string (to_text (i + 10) data);
@@ -379,10 +392,10 @@ let bind_dir stmt i (dir : dir) =
   let* () = bind_bool stmt (i + 5) dir.folded in
   let* () = bind_text stmt (i + 6) (string_of_search dir.search) in
   let* () = bind_int stmt (i + 7)
-    Bool.(
-      to_int dir.artists_shown +
-      to_int dir.albums_shown lsl 1 +
-      to_int dir.tracks_shown lsl 2
+    (
+      set_bit 0 dir.artists_shown +
+      of_display 1 3 dir.albums_shown +
+      of_display 2 4 dir.tracks_shown
     )
   in
   let* () = bind_int stmt (i + 8) dir.divider_width in
