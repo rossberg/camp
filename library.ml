@@ -185,6 +185,7 @@ let attr_align attr = snd (attr_prop (attr :> any_attr))
 let nonzero zero f x = if x = zero then "" else f x
 let nonzero_int w x = nonzero 0 (fmt "%*d" w) x (* leading spaces for sorting *)
 let nonempty f x attr = match x with None -> "" | Some x -> f x attr
+let unknown f x attr = match nonempty f x attr with "" -> "[unknown]" | s -> s
 
 
 let file_attr_string path (file : file) = function
@@ -219,7 +220,8 @@ let meta_attr_string (meta : Meta.t) = function
   | `Tracks -> nonzero_int 3 meta.track (* TODO: set and use tracks *)
   | `Disc -> nonzero_int 2 meta.disc
   | `Discs -> nonzero_int 2 meta.disc (* TODO: set and use discs *)
-  | `Date -> meta.date_txt
+  | `Date ->
+    if meta.date_txt = "" then nonzero_int 4 meta.year else meta.date_txt
   | `Year -> nonzero_int 4 meta.year
   | `Label -> meta.label
   | `Country -> meta.country
@@ -265,6 +267,8 @@ let track_attr_string (track : track) = function
   | `Artist -> artist_attr_string' `Artist track.path track.meta
   | `Title -> title_attr_string' `Title track.path track.meta
   | `Length -> length_attr_string' track.format track.meta
+  | `AlbumArtist -> unknown meta_attr_string track.meta `AlbumArtist
+  | `AlbumTitle -> unknown meta_attr_string track.meta `AlbumTitle
   | #file_attr as attr -> file_attr_string track.path track.file attr
   | #format_attr as attr -> nonempty format_attr_string track.format attr
   | #meta_attr as attr -> nonempty meta_attr_string track.meta attr
