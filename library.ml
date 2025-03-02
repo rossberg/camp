@@ -10,13 +10,6 @@ module Map = Map.Make(String)
 type time = float
 type db = Db.t
 
-type cover =
-{
-  image : Api.image;
-  width : int;
-  height : int;
-}
-
 type scan =
 {
   dir_queue : (bool * path * (unit -> bool)) Safe_queue.t;
@@ -32,6 +25,12 @@ type scan =
   tracks_busy : bool Atomic.t;
 }
 
+type cover =
+  | NoCover
+  | ScanCover
+  | ScannedCover of Meta.picture
+  | Cover of Api.image
+
 type t =
 {
   db : db;
@@ -46,7 +45,8 @@ type t =
   mutable error : string;
   mutable error_time : time;
   mutable refresh_time : time;
-  mutable covers : cover option Map.t;
+  mutable cover : bool;
+  mutable covers : cover Map.t;
   mutable has_track : Set.t * Set.t;
 }
 
@@ -145,6 +145,7 @@ let make db =
     error = "";
     error_time = 0.0;
     refresh_time = 0.0;
+    cover = true;
     covers = Map.empty;
     has_track = Set.empty, Set.empty;
   }
@@ -1122,21 +1123,32 @@ let redo lib =
 
 (* Covers *)
 
-let load_cover lib win track =
-  match Map.find_opt track.path lib.covers with
-  | Some cover_opt -> cover_opt
-  | None ->
-    Option.map (fun (meta : Meta.t) ->
-      Option.map (fun (pic : Meta.picture) ->
-        let cover_opt =
-          match Api.Image.load_from_memory win pic.mime pic.data with
-          | exception _ -> None
-          | image -> Some {image; width = pic.width; height = pic.height}
-        in
-        lib.covers <- Map.add track.path cover_opt lib.covers;
-        cover_opt
-      ) meta.cover
-    ) track.meta |> Option.join |> Option.join
+let rescan_cover' lib path =
+  let meta = Meta.load path in
+  let cover =
+    match meta.cover with
+    | None -> NoCover
+    | Some pic -> ScannedCover pic
+  in
+  lib.covers <- Map.add path cover lib.covers;
+  false
+
+let rescan_cover lib path =
+  lib.covers <- Map.add path ScanCover lib.covers;
+  Safe_queue.add (false, path, fun () -> rescan_cover' lib path)
+    lib.scan.file_queue
+
+let load_cover lib win path =
+  match Map.find_opt path lib.covers with
+  | Some (NoCover | ScanCover) -> None
+  | Some (Cover image) -> Some image
+  | Some (ScannedCover pic) ->
+    let cover, result =
+      match Api.Image.load_from_memory win pic.mime pic.data with
+      | exception _ -> NoCover, None
+      | image -> Cover image, Some image
+    in lib.covers <- Map.add path cover lib.covers; result
+  | None -> rescan_cover lib path; None
 
 
 (* Persistance *)
@@ -1144,6 +1156,7 @@ let load_cover lib win track =
 open Storage
 let fmt = Printf.sprintf
 let scan = Scanf.sscanf
+let bool x = x <> 0
 let num l h x = max l (min h x)
 
 let to_map lib =
@@ -1152,6 +1165,7 @@ let to_map lib =
     "browser_scroll", fmt "%d" lib.browser.vscroll;
     "browser_current",
       (Option.value lib.current ~default: (Data.make_dir "-" None 0 0)).path;
+    "lib_cover", fmt "%d" (Bool.to_int lib.cover);
   ]
 
 let to_map_extra lib =
@@ -1185,4 +1199,5 @@ let of_map lib m =
       if current_is_playlist lib then rescan_playlist lib `Quick dir.path;
     ) (Array.find_index (fun (dir : dir) -> dir.path = s) lib.browser.entries)
   );
+  read_map m "lib_cover" (fun s -> lib.cover <- scan s "%d" bool);
   refresh_artists_albums_tracks lib

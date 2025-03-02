@@ -83,7 +83,8 @@ val divider : t -> area -> Api.orientation -> int -> int -> int -> int
 type order = [`Asc | `Desc]
 type sorting = (int * order) list
 type column = int * align
-type row = color * inversion * string array
+type cell = [`Text of string | `Image of Api.image]
+type row = color * inversion * cell array
 type heading = string array * sorting
 
 val table : t -> area -> int -> int -> column array -> row array -> int ->
@@ -101,7 +102,7 @@ val rich_table :
   column array ->                    (* column layout *)
   heading option ->                  (* headers *)
   'a Table.t ->                      (* data *)
-  (int -> color * string array) ->   (* row generator *)
+  (int -> color * cell array) ->     (* row generator *)
     [ `Click of int option
     | `Select
     | `Scroll

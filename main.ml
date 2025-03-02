@@ -115,12 +115,13 @@ let run_control (st : State.t) =
   if ctl.cover then
   (
     Option.iter (fun (track : Data.track) ->
-      Option.iter (fun (cover : Library.cover) ->
+      Option.iter (fun img ->
         let x, y, w, h = Ui.dim lay.ui (Layout.cover_area lay) in
+        let iw, _ = Api.Image.size img in
         Api.Draw.clip win x y w h;
-        Api.Draw.image win x y (float w /. float cover.width) cover.image;
+        Api.Draw.image win x y (float w /. float iw) img;
         Api.Draw.unclip win;
-      ) (Library.load_cover st.library win track)
+      ) (Library.load_cover st.library win track.path)
     ) ctl.current
   );
   if Layout.cover_key lay then ctl.cover <- not ctl.cover;
@@ -813,7 +814,11 @@ let run_playlist (st : State.t) =
     in
     let time = Track.time track in
     let stime = if time = 0.0 then "" else fmt_time time in
-    c, [|fmt "%0*d." digits_pos (i + 1); Track.name track; stime|]
+    c, [|
+      `Text (fmt "%0*d." digits_pos (i + 1));
+      `Text (Track.name track);
+      `Text stime
+    |]
   in
 
   (match Layout.playlist_table lay cols None tab pp_row with
@@ -1238,8 +1243,9 @@ let run_library (st : State.t) =
     let pp_row i =
       let artist = tab.entries.(i) in
       Ui.text_color lay.ui,
-      Array.map (fun (attr, _) -> Library.artist_attr_string artist attr)
-        dir.artists_columns
+      Array.map (fun (attr, _) ->
+        `Text (Library.artist_attr_string artist attr)
+      ) dir.artists_columns
     in
 
     let sorting = convert_sorting dir.artists_columns dir.artists_sorting in
@@ -1334,8 +1340,15 @@ let run_library (st : State.t) =
     let pp_row i =
       let album = tab.entries.(i) in
       Ui.text_color lay.ui,
-      Array.map (fun (attr, _) -> Library.album_attr_string album attr)
-        dir.albums_columns
+      Array.map (fun (attr, _) ->
+        if attr <> `Cover then
+          `Text (Library.album_attr_string album attr)
+        else if lib.cover then
+          match Library.load_cover lib win album.path with
+          | Some img -> `Image img
+          | None -> `Text ""
+        else `Text ""
+      ) dir.albums_columns
     in
 
     let sorting = convert_sorting dir.albums_columns dir.albums_sorting in
@@ -1449,8 +1462,15 @@ let run_library (st : State.t) =
             Ui.warn_color lay.ui
       in
       c,
-      Array.map (fun (attr, _) -> Library.track_attr_string track attr)
-        dir.tracks_columns
+      Array.map (fun (attr, _) ->
+        if attr <> `Cover then
+          `Text (Library.track_attr_string track attr)
+        else if lib.cover then
+          match Library.load_cover lib win track.path with
+          | Some img -> `Image img
+          | None -> `Text ""
+        else `Text ""
+      ) dir.tracks_columns
     in
 
     let sorting = convert_sorting dir.tracks_columns dir.tracks_sorting in
@@ -1597,6 +1617,8 @@ let run_library (st : State.t) =
     Api.Clipboard.write win s;
   );
 
+  if Layout.lib_cover_key lay then lib.cover <- not lib.cover;
+
   (* Pane divider *)
 
   let browser_width' = Layout.browser_divider lay lay.browser_width
@@ -1683,7 +1705,7 @@ let run_filesel (st : State.t) =
   let pp_row i =
     let file = files.entries.(i) in
     (if file.name = fs.input.text then `White else Ui.text_color lay.ui),
-    Filesel.row file
+    Array.map (fun s -> `Text s) (Filesel.row file)
   in
 
   let ok =

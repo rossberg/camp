@@ -373,6 +373,9 @@ let lower_spin g = Ui.text g.ui (lp, 4, divider_w g + text_h g + 4, -1, text_h g
 
 let lower_view = lower_pane, lower_area, lower_table, lower_spin
 
+(* Keys *)
+let lib_cover_key g = Ui.key g.ui ([`Command; `Shift], `Char 'Y') true
+
 
 (* Message Pane *)
 

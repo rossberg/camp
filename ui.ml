@@ -714,7 +714,8 @@ type inversion = [`Regular | `Inverted]
 type order = [`Asc | `Desc]
 type sorting = (int * order) list
 type column = int * align
-type row = color * inversion * string array
+type cell = [`Text of string | `Image of Api.image]
+type row = color * inversion * cell array
 type heading = string array * sorting
 
 let table ui r gw ch cols rows hscroll =
@@ -724,33 +725,39 @@ let table ui r gw ch cols rows hscroll =
   let flex = max 0
     (w - Array.fold_left (fun w (cw, _) -> w + cw + gw) (2 * mw - gw + 1) cols) in
   let font = font ui ch in
-  Array.iteri (fun j (fg, inv, texts) ->
+  Array.iteri (fun j (fg, inv, contents) ->
     let cy = y + j * ch in
     let bg = if j mod 2 = 0 then `Black else `Gray 0x10 in
     let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
     if bg <> `Black then Draw.fill ui.win x cy w ch bg;
     let cx = ref (x + mw - hscroll) in
     Array.iteri (fun i (cw, align) ->
-      let tw = Draw.text_width ui.win ch font texts.(i) in
       let cw = if cw < 0 then flex / (- cw) else cw in
-      let dx =
-        match align with
-        | `Left -> 0
-        | `Center -> (cw - tw) / 2
-        | `Right ->
-          (* Add extra padding if back to back with a left-aligned column *)
-          cw - tw -
-            (if i + 1 < Array.length cols && snd cols.(i + 1) = `Left then 4 else 0)
-      in
       let cw' = min cw (x + w - mw - !cx) in
       let left = max !cx (x + mw) in
-      Draw.clip ui.win left y (cw' - max 0 (left - !cx)) h;
-      Draw.text ui.win (!cx + max 0 dx) cy ch fg font texts.(i);
-      if tw >= cw then
-      (
-        let rw = min cw 16 in
-        Draw.gradient ui.win (!cx + cw - rw) cy rw ch
-          (`Trans (bg, 0)) `Horizontal bg;
+      Draw.clip ui.win left cy (cw' - max 0 (left - !cx)) ch;
+      (match contents.(i) with
+      | `Text text ->
+        let tw = Draw.text_width ui.win ch font text in
+        let dx =
+          match align with
+          | `Left -> 0
+          | `Center -> (cw - tw) / 2
+          | `Right ->
+            (* Add extra padding if back to back with a left-aligned column *)
+            cw - tw -
+              (if i + 1 < Array.length cols && snd cols.(i + 1) = `Left then 4 else 0)
+        in
+        Draw.text ui.win (!cx + max 0 dx) cy ch fg font text;
+        if tw >= cw then
+        (
+          let rw = min cw 16 in
+          Draw.gradient ui.win (!cx + cw - rw) cy rw ch
+            (`Trans (bg, 0)) `Horizontal bg;
+        )
+      | `Image img ->
+        let iw, _ = Image.size img in
+        Api.Draw.image ui.win !cx cy (float cw /. float iw) img;
       );
       Draw.unclip ui.win;
       cx := !cx + cw + gw;
@@ -770,7 +777,8 @@ let symbols_desc = [|"▼" (* "▾" *); "▼'" (* "▽", "▾", "▿" *); "▼''
 
 let header ui area gw cols (titles, sorting) hscroll =
   let (x, y, w, h) as r, status = element ui area no_modkey in
-  ignore (table ui area gw h cols [|text_color ui, `Inverted, titles|] hscroll);
+  let texts = Array.map (fun s -> `Text s) titles in
+  ignore (table ui area gw h cols [|text_color ui, `Inverted, texts|] hscroll);
 
   let mw = (gw + 1)/2 in  (* match mw in table *)
   Draw.clip ui.win x y w h;
@@ -1111,7 +1119,9 @@ let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
         let rec find i =
           if i = Table.length tab then i else
           let _, row = pp_row i in  (* TODO: only pp relevant column *)
-          if Data.compare_utf_8 s row.(col) <= 0 then i else find (i + 1)
+          match row.(col) with
+          | `Text s' when Data.compare_utf_8 s s' <= 0 -> i
+          | _ -> find (i + 1)
         in
         let i = find 0 in
         if i < len then
@@ -1148,7 +1158,7 @@ let browser ui area rh sw sh (tab : _ Table.t) pp_entry =
   in
   let pp_row i =
     let nest, folded, c, name = pp_entry i in
-    c, [|pp_pre nest folded ^ name|]
+    c, [|`Text (pp_pre nest folded ^ name)|]
   in
 
   let selected = tab.selected in
