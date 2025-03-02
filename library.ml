@@ -1191,13 +1191,13 @@ let of_map lib m =
   read_map m "browser_scroll" (fun s ->
     lib.browser.vscroll <- scan s "%d" (num 0 (max 0 (length_browser lib - 1))));
   read_map m "browser_current" (fun s ->
-    lib.current <- Db.find_dir lib.db s;
     Option.iter (fun i ->
       select_dir lib i;
       let dir = lib.browser.entries.(i) in
       Edit.set lib.search (Data.string_of_search dir.search);
       if current_is_playlist lib then rescan_playlist lib `Quick dir.path;
-    ) (Array.find_index (fun (dir : dir) -> dir.path = s) lib.browser.entries)
+    ) (Array.find_index (fun (dir : dir) -> dir.path = s) lib.browser.entries);
+    if lib.current = None then lib.current <- Db.find_dir lib.db s;
   );
   read_map m "lib_cover" (fun s -> lib.cover <- scan s "%d" bool);
   refresh_artists_albums_tracks lib
