@@ -1151,6 +1151,10 @@ let load_cover lib win path =
   | None -> rescan_cover lib path; None
 
 
+let purge_covers lib =
+  lib.covers <- Map.empty
+
+
 (* Persistance *)
 
 open Storage

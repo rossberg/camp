@@ -163,3 +163,4 @@ val adjust_scroll : t -> int option -> int -> unit
 (* Covers *)
 
 val load_cover : t -> Api.window -> path -> Api.image option
+val purge_covers : t -> unit

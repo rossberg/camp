@@ -1099,15 +1099,23 @@ let run_library (st : State.t) =
   (* Scanning indicator *)
   Layout.scan_label lay;
   Layout.scan_indicator lay (Library.rescan_busy lib <> None);
-  if Layout.scan_button lay && Library.rescan_busy lib = None then
+  if Layout.scan_button lay then
   (
-    (* Inactive scanning indicator clicked: rescan *)
-    let mode = if Api.Key.is_modifier_down `Shift then `Thorough else `Quick in
-    match Library.selected_dir lib with
-    | None -> Library.rescan_root lib mode
-    | Some i ->
-      let dir = lib.browser.entries.(i) in
-      if Data.is_dir dir then Library.rescan_dirs lib mode [|dir|]
+    let shift = Api.Key.is_modifier_down `Shift in
+    if shift then
+      (* Scanning indicator clicked: puge cached covers *)
+      Library.purge_covers lib;
+
+    if Library.rescan_busy lib = None then
+    (
+      (* Inactive scanning indicator clicked: rescan *)
+      let mode = if shift then `Thorough else `Quick in
+      match Library.selected_dir lib with
+      | None -> Library.rescan_root lib mode
+      | Some i ->
+        let dir = lib.browser.entries.(i) in
+        if Data.is_dir dir then Library.rescan_dirs lib mode [|dir|]
+    )
   );
 
   (* Browse modes *)
