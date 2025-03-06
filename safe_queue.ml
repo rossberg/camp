@@ -23,3 +23,6 @@ let clear q =
   Mutex.protect q.mutex (fun () ->
     Queue.clear q.queue
   )
+
+let length q =
+  Queue.length q.queue

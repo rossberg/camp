@@ -1156,10 +1156,7 @@ let run_library (st : State.t) =
     (* Click on Albums button: toggle artist pane *)
     dir.albums_shown <- cycle_shown dir.albums_shown;
     if not (dir.albums_shown <> None || dir.artists_shown || dir.tracks_shown <> None) then
-    (
-      dir.tracks_shown <- Some `Table;
-      Library.refresh_tracks lib;
-    );
+      dir.albums_shown <- Some `Table;
     Library.refresh_albums lib;
     Library.update_dir lib dir;
   );
@@ -1175,10 +1172,7 @@ let run_library (st : State.t) =
     (* Click on Tracks button: toggle artist pane *)
     dir.tracks_shown <- cycle_shown dir.tracks_shown;
     if not (dir.tracks_shown <> None || dir.artists_shown || dir.albums_shown <> None) then
-    (
-      dir.artists_shown <- true;
-      Library.refresh_artists lib;
-    );
+      dir.tracks_shown <- Some `Table;
     Library.refresh_tracks lib;
     Library.update_dir lib dir;
   );

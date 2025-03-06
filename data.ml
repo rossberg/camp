@@ -4,6 +4,7 @@ open Audio_file
 
 type path = string
 type time = float
+type date = float
 type blob = string
 type id = int64
 
@@ -68,8 +69,8 @@ type dir =
 type file =
 {
   mutable size : int;
-  mutable time : time;
-  mutable age : time;
+  mutable time : date;
+  mutable age : date;
 }
 
 type artist =
@@ -242,7 +243,13 @@ let fmt = Printf.sprintf
 
 let string_of_time t =
   let t' = int_of_float (Float.trunc t) in
-  fmt "%d:%02d" (t' / 60) (t' mod  60)
+  if t < 3600.0 then
+    fmt "%d:%02d" (t' / 60) (t' mod 60)
+  else if t < 86400.0 then
+    fmt "%d:%02d:%02d" (t' / 60 / 60) (t' / 60 mod 60) (t' mod  60)
+  else
+    fmt "%dd %02d:%02d:%02d"
+      (t' / 60 / 60 / 24) (t' / 60 / 60 mod 24) (t' / 60 mod 60) (t' mod 60)
 
 let string_of_date t =
   let tm = Unix.localtime t in
