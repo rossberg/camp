@@ -165,8 +165,10 @@ let run_control (st : State.t) =
   Layout.title_ticker lay name;
 
   (* Volume control *)
+  let mute_mouse = Ui.mouse_inside lay.ui (Layout.mute_area lay) in
+  let vol_mouse = Layout.volume_bar lay ctl.volume in
   let volume' =
-    Layout.volume_bar lay ctl.volume +.
+    (if mute_mouse then ctl.volume else vol_mouse) +.
     0.05 *. Layout.volume_wheel lay +.
     0.05 *. (float_of_bool (Layout.volup_key lay focus) -.
     float_of_bool (Layout.voldown_key lay focus))
