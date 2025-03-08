@@ -2045,6 +2045,8 @@ let startup () =
 let _main =
   try
     Printexc.record_backtrace true;
+    (* Work around apparent bug in GC scheduler. *)
+    Gc.(set {(get ()) with space_overhead = 20});
     let st = startup () in
     run st
   with exn ->
