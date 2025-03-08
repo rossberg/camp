@@ -1166,13 +1166,14 @@ let grid ui area gw iw ch matrix =
         let tw = Draw.text_width ui.win ch font txt in
         let dx = max 0 ((iw - tw - 2) / 2) in
         let fg, bg = if inv = `Inverted then `Black, c else c, `Black in
+        let cliph = clamp 0 ch ((y + h) - (cy + iw)) in
         if bg <> `Black then
         (
-          Draw.clip ui.win cx (cy + iw) iw ch;
+          Draw.clip ui.win cx (cy + iw) iw cliph;
           Draw.fill ui.win cx (cy + iw) iw ch bg;
           Draw.unclip ui.win;
         );
-        Draw.clip ui.win (cx + 1) (cy + iw) (iw - 2) ch;
+        Draw.clip ui.win (cx + 1) (cy + iw) (iw - 2) cliph;
         Draw.text ui.win (cx + dx + 1) (cy + iw) ch fg font txt;
         if tw > iw - 2 then
         (

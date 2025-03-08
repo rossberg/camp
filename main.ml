@@ -1231,9 +1231,16 @@ let run_library (st : State.t) =
     let ars = Table.num_selected lib.artists in
     let sel n = if n = 0 then "" else string_of_int n ^ "/" in
     let plu n = if n = 1 then "" else "s" in
+    let count name m n shown =
+      if shown then Some (fmt "%s%d %s%s" (sel m) n name (plu n)) else None in
+    let counts =
+      [ count "artist" ars ar artists;
+        count "album" als al albums;
+        count "track" trs tr tracks;
+      ]
+    in
     Layout.msg_text lay (Ui.text_color lay.ui) `Regular true
-      (fmt "%s%d artist%s, %s%d album%s, %s%d track%s"
-        (sel ars) ar (plu ar) (sel als) al (plu al) (sel trs) tr (plu tr))
+      (String.concat ", " (List.filter_map Fun.id counts))
   );
 
 
