@@ -924,7 +924,7 @@ let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
     );
     Draw.buffer ui.win x y buf;
 
-    let _, status = element ui area no_modkey in
+    let _, status = element ui table_area no_modkey in
     let status' =
       (* Mirrors logic in table *)
       if status = `Pressed || status = `Released then
@@ -1302,7 +1302,7 @@ let grid_table ui area gw iw ch sw header_opt (tab : _ Table.t) pp_cell =
     );
     Draw.buffer ui.win x y buf;
     
-    let _, status = element ui area no_modkey in
+    let _, status = element ui table_area no_modkey in
     let status' =
       (* Mirrors logic in grid *)
       if status = `Pressed || status = `Released then
