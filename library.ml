@@ -31,16 +31,16 @@ type cover =
   | ScannedCover of Meta.picture
   | Cover of Api.image
 
-type t =
+type 'a t =
 {
   db : db;
   scan : scan;
   mutable root : dir;
   mutable current : dir option;
-  mutable browser : dir Table.t;
-  mutable artists : artist Table.t;
-  mutable albums : album Table.t;
-  mutable tracks : track Table.t;
+  mutable browser : (dir, 'a) Table.t;
+  mutable artists : (artist, 'a) Table.t;
+  mutable albums : (album, 'a) Table.t;
+  mutable tracks : (track, 'a) Table.t;
   mutable search : Edit.t;
   mutable error : string;
   mutable error_time : time;
@@ -290,7 +290,7 @@ let track_attr_string (track : track) = function
 
 type scan_mode = [`Quick | `Thorough]
 
-let rescan_track' _lib mode track =
+let rescan_track'' _lib mode track =
   let old = {track with path = track.path} in
   try
     if not (File.exists track.path) then
@@ -330,13 +330,13 @@ let rescan_track' _lib mode track =
     Storage.log_exn "file" exn ("scanning track " ^ track.path);
     false
 
-let rescan_track lib mode track =
-  let changed = rescan_track' lib mode track in
+let rescan_track' lib mode track =
+  let changed = rescan_track'' lib mode track in
   if changed then
     Db.insert_track lib.db track;
   changed
 
-let rescan_dir_tracks lib mode (dir : Data.dir) =
+let rescan_dir_tracks' lib mode (dir : Data.dir) =
   try
     let new_tracks = ref [] in
     let old_tracks = ref Map.empty in
@@ -365,7 +365,7 @@ let rescan_dir_tracks lib mode (dir : Data.dir) =
     Storage.log_exn "file" exn ("scanning tracks in directory " ^ dir.path);
     true
 
-let rescan_playlist lib _mode path =
+let rescan_playlist' lib _mode path =
   try
     let s = File.load `Bin path in
     let items = M3u.parse_ext s in
@@ -378,9 +378,7 @@ let rescan_playlist lib _mode path =
     true
 
 
-let queue_rescan_dir_tracks = ref (fun _ -> assert false)
-
-let rescan_dir lib mode (origin : Data.dir) =
+let rec rescan_dir' lib mode (origin : Data.dir) =
   let new_dirs = ref [] in
   let old_dirs = ref Map.empty in
   Db.iter_dirs_for_path_rec lib.db origin.path (fun dir ->
@@ -426,7 +424,7 @@ let rescan_dir lib mode (origin : Data.dir) =
       in
       dir.children <- Array.of_list dirs;
       Array.stable_sort Data.compare_dir dir.children;
-      !queue_rescan_dir_tracks lib mode dir;
+      rescan_dir_tracks lib mode dir;
       Some [dir]
 
   and scan_track _path =
@@ -462,20 +460,20 @@ let rescan_dir lib mode (origin : Data.dir) =
     true
 
 
-let rescan_dir lib mode (dir : dir) =
-  Safe_queue.add (false, dir.path, fun () -> rescan_dir lib mode dir)
+and rescan_dir lib mode (dir : dir) =
+  Safe_queue.add (false, dir.path, fun () -> rescan_dir' lib mode dir)
     lib.scan.dir_queue
 
-let rescan_playlist lib mode path =
-  Safe_queue.add (true, path, fun () -> rescan_playlist lib mode path)
+and rescan_playlist lib mode path =
+  Safe_queue.add (true, path, fun () -> rescan_playlist' lib mode path)
     lib.scan.file_queue
 
-let rescan_track lib mode track =
-  Safe_queue.add (true, track.path, fun () -> rescan_track lib mode track)
+and rescan_track lib mode track =
+  Safe_queue.add (true, track.path, fun () -> rescan_track' lib mode track)
     lib.scan.file_queue
 
-let rescan_dir_tracks lib mode (dir : dir) =
-  Safe_queue.add (true, dir.path, fun () -> rescan_dir_tracks lib mode dir)
+and rescan_dir_tracks lib mode (dir : dir) =
+  Safe_queue.add (true, dir.path, fun () -> rescan_dir_tracks' lib mode dir)
     lib.scan.dir_queue
 
 
@@ -488,8 +486,6 @@ let rescan_busy lib =
   match Atomic.get lib.scan.dir_busy with
   | None -> Atomic.get lib.scan.file_busy
   | some -> some
-
-let _ = queue_rescan_dir_tracks := rescan_dir_tracks
 
 
 (* Browser *)

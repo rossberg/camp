@@ -5,6 +5,8 @@ open Audio_file
 
 (* Helpers *)
 
+let refresh_delay = 9
+
 let rec log10 n = if n < 10 then 0 else 1 + log10 (n / 10)
 
 let clamp min max v =
@@ -47,7 +49,7 @@ let exec prog args =
 
 (* Control Section *)
 
-let run_control (st : State.t) =
+let run_control (st : _ State.t) =
   let ctl = st.control in
   let pl = st.playlist in
   let lay = st.layout in
@@ -231,6 +233,8 @@ let run_control (st : State.t) =
     let more = Playlist.skip pl off (ctl.repeat <> `None) in
     Control.switch ctl (Playlist.current pl) more;
     Playlist.adjust_scroll pl page;
+    Table.dirty st.library.tracks;
+    Table.dirty st.library.browser;
   );
 
   let playing' = Layout.play_button lay focus (Some playing) in
@@ -239,6 +243,8 @@ let run_control (st : State.t) =
     (* Click on play button: start track *)
     Control.switch ctl (Playlist.current pl) true;
     Playlist.adjust_scroll pl page;
+    Table.dirty st.library.tracks;
+    Table.dirty st.library.browser;
   );
 
   let paused' = Layout.pause_button lay focus (Some paused) in
@@ -262,6 +268,8 @@ let run_control (st : State.t) =
     | Some track -> Control.switch ctl track false
     );
     Playlist.adjust_scroll pl page;
+    Table.dirty st.library.tracks;
+    Table.dirty st.library.browser;
   );
 
   if Layout.eject_button lay focus (Some false) then
@@ -269,6 +277,8 @@ let run_control (st : State.t) =
     (* Click on eject button: stop and clear playlist *)
     Control.eject ctl;
     Playlist.remove_all pl;
+    Table.dirty st.library.tracks;
+    Table.dirty st.library.browser;
   );
 
   if Layout.start_stop_key lay focus then
@@ -279,7 +289,11 @@ let run_control (st : State.t) =
     else if paused then
       Api.Audio.resume ctl.audio ctl.sound
     else if stopped && len > 0 then
+    (
       Control.switch ctl (Playlist.current pl) true;
+      Table.dirty st.library.tracks;
+      Table.dirty st.library.browser;
+    );
     Playlist.adjust_scroll pl page;
   );
 
@@ -302,6 +316,8 @@ let run_control (st : State.t) =
     in
     Control.switch ctl next_track more;
     Playlist.adjust_scroll pl page;
+    Table.dirty st.library.tracks;
+    Table.dirty st.library.browser;
   );
 
   (* Play modes *)
@@ -316,7 +332,11 @@ let run_control (st : State.t) =
     (
       Playlist.shuffle pl (if stopped then None else pl.table.pos);
       if stopped && pl.table.pos <> None then
+      (
         Control.switch ctl (Playlist.current pl) false;
+        Table.dirty st.library.tracks;
+        Table.dirty st.library.browser;
+      );
       Playlist.adjust_scroll pl page;
     )
     else
@@ -354,7 +374,7 @@ let run_control (st : State.t) =
 
 (* Pane Activation *)
 
-let run_toggle_panes (st : State.t) =
+let run_toggle_panes (st : _ State.t) =
   let lay = st.layout in
   let win = Ui.window lay.ui in
 
@@ -441,39 +461,40 @@ module type TracksView =  (* target view for edit ops *)
 sig
   open Data
 
-  type t
-  val it : t
-  val focus : track Table.t -> State.t -> unit
+  type 'cache t
 
-(*  val length : t -> int*)
-  val tracks : t -> track array
-  val table : t -> track Table.t
+  val it : Ui.cached t
+  val focus : (track, Ui.cached) Table.t -> Ui.cached State.t -> unit
 
-  val num_selected : t -> int
-  val first_selected : t -> int option
-  val selected : t -> track array
-(*  val select_all : t -> unit*)
-  val deselect_all : t -> unit
-(*  val select_invert : t -> unit*)
-(*  val select : t -> int -> int -> unit*)
-(*  val deselect : t -> int -> int -> unit*)
+(*  val length : Ui.cached t -> int*)
+  val tracks : Ui.cached t -> track array
+  val table : Ui.cached t -> (track, Ui.cached) Table.t
 
-  val insert : t -> int -> track array -> unit
-(*  val replace_all : t -> track array -> unit*)
-(*  val remove_all : t -> unit*)
-  val remove_selected : t -> unit
-  val remove_unselected : t -> unit
-  val remove_invalid : t -> unit
-(*  val move_selected : t -> int -> unit*)
-  val undo : t -> unit
-  val redo : t -> unit
+  val num_selected : Ui.cached t -> int
+  val first_selected : Ui.cached t -> int option
+  val selected : Ui.cached t -> track array
+(*  val select_all : Ui.cached t -> unit*)
+  val deselect_all : Ui.cached t -> unit
+(*  val select_invert : Ui.cached t -> unit*)
+(*  val select : Ui.cached t -> int -> int -> unit*)
+(*  val deselect : Ui.cached t -> int -> int -> unit*)
+
+  val insert : Ui.cached t -> int -> track array -> unit
+(*  val replace_all : Ui.cached t -> track array -> unit*)
+(*  val remove_all : Ui.cached t -> unit*)
+  val remove_selected : Ui.cached t -> unit
+  val remove_unselected : Ui.cached t -> unit
+  val remove_invalid : Ui.cached t -> unit
+(*  val move_selected : Ui.cached t -> int -> unit*)
+  val undo : Ui.cached t -> unit
+  val redo : Ui.cached t -> unit
 end
 
 module Playlist = struct include Playlist let focus _ = State.focus_playlist end
 module Library = struct include Library let focus = State.focus_library end
 
 
-let drop (st : State.t) tracks table_mouse (module View : TracksView) =
+let drop (st : _ State.t) tracks table_mouse (module View : TracksView) =
   let lay = st.layout in
   let view = View.it in
   let tab = View.table view in
@@ -483,9 +504,11 @@ let drop (st : State.t) tracks table_mouse (module View : TracksView) =
     State.defocus_all st;
     View.focus tab st;
     Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
+    Table.dirty st.library.tracks;
+    Table.dirty st.library.browser;
   ) (table_mouse lay tab)
 
-let drop_on_playlist (st : State.t) tracks =
+let drop_on_playlist (st : _ State.t) tracks =
   if st.layout.playlist_shown then
   (
     let module View = struct let it = st.playlist include Playlist end in
@@ -496,14 +519,14 @@ let library_mouse (lay : Layout.t) =
   if lay.lower_shown then Layout.lower_mouse lay else
   if lay.right_shown then Layout.right_mouse lay else Layout.left_mouse lay
 
-let drop_on_library (st : State.t) tracks =
+let drop_on_library (st : _ State.t) tracks =
   if st.layout.library_shown && Library.current_is_shown_playlist st.library then
   (
     let module View = struct let it = st.library include Library end in
     drop st tracks library_mouse (module View)
   )
 
-let drop_on_browser (st : State.t) tracks =
+let drop_on_browser (st : _ State.t) tracks =
   let lay = st.layout in
   let lib = st.library in
   let browser = lib.browser in
@@ -533,7 +556,7 @@ let drop_on_browser (st : State.t) tracks =
     ) (Layout.browser_mouse lay browser)
   )
 
-let set_drop_cursor (st : State.t) =
+let set_drop_cursor (st : _ State.t) =
   let lay = st.layout in
   let pl = st.playlist in
   let lib = st.library in
@@ -554,7 +577,7 @@ let set_drop_cursor (st : State.t) =
 
 (* Edit Pane *)
 
-let run_edit (st : State.t) =
+let run_edit (st : _ State.t) =
   let pl = st.playlist in
   let lib = st.library in
   let lay = st.layout in
@@ -595,6 +618,8 @@ let run_edit (st : State.t) =
     View.insert view pos [|Data.make_separator ()|];
     Other.deselect_all other;
     Control.switch_if_empty st.control (Playlist.current_opt pl);
+    Table.dirty st.library.tracks;
+    Table.dirty st.library.browser;
   );
 
   (* Edit buttons *)
@@ -633,6 +658,8 @@ let run_edit (st : State.t) =
     (* Click on Undo button: pop undo *)
     View.undo view;
     Control.switch_if_empty st.control (Playlist.current_opt pl);
+    Table.dirty st.library.tracks;
+    Table.dirty st.library.browser;
   );
 
   let pl_redo_avail = pl_edit && !(pl.table.redos) <> [] in
@@ -643,6 +670,8 @@ let run_edit (st : State.t) =
     (* Click on Redo button: pop redo *)
     View.redo view;
     Control.switch_if_empty st.control (Playlist.current_opt pl);
+    Table.dirty st.library.tracks;
+    Table.dirty st.library.browser;
   );
 
   (* Edit keys *)
@@ -688,6 +717,8 @@ let run_edit (st : State.t) =
         View.insert view pos tracks;
         Other.deselect_all other;
         Control.switch_if_empty st.control (Playlist.current_opt pl);
+        Table.dirty st.library.tracks;
+        Table.dirty st.library.browser;
       )
   );
 
@@ -777,7 +808,7 @@ let run_edit (st : State.t) =
 
 (* Playlist Pane *)
 
-let run_playlist (st : State.t) =
+let run_playlist (st : _ State.t) =
   let pl = st.playlist in
   let lay = st.layout in
   let win = Ui.window lay.ui in
@@ -803,6 +834,9 @@ let run_playlist (st : State.t) =
   let cw_pos = Api.Draw.text_width win lay.text font s_pos + 1 in
   let cw_time = Api.Draw.text_width win lay.text font s_time + 1 in
   let cols = [|cw_pos, `Right; -1, `Left; cw_time, `Right|] in
+
+  if Api.Draw.frame win mod refresh_delay = 0 then
+    Table.dirty tab;  (* to capture track updates *)
 
   let pp_row i =
     let track = tab.entries.(i) in
@@ -839,6 +873,8 @@ let run_playlist (st : State.t) =
     (* Double-click on track: switch to track *)
     Table.set_pos tab (Some i);
     Control.switch st.control tab.entries.(i) true;
+    Table.dirty st.library.tracks;
+    Table.dirty st.library.browser;
     if pl.shuffle <> None then
       Playlist.shuffle_next pl i;
 
@@ -929,8 +965,9 @@ let run_playlist (st : State.t) =
 
 (* Library Panes *)
 
+let spin_delay = 3
 let spins = [|"|"; "/"; "-"; "\\"|]
-let spin win = spins.(Api.Draw.frame win / 3 mod Array.length spins)
+let spin win = spins.(Api.Draw.frame win / spin_delay mod Array.length spins)
 
 let convert_sorting columns sorting =
   let index attr = Array.find_index (fun (a, _) -> a = attr) columns in
@@ -941,7 +978,7 @@ let busy_albums = Table.make 0
 let busy_tracks = Table.make 0
 
 
-let run_library (st : State.t) =
+let run_library (st : _ State.t) =
   let pl = st.playlist in
   let lib = st.library in
   let lay = st.layout in
@@ -964,6 +1001,10 @@ let run_library (st : State.t) =
   let browser = lib.browser in
   let current_path =
     match st.control.current with Some track -> track.path | None -> "" in
+
+  if Library.rescan_busy lib <> None
+  && Api.Draw.frame win mod spin_delay = 0 then
+    Table.dirty browser;   (* to draw spinner *)
 
   let pp_entry i =
     let dir = browser.entries.(i) in
@@ -1036,6 +1077,8 @@ let run_library (st : State.t) =
         State.focus_playlist st;
         Control.eject st.control;
         Control.switch st.control tracks.(0) true;
+        Table.dirty st.library.tracks;
+        Table.dirty st.library.browser;
       )
     )
 
@@ -1138,11 +1181,13 @@ let run_library (st : State.t) =
   (
     (* Click on Artists button: toggle artist pane *)
     dir.artists_shown <- artists';
-    if not (artists' || dir.albums_shown <> None || dir.tracks_shown <> None) then
+    if not (dir.artists_shown || dir.albums_shown <> None || dir.tracks_shown <> None) then
     (
       dir.tracks_shown <- Some `Table;
+      Table.dirty lib.tracks;
       Library.refresh_tracks lib;
     );
+    Table.dirty lib.artists;
     Library.refresh_artists lib;
     Library.update_dir lib dir;
   );
@@ -1159,6 +1204,7 @@ let run_library (st : State.t) =
     dir.albums_shown <- cycle_shown dir.albums_shown;
     if not (dir.albums_shown <> None || dir.artists_shown || dir.tracks_shown <> None) then
       dir.albums_shown <- Some `Table;
+    Table.dirty lib.albums;
     Library.refresh_albums lib;
     Library.update_dir lib dir;
   );
@@ -1175,6 +1221,7 @@ let run_library (st : State.t) =
     dir.tracks_shown <- cycle_shown dir.tracks_shown;
     if not (dir.tracks_shown <> None || dir.artists_shown || dir.albums_shown <> None) then
       dir.tracks_shown <- Some `Table;
+    Table.dirty lib.tracks;
     Library.refresh_tracks lib;
     Library.update_dir lib dir;
   );
@@ -1312,6 +1359,8 @@ let run_library (st : State.t) =
         State.focus_playlist st;
         Control.eject st.control;
         Control.switch st.control tracks.(0) true;
+        Table.dirty st.library.tracks;
+        Table.dirty st.library.browser;
       )
 
     | `Click _ ->
@@ -1358,6 +1407,10 @@ let run_library (st : State.t) =
     and headings =
       Array.map (fun (attr, _) -> Library.attr_name attr) dir.albums_columns
     in
+
+    if Option.get dir.albums_shown = `Grid
+    && Api.Draw.frame win mod refresh_delay = 2 then
+      Table.dirty tab;  (* to capture cover updates *)
 
     let pp_row i =
       let album = tab.entries.(i) in
@@ -1427,6 +1480,8 @@ let run_library (st : State.t) =
         State.focus_playlist st;
         Control.eject st.control;
         Control.switch st.control tracks.(0) true;
+        Table.dirty st.library.tracks;
+        Table.dirty st.library.browser;
       )
 
     | `Click _ ->
@@ -1483,6 +1538,10 @@ let run_library (st : State.t) =
     and headings =
       Array.map (fun (attr, _) -> Library.attr_name attr) dir.tracks_columns
     in
+
+    if Option.get dir.tracks_shown = `Grid
+    && Api.Draw.frame win mod refresh_delay = 5 then
+      Table.dirty tab;  (* to capture cover updates *)
 
     let pp_row i =
       let track = tab.entries.(i) in
@@ -1571,6 +1630,8 @@ let run_library (st : State.t) =
         State.focus_playlist st;
         Control.eject st.control;
         Control.switch st.control (Playlist.current pl) true;
+        Table.dirty st.library.tracks;
+        Table.dirty st.library.browser;
       )
 
     | `Click _ ->
@@ -1712,7 +1773,7 @@ let run_library (st : State.t) =
 
 (* File Selection *)
 
-let run_filesel (st : State.t) =
+let run_filesel (st : _ State.t) =
   let fs = st.filesel in
   let lay = st.layout in
 
@@ -1898,6 +1959,8 @@ let run_filesel (st : State.t) =
           State.focus_playlist st;
           Control.eject st.control;
           Control.switch st.control tracks.(0) true;
+          Table.dirty st.library.tracks;
+          Table.dirty st.library.browser;
         with Sys_error _ ->
           Library.error st.library ("Error reading file " ^ path);
           Layout.browser_error_box lay;  (* flash *)
@@ -1934,12 +1997,12 @@ let run_filesel (st : State.t) =
 
 (* Runner *)
 
-let rec run (st : State.t) =
+let rec run (st : _ State.t) =
   State.ok st;
   (try run' st with exn -> Storage.log_exn "internal" exn "");
   run st
 
-and run' (st : State.t) =
+and run' (st : _ State.t) =
   let lay = st.layout in
   let win = Ui.window lay.ui in
   if Api.Window.closed win then exit 0;

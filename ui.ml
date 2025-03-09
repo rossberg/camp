@@ -76,7 +76,10 @@ let pane ui i r =
 type area = pane * int * int * int * int
 
 let dim ui (i, x, y, w, h) =
-  let px, py, pw, ph = ui.panes.(i) in
+  let px, py, pw, ph =
+    if i >= 0 then ui.panes.(i) else
+    let ww, wh = Api.Window.size ui.win in 0, 0, ww, wh
+  in
   let x' = x + (if x >= 0 then 0 else pw) in
   let y' = y + (if y >= 0 then 0 else ph) in
   let w' = w + (if w >= 0 then 0 else pw - x') in
@@ -848,6 +851,8 @@ let header ui area gw cols (titles, sorting) hscroll =
 
 (* Rich Tables *)
 
+type cached = buffer
+
 let rich_table_inner _ui area _gw ch sw sh has_heading =
   let (p, ax, ay, aw, ah) = area in
   let ty = if not has_heading then ay else ay + ch + 2 in
@@ -864,6 +869,21 @@ let rich_table_mouse ui area gw ch sw sh has_heading (tab : _ Table.t) =
   else
     None
 
+let adjust_cache tab w h =
+  Option.iter (fun buf ->
+    if Buffer.size buf <> (w, h) then
+    (
+      Table.uncache tab;
+      Buffer.dispose buf;
+    )
+  ) tab.cache;
+  match tab.cache with
+  | Some buf -> buf
+  | None ->
+    let buf = Buffer.create w h in
+    Table.cache tab buf;
+    buf
+
 let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
   let (p, ax, ay, aw, ah) = area in
   let ty = if header_opt = None then ay else ay + ch + 2 in
@@ -874,7 +894,7 @@ let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
     (p, (if aw < 0 then aw - sw - 1 else ax + aw + 1), ay, sw, ah) in
   let hscroll_area =
     (p, ax, (if ah < 0 then ah - sh else ty + th + 1), aw - sw - 1, sh) in
-  let (_, _, w, h) as r = dim ui table_area in
+  let (x, y, w, h) as r = dim ui table_area in
 
   let shift = Key.are_modifiers_down [`Shift] in
   let command = Key.are_modifiers_down [`Command] in
@@ -886,16 +906,36 @@ let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
     Table.adjust_vscroll tab tab.vscroll page;
 
     (* Body *)
-    let rows =
-      Array.init (min page len) (fun i ->
-        let i = tab.vscroll + i in
-        let c, cols = pp_row i in
-        let inv = if Table.is_selected tab i then `Inverted else `Regular in
-        c, inv, cols
-      )
+    let buf = adjust_cache tab w h in
+    if tab.dirty then
+    (
+      let rows =
+        Array.init (min page len) (fun i ->
+          let i = tab.vscroll + i in
+          let c, cols = pp_row i in
+          let inv = if Table.is_selected tab i then `Inverted else `Regular in
+          c, inv, cols
+        )
+      in
+      Draw.buffered ui.win buf;
+      ignore (table ui (-1, 0, 0, w, h) gw ch cols rows tab.hscroll);
+      Draw.unbuffered ui.win;
+      Table.clean tab;
+    );
+    Draw.buffer ui.win x y buf;
+
+    let _, status = element ui area no_modkey in
+    let status' =
+      (* Mirrors logic in table *)
+      if status = `Pressed || status = `Released then
+        let _, my = Mouse.pos ui.win in
+        Some ((my - y) / ch)
+      else
+         None
     in
+
     let result =
-      match table ui table_area gw ch cols rows tab.hscroll with
+      match status' with
       | None -> `None
       | Some i ->
         let i = tab.vscroll + i in
@@ -1199,33 +1239,54 @@ let grid_table ui area gw iw ch sw header_opt (tab : _ Table.t) pp_cell =
   let table_area = (p, ax, ty, aw - sw - 1, th) in
   let vscroll_area = 
     (p, (if aw < 0 then aw - sw - 1 else ax + aw + 1), ay, sw, ah) in
-  let (_, _, w, h) as r = dim ui table_area in
+  let (x, y, w, h) as r = dim ui table_area in
 
   let shift = Key.are_modifiers_down [`Shift] in
   let command = Key.are_modifiers_down [`Command] in
 
   Mutex.protect tab.mutex (fun () ->
     let len = Array.length tab.entries in
-    let line = max 1 (int_of_float (Float.floor (float w /. float (iw + gw)))) in
-    let page = max 1 (int_of_float (Float.floor (float h /. float (iw + gw + ch))) * line) in
+    let line = max 1 Float.(to_int (floor (float w /. float (iw + gw)))) in
+    let page =
+      max 1 Float.(to_int (floor (float h /. float (iw + gw + ch))) * line) in
     (* Correct scrolling position for possible resize *)
     Table.adjust_vscroll tab tab.vscroll page;
 
     (* Body *)
-    let c = text_color ui in
-    let matrix =
-      Array.init page (fun j ->
-        Array.init line (fun i ->
-          let k = tab.vscroll + j * line + i in
-          if k >= len then None else
-          let img, txt = pp_cell k in
-          let inv = if Table.is_selected tab k then `Inverted else `Regular in
-          Some (img, c, inv, txt)
+    let buf = adjust_cache tab w h in
+    if tab.dirty then
+    (
+      let c = text_color ui in
+      let matrix =
+        Array.init page (fun j ->
+          Array.init line (fun i ->
+            let k = tab.vscroll + j * line + i in
+            if k >= len then None else
+            let img, txt = pp_cell k in
+            let inv = if Table.is_selected tab k then `Inverted else `Regular in
+            Some (img, c, inv, txt)
+          )
         )
-      )
+      in
+      Draw.buffered ui.win buf;
+      ignore (grid ui (-1, 0, 0, w, h) gw iw ch matrix);
+      Draw.unbuffered ui.win;
+      Table.clean tab;
+    );
+    Draw.buffer ui.win x y buf;
+    
+    let _, status = element ui area no_modkey in
+    let status' =
+      (* Mirrors logic in grid *)
+      if status = `Pressed || status = `Released then
+        let mx, my = Mouse.pos ui.win in
+        Some ((mx - x) / (iw + gw), (my - y) / (iw + ch + gw))
+      else
+        None
     in
+
     let result =
-      match grid ui table_area gw iw ch matrix with
+      match status' with
       | None -> `None
       | Some (i, j) ->
         let k = tab.vscroll + j * line + i in
@@ -1611,6 +1672,7 @@ let edit_text ui area s scroll selection =
     let ch = Key.char () in
     if ch >= Uchar.of_int 32 then
     (
+      let open Stdlib in
       let buf = Buffer.create (len + 4) in
       Buffer.add_string buf sl;
       Buffer.add_utf_8_uchar buf ch;

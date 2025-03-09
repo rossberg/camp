@@ -6,9 +6,9 @@ type track = Data.track
 
 type shuffle
 
-type t =
+type 'cache t =
 {
-  table : track Table.t;
+  table : (track, 'cache) Table.t;
   mutable total : time * int;
   mutable total_selected : time * int;
   mutable shuffle : shuffle option;
@@ -17,96 +17,96 @@ type t =
 
 (* Constructor *)
 
-val make : unit -> t
+val make : unit -> 'a t
 
 
 (* Validation *)
 
 type error = string
 
-val ok : t -> error list
+val ok : 'a t -> error list
 
 
 (* Persistance *)
 
-val to_map : t -> Storage.map
-val of_map : t -> Storage.map -> unit  (* assumes roots already set *)
+val to_map : 'a t -> Storage.map
+val of_map : 'a t -> Storage.map -> unit  (* assumes roots already set *)
 
-val to_map_extra : t -> Storage.map
+val to_map_extra : 'a t -> Storage.map
 
-val load_playlist : t -> unit
-val save_playlist : t -> unit
+val load_playlist : 'a t -> unit
+val save_playlist : 'a t -> unit
 
 
 (* Accessors *)
 
-val length : t -> int
-val tracks : t -> track array
-val table : t -> track Table.t
+val length : 'a t -> int
+val tracks : 'a t -> track array
+val table : 'a t -> (track, 'a) Table.t
 
-val current : t -> track
-val current_opt : t -> track option
+val current : 'a t -> track
+val current_opt : 'a t -> track option
 
-val focus : t -> unit
-val defocus : t -> unit
-val adjust_scroll : t -> int -> unit
+val focus : 'a t -> unit
+val defocus : 'a t -> unit
+val adjust_scroll : 'a t -> int -> unit
 
 
 (* Total *)
 
-val refresh_total : t -> unit
-val refresh_total_selected : t -> unit
+val refresh_total : 'a t -> unit
+val refresh_total_selected : 'a t -> unit
 
 
 (* Navigation *)
 
-val skip : t -> int (* delta *) -> bool (* repeat *) -> bool
+val skip : 'a t -> int (* delta *) -> bool (* repeat *) -> bool
 
 val swap : 'a array -> int -> int -> unit
 
 
 (* Shuffle *)
 
-val shuffle : t -> int option (* first track *) -> unit
-val unshuffle : t -> unit
+val shuffle : 'a t -> int option (* first track *) -> unit
+val unshuffle : 'a t -> unit
 
-val shuffle_next : t -> int -> unit
+val shuffle_next : 'a t -> int -> unit
 
 
 (* Selection *)
 
-val has_selection : t -> bool
-val num_selected : t -> int
-val first_selected : t -> int option
-val last_selected : t -> int option
-val is_selected : t -> int -> bool
-val selected : t -> track array
+val has_selection : 'a t -> bool
+val num_selected : 'a t -> int
+val first_selected : 'a t -> int option
+val last_selected : 'a t -> int option
+val is_selected : 'a t -> int -> bool
+val selected : 'a t -> track array
 
-val select_all : t -> unit
-val deselect_all : t -> unit
-val select_invert : t -> unit
+val select_all : 'a t -> unit
+val deselect_all : 'a t -> unit
+val select_invert : 'a t -> unit
 
-val select : t -> int -> int -> unit
-val deselect : t -> int -> int -> unit
+val select : 'a t -> int -> int -> unit
+val deselect : 'a t -> int -> int -> unit
 
 
 (* Editing *)
 
-val insert : t -> int -> track array -> unit
-val replace_all : t -> track array -> unit
+val insert : 'a t -> int -> track array -> unit
+val replace_all : 'a t -> track array -> unit
 
-val remove_all : t -> unit
-val remove_selected : t -> unit
-val remove_unselected : t -> unit
-val remove_invalid : t -> unit
+val remove_all : 'a t -> unit
+val remove_selected : 'a t -> unit
+val remove_unselected : 'a t -> unit
+val remove_invalid : 'a t -> unit
 
-val move_selected : t -> int -> unit
+val move_selected : 'a t -> int -> unit
 
-val undo : t -> unit
-val redo : t -> unit
+val undo : 'a t -> unit
+val redo : 'a t -> unit
 
 
 (* Undo *)
 
-val pop_undo : t -> unit
-val pop_redo : t -> unit
+val pop_undo : 'a t -> unit
+val pop_redo : 'a t -> unit

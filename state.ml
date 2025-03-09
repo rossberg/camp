@@ -1,15 +1,15 @@
 (* Program State *)
 
-type filesel_op = [`LoadPlaylist | `SavePlaylist of Data.track Table.t]
+type 'a filesel_op = [`LoadPlaylist | `SavePlaylist of (Data.track, 'a) Table.t]
 
-type t =
+type 'cache t =
 {
   config : Config.t;
   layout : Layout.t;
   control : Control.t;
-  playlist : Playlist.t;
-  library : Library.t;
-  filesel : filesel_op Filesel.t;
+  playlist : 'cache Playlist.t;
+  library : 'cache Library.t;
+  filesel : ('cache filesel_op, 'cache) Filesel.t;
 }
 
 
@@ -24,72 +24,6 @@ let make ui audio db =
     library = Library.make db;
     filesel = Filesel.make ();
   }
-
-
-(* Validation *)
-
-let dumped_before = ref None
-let to_string_fwd = ref (fun _ -> assert false)
-
-let check msg b = if b then [] else [msg]
-
-let layout_ok layout =
-  let open Layout in
-  check "text size in range" (layout.text >= 6 && layout.text <= 64) @
-  check "playlist height positive" (layout.playlist_height > 0) @
-  check "library width positive" (layout.library_width > 0) @
-  check "browser width in range" (layout.browser_width <= layout.library_width - 40) @
-  []
-
-let focus st =
-  let pl = st.playlist in
-  let lib = st.library in
-  let fs = st.filesel in
-  List.filter snd [
-    "playlist", pl.table.focus;
-    "browser", lib.browser.focus;
-    "tracks", lib.tracks.focus;
-    "albums", lib.albums.focus;
-    "artists", lib.artists.focus;
-    "search", lib.search.focus;
-    "directories", fs.dirs.focus;
-    "files", fs.files.focus;
-    "input", fs.input.focus;
-  ]
-
-let rec ok st =
-  match
-    Config.ok st.config @
-    layout_ok st.layout @
-    Control.ok st.control @
-    Playlist.ok st.playlist @
-    Library.ok st.library @
-    Filesel.ok st.filesel @
-    check "at most one focus" (List.length (focus st) <= 1) @
-    check "playlist empty when no current track"
-      (st.control.current <> None || st.playlist.table.entries = [||]) @
-    check "at most one selection"
-      (not (Table.has_selection st.playlist.table &&
-        Table.has_selection st.library.tracks)) @
-    check "file selection with op"
-      (st.layout.filesel_shown = (st.filesel.op <> None)) @
-    []
-  with
-  | errors when errors <> [] ->
-    dump st (List.map ((^) "Invariant violated: ") errors)
-  | exception exn ->
-    dump st ["Exception during validation: " ^ Printexc.to_string exn ^ "\n" ^
-      Printexc.get_backtrace ()]
-  | _ -> ()
-
-and dump st errors =
-  let msgs = errors @ ["State:\n" ^ !to_string_fwd st] in
-  if !dumped_before <> Some msgs then
-  (
-    if !dumped_before = None then Storage.log_clear ();
-    List.iter Storage.log msgs;
-    dumped_before := Some msgs;
-  )
 
 
 (* Focus *)
@@ -215,7 +149,74 @@ let to_map_extra st =
   ]
 
 let to_string st = string_of_map (to_map_extra st)
-let _ = to_string_fwd := to_string
+
+
+(* Validation *)
+
+let dumped_before = ref None
+
+let check msg b = if b then [] else [msg]
+
+let layout_ok layout =
+  let open Layout in
+  check "text size in range" (layout.text >= 6 && layout.text <= 64) @
+  check "playlist height positive" (layout.playlist_height > 0) @
+  check "library width positive" (layout.library_width > 0) @
+  check "browser width in range" (layout.browser_width <= layout.library_width - 40) @
+  []
+
+let focus st =
+  let pl = st.playlist in
+  let lib = st.library in
+  let fs = st.filesel in
+  List.filter snd [
+    "playlist", pl.table.focus;
+    "browser", lib.browser.focus;
+    "tracks", lib.tracks.focus;
+    "albums", lib.albums.focus;
+    "artists", lib.artists.focus;
+    "search", lib.search.focus;
+    "directories", fs.dirs.focus;
+    "files", fs.files.focus;
+    "input", fs.input.focus;
+  ]
+
+let rec ok st =
+  match
+    Config.ok st.config @
+    layout_ok st.layout @
+    Control.ok st.control @
+    Playlist.ok st.playlist @
+    Library.ok st.library @
+    Filesel.ok st.filesel @
+    check "at most one focus" (List.length (focus st) <= 1) @
+    check "playlist empty when no current track"
+      (st.control.current <> None || st.playlist.table.entries = [||]) @
+    check "at most one selection"
+      (not (Table.has_selection st.playlist.table &&
+        Table.has_selection st.library.tracks)) @
+    check "file selection with op"
+      (st.layout.filesel_shown = (st.filesel.op <> None)) @
+    []
+  with
+  | errors when errors <> [] ->
+    dump st (List.map ((^) "Invariant violated: ") errors)
+  | exception exn ->
+    dump st ["Exception during validation: " ^ Printexc.to_string exn ^ "\n" ^
+      Printexc.get_backtrace ()]
+  | _ -> ()
+
+and dump st errors =
+  let msgs = errors @ ["State:\n" ^ to_string st] in
+  if !dumped_before <> Some msgs then
+  (
+    if !dumped_before = None then Storage.log_clear ();
+    List.iter Storage.log msgs;
+    dumped_before := Some msgs;
+  )
+
+
+(* Persistance pt 2 *)
 
 let save st =
   Playlist.save_playlist st.playlist;

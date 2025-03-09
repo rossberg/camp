@@ -249,6 +249,16 @@ end
 
 (* Drawing *)
 
+type buffer = Raylib.RenderTexture.t
+
+module Buffer =
+struct
+  let create = Raylib.load_render_texture
+  let dispose = Raylib.unload_render_texture
+  let size buf = Image.size (Raylib.RenderTexture.texture buf)
+end
+
+
 module Draw =
 struct
   let frame = ref 0
@@ -269,6 +279,9 @@ struct
     incr frame;
     Raylib.end_drawing ();  (* polls input events *)
     List.iter (fun f -> f ()) !after_frame_finish
+
+  let buffered () buf = Raylib.begin_texture_mode buf
+  let unbuffered () = Raylib.end_texture_mode ()
 
   let clip () x y w h = Raylib.begin_scissor_mode x y w h
   let unclip () = Raylib.end_scissor_mode ()
@@ -330,6 +343,13 @@ struct
   let image () x y scale img =
     let v = vec2_of_point (x, y) in
     Raylib.draw_texture_ex img v 0.0 scale Raylib.Color.white
+
+  let buffer () x y buf =
+    let w, h = Buffer.size buf in
+    let r = Raylib.Rectangle.create 0.0 0.0 (float w) (-. float h) in
+    let v = vec2_of_point (x, y) in
+    let img = Raylib.RenderTexture.texture buf in
+    Raylib.draw_texture_rec img r v Raylib.Color.white
 end
 
 

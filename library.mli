@@ -5,16 +5,16 @@ type db = Db.t
 type scan
 type cover
 
-type t =
+type 'cache t =
 {
   db : db;
   scan : scan;
   mutable root : dir;
   mutable current : dir option;
-  mutable browser : dir Table.t;
-  mutable artists : artist Table.t;
-  mutable albums : album Table.t;
-  mutable tracks : track Table.t;
+  mutable browser : (dir, 'cache) Table.t;
+  mutable artists : (artist, 'cache) Table.t;
+  mutable albums : (album, 'cache) Table.t;
+  mutable tracks : (track, 'cache) Table.t;
   mutable search : Edit.t;
   mutable error : string;
   mutable error_time : time;
@@ -27,65 +27,65 @@ type t =
 
 (* Constructor *)
 
-val make : db -> t
+val make : db -> 'a t
 
 
 (* Validation *)
 
 type error = string
 
-val ok : t -> error list
+val ok : 'a t -> error list
 
 
 (* Error Message *)
 
-val error : t -> string -> unit
+val error : 'a t -> string -> unit
 
 
 (* Persistance *)
 
-val to_map : t -> Storage.map
-val of_map : t -> Storage.map -> unit  (* assumes roots already set *)
+val to_map : 'a t -> Storage.map
+val of_map : 'a t -> Storage.map -> unit  (* assumes roots already set *)
 
-val to_map_extra : t -> Storage.map
+val to_map_extra : 'a t -> Storage.map
 
 
 (* Scanning *)
 
 type scan_mode = [`Quick | `Thorough]
 
-val rescan_root : t -> scan_mode -> unit
-val rescan_dirs : t -> scan_mode -> dir array -> unit
-val rescan_tracks : t -> scan_mode -> track array -> unit
+val rescan_root : 'a t -> scan_mode -> unit
+val rescan_dirs : 'a t -> scan_mode -> dir array -> unit
+val rescan_tracks : 'a t -> scan_mode -> track array -> unit
 
-val rescan_busy : t -> string option
+val rescan_busy : 'a t -> string option
 
-val refresh_after_rescan : t -> unit
+val refresh_after_rescan : 'a t -> unit
 
 
 (* Browser *)
 
-val length_browser : t -> int
+val length_browser : 'a t -> int
 
-val fold_dir : t -> dir -> bool -> unit
+val fold_dir : 'a t -> dir -> bool -> unit
 
-val focus_search : t -> unit
-val focus_browser : t -> unit
-val refresh_browser : t -> unit
+val focus_search : 'a t -> unit
+val focus_browser : 'a t -> unit
+val refresh_browser : 'a t -> unit
 
-val selected_dir : t -> int option
-val select_dir : t -> int -> unit
-val deselect_dir : t -> unit
+val selected_dir : 'a t -> int option
+val select_dir : 'a t -> int -> unit
+val deselect_dir : 'a t -> unit
 
-val update_dir : t -> dir -> unit
-val load_dirs : t -> unit
-val add_dirs : t -> path list -> int -> bool
-val remove_dirs : t -> path list -> unit
+val update_dir : 'a t -> dir -> unit
+val load_dirs : 'a t -> unit
+val add_dirs : 'a t -> path list -> int -> bool
+val remove_dirs : 'a t -> path list -> unit
 
-val current_is_playlist : t -> bool
-val current_is_shown_playlist : t -> bool
+val current_is_playlist : 'a t -> bool
+val current_is_shown_playlist : 'a t -> bool
 
-val has_track : t -> track -> bool
+val has_track : 'a t -> track -> bool
 
 
 (* Views *)
@@ -97,68 +97,68 @@ val artist_attr_string : artist -> artist_attr -> string
 val album_attr_string : album -> album_attr -> string
 val track_attr_string : track -> track_attr -> string
 
-val refresh_artists_sync : t -> unit
-val refresh_albums_sync : t -> unit
-val refresh_tracks_sync : t -> unit
-val refresh_artists_albums_tracks_sync : t -> unit
-val refresh_albums_tracks_sync : t -> unit
-val refresh_artists : ?busy: bool -> t -> unit
-val refresh_albums : ?busy: bool -> t -> unit
-val refresh_tracks : ?busy: bool -> t -> unit
-val refresh_artists_albums_tracks : ?busy: bool -> t -> unit
-val refresh_albums_tracks : ?busy: bool -> t -> unit
+val refresh_artists_sync : 'a t -> unit
+val refresh_albums_sync : 'a t -> unit
+val refresh_tracks_sync : 'a t -> unit
+val refresh_artists_albums_tracks_sync : 'a t -> unit
+val refresh_albums_tracks_sync : 'a t -> unit
+val refresh_artists : ?busy: bool -> 'a t -> unit
+val refresh_albums : ?busy: bool -> 'a t -> unit
+val refresh_tracks : ?busy: bool -> 'a t -> unit
+val refresh_artists_albums_tracks : ?busy: bool -> 'a t -> unit
+val refresh_albums_tracks : ?busy: bool -> 'a t -> unit
 
-val refresh_artists_busy : t -> bool
-val refresh_albums_busy : t -> bool
-val refresh_tracks_busy : t -> bool
+val refresh_artists_busy : 'a t -> bool
+val refresh_albums_busy : 'a t -> bool
+val refresh_tracks_busy : 'a t -> bool
 
-val reorder_artists : t -> unit
-val reorder_albums : t -> unit
-val reorder_tracks : t -> unit
+val reorder_artists : 'a t -> unit
+val reorder_albums : 'a t -> unit
+val reorder_tracks : 'a t -> unit
 
-val focus_artists : t -> unit
-val focus_albums : t -> unit
-val focus_tracks : t -> unit
-val defocus : t -> unit
+val focus_artists : 'a t -> unit
+val focus_albums : 'a t -> unit
+val focus_tracks : 'a t -> unit
+val defocus : 'a t -> unit
 
-val has_selection : t -> bool
-val num_selected : t -> int
-val first_selected : t -> int option
-val last_selected : t -> int option
-val is_selected : t -> int -> bool
-val selected : t -> track array
+val has_selection : 'a t -> bool
+val num_selected : 'a t -> int
+val first_selected : 'a t -> int option
+val last_selected : 'a t -> int option
+val is_selected : 'a t -> int -> bool
+val selected : 'a t -> track array
 
-val select_all : t -> unit
-val deselect_all : t -> unit
-val select_invert : t -> unit
+val select_all : 'a t -> unit
+val deselect_all : 'a t -> unit
+val select_invert : 'a t -> unit
 
-val select : t -> int -> int -> unit
-val deselect : t -> int -> int -> unit
+val select : 'a t -> int -> int -> unit
+val deselect : 'a t -> int -> int -> unit
 
-val set_search : t -> search -> unit
+val set_search : 'a t -> search -> unit
 
 
 (* Playlist Editing *)
 
-val length : t -> int
-val tracks : t -> track array
-val table : t -> track Table.t
+val length : 'a t -> int
+val tracks : 'a t -> track array
+val table : 'a t -> (track, 'a) Table.t
 
-val insert : t -> int -> track array -> unit
-val replace_all : t -> track array -> unit
+val insert : 'a t -> int -> track array -> unit
+val replace_all : 'a t -> track array -> unit
 
-val remove_all : t -> unit
-val remove_selected : t -> unit
-val remove_unselected : t -> unit
-val remove_invalid : t -> unit
+val remove_all : 'a t -> unit
+val remove_selected : 'a t -> unit
+val remove_unselected : 'a t -> unit
+val remove_invalid : 'a t -> unit
 
-val move_selected : t -> int -> unit
+val move_selected : 'a t -> int -> unit
 
-val undo : t -> unit
-val redo : t -> unit
+val undo : 'a t -> unit
+val redo : 'a t -> unit
 
 
 (* Covers *)
 
-val load_cover : t -> Api.window -> path -> Api.image option
-val purge_covers : t -> unit
+val load_cover : 'a t -> Api.window -> path -> Api.image option
+val purge_covers : 'a t -> unit

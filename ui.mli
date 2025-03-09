@@ -95,6 +95,8 @@ val table : t -> area -> int -> int -> column array -> row array -> int ->
 val header : t -> area -> int -> column array -> heading -> int ->
   [`Click of int | `Arrange | `None]
 
+type cached
+
 val rich_table :
   t -> 
   area ->
@@ -104,7 +106,7 @@ val rich_table :
   int ->  (* horizontal scroll bar height (can be 0) *)
   column array ->                    (* column layout *)
   heading option ->                  (* headers *)
-  'a Table.t ->                      (* data *)
+  ('a, cached) Table.t ->            (* data *)
   (int -> color * cell array) ->     (* row generator *)
     [ `Click of int option
     | `Select
@@ -119,7 +121,7 @@ val rich_table :
 
 val rich_table_inner : t -> area -> int -> int  -> int -> int -> bool -> area
 val rich_table_mouse : t -> area -> int -> int  -> int -> int -> bool ->
-  'a Table.t -> int option
+  ('a, cached) Table.t -> int option
 
 val browser :
   t ->
@@ -127,7 +129,7 @@ val browser :
   int ->  (* row height *)
   int ->  (* vertical scroll bar width *)
   int ->  (* horizontal scroll bar height (can be 0) *)
-  'a Table.t ->                                   (* data *)
+  ('a, cached) Table.t ->                         (* data *)
   (int -> int * bool option * color * string) ->  (* entry generator *)
     [ `Click of int option
     | `Select
@@ -150,7 +152,7 @@ val grid_table :
   int ->    (* text height *)
   int ->    (* vertical scroll bar width *)
   heading option ->
-  'a Table.t ->
+  ('a, cached) Table.t ->
   (int -> Api.image * string) ->
     [ `Click of int option
     | `Select

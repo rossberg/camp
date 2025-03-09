@@ -110,6 +110,15 @@ end
 
 (* Drawing *)
 
+type buffer
+
+module Buffer :
+sig
+  val create : int -> int -> buffer
+  val dispose : buffer -> unit
+  val size : buffer -> size
+end
+
 module Draw :
 sig
   val start : window -> color -> unit
@@ -117,6 +126,9 @@ sig
 
   val clip : window -> int -> int -> int -> int -> unit
   val unclip : window -> unit
+
+  val buffered : window -> buffer -> unit
+  val unbuffered : window -> unit
 
   val frame : window -> int
 
@@ -132,6 +144,7 @@ sig
   val text_width : window -> int -> font -> string -> int
   val text_spacing : window -> int -> font -> int
   val image : window -> int -> int -> float -> image -> unit
+  val buffer : window -> int -> int -> buffer -> unit
 end
 
 

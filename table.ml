@@ -13,7 +13,7 @@ type 'a undo =
   undo_restore : (unit -> unit) option;
 }
 
-type 'a t =
+type ('a, 'b) t =
 {
   mutex : Mutex.t;
   mutable entries : 'a array;
@@ -23,6 +23,8 @@ type 'a t =
   mutable hscroll : int;                   (* in pixels *)
   mutable sel_range : (int * int) option;  (* primary and secondary pos *)
   mutable selected : IntSet.t;
+  mutable cache : 'b option;
+  mutable dirty : bool;
   undos : 'a undo list ref;
   redos : 'a undo list ref;
   undo_depth : int;
@@ -42,6 +44,8 @@ let make ?save undo_depth =
     hscroll = 0;
     sel_range = None;
     selected = IntSet.empty;
+    cache = None;
+    dirty = true;
     undos = ref [];
     redos = ref [];
     undo_depth;
@@ -51,23 +55,40 @@ let make ?save undo_depth =
 
 (* Accessors *)
 
+let dirty tab = tab.dirty <- true
+let clean tab = tab.dirty <- false
+let cache tab x = tab.cache <- Some x
+let uncache tab = tab.cache <- None; dirty tab
+
 let length tab = Array.length tab.entries
 let current_opt tab = Option.map (fun i -> tab.entries.(i)) tab.pos
 let current tab = Option.get (current_opt tab)
 
 let set_pos tab pos =
+  dirty tab;
   let len = Array.length tab.entries in
   if pos = None && len > 0 then
     tab.pos <- Some 0
-  else if pos <> None && len = 0 then
+  else if len = 0 then
     tab.pos <- None
+  else
+    tab.pos <- pos
 
 let set_hscroll tab i =
-  tab.hscroll <- i
+  if i <> tab.hscroll then
+  (
+    dirty tab;
+    tab.hscroll <- i;
+  )
 
 let set_vscroll tab i page =
   let len = Array.length tab.entries in
-  tab.vscroll <- max 0 (min i (len - page))
+  let i' = max 0 (min i (len - page)) in
+  if i' <> tab.vscroll then
+  (
+    dirty tab;
+    tab.vscroll <- i';
+  )
 
 let adjust_vscroll tab i page =
   let d = tab.vscroll in
@@ -118,7 +139,9 @@ let first_selected tab = IntSet.min_elt_opt tab.selected
 let last_selected tab = IntSet.max_elt_opt tab.selected
 let is_selected tab i = IntSet.mem i tab.selected
 
-let reset_selected tab sel = tab.selected <- sel
+let reset_selected tab sel =
+  dirty tab;
+  tab.selected <- sel
 
 let selected tab =
   let d = ref 0 in
@@ -132,26 +155,39 @@ let max_sel_range tab =
   Some (Option.get (first_selected tab), Option.get (last_selected tab))
 
 let select_all tab =
-  let len = Array.length tab.entries in
-  for i = 0 to len - 1 do
-    tab.selected <- IntSet.add i tab.selected
-  done;
-  tab.sel_range <- max_sel_range tab
+  if num_selected tab < length tab then
+  (
+    dirty tab;
+    let len = Array.length tab.entries in
+    for i = 0 to len - 1 do
+      tab.selected <- IntSet.add i tab.selected
+    done;
+    tab.sel_range <- max_sel_range tab;
+  )
 
 let deselect_all tab =
-  tab.selected <- IntSet.empty;
-  tab.sel_range <- None
+  if has_selection tab then
+  (
+    dirty tab;
+    tab.selected <- IntSet.empty;
+    tab.sel_range <- None;
+  )
 
 let select_invert tab =
-  let selected = tab.selected in
-  deselect_all tab;
-  for i = 0 to Array.length tab.entries - 1 do
-    if not (IntSet.mem i selected) then
-      tab.selected <- IntSet.add i tab.selected
-  done;
-  tab.sel_range <- max_sel_range tab
+  if length tab > 0 then
+  (
+    dirty tab;
+    let selected = tab.selected in
+    deselect_all tab;
+    for i = 0 to Array.length tab.entries - 1 do
+      if not (IntSet.mem i selected) then
+        tab.selected <- IntSet.add i tab.selected
+    done;
+    tab.sel_range <- max_sel_range tab;
+  )
 
 let select tab i0 j0 =
+  dirty tab;
   let i, j = min i0 j0, max i0 j0 in
   for k = i to j do
     tab.selected <- IntSet.add k tab.selected
@@ -159,6 +195,7 @@ let select tab i0 j0 =
   tab.sel_range <- Some (i0, j0)
 
 let deselect tab i0 j0 =
+  dirty tab;
   let i, j = min i0 j0, max i0 j0 in
   for k = i to j do
     tab.selected <- IntSet.remove k tab.selected
@@ -172,10 +209,14 @@ let save_selection tab =
   selection
 
 let restore_selection tab selection key =
-  let set =
-    Array.fold_right (fun x -> KeySet.add (key x)) selection KeySet.empty in
-  Array.iteri (fun i x -> if KeySet.mem (key x) set then select tab i i)
-    tab.entries
+  if selection <> [||] then
+  (
+    dirty tab;
+    let set =
+      Array.fold_right (fun x -> KeySet.add (key x)) selection KeySet.empty in
+    Array.iteri (fun i x -> if KeySet.mem (key x) set then select tab i i)
+      tab.entries;
+  )
 
 
 (* Undo *)
@@ -202,6 +243,7 @@ let pop_unredo tab undos redos =
   match !undos with
   | [] -> ()
   | undo :: undos' ->
+    dirty tab;
     redos := make_undo tab :: !redos;
     undos := undos';
     deselect_all tab;
@@ -246,16 +288,21 @@ let move_pos tab i j len =
 
 
 let set tab entries =
-  deselect_all tab;
-  tab.entries <- entries;
-  set_pos tab tab.pos;
-  adjust_vscroll tab tab.vscroll 4
+  if entries <> [||] || tab.entries <> [||] then
+  (
+    dirty tab;
+    deselect_all tab;
+    tab.entries <- entries;
+    set_pos tab tab.pos;
+    adjust_vscroll tab tab.vscroll 4;
+  )
 
 
 let insert tab pos entries =
   assert (pos <= Array.length tab.entries);
   if entries <> [||] then
   (
+    dirty tab;
     push_undo tab;
     let len = Array.length tab.entries in
     let len' = Array.length entries in
@@ -285,6 +332,7 @@ let insert tab pos entries =
 let remove_all tab =
   if tab.entries <> [||] then
   (
+    dirty tab;
     push_undo tab;
     deselect_all tab;
     tab.entries <- [||];
@@ -295,6 +343,7 @@ let remove_all tab =
 let remove_if p tab n =
   if n = 0 then [||] else
   (
+    dirty tab;
     push_undo tab;
     let len = Array.length tab.entries in
     let len' = len - n in
@@ -334,6 +383,7 @@ let remove_if p tab n =
 let move_selected tab d =
   if d = 0 || num_selected tab = 0 then [||] else
   (
+    dirty tab;
     push_undo tab;
     let len = Array.length tab.entries in
     let d =

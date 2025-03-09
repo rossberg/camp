@@ -11,31 +11,13 @@ type shuffle =
   mutable unobserved : int;
 }
 
-type t =
+type 'a t =
 {
-  table : track Table.t;
+  table : (track, 'a) Table.t;
   mutable total : time * int;
   mutable total_selected : time * int;
   mutable shuffle : shuffle option;
 }
-
-
-(* Constructor *)
-
-let save_undo_fwd = ref (fun _ -> assert false)
-
-let make () =
-  let r = ref None in
-  let pl =
-    {
-      table = Table.make 100 ~save: (!save_undo_fwd r);
-      total = 0.0, 0;
-      total_selected = 0.0, 0;
-      shuffle = None;
-    }
-  in
-  r := Some pl;
-  pl
 
 
 (* Validation *)
@@ -217,7 +199,21 @@ let save_undo tabr () =
     Option.map (fun sh -> {sh with pos = sh.pos}) tab.shuffle in
   fun () -> tab.shuffle <- shuffle
 
-let _ = save_undo_fwd := save_undo
+
+(* Constructor *)
+
+let make () =
+  let r = ref None in
+  let pl =
+    {
+      table = Table.make 100 ~save: (save_undo r);
+      total = 0.0, 0;
+      total_selected = 0.0, 0;
+      shuffle = None;
+    }
+  in
+  r := Some pl;
+  pl
 
 
 (* Selection *)
