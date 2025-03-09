@@ -75,10 +75,11 @@ let set_pos tab pos =
     tab.pos <- pos
 
 let set_hscroll tab i =
-  if i <> tab.hscroll then
+  let i' = max 0 i in
+  if i' <> tab.hscroll then
   (
     dirty tab;
-    tab.hscroll <- i;
+    tab.hscroll <- i';
   )
 
 let set_vscroll tab i page =

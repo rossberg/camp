@@ -1066,119 +1066,146 @@ let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
 
     (* Keys *)
     let result =
-    if result <> `None || not tab.focus then
-      result
-    else
-    (
-      let d =
-        if key_status' ui (`Arrow `Up) = `Pressed then -1 else
-        if key_status' ui (`Arrow `Down) = `Pressed then +1 else
-        if key_status' ui (`Page `Up) = `Pressed then -page else
-        if key_status' ui (`Page `Down) = `Pressed then +page else
-        if key_status' ui (`End `Up) = `Pressed then -len else
-        if key_status' ui (`End `Down) = `Pressed then +len else
-        0
-      in
-      if min len (abs d) > 0 then
+      if result <> `None || not tab.focus then result else
       (
-        (* Cursor movement *)
-        let default = 0, if d < 0 then len else -1 in
-        let pos1, pos2 = Option.value tab.sel_range ~default in
-        let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
+        let d =
+          if key_status' ui (`Arrow `Up) = `Pressed then -1 else
+          if key_status' ui (`Arrow `Down) = `Pressed then +1 else
+          if key_status' ui (`Page `Up) = `Pressed then -page else
+          if key_status' ui (`Page `Down) = `Pressed then +page else
+          if key_status' ui (`End `Up) = `Pressed then -len else
+          if key_status' ui (`End `Down) = `Pressed then +len else
+          0
+        in
+        if min len (abs d) > 0 then
+        (
+          (* Cursor movement *)
+          let has_sel = tab.sel_range <> None in
+          let default =
+            0, if not shift then tab.vscroll else if d < 0 then len else -1 in
+          let pos1, pos2 = Option.value tab.sel_range ~default in
+          let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
 
-        if not (shift || command) then
-        (
-          (* Plain cursor movement: deselect all, reselect relative to range end *)
-          Table.deselect_all tab;
-          Table.select tab i i;
-          Table.adjust_vscroll tab i page;
-          `Select
-        )
-        else if shift then
-        (
-          (* Shift-cursor movement: adjust selection range *)
-          if tab.sel_range = None then
+          if not (shift || command) then
           (
-            (* No selection yet: range from end of playlist *)
-            Table.select tab (len - 1) i;
+            (* Plain cursor movement: deselect all, reselect relative to range end *)
+            if has_sel then
+            (
+              Table.deselect_all tab;
+              Table.select tab i i;
+              Table.adjust_vscroll tab i page;
+              `Select
+            )
+            else
+            (
+              Table.set_vscroll tab i page;
+              `Scroll
+            )
           )
-          else if Table.is_selected tab pos1 then
+          else if shift then
           (
-            (* Range start was already selected: deselect old range, select new *)
-            Table.deselect tab (max 0 pos2) i;
-            Table.select tab pos1 i;
+            (* Shift-cursor movement: adjust selection range *)
+            if not has_sel then
+            (
+              (* No selection yet: range from end of playlist *)
+              Table.select tab (len - 1) i;
+            )
+            else if Table.is_selected tab pos1 then
+            (
+              (* Range start was already selected: deselect old range, select new *)
+              Table.deselect tab (max 0 pos2) i;
+              Table.select tab pos1 i;
+            )
+            else
+            (
+              (* Range start was not selected: select old range, deselect new *)
+              Table.select tab (max 0 pos2) i;
+              Table.deselect tab pos1 i;
+            );
+            Table.adjust_vscroll tab i page;
+            `Select
           )
-          else
+          else if command && has_sel then
           (
-            (* Range start was not selected: select old range, deselect new *)
-            Table.select tab (max 0 pos2) i;
-            Table.deselect tab pos1 i;
-          );
-          Table.adjust_vscroll tab i page;
-          `Select
-        )
-        else if command then
-        (
-          (* Cmd-cursor movement: move selection *)
-          Table.adjust_vscroll tab i page;
-          `Move d
-        )
-        else `None
-      )
-      else if command then
-      (
-        if key_status' ui (`Char 'A') = `Pressed then
-        (
-          (* Select-all key pressed: select all *)
-          Table.select_all tab;
-          `Select
-        )
-        else if key_status' ui (`Char 'N') = `Pressed then
-        (
-          (* Deselect-all key pressed: deselect all *)
-          Table.deselect_all tab;
-          `Select
-        )
-        else if key_status' ui (`Char 'I') = `Pressed then
-        (
-          (* Selection inversion key pressed: invert selection *)
-          Table.select_invert tab;
-          `Select
-        )
-        else `None
-      )
-      else
-      (
-        let ch = Key.char () in
-        if ch >= Uchar.of_int 32 then
-        (
-          (* Plain character pressed: scroll to first entry *)
-          let b = Bytes.make 8 '\000' in
-          let s = Bytes.sub_string b 0 (Bytes.set_utf_8_uchar b 0 ch) in
-          let col =
-            match header_opt with
-            | Some (_, (col, _)::_) -> col
-            | _ -> 0
-          in
-          let rec find i =
-            if i = len then i else
-            let _, row = pp_row i in  (* TODO: only pp relevant column *)
-            match row.(col) with
-            | `Text s' when Data.compare_utf_8 s s' <= 0 -> i
-            | _ -> find (i + 1)
-          in
-          let i = find 0 in
-          if i < len then
-          (
-            Table.set_vscroll tab i page;
-            `Scroll
+            (* Cmd-cursor movement: move selection *)
+            Table.adjust_vscroll tab i page;
+            `Move d
           )
           else `None
         )
+        else if command then
+        (
+          if key_status' ui (`Char 'A') = `Pressed then
+          (
+            (* Select-all key pressed: select all *)
+            Table.select_all tab;
+            `Select
+          )
+          else if key_status' ui (`Char 'N') = `Pressed then
+          (
+            (* Deselect-all key pressed: deselect all *)
+            Table.deselect_all tab;
+            `Select
+          )
+          else if key_status' ui (`Char 'I') = `Pressed then
+          (
+            (* Selection inversion key pressed: invert selection *)
+            Table.select_invert tab;
+            `Select
+          )
+          else `None
+        )
+        else
+        (
+          let ch = Key.char () in
+          if ch >= Uchar.of_int 32 then
+          (
+            (* Plain character pressed: scroll to first entry *)
+            let b = Bytes.make 8 '\000' in
+            let s = Bytes.sub_string b 0 (Bytes.set_utf_8_uchar b 0 ch) in
+            let col =
+              match header_opt with
+              | Some (_, (col, _)::_) -> col
+              | _ -> 0
+            in
+            let rec find i =
+              if i = len then i else
+              let _, row = pp_row i in  (* TODO: only pp relevant column *)
+              match row.(col) with
+              | `Text s' when Data.compare_utf_8 s s' <= 0 -> i
+              | _ -> find (i + 1)
+            in
+            let i = find 0 in
+            if i < len then
+            (
+              Table.set_vscroll tab i page;
+              `Scroll
+            )
+            else `None
+          )
+          else `None
+        )
+      )
+    in
+
+    let result =
+      if result <> `None || not tab.focus || sh = 0 then result else
+      (
+        let step = if shift then 10 else 50 in
+        let dh =
+          if key_status' ui (`Arrow `Left) = `Pressed then -step else
+          if key_status' ui (`Arrow `Right) = `Pressed then +step else
+          0
+        in
+        if abs dh > 0 && not command then
+        (
+          Table.set_hscroll tab (tab.hscroll + dh);
+          `Scroll;
+        )
         else `None
       )
-    )
     in
+
     result
   )
 
@@ -1399,111 +1426,119 @@ let grid_table ui area gw iw ch sw header_opt (tab : _ Table.t) pp_cell =
 
     (* Keys *)
     let result =
-    if result <> `None || not tab.focus then
-      result
-    else
-    (
-      let d =
-        if key_status' ui (`Arrow `Up) = `Pressed then -line else
-        if key_status' ui (`Arrow `Down) = `Pressed then +line else
-        if key_status' ui (`Page `Up) = `Pressed then -page else
-        if key_status' ui (`Page `Down) = `Pressed then +page else
-        if key_status' ui (`End `Up) = `Pressed then -len else
-        if key_status' ui (`End `Down) = `Pressed then +len else
-        0
-      in
-      if min len (abs d) > 0 then
+      if result <> `None || not tab.focus then result else
       (
-        (* Cursor movement *)
-        let default = 0, if d < 0 then len else -1 in
-        let pos1, pos2 = Option.value tab.sel_range ~default in
-        let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
+        let d =
+          if key_status' ui (`Arrow `Up) = `Pressed then -line else
+          if key_status' ui (`Arrow `Down) = `Pressed then +line else
+          if key_status' ui (`Page `Up) = `Pressed then -page else
+          if key_status' ui (`Page `Down) = `Pressed then +page else
+          if key_status' ui (`End `Up) = `Pressed then -len else
+          if key_status' ui (`End `Down) = `Pressed then +len else
+          0
+        in
+        if min len (abs d) > 0 then
+        (
+          (* Cursor movement *)
+          let has_sel = tab.sel_range <> None in
+          let default =
+            0, if not shift then tab.vscroll else if d < 0 then len else -1 in
+          let pos1, pos2 = Option.value tab.sel_range ~default in
+          let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
 
-        if not (shift || command) then
-        (
-          (* Plain cursor movement: deselect all, reselect relative to range end *)
-          Table.deselect_all tab;
-          Table.select tab i i;
-          Table.adjust_vscroll tab i page;
-          `Select
-        )
-        else if shift then
-        (
-          (* Shift-cursor movement: adjust selection range *)
-          if tab.sel_range = None then
+          if not (shift || command) then
           (
-            (* No selection yet: range from end of playlist *)
-            Table.select tab (len - 1) i;
+            (* Plain cursor movement: deselect all, reselect relative to range end *)
+            if has_sel then
+            (
+              Table.deselect_all tab;
+              Table.select tab i i;
+              Table.adjust_vscroll tab i page;
+              `Select
+            )
+            else
+            (
+              Table.set_vscroll tab i page;
+              `Scroll
+            )
           )
-          else if Table.is_selected tab pos1 then
+          else if shift then
           (
-            (* Range start was already selected: deselect old range, select new *)
-            Table.deselect tab (max 0 pos2) i;
-            Table.select tab pos1 i;
+            (* Shift-cursor movement: adjust selection range *)
+            if not has_sel then
+            (
+              (* No selection yet: range from end of playlist *)
+              Table.select tab (len - 1) i;
+            )
+            else if Table.is_selected tab pos1 then
+            (
+              (* Range start was already selected: deselect old range, select new *)
+              Table.deselect tab (max 0 pos2) i;
+              Table.select tab pos1 i;
+            )
+            else
+            (
+              (* Range start was not selected: select old range, deselect new *)
+              Table.select tab (max 0 pos2) i;
+              Table.deselect tab pos1 i;
+            );
+            Table.adjust_vscroll tab i page;
+            `Select
           )
-          else
+          else if command && has_sel then
           (
-            (* Range start was not selected: select old range, deselect new *)
-            Table.select tab (max 0 pos2) i;
-            Table.deselect tab pos1 i;
-          );
-          Table.adjust_vscroll tab i page;
-          `Select
-        )
-        else if command then
-        (
-          (* Cmd-cursor movement: move selection *)
-          Table.adjust_vscroll tab i page;
-          `Move d
-        )
-        else `None
-      )
-      else if command then
-      (
-        if key_status' ui (`Char 'A') = `Pressed then
-        (
-          (* Select-all key pressed: select all *)
-          Table.select_all tab;
-          `Select
-        )
-        else if key_status' ui (`Char 'N') = `Pressed then
-        (
-          (* Deselect-all key pressed: deselect all *)
-          Table.deselect_all tab;
-          `Select
-        )
-        else if key_status' ui (`Char 'I') = `Pressed then
-        (
-          (* Selection inversion key pressed: invert selection *)
-          Table.select_invert tab;
-          `Select
-        )
-        else `None
-      )
-      else
-      (
-        let ch = Key.char () in
-        if ch >= Uchar.of_int 32 then
-        (
-          (* Plain character pressed: scroll to first entry *)
-          let b = Bytes.make 8 '\000' in
-          let s = Bytes.sub_string b 0 (Bytes.set_utf_8_uchar b 0 ch) in
-          let rec find i =
-            if i = Table.length tab then i else
-            let _, txt = pp_cell i in  (* TODO: only pp relevant column *)
-            if Data.compare_utf_8 s txt <= 0 then i else find (i + 1)
-          in
-          let i = find 0 in
-          if i < len then
-          (
-            Table.adjust_vscroll tab ((i + line - 1) / line) page;
-            `Scroll
+            (* Cmd-cursor movement: move selection *)
+            Table.adjust_vscroll tab i page;
+            `Move d
           )
           else `None
         )
-        else `None
+        else if command then
+        (
+          if key_status' ui (`Char 'A') = `Pressed then
+          (
+            (* Select-all key pressed: select all *)
+            Table.select_all tab;
+            `Select
+          )
+          else if key_status' ui (`Char 'N') = `Pressed then
+          (
+            (* Deselect-all key pressed: deselect all *)
+            Table.deselect_all tab;
+            `Select
+          )
+          else if key_status' ui (`Char 'I') = `Pressed then
+          (
+            (* Selection inversion key pressed: invert selection *)
+            Table.select_invert tab;
+            `Select
+          )
+          else `None
+        )
+        else
+        (
+          let ch = Key.char () in
+          if ch >= Uchar.of_int 32 then
+          (
+            (* Plain character pressed: scroll to first entry *)
+            let b = Bytes.make 8 '\000' in
+            let s = Bytes.sub_string b 0 (Bytes.set_utf_8_uchar b 0 ch) in
+            let rec find i =
+              if i = Table.length tab then i else
+              let _, txt = pp_cell i in  (* TODO: only pp relevant column *)
+              if Data.compare_utf_8 s txt <= 0 then i else find (i + 1)
+            in
+            let i = find 0 in
+            if i < len then
+            (
+              Table.adjust_vscroll tab ((i + line - 1) / line) page;
+              `Scroll
+            )
+            else `None
+          )
+          else `None
+        )
       )
-    )
     in
     result
   )
