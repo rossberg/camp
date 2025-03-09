@@ -2,21 +2,30 @@
 
 type undo
 
-type t =
+type t = private
 {
   mutable text : string;
   mutable focus : bool;
   mutable scroll : int;
   mutable sel_range : (int * int) option;  (* primary and secondary pos *)
-  mutable undos : undo list ref;
-  mutable redos : undo list ref;
-  mutable undo_depth : int;
+  undos : undo list ref;
+  redos : undo list ref;
+  undo_depth : int;
 }
 
 
 (* Constructor *)
 
 val make : int -> t
+
+
+(* Accessors *)
+
+val focus : t -> unit
+val defocus : t -> unit
+
+val scroll : t -> int -> unit
+val select : t -> (int * int) option -> unit
 
 
 (* Editing *)

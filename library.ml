@@ -514,19 +514,19 @@ let has_track lib track =
 
 
 let defocus lib =
-  lib.browser.focus <- false;
-  lib.artists.focus <- false;
-  lib.albums.focus <- false;
-  lib.tracks.focus <- false;
-  lib.search.focus <- false
+  Table.defocus lib.browser;
+  Table.defocus lib.artists;
+  Table.defocus lib.albums;
+  Table.defocus lib.tracks;
+  Edit.defocus lib.search
 
 let focus_browser lib =
   defocus lib;
-  lib.browser.focus <- true
+  Table.focus lib.browser
 
 let focus_search lib =
   defocus lib;
-  lib.search.focus <- true
+  Edit.defocus lib.search
 
 
 let update_dir lib dir =
@@ -572,8 +572,7 @@ let refresh_browser lib =
     (if dir.folded then acc else Array.fold_right entries dir.children acc)
   in
   let selection = Table.save_selection lib.browser in
-  lib.browser.entries <- Array.of_list (entries lib.root []);
-  Table.adjust_pos lib.browser;
+  Table.set lib.browser (Array.of_list (entries lib.root []));
   Table.restore_selection lib.browser selection (fun dir -> dir.path)
 
 
@@ -706,15 +705,15 @@ let remove_dirs lib paths =
 
 let focus_artists lib =
   defocus lib;
-  lib.artists.focus <- true
+  Table.focus lib.artists
 
 let focus_albums lib =
   defocus lib;
-  lib.albums.focus <- true
+  Table.focus lib.albums
 
 let focus_tracks lib =
   defocus lib;
-  lib.tracks.focus <- true
+  Table.focus lib.tracks
 
 
 let has_selection lib = Table.has_selection lib.tracks
@@ -766,10 +765,7 @@ let refresh_delay = 5.0
 
 let refresh lib (tab : _ Table.t) shown sorting attr_string key iter_db =
   if lib.current = None || not (shown (Option.get lib.current)) then
-  (
-    tab.entries <- [||];
-    Table.adjust_pos tab;
-  )
+    Table.remove_all tab
   else
     let entries' = ref [||] in
     Option.iter (fun (dir : dir) ->
@@ -780,8 +776,7 @@ let refresh lib (tab : _ Table.t) shown sorting attr_string key iter_db =
     ) lib.current;
     Mutex.protect tab.mutex (fun () ->
       let selection = Table.save_selection tab in
-      tab.entries <- !entries';
-      Table.adjust_pos tab;
+      Table.set tab !entries';
       Table.restore_selection tab selection key
     );
     if lib.refresh_time <> 0.0 then
@@ -914,7 +909,7 @@ let refresh_after_rescan lib =
 let reorder lib tab sorting attr_string key =
   Option.iter (fun (dir : dir) ->
     let selection = Table.save_selection tab in
-    tab.entries <- sort_entries tab.entries (sorting dir) attr_string;
+    Table.set tab (sort_entries tab.entries (sorting dir) attr_string);
     Table.restore_selection tab selection key;
   ) lib.current
 
@@ -941,8 +936,6 @@ let set_search lib search =
 let length lib = Table.length lib.tracks
 let tracks lib = lib.tracks.entries
 let table lib = lib.tracks
-
-let adjust_scroll lib pos fit = Table.adjust_scroll lib.tracks pos fit
 
 
 let array_swap a i j =
@@ -1193,7 +1186,8 @@ let to_map_extra lib =
 let of_map lib m =
   refresh_browser lib;
   read_map m "browser_scroll" (fun s ->
-    lib.browser.vscroll <- scan s "%d" (num 0 (max 0 (length_browser lib - 1))));
+    Table.set_vscroll lib.browser
+      (scan s "%d" (num 0 (max 0 (length_browser lib - 1)))) 4);
   read_map m "browser_current" (fun s ->
     Option.iter (fun i ->
       select_dir lib i;

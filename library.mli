@@ -157,8 +157,6 @@ val move_selected : t -> int -> unit
 val undo : t -> unit
 val redo : t -> unit
 
-val adjust_scroll : t -> int option -> int -> unit
-
 
 (* Covers *)
 

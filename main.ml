@@ -837,7 +837,7 @@ let run_playlist (st : State.t) =
 
   | `Click (Some i) when Api.Mouse.is_doubleclick `Left ->
     (* Double-click on track: switch to track *)
-    tab.pos <- Some i;
+    Table.set_pos tab (Some i);
     Control.switch st.control tab.entries.(i) true;
     if pl.shuffle <> None then
       Playlist.shuffle_next pl i;

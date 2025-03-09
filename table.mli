@@ -4,9 +4,9 @@ module IntSet : module type of Set.Make(Int)
 
 type 'a undo
 
-type 'a t =
+type 'a t = private
 {
-  mutable mutex : Mutex.t;
+  mutex : Mutex.t;
   mutable entries : 'a array;
   mutable pos : int option;                (* current position in table *)
   mutable focus : bool;
@@ -14,9 +14,9 @@ type 'a t =
   mutable hscroll : int;                   (* in pixels *)
   mutable sel_range : (int * int) option;  (* primary and secondary pos *)
   mutable selected : IntSet.t;
-  mutable undos : 'a undo list ref;
-  mutable redos : 'a undo list ref;
-  mutable undo_depth : int;
+  undos : 'a undo list ref;
+  redos : 'a undo list ref;
+  undo_depth : int;
   undo_save : (unit -> unit -> unit) option;
 }
 
@@ -39,8 +39,13 @@ val length : 'a t -> int
 val current : 'a t -> 'a
 val current_opt : 'a t -> 'a option
 
-val adjust_pos : 'a t -> unit
-val adjust_scroll : 'a t -> int option -> int -> unit
+val set_pos : 'a t -> int option -> unit
+val set_hscroll : 'a t -> int -> unit
+val set_vscroll : 'a t -> int -> int -> unit
+val adjust_vscroll : 'a t -> int -> int -> unit
+
+val focus : 'a t -> unit
+val defocus : 'a t -> unit
 
 
 (* Selection *)
@@ -50,6 +55,7 @@ val num_selected : 'a t -> int
 val first_selected : 'a t -> int option
 val last_selected : 'a t -> int option
 val is_selected : 'a t -> int -> bool
+val reset_selected : 'a t -> IntSet.t -> unit  (* unchecked! *)
 val selected : 'a t -> 'a array
 
 val select_all : 'a t -> unit
@@ -65,6 +71,7 @@ val restore_selection : 'a t -> 'a array -> ('a -> string) -> unit
 
 (* Editing *)
 
+val set : 'a t -> 'a array -> unit
 val insert : 'a t -> int -> 'a array -> unit
 
 val remove_all : 'a t -> unit

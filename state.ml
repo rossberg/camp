@@ -104,16 +104,16 @@ let focus_playlist st =
   defocus_all st;
   Playlist.focus st.playlist
 
-let focus_library (table : _ Table.t) st =
+let focus_library (tab : _ Table.t) st =
   Playlist.deselect_all st.playlist;
   defocus_all st;
-  table.focus <- true
+  Table.focus tab
 
-let focus_filesel (table : _ Table.t) st =
+let focus_filesel (tab : _ Table.t) st =
   Playlist.deselect_all st.playlist;
   Library.deselect_all st.library;
   defocus_all st;
-  table.focus <- true
+  Table.focus tab
 
 
 (* Layout Persistance *)

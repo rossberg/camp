@@ -58,8 +58,8 @@ let refresh_files fs =
   let i = Option.get (Table.first_selected fs.dirs) in
   let dir = fs.dirs.entries.(i) in
   Table.deselect_all fs.files;
-  fs.files.entries <- dir.files;
-  Table.adjust_scroll fs.files (Some 0) 4
+  Table.set fs.files dir.files;
+  Table.set_vscroll fs.files 0 4
 
 let refresh_dirs fs =
   let rec entries (dirs : dir array) i acc =
@@ -69,9 +69,10 @@ let refresh_dirs fs =
     dir :: (if dir.folded then acc' else entries dir.children 0 acc')
   in
   let selection = Table.save_selection fs.dirs in
-  fs.dirs.entries <- Array.of_list (entries fs.roots 0 []);
+  Table.set fs.dirs (Array.of_list (entries fs.roots 0 []));
   Table.restore_selection fs.dirs selection (fun dir -> dir.path);
-  Table.adjust_scroll fs.files (Table.first_selected fs.files) 4
+  Table.adjust_vscroll fs.files
+    (Option.value (Table.first_selected fs.files) ~default: 0) 4
 
 
 (* Constructor *)
@@ -170,21 +171,21 @@ let make () =
 (* Focus *)
 
 let defocus fs =
-  fs.dirs.focus <- false;
-  fs.files.focus <- false;
-  fs.input.focus <- false
+  Table.defocus fs.dirs;
+  Table.defocus fs.files;
+  Edit.defocus fs.input
 
 let focus_directories fs =
   defocus fs;
-  fs.dirs.focus <- true
+  Table.focus fs.dirs
 
 let focus_files fs =
   defocus fs;
-  fs.files.focus <- true
+  Table.focus fs.files
 
 let focus_input fs =
   defocus fs;
-  fs.input.focus <- true
+  Edit.focus fs.input
 
 
 (* Navigation *)
@@ -313,7 +314,7 @@ let reorder_files fs k =
   in
   Array.stable_sort cmp' enriched;
   let selection = Table.save_selection fs.files in
-  fs.files.entries <- Array.map snd enriched;
+  Table.set fs.files (Array.map snd enriched);
   Table.restore_selection fs.files selection (fun (file : file) -> file.name)
 
 

@@ -15,7 +15,7 @@ type 'a undo =
 
 type 'a t =
 {
-  mutable mutex : Mutex.t;
+  mutex : Mutex.t;
   mutable entries : 'a array;
   mutable pos : int option;                (* current position in table *)
   mutable focus : bool;
@@ -23,9 +23,9 @@ type 'a t =
   mutable hscroll : int;                   (* in pixels *)
   mutable sel_range : (int * int) option;  (* primary and secondary pos *)
   mutable selected : IntSet.t;
-  mutable undos : 'a undo list ref;
-  mutable redos : 'a undo list ref;
-  mutable undo_depth : int;
+  undos : 'a undo list ref;
+  redos : 'a undo list ref;
+  undo_depth : int;
   undo_save : (unit -> unit -> unit) option;
 }
 
@@ -55,18 +55,27 @@ let length tab = Array.length tab.entries
 let current_opt tab = Option.map (fun i -> tab.entries.(i)) tab.pos
 let current tab = Option.get (current_opt tab)
 
-let adjust_pos tab =
+let set_pos tab pos =
   let len = Array.length tab.entries in
-  if tab.pos = None && len > 0 then
+  if pos = None && len > 0 then
     tab.pos <- Some 0
-  else if tab.pos <> None && len = 0 then
+  else if pos <> None && len = 0 then
     tab.pos <- None
 
-let adjust_scroll tab pos fit =
-  let i = Option.value pos ~default: 0 in
-  if i < tab.vscroll || i >= tab.vscroll + fit then
-    tab.vscroll <- max 0 (min (Array.length tab.entries - fit)
-      (i - (fit - 2)/2))
+let set_hscroll tab i =
+  tab.hscroll <- i
+
+let set_vscroll tab i page =
+  let len = Array.length tab.entries in
+  tab.vscroll <- max 0 (min i (len - page))
+
+let adjust_vscroll tab i page =
+  let d = tab.vscroll in
+  let i' = if i >= d && i < d + page then i else i - (page - 2)/2 in
+  set_vscroll tab i' page
+
+let focus tab = tab.focus <- true
+let defocus tab = tab.focus <- false
 
 
 (* Validation *)
@@ -108,6 +117,8 @@ let num_selected tab = IntSet.cardinal tab.selected
 let first_selected tab = IntSet.min_elt_opt tab.selected
 let last_selected tab = IntSet.max_elt_opt tab.selected
 let is_selected tab i = IntSet.mem i tab.selected
+
+let reset_selected tab sel = tab.selected <- sel
 
 let selected tab =
   let d = ref 0 in
@@ -232,6 +243,13 @@ let move_pos tab i j len =
     if IntSet.mem i tab.selected then
       tab.selected <- IntSet.add j (IntSet.remove i tab.selected)
   )
+
+
+let set tab entries =
+  deselect_all tab;
+  tab.entries <- entries;
+  set_pos tab tab.pos;
+  adjust_vscroll tab tab.vscroll 4
 
 
 let insert tab pos entries =

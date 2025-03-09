@@ -13,9 +13,9 @@ type t =
   mutable focus : bool;
   mutable scroll : int;
   mutable sel_range : (int * int) option;  (* primary and secondary pos *)
-  mutable undos : undo list ref;
-  mutable redos : undo list ref;
-  mutable undo_depth : int;
+  undos : undo list ref;
+  redos : undo list ref;
+  undo_depth : int;
 }
 
 
@@ -31,6 +31,15 @@ let make undo_depth =
     redos = ref [];
     undo_depth;
   }
+
+
+(* Accessors *)
+
+let focus ed = ed.focus <- true
+let defocus ed = ed.focus <- false
+
+let scroll ed i = ed.scroll <- i
+let select ed sel = ed.sel_range <- sel
 
 
 (* Undo *)

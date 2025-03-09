@@ -77,9 +77,11 @@ let table pl = pl.table
 let current pl = Table.current pl.table
 let current_opt pl = Table.current_opt pl.table
 
-let focus pl = pl.table.focus <- true
-let defocus pl = pl.table.focus <- false
-let adjust_scroll pl fit = Table.adjust_scroll pl.table pl.table.pos fit
+let focus pl = Table.focus pl.table
+let defocus pl = Table.defocus pl.table
+
+let adjust_scroll pl page =
+  Option.iter (fun i -> Table.adjust_vscroll pl.table i page) pl.table.pos
 
 
 (* Total *)
@@ -131,7 +133,7 @@ let skip pl delta repeat =
   | None ->
     let pos = up (Option.get pl.table.pos) in
     let valid = pos >= 0 && pos < len in
-    if valid then pl.table.pos <- Some pos;
+    if valid then Table.set_pos pl.table (Some pos);
     valid
   | Some shuffle ->
     let pos = up (Option.get shuffle.pos) in
@@ -140,7 +142,7 @@ let skip pl delta repeat =
     (
       shuffle.pos <- Some pos;
       shuffle.unobserved <- max shuffle.unobserved (pos + 1);
-      pl.table.pos <- Some shuffle.tracks.(pos);
+      Table.set_pos pl.table (Some shuffle.tracks.(pos));
     );
     valid
 
@@ -176,7 +178,7 @@ let shuffle pl i_opt =
   reshuffle pl;
   if len > 0 then
   (
-    pl.table.pos <- Some tracks.(0);
+    Table.set_pos pl.table (Some tracks.(0));
     shuffle.unobserved <- 1;
   )
 
@@ -265,7 +267,7 @@ let save_playlist pl =
 
 let load_playlist pl =
   Storage.load playlist_file (fun file ->
-    pl.table.entries <- Track.of_m3u (In_channel.input_all file)
+    Table.set pl.table (Track.of_m3u (In_channel.input_all file))
   )
 
 
@@ -432,13 +434,11 @@ let to_map_extra pl =
     ]
 
 let of_map pl m =
-  let len = Table.length pl.table in
+  let lim = max 0 (Table.length pl.table - 1) in
   refresh_total pl;
   read_map m "play_pos"
-    (fun s -> pl.table.pos <- scan s "%d" (num_opt 0 (len - 1)));
-  Table.adjust_pos pl.table;
+    (fun s -> Table.set_pos pl.table (scan s "%d" (num_opt 0 lim)));
   read_map m "play_scroll"
-    (fun s -> pl.table.vscroll <- scan s "%d" (num 0 (len - 1)));
-  adjust_scroll pl 4;
+    (fun s -> Table.set_vscroll pl.table (scan s "%d" (num 0 lim)) 4);
   read_map m "shuffle"
     (fun s -> if scan s "%d" bool then shuffle pl pl.table.pos)
