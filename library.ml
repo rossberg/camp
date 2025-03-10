@@ -14,8 +14,10 @@ type scan =
 {
   dir_queue : (bool * path * (unit -> bool)) Safe_queue.t;
   file_queue : (bool * path * (unit -> bool)) Safe_queue.t;
+  cover_queue : (bool * path * (unit -> bool)) Safe_queue.t;
   dir_busy : string option Atomic.t;
   file_busy : string option Atomic.t;
+  cover_busy : string option Atomic.t;
   completed : path option list Atomic.t;
   artists_refresh : (bool * (unit -> unit)) option Atomic.t;
   albums_refresh : (bool * (unit -> unit)) option Atomic.t;
@@ -110,8 +112,10 @@ let make_scan () =
     {
       dir_queue = Safe_queue.create ();
       file_queue = Safe_queue.create ();
+      cover_queue = Safe_queue.create ();
       dir_busy = Atomic.make None;
       file_busy = Atomic.make None;
+      cover_busy = Atomic.make None;
       completed = Atomic.make [];
       artists_refresh = Atomic.make None;
       albums_refresh = Atomic.make None;
@@ -123,6 +127,7 @@ let make_scan () =
   in
   ignore (Domain.spawn (scanner scan scan.dir_queue scan.dir_busy));
   ignore (Domain.spawn (scanner scan scan.file_queue scan.file_busy));
+  ignore (Domain.spawn (scanner scan scan.cover_queue scan.cover_busy));
   ignore (Domain.spawn (refresher scan));
   scan
 
@@ -354,7 +359,7 @@ let rescan_dir_tracks' lib mode (dir : Data.dir) =
           | Some track -> old_tracks := Map.remove path !old_tracks; track
           | None -> Data.make_track path
         in
-        if rescan_track' lib mode track then
+        if rescan_track'' lib mode track then
           new_tracks := track :: !new_tracks
       )
     ) (File.read_dir dir.path);
@@ -1115,21 +1120,26 @@ let redo lib =
 (* Covers *)
 
 let rescan_cover' lib path =
-  let meta = Meta.load path in
-  let cover =
-    match meta.cover with
-    | None -> NoCover
-    | Some pic -> ScannedCover pic
-  in
-  lib.covers <- Map.add path cover lib.covers;
-  false
+  try
+    let meta = Meta.load path in
+    let cover =
+      match meta.cover with
+      | None -> NoCover
+      | Some pic -> ScannedCover pic
+    in
+    lib.covers <- Map.add path cover lib.covers;
+    false
+  with exn ->
+    Storage.log_exn "file" exn ("scanning cover " ^ path);
+    false
 
 let rescan_cover lib path =
   lib.covers <- Map.add path ScanCover lib.covers;
   Safe_queue.add (false, path, fun () -> rescan_cover' lib path)
-    lib.scan.file_queue
+    lib.scan.cover_queue
 
 let load_cover lib win path =
+  if M3u.is_separator path then None else
   match Map.find_opt path lib.covers with
   | Some (NoCover | ScanCover) -> None
   | Some (Cover image) -> Some image

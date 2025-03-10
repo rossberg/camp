@@ -1028,6 +1028,7 @@ let iter_playlist_tracks_for_path_single = stmt @@
       AND (?3 = '%' OR albumtitle = ?3);
   " |>
   fun stmt db path artist album ->
+(*Printf.printf "[iter_single %s] artist=%s album=%s\n%!" path artist album;*)
     iter_table [|of_text path; of_text artist; of_text album|]
       (to_playlist_track 0) stmt db
 
@@ -1041,6 +1042,7 @@ let iter_playlist_tracks_for_path_multi db path artist albums = stmt @@
       AND (albumtitle IN " ^ tuple 3 (Array.length albums) ^ ");
   " |>
   fun stmt ->
+Printf.printf "[iter_multi]\n%!";
     let album_binds = Array.map of_text albums in
     iter_table (Array.append [|of_text path; of_text artist|] album_binds)
       (to_playlist_track 0) stmt db
@@ -1058,6 +1060,7 @@ let iter_playlist_tracks_for_path_search db path artists albums searches = stmt 
     " ^ playlist_search_filter (2 + Array.(length artists + length albums)) searches ^ ";
   " |>
   fun stmt ->
+Printf.printf "[iter_search]\n%!";
     let artist_binds = Array.map of_text artists in
     let album_binds = Array.map of_text albums in
     let search_binds = Array.map (fun s -> of_text ("%" ^ s ^ "%")) searches in
