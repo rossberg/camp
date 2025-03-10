@@ -1172,6 +1172,10 @@ let run_library (st : _ State.t) =
     | Some `Grid -> None
   in
 
+  let nothing_shown (dir : Data.dir) =
+    not dir.artists_shown && dir.albums_shown = None && dir.tracks_shown = None
+  in
+
   let artists = have_dir && dir.artists_shown in
   Layout.artists_label lay;
   Layout.artists_indicator lay artists;
@@ -1181,13 +1185,11 @@ let run_library (st : _ State.t) =
   (
     (* Click on Artists button: toggle artist pane *)
     dir.artists_shown <- artists';
-    if not (dir.artists_shown || dir.albums_shown <> None || dir.tracks_shown <> None) then
+    if nothing_shown dir then
     (
-      dir.tracks_shown <- Some `Table;
-      Table.dirty lib.tracks;
+      dir.tracks_shown <- Some `Table;  (* switch to tracks *)
       Library.refresh_tracks lib;
     );
-    Table.dirty lib.artists;
     Library.refresh_artists lib;
     Library.update_dir lib dir;
   );
@@ -1202,10 +1204,10 @@ let run_library (st : _ State.t) =
   (
     (* Click on Albums button: toggle artist pane *)
     dir.albums_shown <- cycle_shown dir.albums_shown;
-    if not (dir.albums_shown <> None || dir.artists_shown || dir.tracks_shown <> None) then
+    if nothing_shown dir then
       dir.albums_shown <- Some `Table;
-    Table.dirty lib.albums;
-    Library.refresh_albums lib;
+    if albums <> (dir.albums_shown <> None) then
+      Library.refresh_albums lib;
     Library.update_dir lib dir;
   );
 
@@ -1219,10 +1221,10 @@ let run_library (st : _ State.t) =
   (
     (* Click on Tracks button: toggle artist pane *)
     dir.tracks_shown <- cycle_shown dir.tracks_shown;
-    if not (dir.tracks_shown <> None || dir.artists_shown || dir.albums_shown <> None) then
+    if nothing_shown dir then
       dir.tracks_shown <- Some `Table;
-    Table.dirty lib.tracks;
-    Library.refresh_tracks lib;
+    if tracks <> (dir.tracks_shown <> None) then
+      Library.refresh_tracks lib;
     Library.update_dir lib dir;
   );
 
