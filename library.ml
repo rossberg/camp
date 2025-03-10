@@ -529,7 +529,7 @@ let focus_browser lib =
 
 let focus_search lib =
   defocus lib;
-  Edit.defocus lib.search
+  Edit.focus lib.search
 
 
 let update_dir lib dir =
