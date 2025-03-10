@@ -279,8 +279,10 @@ let track_attr_string (track : track) = function
   | `Artist -> artist_attr_string' `Artist track.path track.meta
   | `Title -> title_attr_string' `Title track.path track.meta
   | `Length -> length_attr_string' track.format track.meta
-  | `AlbumArtist -> unknown meta_attr_string track.meta `AlbumArtist
-  | `AlbumTitle -> unknown meta_attr_string track.meta `AlbumTitle
+  | `AlbumArtist when not (M3u.is_separator track.path) ->
+    unknown meta_attr_string track.meta `AlbumArtist
+  | `AlbumTitle when not (M3u.is_separator track.path) ->
+    unknown meta_attr_string track.meta `AlbumTitle
   | #file_attr as attr -> file_attr_string track.path track.file attr
   | #format_attr as attr -> nonempty format_attr_string track.format attr
   | #meta_attr as attr -> nonempty meta_attr_string track.meta attr

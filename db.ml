@@ -881,7 +881,7 @@ let to_playlist_track i data : track =
   (
     let path = to_text (i + track_cols + 1) data in
     if M3u.is_separator path then
-      {track with path}
+      {(Data.make_separator ()) with pos = track.pos}
     else
     (
       let artist = to_text_default (i + track_cols + 2) data in
@@ -1078,17 +1078,19 @@ let iter_playlist_tracks_for_path db path artists albums searches f =
 
 let iter_playlist_tracks_for_path_as_artists_single = stmt @@
   "
-    SELECT NULL, aartist, SUM(albums), SUM(tracks)
+    SELECT aartist, SUM(albums), SUM(tracks)
     FROM (
       SELECT " ^ playlist_artists_fields
         ["albumartist"; "Tracks.artist"; "Playlists.artist"] ^ "
       FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
       WHERE Playlists.path = ?1
+        AND NOT (Playlists.track LIKE 'separator:%')
       GROUP BY aartist
     UNION
       SELECT " ^ playlist_artists_fields ["albumartist"] ^ "
       FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
       WHERE Playlists.path = ?1 AND Tracks.artist <> albumartist
+        AND NOT (Playlists.track LIKE 'separator:%')
       GROUP BY albumartist
     )
     GROUP BY aartist;
@@ -1098,19 +1100,21 @@ let iter_playlist_tracks_for_path_as_artists_single = stmt @@
 
 let iter_playlist_tracks_for_path_as_artists_search db path searches = stmt @@
   "
-    SELECT NULL, aartist, SUM(albums), SUM(tracks)
+    SELECT aartist, SUM(albums), SUM(tracks)
     FROM (
       SELECT " ^ playlist_artists_fields
         ["albumartist"; "Tracks.artist"; "Playlists.artist"] ^ "
       FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
       WHERE Playlists.path = ?1
-      " ^ playlist_search_filter 2 searches ^ "
+        AND NOT (Playlists.track LIKE 'separator:%')
+        " ^ playlist_search_filter 2 searches ^ "
       GROUP BY aartist
     UNION
       SELECT " ^ playlist_artists_fields ["albumartist"] ^ "
       FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
       WHERE Playlists.path = ?1 AND Tracks.artist <> albumartist
-      " ^ playlist_search_filter 2 searches ^ "
+        AND NOT (Playlists.track LIKE 'separator:%')
+        " ^ playlist_search_filter 2 searches ^ "
       GROUP BY albumartist
     )
     GROUP BY aartist;
@@ -1131,6 +1135,7 @@ let iter_playlist_tracks_for_path_as_albums_single = stmt @@
     SELECT " ^ playlist_albums_fields ^ "
     FROM Playlists LEFT JOIN Tracks ON Tracks.path = Playlists.track
     WHERE Playlists.path = ?1
+      AND NOT (Playlists.track LIKE 'separator:%')
       AND (?2 = '%' OR Tracks.artist = ?2 OR albumartist = ?2 OR
         Playlists.artist = ?2)
     GROUP BY aartist, atitle, codec, label;
@@ -1146,7 +1151,8 @@ let iter_playlist_tracks_for_path_as_albums_search db path artists searches = st
       LEFT JOIN Tracks ON Tracks.path = Playlists.track
       " ^ playlist_artists_filter 2 artists ^ "
     WHERE Playlists.path = ?1
-    " ^ playlist_search_filter (2 + Array.length artists) searches ^ "
+      AND NOT (Playlists.track LIKE 'separator:%')
+      " ^ playlist_search_filter (2 + Array.length artists) searches ^ "
     GROUP BY aartist, atitle, codec, label;
   " |>
   fun stmt ->
