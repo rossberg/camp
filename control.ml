@@ -42,9 +42,9 @@ type error = string
 let check msg b = if b then [] else [msg]
 
 let ok ctl =
-  let length = Api.Audio.length ctl.audio ctl.sound in
-  let played = Api.Audio.played ctl.audio ctl.sound in
-  let playing = Api.Audio.is_playing ctl.audio ctl.sound in
+  let length = Api.Audio.length ctl.audio in
+  let played = Api.Audio.played ctl.audio in
+  let playing = Api.Audio.is_playing ctl.audio in
   let paused = not playing && played > 0.0 in
   let stopped = not playing && not paused in
   let silence = ctl.sound = Api.Audio.silence ctl.audio in
@@ -69,7 +69,7 @@ let ok ctl =
 (* Track Control *)
 
 let eject ctl =
-  Api.Audio.stop ctl.audio ctl.sound;
+  Api.Audio.stop ctl.audio;
   ctl.current <- None;
   ctl.loop <- `None;
   if ctl.sound <> Api.Audio.silence ctl.audio then
@@ -89,15 +89,15 @@ let switch ctl (track : track) play =
     else Api.Audio.length ctl.audio ctl.sound;
 *)
   Track.update track;
-  Api.Audio.volume ctl.audio ctl.sound (if ctl.mute then 0.0 else ctl.volume);
+  Api.Audio.volume ctl.audio (if ctl.mute then 0.0 else ctl.volume);
   Api.Audio.play ctl.audio ctl.sound;
-  if not play then Api.Audio.pause ctl.audio ctl.sound
+  if not play then Api.Audio.pause ctl.audio
 
 let seek ctl percent =
   if ctl.sound <> Api.Audio.silence ctl.audio then
   (
-    let length = Api.Audio.length ctl.audio ctl.sound in
-    Api.Audio.seek ctl.audio ctl.sound (percent *. length)
+    let length = Api.Audio.length ctl.audio in
+    Api.Audio.seek ctl.audio (percent *. length)
   )
 
 let switch_if_empty ctl track_opt =
@@ -119,8 +119,8 @@ let pair x y = x, y
 
 
 let to_map ctl =
-  let length = Api.Audio.length ctl.audio ctl.sound in
-  let played = Api.Audio.played ctl.audio ctl.sound in
+  let length = Api.Audio.length ctl.audio in
+  let played = Api.Audio.played ctl.audio in
   Map.of_list
   [
     "volume", fmt "%.2f" ctl.volume;

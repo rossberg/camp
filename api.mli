@@ -228,16 +228,17 @@ sig
   val silence : audio -> sound
   val load : audio -> path -> sound  (* returns silence on error *)
   val free : audio -> sound -> unit
+
   val play : audio -> sound -> unit
-  val stop : audio -> sound -> unit
-  val pause : audio -> sound -> unit
-  val resume : audio -> sound -> unit
-  val refill : audio -> sound -> unit
-  val volume : audio -> sound -> float -> unit
-  val is_playing : audio -> sound -> bool
-  val length : audio -> sound -> time
-  val played : audio -> sound -> time
-  val seek : audio -> sound -> time -> unit
+  val stop : audio -> unit
+  val pause : audio -> unit
+  val resume : audio -> unit
+  val seek : audio -> time -> unit
+  val volume : audio -> float -> unit
+
+  val length : audio -> time
+  val played : audio -> time
+  val is_playing : audio -> bool
 
   val channels : audio -> sound -> int
   val depth : audio -> sound -> int

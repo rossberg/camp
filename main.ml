@@ -64,10 +64,10 @@ let run_control (st : _ State.t) =
 
   (* Current status *)
   let silence = ctl.sound = Api.Audio.silence ctl.audio in
-  let length = Api.Audio.length ctl.audio ctl.sound in
-  let elapsed = Api.Audio.played ctl.audio ctl.sound in
+  let length = Api.Audio.length ctl.audio in
+  let elapsed = Api.Audio.played ctl.audio in
   let remaining = length -. elapsed in
-  let playing = Api.Audio.is_playing ctl.audio ctl.sound in
+  let playing = Api.Audio.is_playing ctl.audio in
   let paused = not playing && elapsed > 0.0 in
   let stopped = not playing && not paused in
   let focus = pl.table.focus || not (lay.library_shown || lay.filesel_shown) in
@@ -188,7 +188,7 @@ let run_control (st : _ State.t) =
     if Layout.mute_drag lay (0, 0) = `None then
       ctl.volume <- clamp 0.0 1.0 volume';
     ctl.mute <- mute';
-    Api.Audio.volume ctl.audio ctl.sound (if ctl.mute then 0.0 else ctl.volume);
+    Api.Audio.volume ctl.audio (if ctl.mute then 0.0 else ctl.volume);
   );
 
   (* Seek bar *)
@@ -251,18 +251,18 @@ let run_control (st : _ State.t) =
   if playing' && paused' then
   (
     (* Click on pause button when playing: pause track *)
-    Api.Audio.pause ctl.audio ctl.sound
+    Api.Audio.pause ctl.audio;
   )
   else if (not stopped && not paused' || stopped && paused') && not silence then
   (
     (* Click on pause button when paused: resume track *)
-    Api.Audio.resume ctl.audio ctl.sound;
+    Api.Audio.resume ctl.audio;
   );
 
   if Layout.stop_button lay focus (Some false) && not stopped then
   (
     (* Click on stop button when playing: stop track *)
-    Api.Audio.pause ctl.audio ctl.sound;
+    Api.Audio.pause ctl.audio;
     (match Playlist.current_opt pl with
     | None -> Control.eject ctl
     | Some track -> Control.switch ctl track false
@@ -285,9 +285,9 @@ let run_control (st : _ State.t) =
   (
     (* Press of space key: pause or resume *)
     if playing then
-      Api.Audio.pause ctl.audio ctl.sound
+      Api.Audio.pause ctl.audio
     else if paused then
-      Api.Audio.resume ctl.audio ctl.sound
+      Api.Audio.resume ctl.audio
     else if stopped && len > 0 then
     (
       Control.switch ctl (Playlist.current pl) true;
@@ -2083,14 +2083,6 @@ and run' (st : _ State.t) =
 
 (* Startup *)
 
-let rec refill_audio (ctl : Control.t) () =
-  let silence = ctl.sound = Api.Audio.silence ctl.audio in
-  let playing = Api.Audio.is_playing ctl.audio ctl.sound in
-  if playing && not silence then Api.Audio.refill ctl.audio ctl.sound;
-  Unix.sleepf 0.01;
-  (*Domain.cpu_relax ();*)
-  refill_audio ctl ()
-
 let startup () =
   Storage.clear_temp ();
   let db = Db.init () in
@@ -2107,10 +2099,8 @@ let startup () =
   Api.Window.set_pos win x y;
   Api.Window.set_size win w h;
   Api.Draw.finish win;
-  ignore (Domain.spawn (refill_audio st.control));
   at_exit (fun () ->
     State.save st;
-    Api.Audio.free audio st.control.sound;
     Storage.clear_temp ();
     Db.exit db
   );
