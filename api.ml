@@ -253,7 +253,20 @@ type buffer = Raylib.RenderTexture.t
 
 module Buffer =
 struct
-  let create = Raylib.load_render_texture
+  let create w h =
+    let buf = Raylib.load_render_texture w h in
+    (* Override texture format to not use alpha channel *)
+    Raylib.unload_texture (Raylib.RenderTexture.texture buf);
+    let format = Raylib.PixelFormat.(to_int Uncompressed_r8g8b8) in
+    let id' = Raylib.Rlgl.load_texture Ctypes.null w h format 1 in
+    let open Raylib.Texture in
+    let tex' = create id' w h 1 Raylib.PixelFormat.Uncompressed_r8g8b8 in
+    Raylib.RenderTexture.set_texture buf tex';
+    (* Mirror Raylib LoadRenderTexture: *)
+    Raylib.Rlgl.framebuffer_attach (Raylib.RenderTexture.id buf) id'
+      0 (* = RL_ATTACHMENT_COLOR0 *) 100 (* = RL_ATTACHMENT_TEXTURE2D *) 0;
+    buf
+
   let dispose = Raylib.unload_render_texture
   let size buf = Image.size (Raylib.RenderTexture.texture buf)
 end
