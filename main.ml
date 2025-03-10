@@ -1148,7 +1148,7 @@ let run_library (st : _ State.t) =
   (
     let shift = Api.Key.is_modifier_down `Shift in
     if shift then
-      (* Scanning indicator clicked: puge cached covers *)
+      (* Scanning indicator clicked: purge cached covers *)
       Library.purge_covers lib;
 
     if Library.rescan_busy lib = None then
