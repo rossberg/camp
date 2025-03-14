@@ -1,6 +1,7 @@
 (* Library *)
 
 open Data
+type dir = Query.expr Data.dir
 type db = Db.t
 type scan
 type cover
@@ -135,7 +136,7 @@ val select_invert : 'a t -> unit
 val select : 'a t -> int -> int -> unit
 val deselect : 'a t -> int -> int -> unit
 
-val set_search : 'a t -> search -> unit
+val set_search : 'a t -> string -> unit
 
 
 (* Playlist Editing *)

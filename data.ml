@@ -13,12 +13,12 @@ type id = int64
 
 type file_attr =
 [
-  | `FilePath | `FileSize | `FileTime
+  | `FilePath | `FileDir | `FileName | `FileExt | `FileSize | `FileTime
 ]
 
 type format_attr =
 [
-  | `Length | `Codec | `Channels | `Depth | `SampleRate | `Bitrate | `Rate
+  | `Length | `Codec | `Channels | `Depth | `SampleRate | `BitRate | `Rate
 ]
 
 type meta_attr =
@@ -41,17 +41,16 @@ type display = [`Table | `Grid]
 
 (* Data *)
 
-type search = string array
-
-type dir =
+type 'query dir =
 {
   path : path;  (* primary *)
   parent : path option;
   nest : int;
   mutable name : string;
   mutable pos : int;
-  mutable children : dir array;
-  mutable search : search;
+  mutable children : 'query dir array;
+  mutable search : string;
+  mutable query : 'query option;
   mutable folded : bool;
   mutable artists_shown : bool;
   mutable albums_shown : display option;
@@ -149,10 +148,7 @@ let tracks_columns : track_attr columns =
 |]
 
 
-let make_search () : search =
-  [||]
-
-let make_dir path parent nest pos : dir =
+let make_dir path parent nest pos : 'a dir =
   {
     path;
     parent;
@@ -160,7 +156,8 @@ let make_dir path parent nest pos : dir =
     nest;
     pos;
     children = [||];
-    search = make_search ();
+    search = "";
+    query = None;
     folded = true;
     artists_shown = false;
     albums_shown = None;
@@ -225,8 +222,8 @@ let is_playlist_path path = M3u.is_known_ext path
 let is_track_path path = Format.is_known_ext path || M3u.is_separator path
 
 let is_root dir = dir.parent = Some ""
-let is_dir (dir : dir) = dir.path = "" || is_dir_path dir.path
-let is_playlist (dir : dir) = is_playlist_path dir.path
+let is_dir (dir : _ dir) = dir.path = "" || is_dir_path dir.path
+let is_playlist (dir : _ dir) = is_playlist_path dir.path
 
 
 let is_separator (track : track) = M3u.is_separator track.path
@@ -276,13 +273,16 @@ let attr_str =
 [
   `Pos, "POS";
   `FilePath, "PTH";
+  `FileDir, "DIR";
+  `FileName, "NAM";
+  `FileExt, "EXT";
   `FileSize, "SIZ";
   `FileTime, "TIM";
   `Codec, "COD";
   `Channels, "CHA";
   `Depth, "DEP";
   `SampleRate, "KHZ";
-  `Bitrate, "BPS";
+  `BitRate, "BPS";
   `Rate, "RES";
   `Artist, "ART";
   `Title, "TIT";
@@ -380,18 +380,13 @@ let album_columns_of_string s = columns_of_string_add_cover 0 to_album_attr s
 let track_columns_of_string s = columns_of_string_add_cover 1 to_track_attr s
 
 
-let string_of_search search =  String.concat " " (Array.to_list search)
-let search_of_string s =
-  Array.of_list (List.filter ((<>) "") (String.split_on_char ' ' s))
-
-
 (* String Comparison *)
 
 module UCol = Camomile.UCol.Make (Camomile.UTF8)
 
 let compare_utf_8 s1 s2 = UCol.compare ~prec: `Primary s1 s2
 
-let compare_dir (dir1 : dir) (dir2 : dir) =
+let compare_dir (dir1 : _ dir) (dir2 : _ dir) =
   match compare dir1.pos dir2.pos with
   | 0 -> compare_utf_8 dir1.name dir2.name
   | i -> i

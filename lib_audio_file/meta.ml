@@ -86,6 +86,29 @@ type t =
   cover : picture option;
 }
 
+let unknown =
+{
+  loaded = false;
+  artist = "";
+  title = "";
+  track = 0;
+  tracks = 0;
+  track_txt = "";
+  disc = 0;
+  discs = 0;
+  disc_txt = "";
+  albumartist = "";
+  albumtitle = "";
+  year = 0;
+  date = 0.0;
+  date_txt = "";
+  label = "";
+  country = "";
+  length = 0.0;
+  rating = 0;
+  cover = None;
+}
+
 let tag_field (id3v2_name, vorbis_name) tag : string option =
   match tag with
   | None -> None

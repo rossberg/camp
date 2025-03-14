@@ -45,7 +45,9 @@ val date : int -> int -> int -> time
 val date_of_string : string -> time  (* returns 0.0 on error *)
 val year_of_string : string -> int   (* returns 0 on error *)
 
-val load_tag : path -> tag option
-val load : path -> t
+val unknown : t
 
 val meta : path -> tag option -> t
+
+val load_tag : path -> tag option
+val load : path -> t

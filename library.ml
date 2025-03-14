@@ -8,6 +8,7 @@ module Map = Map.Make(String)
 
 
 type time = float
+type dir = Query.expr Data.dir
 type db = Db.t
 
 type scan =
@@ -168,13 +169,16 @@ let error lib msg =
 let attr_prop = function
   | `Pos -> "#   ", `Right
   | `FilePath -> "File Path", `Left
+  | `FileDir -> "File Location", `Left
+  | `FileName -> "File Name", `Left
+  | `FileExt -> "File Extension", `Left
   | `FileSize -> "File Size", `Right
   | `FileTime -> "File Date", `Left
   | `Codec -> "Format", `Left
   | `Channels -> "Channels", `Left
   | `Depth -> "Bit Depth", `Right
   | `SampleRate -> "Sample Rate", `Right
-  | `Bitrate -> "Bit Rate", `Right
+  | `BitRate -> "Bit Rate", `Right
   | `Rate -> "Rate", `Right
   | `Artist -> "Artist", `Left
   | `Title -> "Title", `Left
@@ -206,6 +210,9 @@ let unknown f x attr = match nonempty f x attr with "" -> "[unknown]" | s -> s
 
 let file_attr_string path (file : file) = function
   | `FilePath -> path
+  | `FileDir -> File.dir path
+  | `FileName -> File.name path
+  | `FileExt -> File.extension path
   | `FileSize -> nonzero 0.0 (fmt "%3.1f MB") (float file.size /. 2.0 ** 20.0)
   | `FileTime -> nonzero 0.0 string_of_date file.time
 
@@ -219,11 +226,11 @@ let rec format_attr_string (format : Format.t) = function
       if float format.depth = Float.round depth then "%.0f" else "%.1f"
     in nonzero 0.0 (fmt fmts) depth
   | `SampleRate -> nonzero 0.0 (fmt "%3.1f KHz") (float format.rate /. 1000.0)
-  | `Bitrate -> nonzero 0.0 (fmt "%4.0f kbps") (format.bitrate /. 1000.0)
+  | `BitRate -> nonzero 0.0 (fmt "%4.0f kbps") (format.bitrate /. 1000.0)
   | `Rate ->
     let attr =
       match format.codec with
-      | "MP3" | "OGG" | "OPUS" -> `Bitrate
+      | "MP3" | "OGG" | "OPUS" -> `BitRate
       | _ -> `SampleRate
     in format_attr_string format attr
 
@@ -233,9 +240,9 @@ let meta_attr_string (meta : Meta.t) = function
   | `AlbumArtist -> meta.albumartist
   | `AlbumTitle -> meta.albumtitle
   | `Track -> nonzero_int 3 meta.track
-  | `Tracks -> nonzero_int 3 meta.track (* TODO: set and use tracks *)
+  | `Tracks -> nonzero_int 3 meta.tracks
   | `Disc -> nonzero_int 2 meta.disc
-  | `Discs -> nonzero_int 2 meta.disc (* TODO: set and use discs *)
+  | `Discs -> nonzero_int 2 meta.discs
   | `Date ->
     if meta.date_txt = "" then nonzero_int 4 meta.year else meta.date_txt
   | `Year -> nonzero_int 4 meta.year
@@ -343,7 +350,7 @@ let rescan_track' lib mode track =
     Db.insert_track lib.db track;
   changed
 
-let rescan_dir_tracks' lib mode (dir : Data.dir) =
+let rescan_dir_tracks' lib mode (dir : dir) =
   try
     let new_tracks = ref [] in
     let old_tracks = ref Map.empty in
@@ -385,7 +392,7 @@ let rescan_playlist' lib _mode path =
     true
 
 
-let rec rescan_dir' lib mode (origin : Data.dir) =
+let rec rescan_dir' lib mode (origin : dir) =
   let new_dirs = ref [] in
   let old_dirs = ref Map.empty in
   Db.iter_dirs_for_path_rec lib.db origin.path (fun dir ->
@@ -532,22 +539,34 @@ let focus_search lib =
   Edit.focus lib.search
 
 
+let update_query lib (dir : dir) =
+  dir.query <-
+    if dir.search = "" then (lib.error <- ""; None) else
+    match Query.parse_expr dir.search with
+    | Ok expr -> lib.error <- ""; Some expr
+    | Error msg -> error lib (msg ^ " in search query"); Some (Query.Key `False)
+
+
 let update_dir lib dir =
   Db.update_dir lib.db dir
 
 let set_dir_opt lib dir_opt =
   Option.iter (fun (dir : dir) ->
-    let search = Data.search_of_string lib.search.text in
-    if search <> dir.search then
+    (* In case some input has been made but not yet sent *)
+    if lib.search.text <> dir.search then
     (
-      dir.search <- search;
+      dir.search <- lib.search.text;
       update_dir lib dir;
     )
   ) lib.current;
   Table.deselect_all lib.browser;
   Table.clear_undo lib.tracks;
   Db.clear_playlists lib.db;
-  lib.current <- dir_opt
+  lib.current <- dir_opt;
+  Option.iter (fun (dir : dir) ->
+    Edit.set lib.search dir.search;
+    if dir.query = None then update_query lib dir;
+  ) lib.current
 
 let selected_dir lib =
   Table.first_selected lib.browser
@@ -561,7 +580,6 @@ let select_dir lib i =
   (
     set_dir_opt lib (Some dir);
     Table.select lib.browser i i;
-    Edit.set lib.search (Data.string_of_search dir.search);
     if Data.is_playlist_path dir.path then
       rescan_playlist lib false dir.path;
   )
@@ -682,7 +700,7 @@ let add_dirs lib paths pos =
 let remove_dir lib path =
   let dirpath = File.(path // "") in
   let roots = lib.root.children in
-  match Array.find_index (fun (r : Data.dir) -> r.path = dirpath) roots with
+  match Array.find_index (fun (root : dir) -> root.path = dirpath) roots with
   | None -> ()
   | Some pos ->
     lib.current <- None;
@@ -798,12 +816,12 @@ let refresh_tracks_sync lib =
         Array.map album_key (Table.selected lib.albums)
       in
       if dir.path = "" then
-        Db.iter_tracks_for_path_filter lib.db "%" artists albums dir.search f
+        Db.iter_tracks_for_path_filter lib.db "%" artists albums dir.query f
       else if Data.is_dir dir then
         let path = File.(//) dir.path "%" in
-        Db.iter_tracks_for_path_filter lib.db path artists albums dir.search f
+        Db.iter_tracks_for_path_filter lib.db path artists albums dir.query f
       else if Data.is_playlist dir then
-        Db.iter_playlist_tracks_for_path lib.db dir.path artists albums dir.search f
+        Db.iter_playlist_tracks_for_path lib.db dir.path artists albums dir.query f
     )
 
 let refresh_albums_sync lib =
@@ -814,12 +832,12 @@ let refresh_albums_sync lib =
         Array.map artist_key (Table.selected lib.artists)
       in
       if dir.path = "" then
-        Db.iter_tracks_for_path_as_albums lib.db "%" artists dir.search f
+        Db.iter_tracks_for_path_as_albums lib.db "%" artists dir.query f
       else if Data.is_dir dir then
         let path = File.(//) dir.path "%" in
-        Db.iter_tracks_for_path_as_albums lib.db path artists dir.search f
+        Db.iter_tracks_for_path_as_albums lib.db path artists dir.query f
       else if Data.is_playlist dir then
-        Db.iter_playlist_tracks_for_path_as_albums lib.db dir.path artists dir.search f
+        Db.iter_playlist_tracks_for_path_as_albums lib.db dir.path artists dir.query f
     )
 
 let refresh_artists_sync lib =
@@ -827,12 +845,12 @@ let refresh_artists_sync lib =
     artist_key
     (fun dir f ->
       if dir.path = "" then
-        Db.iter_tracks_for_path_as_artists lib.db "%" dir.search f
+        Db.iter_tracks_for_path_as_artists lib.db "%" dir.query f
       else if Data.is_dir dir then
         let path = File.(//) dir.path "%" in
-        Db.iter_tracks_for_path_as_artists lib.db path dir.search f
+        Db.iter_tracks_for_path_as_artists lib.db path dir.query f
       else if Data.is_playlist dir then
-        Db.iter_playlist_tracks_for_path_as_artists lib.db dir.path dir.search f
+        Db.iter_playlist_tracks_for_path_as_artists lib.db dir.path dir.query f
     )
 
 let refresh_albums_tracks_sync lib =
@@ -926,11 +944,17 @@ let reorder_tracks lib =
   reorder lib lib.tracks tracks_sorting track_attr_string (track_key lib)
 
 
+(* Search *)
+
 let set_search lib search =
   Option.iter (fun (dir : dir) ->
-    dir.search <- search;
-    update_dir lib dir;
-    refresh_artists_albums_tracks lib;
+    if dir.search <> search || dir.query = None then
+    (
+      dir.search <- search;
+      update_query lib dir;
+      update_dir lib dir;
+      refresh_artists_albums_tracks lib;
+    )
   ) lib.current
 
 
@@ -1200,7 +1224,6 @@ let of_map lib m =
     Option.iter (fun i ->
       select_dir lib i;
       let dir = lib.browser.entries.(i) in
-      Edit.set lib.search (Data.string_of_search dir.search);
       if current_is_playlist lib then rescan_playlist lib `Quick dir.path;
     ) (Array.find_index (fun (dir : dir) -> dir.path = s) lib.browser.entries);
     if lib.current = None then lib.current <- Db.find_dir lib.db s;

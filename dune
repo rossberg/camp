@@ -4,10 +4,10 @@
   (modules
     safe_queue
     edit table
-    data track db state storage
+    data track query db storage
     control playlist library filesel config
     api ui layout
-    app main
+    state app main
   )
   (libraries unix directories raylib sqlite3 camomile audio_file)
   (link_deps (include link_deps.sexp))

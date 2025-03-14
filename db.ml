@@ -358,7 +358,7 @@ let create_dirs = create_table
 
 let dir_cols = 16
 
-let to_dir i data : dir =
+let to_dir i data : Query.expr dir =
   {
     path = to_text (i + 0) data;
     parent = to_text_opt (i + 1) data;
@@ -366,7 +366,8 @@ let to_dir i data : dir =
     children = [||];
     pos = to_int (i + 3) data;
     nest = to_int (i + 4) data;
-    search = search_of_string (to_text (i + 6) data);
+    search = to_text (i + 6) data;
+    query = None;
     folded = to_bool (i + 5) data;
     artists_shown = get_bit 0 (to_int (i + 7) data);
     albums_shown = to_display 1 3 (to_int (i + 7) data);
@@ -381,7 +382,7 @@ let to_dir i data : dir =
     tracks_sorting = track_sorting_of_string (to_text (i + 15) data);
   }
 
-let bind_dir stmt i (dir : dir) =
+let bind_dir stmt i (dir : Query.expr dir) =
   assert ((dir.nest = -1) = (dir.parent = None));
   assert ((dir.nest = 0) = (dir.parent = Some ""));
   let* () = bind_text stmt (i + 0) dir.path in
@@ -390,7 +391,7 @@ let bind_dir stmt i (dir : dir) =
   let* () = bind_int stmt (i + 3) dir.pos in
   let* () = bind_int stmt (i + 4) dir.nest in
   let* () = bind_bool stmt (i + 5) dir.folded in
-  let* () = bind_text stmt (i + 6) (string_of_search dir.search) in
+  let* () = bind_text stmt (i + 6) dir.search in
   let* () = bind_int stmt (i + 7)
     (
       set_bit 0 dir.artists_shown +
@@ -642,6 +643,99 @@ let delete_tracks_bulk = (fun paths -> stmt @@
   ") |> delete_from_table_bulk
 
 
+(* Conversion of query expressions *)
+
+open Query
+
+let sql_of_string s =
+  let buf = Buffer.create (String.length s + 2) in
+  Buffer.add_char buf '\'';
+  String.iter (fun c ->
+    if c = '\'' then Buffer.add_char buf c;
+    Buffer.add_char buf c
+  ) s;
+  Buffer.add_char buf '\'';
+  Buffer.contents buf
+
+let sql_of_key = function
+  | `True -> "TRUE"
+  | `False -> "FALSE"
+  | `Now -> "unixepoch('now', 'subsec')"
+  | `Random -> "random()"
+  | `FilePath -> "path"
+  | `FileDir -> "path_dirname(path)"  (* TODO: install https://github.com/asg017/sqlite-path *)
+  | `FileName -> "path_basename(path)"
+  | `FileExt -> "path_extension(path)"
+  | `FileSize -> "filesize"
+  | `FileTime -> "filetime"
+  | `Codec -> "codec"
+  | `Channels -> "channels"
+  | `Depth -> "depth"
+  | `SampleRate -> "rate"
+  | `BitRate -> "bitrate"
+  | `Rate -> assert false
+  | `Artist -> "artist"
+  | `Title -> "title"
+  | `AlbumArtist -> "albumartist"
+  | `AlbumTitle -> "albumtitle"
+  | `Track -> "track"
+  | `Tracks -> "0"  (* TODO *)
+  | `Disc -> "disc"
+  | `Discs -> "0"  (* TODO *)
+  | `Date -> "unixepoch(replace(date, '??', '01'))"
+  | `Year -> "CAST(strftime('%Y', replace(date, '??', '01')) AS INT)"
+  | `Label -> "label"
+  | `Country -> "country"
+  | `Length -> "length"
+  | `Rating -> "rating"
+  | `Cover -> "(cover NOT NULL)"
+  | `Pos -> "0"
+  | `Albums | `None -> assert false
+
+let sql_of_unop = function
+  | Not ->
+    if Sqlite3.sqlite_version () < 3049000 then "NOT " else
+    "TRUE IS DISTINCT FROM "
+  | Neg -> "- "
+
+let sql_of_binop = function
+  | And -> " AND "
+  | Or -> " OR "
+  | EQ -> " = "
+  | NE -> " <> "
+  | LT -> " < "
+  | GT -> " > "
+  | LE -> " <= "
+  | GE -> " >= "
+  | Add -> " + "
+  | Sub -> " - "
+  | Mul -> " * "
+  | Cat -> " || "
+  | IN | NI -> assert false
+
+let rec sql_of_expr with_pl = function
+  | Text s -> sql_of_string s
+  | Int (i, _) -> string_of_int i
+  | Time (t, _) -> string_of_float t
+  | Date t -> string_of_float t
+  | Key (`Artist | `Title | `Length as key) when with_pl ->
+    let name = sql_of_key key in
+    "CASE WHEN Tracks." ^ name ^ " NOT NULL THEN Tracks." ^ name ^
+    " ELSE Playlists." ^ (if key = `Length then "time" else name) ^ " END"
+  | Key key -> sql_of_key key
+  | Un (op, q1) ->
+    let s1 = sql_of_expr with_pl q1 in
+    "(" ^ sql_of_unop op ^ s1 ^ ")"
+  | Bin (NI, q1, q2) -> sql_of_expr with_pl (Un (Not, Bin (IN, q1, q2)))
+  | Bin (op, q1, q2) ->
+    let s1 = sql_of_expr with_pl q1 in
+    let s2 = sql_of_expr with_pl q2 in
+    if op <> IN then
+      "(" ^ s1 ^ sql_of_binop op ^ s2 ^ ")"
+    else
+      "(" ^ s2 ^ " LIKE '%' || " ^ s1 ^ " || '%')"
+
+
 (* Complex Queries *)
 
 let artists_table k artists =
@@ -658,20 +752,8 @@ let albums_filter k albums =
   if albums = [||] then "" else "
     AND albumtitle IN " ^ tuple k (Array.length albums)
 
-let search_filter k searches =
-  String.concat "" (
-    Array.mapi (fun i _ ->
-      let n = string_of_int (k + i) in "
-      AND (" ^
-        "title LIKE ?" ^ n ^ " OR " ^
-        "artist LIKE ?" ^ n ^ " OR " ^
-        "albumartist LIKE ?" ^ n ^ " OR " ^
-        "albumtitle LIKE ?" ^ n ^ " OR " ^
-        "label LIKE ?" ^ n ^ " OR " ^
-        "country LIKE ?" ^ n ^
-      ")"
-    ) searches |> Array.to_list
-  )
+let search_filter search =
+  "AND " ^ sql_of_expr false search
 
 let tracks_fields =
       "Tracks.*"
@@ -743,25 +825,24 @@ let iter_tracks_for_path_multi db path artist albums = stmt @@
     iter_table (Array.append [|of_text path; of_text artist|] album_binds)
       (to_track 0) stmt db
 
-let iter_tracks_for_path_search db path artists albums searches = stmt @@
+let iter_tracks_for_path_search db path artists albums search = stmt @@
   artists_table 2 artists ^ "
     SELECT " ^ tracks_fields ^ "
     FROM Tracks
     " ^ artists_filter 2 artists ^ "
     WHERE path LIKE ?1
     " ^ albums_filter (2 + Array.length artists) albums ^ "
-    " ^ search_filter (2 + Array.(length artists + length albums)) searches ^ ";
+    " ^ search_filter search ^ ";
   " |>
   fun stmt ->
     let artist_binds = Array.map of_text artists in
     let album_binds = Array.map of_text albums in
-    let search_binds = Array.map (fun s -> of_text ("%" ^ s ^ "%")) searches in
-    iter_table (Array.concat [[|of_text path|]; artist_binds; album_binds; search_binds])
+    iter_table (Array.concat [[|of_text path|]; artist_binds; album_binds])
       (to_track 0) stmt db
 
-let iter_tracks_for_path_filter db path artists albums searches f =
-  if Array.length artists > 1 || searches <> [||] then
-    iter_tracks_for_path_search db path artists albums searches f
+let iter_tracks_for_path_filter db path artists albums search f =
+  if Array.length artists > 1 || search <> None then
+    iter_tracks_for_path_search db path artists albums (Option.get search) f
   else if Array.length albums > 1 then
     let artist = if artists = [||] then "%" else artists.(0) in
     iter_tracks_for_path_multi db path artist albums f
@@ -790,31 +871,30 @@ let iter_tracks_for_path_as_artists_single = stmt @@
   fun stmt db path ->
     iter_table [|of_text path|] (to_artist 0) stmt db
 
-let iter_tracks_for_path_as_artists_search db path searches = stmt @@
+let iter_tracks_for_path_as_artists_search db path search = stmt @@
   "
     SELECT name, SUM(albums), SUM(tracks)
     FROM (
       SELECT " ^ artists_fields "artist" ^ "
       FROM Tracks
       WHERE path LIKE ?1
-      " ^ search_filter 2 searches ^ "
+      " ^ search_filter search ^ "
       GROUP BY artist
     UNION
       SELECT " ^ artists_fields "albumartist" ^ "
       FROM Tracks
       WHERE path LIKE ?1 AND artist <> albumartist
-      " ^ search_filter 2 searches ^ "
+      " ^ search_filter search ^ "
       GROUP BY albumartist
     )
     GROUP BY name;
   " |>
   fun stmt ->
-    let search_binds = Array.map (fun s -> of_text ("%" ^ s ^ "%")) searches in
-    iter_table (Array.append [|of_text path|] search_binds) (to_artist 0) stmt db
+    iter_table [|of_text path|] (to_artist 0) stmt db
 
-let iter_tracks_for_path_as_artists db path searches f =
-  if searches <> [||] then
-    iter_tracks_for_path_as_artists_search db path searches f
+let iter_tracks_for_path_as_artists db path search f =
+  if search <> None then
+    iter_tracks_for_path_as_artists_search db path (Option.get search) f
   else
     iter_tracks_for_path_as_artists_single db path f
 
@@ -830,24 +910,23 @@ let iter_tracks_for_path_as_albums_single = stmt @@
   fun stmt db path artist ->
     iter_table [|of_text path; of_text artist|] (to_album 0) stmt db
 
-let iter_tracks_for_path_as_albums_search db path artists searches = stmt @@
+let iter_tracks_for_path_as_albums_search db path artists search = stmt @@
   artists_table 2 artists ^ "
     SELECT " ^ albums_fields ^ "
     FROM Tracks 
     " ^ artists_filter 2 artists ^ "
     WHERE path LIKE ?1
-    " ^ search_filter (2 + Array.length artists) searches ^ "
+    " ^ search_filter search ^ "
     GROUP BY albumartist, albumtitle, codec, label;
   " |>
   fun stmt ->
     let artist_binds = Array.map of_text artists in
-    let search_binds = Array.map (fun s -> of_text ("%" ^ s ^ "%")) searches in
-    iter_table (Array.concat [[|of_text path|]; artist_binds; search_binds])
+    iter_table (Array.append [|of_text path|] artist_binds)
       (to_album 0) stmt db
 
-let iter_tracks_for_path_as_albums db path artists searches f =
-  if Array.length artists > 1 || searches <> [||] then
-    iter_tracks_for_path_as_albums_search db path artists searches f
+let iter_tracks_for_path_as_albums db path artists search f =
+  if Array.length artists > 1 || search <> None then
+    iter_tracks_for_path_as_albums_search db path artists (Option.get search) f
   else
     let artist = if artists = [||] then "%" else artists.(0) in
     iter_tracks_for_path_as_albums_single db path artist f
@@ -972,22 +1051,8 @@ let playlist_albums_filter k albums =
   if albums = [||] then "" else "
     AND albumtitle IN " ^ tuple k (Array.length albums)
 
-let playlist_search_filter k searches =
-  String.concat "" (
-    Array.mapi (fun i _ ->
-      let n = string_of_int (k + i) in "
-      AND (" ^
-        "Tracks.title LIKE ?" ^ n ^ " OR " ^
-        "Tracks.artist LIKE ?" ^ n ^ " OR " ^
-        "Tracks.albumartist LIKE ?" ^ n ^ " OR " ^
-        "Tracks.albumtitle LIKE ?" ^ n ^ " OR " ^
-        "Tracks.label LIKE ?" ^ n ^ " OR " ^
-        "Tracks.country LIKE ?" ^ n ^ " OR " ^
-        "Playlists.title LIKE ?" ^ n ^ " OR " ^
-        "Playlists.artist LIKE ?" ^ n ^
-      ")"
-    ) searches |> Array.to_list
-  )
+let playlist_search_filter search =
+  "AND " ^ sql_of_expr true search
 
 let playlist_tracks_fields =
       "Tracks.*,
@@ -1045,7 +1110,7 @@ let iter_playlist_tracks_for_path_multi db path artist albums = stmt @@
     iter_table (Array.append [|of_text path; of_text artist|] album_binds)
       (to_playlist_track 0) stmt db
 
-let iter_playlist_tracks_for_path_search db path artists albums searches = stmt @@
+let iter_playlist_tracks_for_path_search db path artists albums search = stmt @@
   artists_table 2 artists ^ "
     SELECT " ^ playlist_tracks_fields ^ "
     FROM
@@ -1055,18 +1120,17 @@ let iter_playlist_tracks_for_path_search db path artists albums searches = stmt 
       " ^ playlist_artists_filter 2 artists ^ "
     WHERE Playlists.path = ?1
     " ^ playlist_albums_filter (2 + Array.length artists) albums ^ "
-    " ^ playlist_search_filter (2 + Array.(length artists + length albums)) searches ^ ";
+    " ^ playlist_search_filter search ^ ";
   " |>
   fun stmt ->
     let artist_binds = Array.map of_text artists in
     let album_binds = Array.map of_text albums in
-    let search_binds = Array.map (fun s -> of_text ("%" ^ s ^ "%")) searches in
-    iter_table (Array.concat [[|of_text path|]; artist_binds; album_binds; search_binds])
+    iter_table (Array.concat [[|of_text path|]; artist_binds; album_binds])
       (to_playlist_track 0) stmt db
 
-let iter_playlist_tracks_for_path db path artists albums searches f =
-  if Array.length artists > 1 || searches <> [||] then
-    iter_playlist_tracks_for_path_search db path artists albums searches f
+let iter_playlist_tracks_for_path db path artists albums search f =
+  if Array.length artists > 1 || search <> None then
+    iter_playlist_tracks_for_path_search db path artists albums (Option.get search) f
   else if Array.length albums > 1 then
     let artist = if artists = [||] then "%" else artists.(0) in
     iter_playlist_tracks_for_path_multi db path artist albums f
@@ -1098,7 +1162,7 @@ let iter_playlist_tracks_for_path_as_artists_single = stmt @@
   fun stmt db path ->
     iter_table [|of_text path|] (to_artist 0) stmt db
 
-let iter_playlist_tracks_for_path_as_artists_search db path searches = stmt @@
+let iter_playlist_tracks_for_path_as_artists_search db path search = stmt @@
   "
     SELECT aartist, SUM(albums), SUM(tracks)
     FROM (
@@ -1107,25 +1171,24 @@ let iter_playlist_tracks_for_path_as_artists_search db path searches = stmt @@
       FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
       WHERE Playlists.path = ?1
         AND NOT (Playlists.track LIKE 'separator:%')
-        " ^ playlist_search_filter 2 searches ^ "
+        " ^ playlist_search_filter search ^ "
       GROUP BY aartist
     UNION
       SELECT " ^ playlist_artists_fields ["albumartist"] ^ "
       FROM Playlists LEFT JOIN Tracks on Tracks.path = Playlists.track
       WHERE Playlists.path = ?1 AND Tracks.artist <> albumartist
         AND NOT (Playlists.track LIKE 'separator:%')
-        " ^ playlist_search_filter 2 searches ^ "
+        " ^ playlist_search_filter search ^ "
       GROUP BY albumartist
     )
     GROUP BY aartist;
   " |>
   fun stmt ->
-    let search_binds = Array.map (fun s -> of_text ("%" ^ s ^ "%")) searches in
-    iter_table (Array.append [|of_text path|] search_binds) (to_artist 0) stmt db
+    iter_table [|of_text path|] (to_artist 0) stmt db
 
-let iter_playlist_tracks_for_path_as_artists db path searches f =
-  if searches <> [||] then
-    iter_playlist_tracks_for_path_as_artists_search db path searches f
+let iter_playlist_tracks_for_path_as_artists db path search f =
+  if search <> None then
+    iter_playlist_tracks_for_path_as_artists_search db path (Option.get search) f
   else
     iter_playlist_tracks_for_path_as_artists_single db path f
 
@@ -1143,7 +1206,7 @@ let iter_playlist_tracks_for_path_as_albums_single = stmt @@
   fun stmt db path artist ->
     iter_table [|of_text path; of_text artist|] (to_album 0) stmt db
 
-let iter_playlist_tracks_for_path_as_albums_search db path artists searches = stmt @@
+let iter_playlist_tracks_for_path_as_albums_search db path artists search = stmt @@
   artists_table 2 artists ^ "
     SELECT " ^ playlist_albums_fields ^ "
     FROM
@@ -1152,18 +1215,16 @@ let iter_playlist_tracks_for_path_as_albums_search db path artists searches = st
       " ^ playlist_artists_filter 2 artists ^ "
     WHERE Playlists.path = ?1
       AND NOT (Playlists.track LIKE 'separator:%')
-      " ^ playlist_search_filter (2 + Array.length artists) searches ^ "
+      " ^ playlist_search_filter search ^ "
     GROUP BY aartist, atitle, codec, label;
   " |>
   fun stmt ->
     let artist_binds = Array.map of_text artists in
-    let search_binds = Array.map (fun s -> of_text ("%" ^ s ^ "%")) searches in
-    iter_table (Array.concat [[|of_text path|]; artist_binds; search_binds])
-      (to_album 0) stmt db
+    iter_table (Array.append [|of_text path|] artist_binds) (to_album 0) stmt db
 
-let iter_playlist_tracks_for_path_as_albums db path artists searches f =
-  if Array.length artists > 1 || searches <> [||] then
-    iter_playlist_tracks_for_path_as_albums_search db path artists searches f
+let iter_playlist_tracks_for_path_as_albums db path artists search f =
+  if Array.length artists > 1 || search <> None then
+    iter_playlist_tracks_for_path_as_albums_search db path artists (Option.get search) f
   else
     let artist = if artists = [||] then "%" else artists.(0) in
     iter_playlist_tracks_for_path_as_albums_single db path artist f

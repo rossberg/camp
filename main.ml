@@ -1172,7 +1172,7 @@ let run_library (st : _ State.t) =
     | Some `Grid -> None
   in
 
-  let nothing_shown (dir : Data.dir) =
+  let nothing_shown (dir : Library.dir) =
     not dir.artists_shown && dir.albums_shown = None && dir.tracks_shown = None
   in
 
@@ -1245,7 +1245,7 @@ let run_library (st : _ State.t) =
       if lib.search.text <> "" then
       (
         Edit.clear lib.search;
-        Library.set_search lib (Data.make_search ());
+        Library.set_search lib "";
       )
     );
 
@@ -1259,7 +1259,7 @@ let run_library (st : _ State.t) =
     if ch = Uchar.of_char '\n' || ch = Uchar.of_char ' ' then
     (
       (* Entered Space or Return: update search in dir *)
-      Library.set_search lib (Data.search_of_string lib.search.text);
+      Library.set_search lib lib.search.text;
     )
   );
 
@@ -2093,9 +2093,9 @@ let startup () =
   let st0 = State.make ui audio db in
   let success, (x, y) = State.load st0 in
   let st = if success then st0 else State.make ui audio db in
-  Api.Draw.start win `Black;
   let w = Layout.control_min_w + st.layout.library_width in
   let h = Layout.control_min_h + st.layout.playlist_height in
+  Api.Draw.start win `Black;
   Api.Window.set_pos win x y;
   Api.Window.set_size win w h;
   Api.Draw.finish win;
