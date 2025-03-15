@@ -84,7 +84,9 @@ val add_dirs : 'a t -> path list -> int -> bool
 val remove_dirs : 'a t -> path list -> unit
 
 val current_is_playlist : 'a t -> bool
+val current_is_viewlist : 'a t -> bool
 val current_is_shown_playlist : 'a t -> bool
+val current_is_shown_viewlist : 'a t -> bool
 
 val has_track : 'a t -> track -> bool
 

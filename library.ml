@@ -391,6 +391,16 @@ let rescan_playlist' lib _mode path =
     Storage.log_exn "file" exn ("scanning playlist " ^ path);
     true
 
+let rescan_viewlist' lib _mode path =
+  try
+    let s = File.load `Bin path in
+    Db.delete_playlists_for_path lib.db path;
+    Db.insert_viewlists lib.db path s;
+    true
+  with exn ->
+    Storage.log_exn "file" exn ("scanning viewlist " ^ path);
+    true
+
 
 let rec rescan_dir' lib mode (origin : dir) =
   let new_dirs = ref [] in
@@ -405,8 +415,8 @@ let rec rescan_dir' lib mode (origin : dir) =
       scan_dir path nest
     else if Data.is_track_path path then
       scan_track path
-    else if Data.is_playlist_path path then
-      scan_playlist path nest
+    else if Data.(is_playlist_path path || is_viewlist_path path) then
+      scan_playlist_or_viewlist path nest
     else
       None
 
@@ -444,7 +454,7 @@ let rec rescan_dir' lib mode (origin : dir) =
   and scan_track _path =
     Some []  (* deferred to directory scan *)
 
-  and scan_playlist path nest =
+  and scan_playlist_or_viewlist path nest =
     let dir =
       match Map.find_opt path !old_dirs with
       | Some dir -> old_dirs := Map.remove path !old_dirs; dir
@@ -480,6 +490,10 @@ and rescan_dir lib mode (dir : dir) =
 
 and rescan_playlist lib mode path =
   Safe_queue.add (true, path, fun () -> rescan_playlist' lib mode path)
+    lib.scan.file_queue
+
+and rescan_viewlist lib mode path =
+  Safe_queue.add (true, path, fun () -> rescan_viewlist' lib mode path)
     lib.scan.file_queue
 
 and rescan_track lib mode track =
@@ -581,7 +595,9 @@ let select_dir lib i =
     set_dir_opt lib (Some dir);
     Table.select lib.browser i i;
     if Data.is_playlist_path dir.path then
-      rescan_playlist lib false dir.path;
+      rescan_playlist lib false dir.path
+    else if Data.is_viewlist_path dir.path then
+      rescan_viewlist lib false dir.path;
   )
 
 
@@ -616,10 +632,20 @@ let current_is_playlist lib =
   | None -> false
   | Some dir -> Data.is_playlist dir
 
+let current_is_viewlist lib =
+  match lib.current with
+  | None -> false
+  | Some dir -> Data.is_viewlist dir
+
 let current_is_shown_playlist lib =
   match lib.current with
   | None -> false
   | Some dir -> dir.tracks_shown <> None && Data.is_playlist dir
+
+let current_is_shown_viewlist lib =
+  match lib.current with
+  | None -> false
+  | Some dir -> dir.tracks_shown <> None && Data.is_viewlist dir
 
 
 (* Roots *)
@@ -766,7 +792,7 @@ let album_key (album : album) = (*album.track*)  (* TODO *)
   | Some meta -> meta.albumtitle
 
 let track_key lib =
-  if current_is_playlist lib then
+  if current_is_playlist lib || current_is_viewlist lib then
     fun track -> string_of_int track.pos
   else
     fun track -> track.path
@@ -781,6 +807,18 @@ let sort_entries entries sorting attr_string =
   let cmp e1 e2 = Data.compare_attrs sorting (fst e1) (fst e2) in
   Array.stable_sort cmp enriched;
   Array.map snd enriched
+
+let viewlist_query lib (dir : dir) =
+  match Db.find_viewlist lib.db dir.path with
+  | None -> None
+  | Some s ->
+    match Query.parse_query s with
+    | Error msg -> error lib (msg ^ " in viewlist query"); None
+    | Ok query -> Some
+      (match dir.query with
+      | None -> query
+      | Some expr -> Query.{query with expr = Bin (And, expr, query.expr)}
+      )
 
 let refresh_delay = 5.0
 
@@ -822,6 +860,11 @@ let refresh_tracks_sync lib =
         Db.iter_tracks_for_path_filter lib.db path artists albums dir.query f
       else if Data.is_playlist dir then
         Db.iter_playlist_tracks_for_path lib.db dir.path artists albums dir.query f
+      else if Data.is_viewlist dir then
+        Option.iter (fun (query : Query.query) ->
+          Db.iter_tracks_for_path_filter lib.db "%" artists albums (Some query.expr) f
+          (* TODO: sort *)
+        ) (viewlist_query lib dir)
     )
 
 let refresh_albums_sync lib =
@@ -838,6 +881,10 @@ let refresh_albums_sync lib =
         Db.iter_tracks_for_path_as_albums lib.db path artists dir.query f
       else if Data.is_playlist dir then
         Db.iter_playlist_tracks_for_path_as_albums lib.db dir.path artists dir.query f
+      else if Data.is_viewlist dir then
+        Option.iter (fun (query : Query.query) ->
+          Db.iter_tracks_for_path_as_albums lib.db "%" artists (Some query.expr) f
+        ) (viewlist_query lib dir)
     )
 
 let refresh_artists_sync lib =
@@ -851,6 +898,10 @@ let refresh_artists_sync lib =
         Db.iter_tracks_for_path_as_artists lib.db path dir.query f
       else if Data.is_playlist dir then
         Db.iter_playlist_tracks_for_path_as_artists lib.db dir.path dir.query f
+      else if Data.is_viewlist dir then
+        Option.iter (fun (query : Query.query) ->
+          Db.iter_tracks_for_path_as_artists lib.db "%" (Some query.expr) f
+        ) (viewlist_query lib dir)
     )
 
 let refresh_albums_tracks_sync lib =
@@ -920,7 +971,8 @@ let refresh_after_rescan lib =
   if updated <> [] && lib.refresh_time = 0.0 then
     lib.refresh_time <- now +. refresh_delay
   else if now > lib.refresh_time && lib.refresh_time > 0.0
-  || current_is_playlist lib && Table.length lib.tracks = 0 then
+  || (current_is_playlist lib || current_is_viewlist lib)
+     && Table.length lib.tracks = 0 then
   (
     lib.refresh_time <- 0.0;
     refresh_browser lib;
@@ -1224,7 +1276,8 @@ let of_map lib m =
     Option.iter (fun i ->
       select_dir lib i;
       let dir = lib.browser.entries.(i) in
-      if current_is_playlist lib then rescan_playlist lib `Quick dir.path;
+      if current_is_playlist lib || current_is_viewlist lib then
+        rescan_playlist lib `Quick dir.path;
     ) (Array.find_index (fun (dir : dir) -> dir.path = s) lib.browser.entries);
     if lib.current = None then lib.current <- Db.find_dir lib.db s;
   );

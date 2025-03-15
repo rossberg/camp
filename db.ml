@@ -999,6 +999,15 @@ let bind_playlist path pos stmt i (item : M3u.item) =
   ) item.info;
   return
 
+let to_viewlist i data : string =
+  to_text i data
+
+let bind_viewlist path stmt i query =
+  let* () = bind_text stmt (i + 0) path in
+  let* () = bind_int stmt (i + 1) 0 in
+  let* () = bind_text stmt (i + 2) query in
+  return
+
 
 let count_playlists = stmt
   "
@@ -1010,11 +1019,22 @@ let mem_playlist = stmt
     SELECT COUNT(*) FROM Playlists WHERE path = ?;
   " |> mem_table
 
+let find_viewlist = stmt
+  "
+    SELECT track FROM Playlists WHERE path = ?;
+  " |> find_in_table (to_viewlist 0)
+
 let insert_playlists = stmt @@
   "
     INSERT OR REPLACE INTO Playlists VALUES " ^ tuple 1 playlist_cols ^ ";
   " |>
   fun stmt db path pos -> insert_into_table (bind_playlist path pos) stmt db
+
+let insert_viewlists = stmt @@
+  "
+    INSERT OR REPLACE INTO Playlists VALUES " ^ tuple 1 playlist_cols ^ ";
+  " |>
+  fun stmt db path -> insert_into_table (bind_viewlist path) stmt db
 
 let insert_playlists_bulk db path items = ((fun items -> stmt @@
   "

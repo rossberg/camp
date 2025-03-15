@@ -432,7 +432,7 @@ let run_toggle_panes (st : _ State.t) =
 
 (* Generic Handling of Track Views *)
 
-let expand_paths paths =
+let expand_paths lib paths =
   let tracks = ref [] in
   let add_track (track : Data.track) =
     tracks := track :: !tracks
@@ -440,6 +440,13 @@ let expand_paths paths =
   let add_playlist path =
     let s = File.load `Bin path in
     List.iter (fun item -> add_track (Track.of_m3u_item item)) (M3u.parse_ext s)
+  in
+  let add_viewlist path =
+    let s = File.load `Bin path in
+    match Query.parse_query s with
+    | Error msg -> Library.error lib msg
+    | Ok _query -> ()  (* TODO
+      List.iter add_track (Library.) *)
   in
   let rec add_path path =
     try
@@ -449,6 +456,8 @@ let expand_paths paths =
         ) (File.read_dir path)
       else if Data.is_playlist_path path then
         add_playlist path
+      else if Data.is_viewlist_path path then
+        add_viewlist path
       else if Data.is_track_path path then
         add_track (Data.make_track path)
     with Sys_error _ -> ()
@@ -948,7 +957,7 @@ let run_playlist (st : _ State.t) =
   if dropped <> [] then
   (
     (* Files drop: insert paths at pointed position *)
-    drop_on_playlist st (expand_paths dropped);
+    drop_on_playlist st (expand_paths st.library dropped);
   );
 
   (* Playlist total *)
@@ -1608,7 +1617,8 @@ let run_library (st : _ State.t) =
         Bool.to_int (Api.Key.is_modifier_down `Command) * (-4)
       in
       let primary =
-        if Library.current_is_playlist lib then `Pos else `FilePath in
+        if Library.current_is_playlist lib
+        || Library.current_is_viewlist lib then `Pos else `FilePath in
       dir.tracks_sorting <-
         Data.insert_sorting primary attr k 4 dir.tracks_sorting;
       Library.update_dir lib dir;
@@ -1712,7 +1722,7 @@ let run_library (st : _ State.t) =
     if dropped <> [] then
     (
       (* Files drop: insert paths at pointed position *)
-      drop_on_library st (expand_paths dropped);
+      drop_on_library st (expand_paths lib dropped);
     );
 
     (* Divider *)
