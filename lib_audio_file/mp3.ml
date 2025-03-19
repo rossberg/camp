@@ -164,6 +164,8 @@ let read_frame_header ic =
 
 let kbits = 8.0 /. 1000.0
 
+let check x = if Float.is_finite x then x else 0.0
+
 let read_format_from ic =
   seek_in ic (read_id3_header_size ic);
   let f, _ = read_frame_header ic in
@@ -175,11 +177,11 @@ let read_format_from ic =
       let bytes = size - pos_in ic in
       let time = float bytes *. kbits /. float f.bitrate in
       let frames = time *. float f.rate /. float samples.(f.layer - 1) in
-      CBR, truncate (frames +. 0.5), time, f.bitrate
+      CBR, truncate (check (frames +. 0.5)), check time, f.bitrate
     | Some (frames, bytes) ->
       let time = float (frames * samples.(f.layer - 1)) /. float f.rate in
       let bitrate = float bytes *. kbits /. time in
-      VBR, frames, time, truncate (bitrate +. 0.5)
+      VBR, frames, check time, truncate (check (bitrate +. 0.5))
   in
   {f with encoding; bitrate; frames; time; size; offset}
 

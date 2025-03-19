@@ -29,6 +29,8 @@ let is_known_ext path =
   List.mem (String.lowercase_ascii (Filename.extension path)) exts
 
 
+let check x = if Float.is_finite x then x else 0.0
+
 let read path =
   match String.lowercase_ascii (Filename.extension path) with
   | ".mp3" ->
@@ -37,7 +39,7 @@ let read path =
     {
       codec = "MP3";
       channels = channels;
-      depth = 1000 * mp3.bitrate / mp3.rate / channels;
+      depth = (try 1000 * mp3.bitrate / mp3.rate / channels with Division_by_zero -> 0);
       rate = mp3.rate;
       bitrate = float (1000 * mp3.bitrate);
       time = mp3.time;
@@ -52,8 +54,8 @@ let read path =
       channels = flac.channels;
       depth = flac.depth;
       rate = flac.rate;
-      bitrate = float (8 * flac.size) /. time;
-      time = time;
+      bitrate = check (float (8 * flac.size) /. time);
+      time = check time;
       size = flac.size;
     }
 
@@ -65,7 +67,7 @@ let read path =
       depth = wav.depth;
       rate = wav.rate;
       bitrate = float (wav.rate * wav.depth * wav.channels);
-      time = float (wav.size / wav.channels / (wav.depth / 8) / wav.rate);
+      time = float (try wav.size / wav.channels / (wav.depth / 8) / wav.rate with Division_by_zero -> 0);
       size = wav.size;
     }
 
@@ -75,10 +77,10 @@ let read path =
     {
       codec = "OGG";
       channels = ogg.channels;
-      depth = ogg.bitrate_nominal / ogg.rate / ogg.channels;
+      depth = (try ogg.bitrate_nominal / ogg.rate / ogg.channels with Division_by_zero -> 0);
       rate = ogg.rate;
       bitrate = float ogg.bitrate_nominal;
-      time = time;
+      time = check time;
       size = ogg.size;
     }
 
@@ -89,10 +91,10 @@ let read path =
     {
       codec = "OPUS";
       channels = opus.channels;
-      depth = int_of_float bitrate / opus.rate / opus.channels;
+      depth = (try int_of_float bitrate / opus.rate / opus.channels with Division_by_zero -> 0);
       rate = opus.rate;
-      bitrate = bitrate;
-      time = time;
+      bitrate = check bitrate;
+      time = check time;
       size = opus.size;
     }
 
