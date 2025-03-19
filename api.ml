@@ -319,6 +319,9 @@ struct
   let fill_circ () x y w h c =
     Raylib.draw_ellipse (x + w/2) (y + h/2) (float w /. 2.0) (float h /. 2.0) (color c)
 
+  let gradient_circ () x y w h c1 c2 =
+    Raylib.draw_circle_gradient (x + w/2) (y + h/2) (float (w + h) /. 4.0) (color c1) (color c2)
+
   let circ () x y w h c =
     Raylib.draw_ellipse_lines (x + w/2) (y + h/2) (float w /. 2.0) (float h /. 2.0) (color c)
 

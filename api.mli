@@ -140,6 +140,7 @@ sig
   val tri : window -> int -> int -> int -> int -> color -> corner -> unit
   val arrow : window -> int -> int -> int -> int -> color -> dir -> unit
   val gradient : window -> int -> int -> int -> int -> color -> orientation -> color -> unit
+  val gradient_circ : window -> int -> int -> int -> int -> color -> color -> unit
   val text : window -> int -> int -> int -> color -> font -> string -> unit
   val text_width : window -> int -> font -> string -> int
   val text_spacing : window -> int -> font -> int

@@ -202,6 +202,10 @@ let start ui =
   Draw.line ui.win 0 0 ww 0 (`Gray 0x70);
   Draw.fill ui.win 1 (wh - 2) (ww - 1) 2 (`Gray 0x10);
 
+  let x, y = Mouse.pos ui.win in
+  let r = 50 in
+  Draw.gradient_circ ui.win (x - r) (y - r) (2 * r) (2 * r) (`Trans (`White, 0x20)) (`Trans (`White, 0x00));
+
   Api.Mouse.set_cursor ui.win `Default;
   if Mouse.is_down `Left then
   (
