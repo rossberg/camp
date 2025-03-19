@@ -779,7 +779,7 @@ let deselect lib i j = Table.deselect lib.tracks i j
 
 let artists_shown dir = dir.artists_shown
 let albums_shown dir = dir.albums_shown <> None
-let tracks_shown dir = dir.tracks_shown <> None
+let tracks_shown _dir = true (*dir.tracks_shown <> None*)
 
 let artists_sorting dir = dir.artists_sorting
 let albums_sorting dir = dir.albums_sorting
@@ -908,6 +908,10 @@ let refresh_albums_tracks_sync lib =
   refresh_albums_sync lib;
   refresh_tracks_sync lib
 
+let refresh_artists_albums_sync lib =
+  refresh_artists_sync lib;
+  refresh_albums_sync lib
+
 let refresh_artists_albums_tracks_sync lib =
   refresh_artists_sync lib;
   refresh_albums_tracks_sync lib
@@ -928,12 +932,12 @@ let refresh_artists ?(busy = true) lib =
     (Some (busy, fun () -> refresh_artists_sync lib))
 
 let refresh_albums_tracks ?(busy = true) lib =
-  refresh_albums lib ~busy;
-  refresh_tracks lib ~busy
+  refresh_tracks lib ~busy;
+  refresh_albums lib ~busy
 
 let refresh_artists_albums_tracks ?(busy = true) lib =
-  refresh_artists lib ~busy;
-  refresh_albums_tracks lib ~busy
+  refresh_albums_tracks lib ~busy;
+  refresh_artists lib ~busy
 
 let refresh_artists_busy lib = Atomic.get lib.scan.artists_busy
 let refresh_albums_busy lib = Atomic.get lib.scan.albums_busy
@@ -1052,7 +1056,7 @@ let normalize_playlist lib =
   (
     Table.deselect_all lib.artists;
     Table.deselect_all lib.albums;
-    refresh_artists_albums_tracks_sync lib;
+    refresh_artists_albums_tracks_sync lib;  (* could be slow... *)
   );
   let dir = Option.get lib.current in
   match dir.tracks_sorting with
@@ -1114,7 +1118,7 @@ let insert lib pos tracks =
     select lib pos'' (pos'' + len' - 1);
     restore_playlist lib order;
     save_playlist lib;
-    refresh_artists_albums_tracks_sync lib;
+    refresh_artists_albums_tracks_sync lib;  (* could be slow... *)
   )
 
 let remove_all lib =
@@ -1136,6 +1140,7 @@ let remove_if p lib n =
     Array.iter (fun track -> track.pos <- js.(track.pos)) lib.tracks.entries;
     restore_playlist lib order;
     save_playlist lib;
+    refresh_artists_albums_sync lib;  (* could be slow... *)
   )
 
 let remove_selected lib =

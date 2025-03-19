@@ -907,7 +907,7 @@ let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
 
     (* Body *)
     let buf = adjust_cache tab w h in
-    if tab.dirty then
+    if tab.dirty || Draw.frame ui.win mod 10 = 7 then
     (
       let rows =
         Array.init (min page len) (fun i ->
@@ -1025,8 +1025,8 @@ let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
       | None -> result
       | Some heading ->
         match header ui header_area gw cols heading tab.hscroll with
-        | `Click i -> `Sort i
-        | `Arrange -> `Arrange
+        | `Click i -> Table.dirty tab; `Sort i
+        | `Arrange -> Table.dirty tab; `Arrange
         | `None -> result
     in
 

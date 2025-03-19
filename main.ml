@@ -110,8 +110,16 @@ let run_control (st : _ State.t) =
     (if Layout.color_button_fwd lay then +1 else 0) +
     (if Layout.color_button_bwd lay then -1 else 0)
   in
-  (* Possible click on color button: cycle color palette *)
-  Ui.set_palette lay.ui ((Ui.get_palette lay.ui + dcol + ncol) mod ncol);
+  if dcol <> 0 then
+  (
+    (* Click on color button: cycle color palette *)
+    Ui.set_palette lay.ui ((Ui.get_palette lay.ui + dcol + ncol) mod ncol);
+    Table.dirty pl.table;
+    Table.dirty st.library.browser;
+    Table.dirty st.library.artists;
+    Table.dirty st.library.albums;
+    Table.dirty st.library.tracks;
+  );
 
   (* Cover *)
   if ctl.cover then
