@@ -917,7 +917,11 @@ let refresh_artists_albums_tracks_sync lib =
   refresh_albums_tracks_sync lib
 
 let refresh_tracks ?(busy = true) lib =
-  if busy then Atomic.set lib.scan.tracks_busy true;
+  if busy then
+  (
+    Atomic.set lib.scan.tracks_busy true;
+    Table.set lib.tracks [||];
+  );
   Atomic.set lib.scan.tracks_refresh
     (Some (busy, fun () -> refresh_tracks_sync lib))
 
@@ -1202,11 +1206,13 @@ let redo lib =
 
 let rescan_cover' lib path =
   try
-    let meta = Meta.load path in
     let cover =
-      match meta.cover with
-      | None -> NoCover
-      | Some pic -> ScannedCover pic
+      try
+        let meta = Meta.load path in
+        match meta.cover with
+        | None -> NoCover
+        | Some pic -> ScannedCover pic
+      with Sys_error _ -> NoCover
     in
     lib.covers <- Map.add path cover lib.covers;
     false

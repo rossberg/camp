@@ -512,18 +512,21 @@ module Library = struct include Library let focus = State.focus_library end
 
 
 let drop (st : _ State.t) tracks table_mouse (module View : TracksView) =
-  let lay = st.layout in
-  let view = View.it in
-  let tab = View.table view in
-  Option.iter (fun pos ->
-    (* Drag & drop onto table: send tracks there *)
-    View.insert view pos tracks;
-    State.defocus_all st;
-    View.focus tab st;
-    Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
-    Table.dirty st.library.tracks;
-    Table.dirty st.library.browser;
-  ) (table_mouse lay tab)
+  if tracks <> [||] then
+  (
+    let lay = st.layout in
+    let view = View.it in
+    let tab = View.table view in
+    Option.iter (fun pos ->
+      (* Drag & drop onto table: send tracks there *)
+      View.insert view pos tracks;
+      State.defocus_all st;
+      View.focus tab st;
+      Control.switch_if_empty st.control (Playlist.current_opt st.playlist);
+      Table.dirty st.library.tracks;
+      Table.dirty st.library.browser;
+    ) (table_mouse lay tab)
+  )
 
 let drop_on_playlist (st : _ State.t) tracks =
   if st.layout.playlist_shown then
@@ -1111,7 +1114,7 @@ let run_library (st : _ State.t) =
     if Api.Key.are_modifiers_down [] then
     (
       State.focus_library browser st;
-      set_drop_cursor st;
+      if lib.tracks.entries <> [||] then set_drop_cursor st;
     )
 
   | `Drop ->
@@ -1392,7 +1395,8 @@ let run_library (st : _ State.t) =
       if Api.Key.are_modifiers_down [] then
       (
         State.focus_library tab st;
-        if Table.num_selected lib.artists > 0 then set_drop_cursor st;
+        if Table.num_selected lib.artists > 0 && lib.tracks.entries <> [||] then
+          set_drop_cursor st;
       );
 
     | `Drop ->
@@ -1513,7 +1517,8 @@ let run_library (st : _ State.t) =
       if Api.Key.are_modifiers_down [] then
       (
         State.focus_library tab st;
-        if Table.num_selected lib.albums > 0 then set_drop_cursor st;
+        if Table.num_selected lib.albums > 0 && lib.tracks.entries <> [||] then
+          set_drop_cursor st;
       );
 
     | `Drop ->

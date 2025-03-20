@@ -237,7 +237,7 @@ let playlist_pane g = Ui.pane g.ui pp (playlist_x g, control_h g, control_w g, -
 (* Playlist *)
 let playlist_area g = (pp, margin g, margin g, - margin g, - 1)
 let playlist_table g = Ui.rich_table g.ui (playlist_area g) (gutter_w g) (text_h g) (scrollbar_w g) 0
-let playlist_mouse g = Ui.rich_table_mouse g.ui (playlist_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) false
+let playlist_mouse g = Ui.rich_table_mouse g.ui (playlist_area g) (gutter_w g) (text_h g) (scrollbar_w g) 0 false
 
 (* Total text field *)
 let total_w g = - margin g - scrollbar_w g
@@ -335,7 +335,7 @@ let search_text g = Ui.rich_edit_text g.ui (bp, search_x g + 2, search_y g, - di
 let browser_y g = search_y g + text_h g + margin g
 let browser_area g = (bp, margin g, browser_y g, - divider_w g, - bottom_h g)
 let browser_table g = Ui.browser g.ui (browser_area g) (text_h g) (scrollbar_w g) 0
-let browser_mouse g = Ui.rich_table_mouse g.ui (browser_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) false
+let browser_mouse g = Ui.rich_table_mouse g.ui (browser_area g) (gutter_w g) (text_h g) (scrollbar_w g) 0 false
 let browser_error_box g = Ui.box g.ui (browser_area g) (Ui.error_color g.ui)
 
 let del_key g = Ui.key g.ui ([`Command], `Delete) true
