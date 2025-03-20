@@ -196,7 +196,7 @@ let attr_prop = function
   | `Label -> "Label", `Left
   | `Country -> "Country", `Left
   | `Cover -> "Cover", `Left
-  | `None -> assert false
+  | `True | `False | `Now | `Random | `None -> assert false
 
 let attr_name attr = fst (attr_prop (attr :> any_attr))
 let attr_align attr = snd (attr_prop (attr :> any_attr))
@@ -298,6 +298,14 @@ let track_attr_string (track : track) = function
   | #file_attr as attr -> file_attr_string track.path track.file attr
   | #format_attr as attr -> nonempty format_attr_string track.format attr
   | #meta_attr as attr -> nonempty meta_attr_string track.meta attr
+
+let query_attr_string (track : track) = function
+  | #track_attr as attr -> track_attr_string track attr
+  | `True -> "T"
+  | `False -> "F"
+  | `Now -> string_of_date_time (Unix.gettimeofday ())
+  | `Random -> string_of_int (Random.int 0x1_0000_0000)
+  | `None -> assert false
 
 
 (* Scanning *)
@@ -862,8 +870,21 @@ let refresh_tracks_sync lib =
         Db.iter_playlist_tracks_for_path lib.db dir.path artists albums dir.query f
       else if Data.is_viewlist dir then
         Option.iter (fun (query : Query.query) ->
-          Db.iter_tracks_for_path_filter lib.db "%" artists albums (Some query.expr) f
-          (* TODO: sort *)
+          if query.sort = [] then
+          (
+            let pos = ref 0 in
+            Db.iter_tracks_for_path_filter lib.db "%" artists albums (Some query.expr)
+              (fun track -> track.pos <- !pos; incr pos; f track)
+          )
+          else
+          (
+            let tracks = ref [] in
+            Db.iter_tracks_for_path_filter lib.db "%" artists albums (Some query.expr)
+              (fun track -> tracks := track :: !tracks);
+            let tracks' =
+              sort_entries (Array.of_list !tracks) query.sort query_attr_string in
+            Array.iteri (fun pos track -> track.pos <- pos; f track) tracks'
+          )
         ) (viewlist_query lib dir)
     )
 

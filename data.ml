@@ -30,7 +30,8 @@ type meta_attr =
 type artist_attr = [ `Artist | `Albums | `Tracks ]
 type album_attr = [ file_attr | format_attr | meta_attr ]
 type track_attr = [ file_attr | format_attr | meta_attr | `Pos ]
-type any_attr = [ artist_attr | album_attr | track_attr | `None ]
+type query_attr = [ track_attr | `True | `False | `Now | `Random ]
+type any_attr = [ artist_attr | album_attr | track_attr | query_attr | `None ]
 
 type order = [`Asc | `Desc]
 type 'attr sorting = ('attr * order) list
@@ -97,6 +98,31 @@ type track =
   mutable pos : int;
   mutable status : [`Undet | `Predet | `Det | `Invalid | `Absent];
 }
+
+
+(* Properties *)
+
+let is_known_view_ext path =
+  String.lowercase_ascii (Filename.extension path) = ".m3v"
+
+let parent_path path = File.(dir path // "")
+let is_dir_path path = String.ends_with ~suffix: File.sep path
+let is_playlist_path path = M3u.is_known_ext path
+let is_viewlist_path path = is_known_view_ext path
+let is_track_path path = Format.is_known_ext path || M3u.is_separator path
+
+let is_root dir = dir.parent = Some ""
+let is_dir (dir : _ dir) = dir.path = "" || is_dir_path dir.path
+let is_playlist (dir : _ dir) = is_playlist_path dir.path
+let is_viewlist (dir : _ dir) = is_viewlist_path dir.path
+
+
+let is_separator (track : track) = M3u.is_separator track.path
+
+let is_invalid track =
+  match track.status with
+  | `Invalid | `Absent -> true
+  | `Det | `Predet | `Undet -> false
 
 
 (* Constructors *)
@@ -170,7 +196,7 @@ let make_dir path parent nest pos : 'a dir =
     artists_sorting = [`Artist, `Asc];
     albums_sorting = [`AlbumArtist, `Asc; `AlbumTitle, `Asc; `Codec, `Asc];
     tracks_sorting =
-      if M3u.is_known_ext path || Format.is_known_ext path
+      if is_playlist_path path || is_viewlist_path path || Format.is_known_ext path
       then [`Pos, `Asc]
       else [`Artist, `Asc; `Title, `Asc; `Codec, `Asc];
   }
@@ -212,31 +238,6 @@ let make_separator () : track =
   let track = make_track M3u.separator in
   track.status <- `Det;
   track
-
-
-(* Properties *)
-
-let is_known_view_ext path =
-  String.lowercase_ascii (Filename.extension path) = ".m3v"
-
-let parent_path path = File.(dir path // "")
-let is_dir_path path = String.ends_with ~suffix: File.sep path
-let is_playlist_path path = M3u.is_known_ext path
-let is_viewlist_path path = is_known_view_ext path
-let is_track_path path = Format.is_known_ext path || M3u.is_separator path
-
-let is_root dir = dir.parent = Some ""
-let is_dir (dir : _ dir) = dir.path = "" || is_dir_path dir.path
-let is_playlist (dir : _ dir) = is_playlist_path dir.path
-let is_viewlist (dir : _ dir) = is_viewlist_path dir.path
-
-
-let is_separator (track : track) = M3u.is_separator track.path
-
-let is_invalid track =
-  match track.status with
-  | `Invalid | `Absent -> true
-  | `Det | `Predet | `Undet -> false
 
 
 (* String Conversion *)
@@ -305,6 +306,10 @@ let attr_str =
   `Label, "LAB";
   `Country, "CTY";
   `Cover, "COV";
+  `True, "TRU";
+  `False, "FLS";
+  `Now, "NOW";
+  `Random, "RND";
 ]
 
 let string_of_attr attr = List.assoc (attr :> any_attr) attr_str

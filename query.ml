@@ -5,7 +5,7 @@ open Data
 
 (* Values *)
 
-type key = [ any_attr | `True | `False | `Now | `Random ]
+type key = Data.query_attr
 
 type value =
   | BoolV of bool
@@ -88,7 +88,7 @@ let string_of_value = function
 
 (* Queries *)
 
-type order = Asc | Desc
+type order = Data.order
 
 type unop = Not | Neg
 type binop =
@@ -134,8 +134,8 @@ let string_of_key (k : key) =
   fst (List.find (fun (_, x) -> x = k) keys)
 
 let string_of_order = function
-  | Asc -> ""
-  | Desc -> "-"
+  | `Asc -> ""
+  | `Desc -> "-"
 
 let string_of_unop = function
   | Not -> "-"
@@ -187,7 +187,6 @@ let rec validate q =
   | Key (`FilePath | `FileDir | `FileName | `FileExt)
   | Key (`Artist | `Title | `AlbumArtist | `AlbumTitle)
   | Key (`Label | `Country | `Codec) -> TextT
-  | Key (`Albums | `None) -> assert false
   | Un (op, q1) ->
     (match op, validate q1 with
     | Not, BoolT -> BoolT
@@ -539,10 +538,10 @@ and parse_disj_rest q1 s i =
 let rec parse_sort s i =
   match token s i with
   | EndToken, _ -> []
-  | KeyToken key, j -> (key, Asc) :: parse_sort s j
+  | KeyToken key, j -> (key, `Asc) :: parse_sort s j
   | BinopToken Sub, j ->
     (match token s j with
-    | KeyToken key, k -> (key, Desc) :: parse_sort s k
+    | KeyToken key, k -> (key, `Desc) :: parse_sort s k
     | _ -> raise (SyntaxError j)
     )
   | _ -> raise (SyntaxError i)

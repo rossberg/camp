@@ -1,7 +1,7 @@
 (* Queries *)
 
-type key = [ Data.any_attr | `True | `False | `Now | `Random ]
-type order = Asc | Desc
+type key = Data.query_attr
+type order = Data.order
 
 type unop = Not | Neg
 type binop =
