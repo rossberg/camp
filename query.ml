@@ -65,6 +65,22 @@ let value key track =
   | `Length ->
     let v = format_value track.format `Length in
     if v <> TimeV 0.0 then v else meta_value track.meta `Length
+  | `Year ->
+    let v = meta_value track.meta `Year in
+    if v <> IntV 0 then v else
+    (match meta_value track.meta `Date with
+    | DateV 0.0 -> v
+    | DateV t -> IntV (year_of_date t)
+    | _ -> assert false
+    )
+  | `Date ->
+    let v = meta_value track.meta `Date in
+    if v <> DateV 0.0 then v else
+    (match meta_value track.meta `Year with
+    | IntV 0 -> v
+    | IntV n -> DateV (date_of_year n)
+    | _ -> assert false
+    )
   | #file_attr as attr -> file_value track.path track.file attr
   | #format_attr as attr -> format_value track.format attr
   | #meta_attr as attr -> meta_value track.meta attr

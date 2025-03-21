@@ -125,6 +125,27 @@ let is_invalid track =
   | `Det | `Predet | `Undet -> false
 
 
+let year_of_date t =
+  let tm = File.local_time t in
+  tm.tm_year + 1900
+
+let date_of_year y =
+  let tm =
+    Unix.{
+      tm_year = y - 1900;
+      tm_mon = 0;
+      tm_mday = 1;
+      tm_hour = 0;
+      tm_min = 0;
+      tm_sec = 0;
+      tm_yday = 0;
+      tm_wday = 0;
+      tm_isdst = false;
+    }
+  in
+  File.make_time tm
+
+
 (* Constructors *)
 
 let artists_columns : artist_attr columns =
@@ -255,11 +276,11 @@ let string_of_time t =
       (t' / 60 / 60 / 24) (t' / 60 / 60 mod 24) (t' / 60 mod 60) (t' mod 60)
 
 let string_of_date t =
-  let tm = Unix.localtime t in
+  let tm = File.local_time t in
   fmt "%04d-%02d-%02d" (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
 
 let string_of_date_time t =
-  let tm = Unix.localtime t in
+  let tm = File.local_time t in
   fmt "%04d-%02d-%02d %02d:%02d:%02d"
     (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
     tm.tm_hour tm.tm_min tm.tm_sec

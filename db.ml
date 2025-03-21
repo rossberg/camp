@@ -138,6 +138,9 @@ let bind_format stmt i (format : Format.t) =
   assert (7 = format_cols);
   return
 
+let lodate = File.(make_time Unix.{zero_time with tm_year = -70})  (* 1900 *)
+let hidate = File.(make_time Unix.{zero_time with tm_year = 130})  (* 2100 *)
+
 let bind_meta stmt i (meta : Meta.t) =
   let* () = bind_text_default stmt (i + 0) meta.artist in
   let* () = bind_text_default stmt (i + 1) meta.title in
@@ -145,7 +148,11 @@ let bind_meta stmt i (meta : Meta.t) =
   let* () = bind_int_default stmt (i + 3) meta.disc in
   let* () = bind_text_default stmt (i + 4) meta.albumartist in
   let* () = bind_text_default stmt (i + 5) meta.albumtitle in
-  let* () = bind_text_default stmt (i + 6) meta.date_txt in
+  let date =  (* sanity check, since date field may be ill-formatted *)
+    if meta.date >= lodate && meta.date <= hidate then meta.date_txt else
+    if meta.year >= 1900 then string_of_int meta.year else ""
+  in
+  let* () = bind_text_default stmt (i + 6) date in
   let* () = bind_text_default stmt (i + 7) meta.label in
   let* () = bind_text_default stmt (i + 8) meta.country in
   let* () = bind_float_default stmt (i + 9) meta.length in

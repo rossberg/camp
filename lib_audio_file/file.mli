@@ -44,7 +44,10 @@ val size : path -> int
 val time : path -> time
 val set_time : path -> time -> unit
 
-val localtime : time -> Unix.tm
+val local_time : time -> Unix.tm
+val make_time : Unix.tm -> time
+val zero_time : Unix.tm
+
 
 (* Files *)
 

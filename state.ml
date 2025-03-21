@@ -223,6 +223,8 @@ let save st =
   Storage.save_map state_file (to_map st)
 
 let load st =
+  Random.self_init ();
+
   Playlist.load_playlist st.playlist;
   Library.load_dirs st.library;
 

@@ -194,22 +194,7 @@ let year_tag_field names path tag : int =
 let date0 = -1970.0 *. 365.0 *. 24.0 *. 60.0 *. 60.0  (* year 0 *)
 
 let date y m d =
-    let min_year = 1971 in  (* Windows mktime cannot handle earlier dates *)
-    let tm =
-      Unix.{
-        tm_year = max y min_year - 1900;
-        tm_mon = m - 1;
-        tm_mday = d;
-        tm_hour = 0;
-        tm_min = 0;
-        tm_sec = 0;
-        tm_yday = 0;
-        tm_wday = 0;
-        tm_isdst = false;
-      }
-    in
-    let t = fst (Unix.mktime tm) in
-    if y >= min_year then t else t -. float (min_year - y) *. 365.0 *. 24.0 *. 60.0 *. 60.0
+  File.(make_time Unix.{zero_time with tm_year = y - 1900; tm_mon = m - 1; tm_mday = d})
 
 let date_of_string s =
   let num_from i default =

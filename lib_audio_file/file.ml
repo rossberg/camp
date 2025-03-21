@@ -114,11 +114,33 @@ let time path = (stat path).Unix.st_mtime
 let set_time path time = Unix.utimes (normalize path) (Unix.time ()) time
 
 let year = 365.0 *. 24.0 *. 60.0 *. 60.0
-let localtime t =
+let local_time t =
   (* Windows localtime cannot handle negative dates *)
   let ydelta = if t >= 0.0 then 0.0 else ceil (-.t /. year) in
   let tm = Unix.localtime (t +. ydelta *. year) in
   Unix.{tm with tm_year = tm.tm_year - int_of_float ydelta}
+
+let make_time tm =
+  let tm' =
+    if tm.Unix.tm_year > 70 then tm else
+    (* Windows mktime cannot handle dates before 1971 *)
+    Unix.{tm with tm_year = 70}
+  in
+  let t = fst (Unix.mktime tm') in
+  if tm.Unix.tm_year > 70 then t else t -. float (70 - tm.Unix.tm_year) *. year
+
+let zero_time =
+  Unix.{
+    tm_year = 0;
+    tm_mon = 0;
+    tm_mday = 1;
+    tm_hour = 0;
+    tm_min = 0;
+    tm_sec = 0;
+    tm_yday = 0;
+    tm_wday = 0;
+    tm_isdst = false;
+  }
 
 
 (* Files *)
