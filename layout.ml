@@ -115,7 +115,8 @@ let library_key g = Ui.key g.ui ([`Alt], `Char 'L') true
 let info_w _g = -55
 let info_h _g = -52
 let info_margin _g = 4
-let info_box g = Ui.box g.ui (cp, margin g, margin g, info_w g, info_h g) `Black
+let info_area g = (cp, margin g, margin g, info_w g, info_h g)
+let info_box g = Ui.box g.ui (info_area g) `Black
 
 (* Volume *)
 let volume_w = 27

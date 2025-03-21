@@ -729,8 +729,8 @@ type cell = [`Text of string | `Image of Api.image]
 type row = color * inversion * cell array
 type heading = string array * sorting
 
-let table ui r gw ch cols rows hscroll =
-  let (x, y, w, h), status = element ui r no_modkey in
+let table' ui area gw ch cols rows hscroll =
+  let x, y, w, h = dim ui area in
   Draw.fill ui.win x y w h `Black;
   let mw = (gw + 1)/2 in
   let flex = max 0
@@ -773,7 +773,11 @@ let table ui r gw ch cols rows hscroll =
       Draw.unclip ui.win;
       cx := !cx + cw + gw;
     ) cols
-  ) rows;
+  ) rows
+
+let table ui area gw ch cols rows hscroll =
+  let (_, y, _, _), status = element ui area no_modkey in
+  table' ui area gw ch cols rows hscroll;
   if status = `Pressed || status = `Released then
     let _, my = Mouse.pos ui.win in
     Some ((my - y) / ch)
@@ -922,7 +926,7 @@ let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
         )
       in
       Draw.buffered ui.win buf;
-      ignore (table ui (-1, 0, 0, w, h) gw ch cols rows tab.hscroll);
+      table' ui (-1, 0, 0, w, h) gw ch cols rows tab.hscroll;
       Draw.unbuffered ui.win;
       Table.clean tab;
     );
@@ -1216,8 +1220,8 @@ let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
 
 (* Grid *)
 
-let grid ui area gw iw ch matrix =
-  let (x, y, w, h), status = element ui area no_modkey in
+let grid' ui area gw iw ch matrix =
+  let x, y, w, h = dim ui area in
   Draw.fill ui.win x y w h `Black;
   let mw = (gw + 1)/2 in
   let font = font ui ch in
@@ -1254,7 +1258,11 @@ let grid ui area gw iw ch matrix =
         Draw.unclip ui.win;
       ) cell_opt
     ) row
-  ) matrix;
+  ) matrix
+
+let grid ui area gw iw ch matrix =
+  let (x, y, _, _), status = element ui area no_modkey in
+  grid' ui area gw iw ch matrix;
   if status = `Pressed || status = `Released then
     let mx, my = Mouse.pos ui.win in
     Some ((mx - x) / (iw + gw), (my - y) / (iw + ch + gw))
@@ -1300,7 +1308,7 @@ let grid_table ui area gw iw ch sw header_opt (tab : _ Table.t) pp_cell =
         )
       in
       Draw.buffered ui.win buf;
-      ignore (grid ui (-1, 0, 0, w, h) gw iw ch matrix);
+      grid' ui (-1, 0, 0, w, h) gw iw ch matrix;
       Draw.unbuffered ui.win;
       Table.clean tab;
     );

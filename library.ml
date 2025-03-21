@@ -395,7 +395,9 @@ let rescan_playlist' lib _mode path =
     Db.delete_playlists_for_path lib.db path;
     Db.insert_playlists_bulk lib.db path items';
     true
-  with exn ->
+  with
+  | Sys_error _ -> true
+  | exn ->
     Storage.log_exn "file" exn ("scanning playlist " ^ path);
     true
 
@@ -405,7 +407,9 @@ let rescan_viewlist' lib _mode path =
     Db.delete_playlists_for_path lib.db path;
     Db.insert_viewlists lib.db path s;
     true
-  with exn ->
+  with
+  | Sys_error _ -> true
+  | exn ->
     Storage.log_exn "file" exn ("scanning viewlist " ^ path);
     true
 
@@ -872,6 +876,7 @@ let refresh_tracks_sync lib =
         Option.iter (fun (query : Query.query) ->
           if query.sort = [] then
           (
+            (* Optimisation: avoid sorting twice *)
             let pos = ref 0 in
             Db.iter_tracks_for_path_filter lib.db "%" artists albums (Some query.expr)
               (fun track -> track.pos <- !pos; incr pos; f track)
@@ -1308,8 +1313,10 @@ let of_map lib m =
     Option.iter (fun i ->
       select_dir lib i;
       let dir = lib.browser.entries.(i) in
-      if current_is_playlist lib || current_is_viewlist lib then
-        rescan_playlist lib `Quick dir.path;
+      if current_is_playlist lib then
+        rescan_playlist lib `Quick dir.path
+      else if current_is_viewlist lib then
+        rescan_viewlist lib `Quick dir.path;
     ) (Array.find_index (fun (dir : dir) -> dir.path = s) lib.browser.entries);
     if lib.current = None then lib.current <- Db.find_dir lib.db s;
   );

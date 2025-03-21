@@ -220,6 +220,14 @@ let run_control (st : _ State.t) =
   Api.Draw.text win (278 - w2) 91 11 `White (Ui.font lay.ui 11) s2;
 *)
 
+  (* Mouse reflection *)
+  let x, y, w, h = Ui.dim lay.ui (Layout.info_area lay) in
+  Api.Draw.clip win x y w h;
+  let mx, my = Api.Mouse.pos win in
+  let r = 150 in
+  Api.Draw.gradient_circ win (mx - r) (my - r) (2 * r) (2 * r) (`Trans (`White, 0x18)) (`Trans (`White, 0x00));
+  Api.Draw.unclip win;
+
   (* Looping *)
   (match ctl.loop with
   | `AB (t1, t2) when playing && t2 < elapsed ->
