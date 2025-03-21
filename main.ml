@@ -221,12 +221,7 @@ let run_control (st : _ State.t) =
 *)
 
   (* Mouse reflection *)
-  let x, y, w, h = Ui.dim lay.ui (Layout.info_area lay) in
-  Api.Draw.clip win x y w h;
-  let mx, my = Api.Mouse.pos win in
-  let r = 150 in
-  Api.Draw.gradient_circ win (mx - r) (my - r) (2 * r) (2 * r) (`Trans (`White, 0x18)) (`Trans (`White, 0x00));
-  Api.Draw.unclip win;
+  Layout.info_refl lay;
 
   (* Looping *)
   (match ctl.loop with

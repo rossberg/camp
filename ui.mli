@@ -67,6 +67,8 @@ val label : t -> area -> align -> string -> unit
 val indicator : t -> color -> area -> bool -> unit
 val lcd : t -> area -> char -> unit
 
+val mouse_reflection : t -> area -> int -> unit
+
 val box : t -> area -> color -> unit
 val text : t -> area -> align -> inversion -> bool -> string -> unit
 val color_text : t -> area -> align -> color -> inversion -> bool -> string -> unit
@@ -104,6 +106,7 @@ val rich_table :
   int ->  (* row height *)
   int ->  (* vertical scroll bar width *)
   int ->  (* horizontal scroll bar height (can be 0) *)
+  int ->  (* mouse reflection radius *)
   column array ->                    (* column layout *)
   heading option ->                  (* headers *)
   ('a, cached) Table.t ->            (* data *)
@@ -129,6 +132,7 @@ val browser :
   int ->  (* row height *)
   int ->  (* vertical scroll bar width *)
   int ->  (* horizontal scroll bar height (can be 0) *)
+  int ->  (* mouse reflection radius *)
   ('a, cached) Table.t ->                         (* data *)
   (int -> int * bool option * color * string) ->  (* entry generator *)
     [ `Click of int option
@@ -151,6 +155,7 @@ val grid_table :
   int ->    (* image width/height *)
   int ->    (* text height *)
   int ->    (* vertical scroll bar width *)
+  int ->    (* mouse reflection radius *)
   heading option ->
   ('a, cached) Table.t ->
   (int -> Api.image * string) ->

@@ -473,6 +473,15 @@ let lcd ui r d =
     )
 
 
+let mouse_reflection ui area r =
+  let x, y, w, h = dim ui area in
+  Draw.clip ui.win x y w h;
+  let mx, my = Mouse.pos ui.win in
+  Draw.gradient_circ ui.win (mx - r) (my - r) (2 * r) (2 * r)
+    (`Trans (`White, 0x20)) (`Trans (`White, 0x00));
+  Draw.unclip ui.win
+
+
 (* Passive UI Elements *)
 
 let element ui r ?(focus = false) modkey =
@@ -892,7 +901,7 @@ let adjust_cache tab w h =
     Table.cache tab buf;
     buf
 
-let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
+let rich_table ui area gw ch sw sh mr cols header_opt (tab : _ Table.t) pp_row =
   let (p, ax, ay, aw, ah) = area in
   let ty = if header_opt = None then ay else ay + ch + 2 in
   let th = ah - (if ah < 0 then 0 else ty - ay) - (if sh = 0 then 0 else sh + 1) in
@@ -1071,6 +1080,9 @@ let rich_table ui area gw ch sw sh cols header_opt (tab : _ Table.t) pp_row =
         `Scroll
       )
     in
+
+    (* Mouse reflection *)
+    mouse_reflection ui area mr;
 
     (* Keys *)
     let result =
@@ -1270,7 +1282,7 @@ let grid ui area gw iw ch matrix =
     None
 
 
-let grid_table ui area gw iw ch sw header_opt (tab : _ Table.t) pp_cell =
+let grid_table ui area gw iw ch sw mr header_opt (tab : _ Table.t) pp_cell =
   let (p, ax, ay, aw, ah) = area in
   let ty = if header_opt = None then ay else ay + ch + 2 in
   let th = ah - (if ah < 0 then 0 else ty - ay) in
@@ -1436,6 +1448,9 @@ let grid_table ui area gw iw ch sw header_opt (tab : _ Table.t) pp_cell =
       )
     in
 
+    (* Mouse reflection *)
+    mouse_reflection ui area mr;
+
     (* Keys *)
     let result =
       if result <> `None || not tab.focus then result else
@@ -1562,7 +1577,7 @@ let symbol_empty = " ○"
 let symbol_folded = "►" (* "▸" *)
 let symbol_unfolded = "▼" (* "▾" *)
 
-let browser ui area rh sw sh (tab : _ Table.t) pp_entry =
+let browser ui area rh sw sh mr (tab : _ Table.t) pp_entry =
   let cols = [|-1, `Left|] in
   let pp_pre nest folded =
     let sym =
@@ -1578,7 +1593,7 @@ let browser ui area rh sw sh (tab : _ Table.t) pp_entry =
   in
 
   let selected = tab.selected in
-  (match rich_table ui area 0 rh sw sh cols None tab pp_row with
+  (match rich_table ui area 0 rh sw sh mr cols None tab pp_row with
   | `None -> `None
   | `Scroll -> `Scroll
   | `Move i -> `Move i
