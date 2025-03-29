@@ -1096,7 +1096,7 @@ let run_library (st : _ State.t) =
       let tracks = lib.tracks.entries in
       if tracks <> [||] then
       (
-        Playlist.replace_all pl lib.tracks.entries;
+        Playlist.replace_all pl (Array.copy tracks);
         State.focus_playlist st;
         Control.eject st.control;
         Control.switch st.control tracks.(0) true;
@@ -1380,7 +1380,7 @@ let run_library (st : _ State.t) =
       let tracks = lib.tracks.entries in
       if tracks <> [||] then
       (
-        Playlist.replace_all pl tracks;
+        Playlist.replace_all pl (Array.copy tracks);
         State.focus_playlist st;
         Control.eject st.control;
         Control.switch st.control tracks.(0) true;
@@ -1502,7 +1502,7 @@ let run_library (st : _ State.t) =
       let tracks = lib.tracks.entries in
       if tracks <> [||] then
       (
-        Playlist.replace_all pl tracks;
+        Playlist.replace_all pl (Array.copy tracks);
         State.focus_playlist st;
         Control.eject st.control;
         Control.switch st.control tracks.(0) true;
@@ -2136,7 +2136,7 @@ let _main =
   try
     Printexc.record_backtrace true;
     (* Work around apparent bug in GC scheduler. *)
-    Gc.(set {(get ()) with space_overhead = 20});
+    Gc.(set {(get ()) with space_overhead = 10});
     let st = startup () in
     run st
   with exn ->
