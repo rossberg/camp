@@ -706,7 +706,7 @@ let sql_of_key = function
   | `Disc -> "disc"
   | `Discs -> "0"  (* TODO *)
   | `Date -> "unixepoch(replace(date, '??', '01'))"
-  | `Year -> "CAST(strftime('%Y', replace(date, '??', '01')) AS INT)"
+  | `Year -> "CAST(substr(date, 1, 4) AS INT)"
   | `Label -> "label"
   | `Country -> "country"
   | `Length -> "length"
