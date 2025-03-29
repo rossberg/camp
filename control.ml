@@ -89,8 +89,8 @@ let switch ctl (track : track) play =
     else Api.Audio.length ctl.audio ctl.sound;
 *)
   Track.update track;
-  Api.Audio.volume ctl.audio (if ctl.mute then 0.0 else ctl.volume);
   Api.Audio.play ctl.audio ctl.sound;
+  Api.Audio.volume ctl.audio (if ctl.mute then 0.0 else ctl.volume);
   if not play then Api.Audio.pause ctl.audio
 
 let seek ctl percent =
