@@ -22,6 +22,13 @@ let (let*) rc f =
 let return = Sqlite3.Rc.OK
 
 
+(* Caching *)
+
+module Map = Map.Make(String)
+
+let tracks_cache = ref Map.empty
+
+
 (* Statement Preparation *)
 
 let stmt sql : Sqlite3.stmt option ref * string = (ref None, sql)
@@ -562,17 +569,26 @@ let track_cols = 24
 
 let to_track i data : track =
   let path = to_text_default (i + 0) data in
-  {
-    path = path;
-    file = to_file (i + 1) data;
-    format = to_format (i + 1 + file_cols) data;
-    meta = to_meta (i + 1 + file_cols + format_cols) data;
-    album = None;
-    pos = (match Track.(pos_artist_title (fields_of_path path)) with Some (i, _, _) -> i | None -> -1);
-    status = to_status (to_int_default (i + 1 + file_cols + format_cols + meta_cols) data);
-  }
+  match Map.find_opt path !tracks_cache with
+  | Some track -> track
+  | None ->
+    let track =
+      {
+        path = path;
+        file = to_file (i + 1) data;
+        format = to_format (i + 1 + file_cols) data;
+        meta = to_meta (i + 1 + file_cols + format_cols) data;
+        album = None;
+        pos = (match Track.(pos_artist_title (fields_of_path path)) with Some (i, _, _) -> i | None -> -1);
+        status = to_status (to_int_default (i + 1 + file_cols + format_cols + meta_cols) data);
+      }
+    in
+    tracks_cache := Map.add path track !tracks_cache;
+    track
 
 let bind_track stmt i (track : track) =
+  if track.path <> "" && not (Map.mem track.path !tracks_cache) then
+    tracks_cache := Map.add track.path track !tracks_cache;
   let* () = bind_text stmt (i + 0) track.path in
   let* () = bind_file stmt (i + 1) track.file in
   let* () = bind_opt bind_format stmt (i + 1 + file_cols) track.format in
@@ -960,11 +976,15 @@ let playlist_cols = 7
 
 let to_playlist_track i data : track =
   let track = to_track i data in
-  track.pos <- to_int_default (i + track_cols + 0) data - 1;
+  let pos = to_int_default (i + track_cols + 0) data - 1 in
   if track.path <> "" then  (* came from tracks table *)
+  (
+    track.pos <- pos;
     track
+  )
   else
   (
+    let track = {track with pos} in
     let path = to_text (i + track_cols + 1) data in
     if M3u.is_separator path then
       {(Data.make_separator ()) with pos = track.pos}
