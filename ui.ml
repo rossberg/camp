@@ -53,7 +53,7 @@ type pane = int
 
 let pane ui i r =
   let x, y, w, h = r in
-  let ww, wh = Api.Window.size ui.win in
+  let ww, wh = Window.size ui.win in
   let x = if x >= 0 then x else ww + x in
   let y = if y >= 0 then y else wh + y in
   let w = if w >= 0 then w else ww - x + w in
@@ -78,7 +78,7 @@ type area = pane * int * int * int * int
 let dim ui (i, x, y, w, h) =
   let px, py, pw, ph =
     if i >= 0 then ui.panes.(i) else
-    let ww, wh = Api.Window.size ui.win in 0, 0, ww, wh
+    let ww, wh = Window.size ui.win in 0, 0, ww, wh
   in
   let x' = x + (if x >= 0 then 0 else pw) in
   let y' = y + (if y >= 0 then 0 else ph) in
@@ -87,7 +87,7 @@ let dim ui (i, x, y, w, h) =
   px + x', py + y', w', h'
 
 let mouse_inside ui r =
-  Api.inside (Api.Mouse.pos ui.win) (dim ui r)
+  inside (Mouse.pos ui.win) (dim ui r)
 
 
 (* Geometry helpers *)
@@ -158,7 +158,7 @@ let font' ui h file min max fonts =
   match fonts.(h) with
   | Some f -> f
   | None ->
-    let f = Api.Font.load ui.win file min max h in
+    let f = Font.load ui.win file min max h in
     fonts.(h) <- Some f;
     f
 
@@ -185,7 +185,7 @@ type drag += Move of {target : point}
 type drag += Resize of {overshoot : size}
 
 let start ui =
-  Api.Draw.start ui.win (`Trans (`Black, 0x40));
+  Draw.start ui.win (`Trans (`Black, 0x40));
 
   let bg = get_img ui ui.img_background in
   let ww, wh = Window.size ui.win in
@@ -206,7 +206,7 @@ let start ui =
   let r = 50 in
   Draw.gradient_circ ui.win (x - r) (y - r) (2 * r) (2 * r) (`Trans (`White, 0x20)) (`Trans (`White, 0x00));
 
-  Api.Mouse.set_cursor ui.win `Default;
+  Mouse.set_cursor ui.win `Default;
   if Mouse.is_down `Left then
   (
     if ui.drag_origin = no_drag then ui.drag_origin <- Mouse.pos ui.win
@@ -243,7 +243,7 @@ let finish ui margin (minw, minh) (maxw, maxh) =
       | false, true, true, false -> `Resize `NE_SW
       | _ -> if Mouse.is_down `Left then `Point else `Default
     in
-    Api.Mouse.set_cursor ui.win cursor;
+    Mouse.set_cursor ui.win cursor;
 
     if Mouse.is_down `Left && cursor <> `Default then
     (
@@ -286,7 +286,7 @@ let finish ui margin (minw, minh) (maxw, maxh) =
     )
   );
 
-  Api.Draw.finish ui.win
+  Draw.finish ui.win
 
 
 (* Input elements *)
@@ -305,7 +305,7 @@ let key_status' _ui key =
     `Untouched
 
 let key_status ui (modifiers, key) focus =
-  if not (focus && Api.Key.are_modifiers_down modifiers) then
+  if not (focus && Key.are_modifiers_down modifiers) then
     `Untouched
   else
     key_status' ui key
@@ -387,13 +387,13 @@ let drag ui r eps = drag_status ui (dim ui r) eps
 let colored_label ui c r align s =
   let x, y, w, h = dim ui r in
   let font = font ui h in
-  let tw = Api.Draw.text_width ui.win h font s in
+  let tw = Draw.text_width ui.win h font s in
   let dx =
     match align with
     | `Left -> 0
     | `Center -> (w - tw + 1) / 2
     | `Right -> w - tw
-  in Api.Draw.text ui.win (x + dx) y h c font s
+  in Draw.text ui.win (x + dx) y h c font s
 
 let label ui r align s =
   colored_label ui `White r align s
@@ -406,7 +406,7 @@ let indicator ui c r on =
   Draw.circ ui.win x y w h (border ui `Untouched)
 
 let lcd' ui r' c elem =
-  let open Api.Draw in
+  let open Draw in
   let x, y, w, h = r' in
   let m = h / 2 in
   match elem with
@@ -699,7 +699,7 @@ let divider ui r orient v minv maxv =
   let proj = match orient with `Horizontal -> fst | `Vertical -> snd in
   let inj v = match orient with `Horizontal -> v, y | `Vertical -> x, v in
   let cursor = match orient with `Horizontal -> `E_W | `Vertical -> `N_S in
-  if status <> `Untouched then Api.Mouse.set_cursor ui.win (`Resize cursor);
+  if status <> `Untouched then Mouse.set_cursor ui.win (`Resize cursor);
   (*Draw.rect ui.win x y w h (border ui status);*)
   if status <> `Pressed then v else
   let over =
@@ -734,7 +734,7 @@ type inversion = [`Regular | `Inverted]
 type order = [`Asc | `Desc]
 type sorting = (int * order) list
 type column = int * align
-type cell = [`Text of string | `Image of Api.image]
+type cell = [`Text of string | `Image of image]
 type row = color * inversion * cell array
 type heading = string array * sorting
 
@@ -777,7 +777,7 @@ let table' ui area gw ch cols rows hscroll =
         )
       | `Image img ->
         let iw, _ = Image.size img in
-        Api.Draw.image ui.win !cx cy (float cw /. float iw) img;
+        Draw.image ui.win !cx cy (float cw /. float iw) img;
       );
       Draw.unclip ui.win;
       cx := !cx + cw + gw;
@@ -808,7 +808,7 @@ let header ui area gw cols (titles, sorting) hscroll =
   Draw.clip ui.win x y w h;
   ignore (
     Array.fold_left (fun cx (cw, _) ->
-      Api.Draw.fill ui.win (cx + cw + gw/2 - hscroll) y 1 h `Black;
+      Draw.fill ui.win (cx + cw + gw/2 - hscroll) y 1 h `Black;
       cx + cw + gw;
     ) (x + mw) cols - x - mw
   );
@@ -823,9 +823,9 @@ let header ui area gw cols (titles, sorting) hscroll =
     let syms = match order with `Asc -> symbols_asc | `Desc -> symbols_desc in
     if k < Array.length syms then
       let font = font ui h in
-      let tw = Api.Draw.text_width ui.win h font syms.(k) in
+      let tw = Draw.text_width ui.win h font syms.(k) in
       if cw > tw then
-        Api.Draw.text ui.win (cx + cw - tw + 4 - hscroll) y h `Black font syms.(k)
+        Draw.text ui.win (cx + cw - tw + 4 - hscroll) y h `Black font syms.(k)
   ) sorting;
   Draw.unclip ui.win;
 
@@ -880,7 +880,7 @@ let rich_table_inner _ui area _gw ch sw sh has_heading =
 let rich_table_mouse ui area gw ch sw sh has_heading (tab : _ Table.t) =
   let area' = rich_table_inner ui area gw ch sw sh has_heading in
   let (_, y, _, _) as r = dim ui area' in
-  let (_, my) as m = Api.Mouse.pos ui.win in
+  let (_, my) as m = Mouse.pos ui.win in
   if inside m r then
     Some (min (Table.length tab) ((my - y) / ch + tab.vscroll))
   else
@@ -973,7 +973,7 @@ let rich_table ui area gw ch sw sh mr cols header_opt (tab : _ Table.t) pp_row =
               (* Click on entry *)
               if not (Table.is_selected tab i) then
                 Table.deselect_all tab;
-              if not (Api.Mouse.is_doubleclick `Left) then
+              if not (Mouse.is_doubleclick `Left) then
                 Table.select tab i i;
               `Click (Some i)
             )
@@ -1358,7 +1358,7 @@ let grid_table ui area gw iw ch sw mr header_opt (tab : _ Table.t) pp_cell =
               (* Click on entry *)
               if not (Table.is_selected tab k) then
                 Table.deselect_all tab;
-              if not (Api.Mouse.is_doubleclick `Left) then
+              if not (Mouse.is_doubleclick `Left) then
                 Table.select tab k k;
               `Click (Some k)
             )
