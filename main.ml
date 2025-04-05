@@ -1610,9 +1610,10 @@ let run_library (st : _ State.t) =
         | Some img -> img
         | None -> Ui.nocover lay.ui
       and txt =
-        Library.track_attr_string track `Artist ^ " - " ^
-        Library.track_attr_string track `Title ^ " (" ^
-        Library.track_attr_string track `Year ^ ")"
+        let artist = Library.track_attr_string track `Artist in
+        let title = Library.track_attr_string track `Title in
+        let year = Library.track_attr_string track `Year in
+        artist ^ " - " ^ title ^ (if year = "" then "" else " (" ^ year ^ ")")
       in img, txt
     in
 
