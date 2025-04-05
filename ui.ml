@@ -637,11 +637,13 @@ let scroll_bar ui r orient v len =
   let x', y', w', h' as r' =
     match orient with
     | `Vertical ->
-      x, y + int_of_float (v *. float (h - 2)) + 1,
-      w, int_of_float (Float.ceil (len *. float (h - 2)))
+      let h' = int_of_float (Float.ceil (len *. float (h - 2))) in
+      let h'' = max h' w in  (* minimum bar size *)
+      x, y + int_of_float (v *. float (h - 2 - (h'' - h'))) + 1, w, h''
     | `Horizontal ->
-      x + int_of_float (v *. float (w - 2)) + 1, y,
-      int_of_float (Float.ceil (len *. float (w - 2))), h
+      let w' = int_of_float (Float.ceil (len *. float (w - 2))) in
+      let w'' = max w' h in  (* minimum bar size *)
+      x + int_of_float (v *. float (w - 2 - (w'' - w'))) + 1, y, w'', h
   in
   if len < 1.0 then Draw.fill ui.win x' y' w' h' (fill ui true);
   (match orient with
