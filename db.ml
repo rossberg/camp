@@ -705,6 +705,8 @@ let sql_of_key = function
   | `Tracks -> "0"  (* TODO *)
   | `Disc -> "disc"
   | `Discs -> "0"  (* TODO *)
+  | `DiscTrack ->
+    "(CASE WHEN disc = 0 THEN disc ELSE format('%d.%02d', disc, track END)"
   | `Date -> "unixepoch(replace(date, '??', '01'))"
   | `Year -> "CAST(substr(date, 1, 4) AS INT)"
   | `Label -> "label"

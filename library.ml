@@ -190,6 +190,7 @@ let attr_prop = function
   | `Tracks -> "Tracks", `Right
   | `Disc -> "Disc", `Right
   | `Discs -> "Discs", `Right
+  | `DiscTrack -> "Track", `Right
   | `Albums -> "Albums", `Right
   | `Date -> "Date", `Left
   | `Year -> "Year", `Left
@@ -234,7 +235,7 @@ let rec format_attr_string (format : Format.t) = function
       | _ -> `SampleRate
     in format_attr_string format attr
 
-let meta_attr_string (meta : Meta.t) = function
+let rec meta_attr_string (meta : Meta.t) = function
   | `Artist -> meta.artist
   | `Title -> meta.title
   | `AlbumArtist -> meta.albumartist
@@ -243,6 +244,9 @@ let meta_attr_string (meta : Meta.t) = function
   | `Tracks -> nonzero_int 3 meta.tracks
   | `Disc -> nonzero_int 2 meta.disc
   | `Discs -> nonzero_int 2 meta.discs
+  | `DiscTrack ->
+    if meta.disc = 0 then meta_attr_string meta `Track else
+    meta_attr_string meta `Disc ^ "." ^ fmt "%02d" meta.track
   | `Date ->
     if meta.date_txt = "" then nonzero_int 4 meta.year else meta.date_txt
   | `Year -> nonzero_int 4 meta.year

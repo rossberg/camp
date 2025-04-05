@@ -23,7 +23,7 @@ type format_attr =
 
 type meta_attr =
 [
-  | `Artist | `Title | `Track | `Tracks | `Disc | `Discs | `Cover
+  | `Artist | `Title | `Track | `Tracks | `Disc | `Discs | `DiscTrack | `Cover
   | `AlbumArtist | `AlbumTitle | `Date | `Year | `Country | `Label | `Rating
 ]
 
@@ -184,7 +184,7 @@ let tracks_columns : track_attr columns =
   `Length, 30;
   `AlbumArtist, 100;
   `AlbumTitle, 150;
-  `Track, 20;
+  `DiscTrack, 20;
   `Date, 60;
   `Country, 50;
   `Label, 50;
@@ -321,6 +321,7 @@ let attr_str =
   `Tracks, "TRS";
   `Disc, "DSC";
   `Discs, "DSS";
+  `DiscTrack, "DTR";
   `Albums, "ALS";
   `Date, "DAT";
   `Year, "YER";
@@ -373,11 +374,15 @@ let columns_of_string to_attr s =
 (* TODO: this is a temporary conversion hack for retro-introducing covers. *)
 let columns_of_string_add_cover i to_attr s =
   let columns = columns_of_string to_attr s in
-  if fst columns.(i) = `Cover then columns else
+  let disctrack = function
+    | `Track, w -> `DiscTrack, w
+    | other -> other
+  in
+  if fst columns.(i) = `Cover then Array.map disctrack columns else
   Array.init (Array.length columns + 1) (fun j ->
     match compare j i with
-    | -1 -> columns.(j)
-    | +1 -> columns.(j - 1)
+    | -1 -> disctrack columns.(j)
+    | +1 -> disctrack columns.(j - 1)
     | _ -> `Cover, 30
   )
 

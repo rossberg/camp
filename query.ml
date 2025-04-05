@@ -47,6 +47,8 @@ let meta_value (meta_opt : Meta.t option) =
   | `Tracks -> IntV meta.tracks
   | `Disc -> IntV meta.disc
   | `Discs -> IntV meta.discs
+  | `DiscTrack when meta.disc = 0 -> TextV (Printf.sprintf "%3d" meta.track)
+  | `DiscTrack -> TextV (Printf.sprintf "%d.%02d" meta.disc meta.track)
   | `Date -> DateV meta.date
   | `Year -> IntV meta.year
   | `Label -> TextV meta.label
@@ -136,6 +138,7 @@ let keys =
     "filename", `FileName; "fileext", `FileExt;
     "title", `Title; "artist", `Artist;
     "disc", `Disc; "track", `Track; "discs", `Discs; "tracks", `Tracks;
+    "disctrack", `DiscTrack;
     "album", `AlbumTitle; "albumartist", `AlbumArtist;
     "year", `Year; "date", `Date;
     "label", `Label; "country", `Country;
@@ -202,7 +205,7 @@ let rec validate q =
   | Text _
   | Key (`FilePath | `FileDir | `FileName | `FileExt)
   | Key (`Artist | `Title | `AlbumArtist | `AlbumTitle)
-  | Key (`Label | `Country | `Codec) -> TextT
+  | Key (`Label | `Country | `Codec | `DiscTrack) -> TextT
   | Un (op, q1) ->
     (match op, validate q1 with
     | Not, BoolT -> BoolT
