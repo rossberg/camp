@@ -361,7 +361,7 @@ let left_area g = (lp, 0, margin g, -1, -1)
 let left_table g = Ui.rich_table g.ui (left_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) g.reflection
 let left_grid g iw = Ui.grid_table g.ui (left_area g) (gutter_w g) iw (text_h g) (scrollbar_w g) g.reflection
 let left_mouse g = Ui.rich_table_mouse g.ui (left_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
-let left_spin g = Ui.text g.ui (lp, 4, margin g + text_h g + 4, -1, text_h g) `Left `Regular true
+let left_spin g = Ui.text g.ui (lp, 4, margin g + text_h g + 4, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
 
 let left_view = left_pane, left_area, left_table, left_grid, left_spin
 
@@ -375,7 +375,7 @@ let right_area g = (rp, divider_w g, margin g, -1, -1)
 let right_table g = Ui.rich_table g.ui (right_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) g.reflection
 let right_grid g iw = Ui.grid_table g.ui (right_area g) (gutter_w g) iw (text_h g) (scrollbar_w g) g.reflection
 let right_mouse g = Ui.rich_table_mouse g.ui (right_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
-let right_spin g = Ui.text g.ui (rp, divider_w g + 4, margin g + text_h g + 4, -1, text_h g) `Left `Regular true
+let right_spin g = Ui.text g.ui (rp, divider_w g + 4, margin g + text_h g + 4, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
 
 let right_view = right_pane, right_area, right_table, right_grid, right_spin
 
@@ -389,7 +389,7 @@ let lower_area g = (lp, 0, divider_w g, -1, -1)
 let lower_table g = Ui.rich_table g.ui (lower_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) g.reflection
 let lower_grid g iw = Ui.grid_table g.ui (lower_area g) (gutter_w g) iw (text_h g) (scrollbar_w g) g.reflection
 let lower_mouse g = Ui.rich_table_mouse g.ui (lower_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
-let lower_spin g = Ui.text g.ui (lp, 4, divider_w g + text_h g + 4, -1, text_h g) `Left `Regular true
+let lower_spin g = Ui.text g.ui (lp, 4, divider_w g + text_h g + 4, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
 
 let lower_view = lower_pane, lower_area, lower_table, lower_grid, lower_spin
 
