@@ -826,7 +826,11 @@ let run_edit (st : _ State.t) =
     Edit.move_begin st.filesel.input;
     State.defocus_all st;
     Filesel.focus_input st.filesel;
-  )
+  );
+
+  (* Focus buttons *)
+  if Layout.focus_next_key lay then State.focus_next st;
+  if Layout.focus_prev_key lay then State.focus_prev st
 
 
 (* Playlist Pane *)

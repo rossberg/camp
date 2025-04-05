@@ -33,21 +33,65 @@ let defocus_all st =
   Library.defocus st.library;
   Filesel.defocus st.filesel
 
+let focus_table (tab : _ Table.t) st =
+  defocus_all st;
+  Table.focus tab
+
+let focus_edit (ed : Edit.t) st =
+  defocus_all st;
+  Edit.focus ed
+
 let focus_playlist st =
   Library.deselect_all st.library;
-  defocus_all st;
-  Playlist.focus st.playlist
+  focus_table st.playlist.table st
 
 let focus_library (tab : _ Table.t) st =
   Playlist.deselect_all st.playlist;
-  defocus_all st;
-  Table.focus tab
+  focus_table tab st
 
 let focus_filesel (tab : _ Table.t) st =
   Playlist.deselect_all st.playlist;
   Library.deselect_all st.library;
-  defocus_all st;
-  Table.focus tab
+  focus_table tab st
+
+let foci_table f (tab : _ Table.t) = tab.focus, f tab
+let foci_edit (ed : Edit.t) = ed.focus, focus_edit ed
+
+let foci_playlist (pl : _ Playlist.t) =
+  let f = fun _ -> focus_playlist in
+  [foci_table f pl.table]
+
+let foci_library (lib : _ Library.t) =
+  let f = focus_library in
+  [foci_edit lib.search; foci_table f lib.browser] @
+  match lib.current with
+  | None -> []
+  | Some dir ->
+    (if dir.artists_shown && not (Library.refresh_artists_busy lib) then
+      [foci_table f lib.artists] else []) @
+    (if dir.albums_shown <> None && not (Library.refresh_albums_busy lib) then
+      [foci_table f lib.albums] else []) @
+    (if dir.tracks_shown <> None && not (Library.refresh_tracks_busy lib) then
+      [foci_table f lib.tracks] else [])
+
+let foci_filesel (fs : _ Filesel.t) =
+  let f = focus_filesel in
+  [foci_edit fs.input; foci_table f fs.dirs; foci_table f fs.files]
+
+let foci st =
+  (if st.layout.playlist_shown then foci_playlist st.playlist else []) @
+  (if st.layout.filesel_shown then foci_filesel st.filesel else
+   if st.layout.library_shown then foci_library st.library else [])
+
+let focus_switch st foci =
+  let rec find = function
+    | f::f'::_ when fst f -> f'
+    | _::fs -> find fs
+    | [] -> List.hd foci
+  in snd (find foci) st
+
+let focus_next st = focus_switch st (foci st)
+let focus_prev st = focus_switch st (List.rev (foci st))
 
 
 (* Layout Persistance *)

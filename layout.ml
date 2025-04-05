@@ -281,6 +281,9 @@ let cut_key g = Ui.key g.ui ([`Command], `Char 'X') true
 let copy_key g = Ui.key g.ui ([`Command], `Char 'C') true
 let paste_key g = Ui.key g.ui ([`Command], `Char 'V') true
 
+let focus_next_key g = Ui.key g.ui ([], `Tab) true
+let focus_prev_key g = Ui.key g.ui ([`Shift], `Tab) true
+
 
 (* Browser Pane *)
 

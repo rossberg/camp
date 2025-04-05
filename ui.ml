@@ -473,6 +473,18 @@ let lcd ui r d =
     )
 
 
+let focus ui area =
+  let x, y, w, h = dim ui area in
+  let c = text_color ui in
+  let c1 = `Trans (c, 0x40) in
+  let c2 = `Trans (c, 0x00) in
+  let b = 6 in
+  Draw.gradient ui.win x y w b c1 `Vertical c2;
+  Draw.gradient ui.win x (y + h - b) w b c2 `Vertical c1;
+  Draw.gradient ui.win x y b h c1 `Horizontal c2;
+  Draw.gradient ui.win (x + w - b) y b h c2 `Horizontal c1;
+  Draw.fill ui.win x y w h (`Trans (c, 0x20))
+
 let mouse_reflection ui area r =
   let x, y, w, h = dim ui area in
   Draw.clip ui.win x y w h;
@@ -1083,7 +1095,8 @@ let rich_table ui area gw ch sw sh mr cols header_opt (tab : _ Table.t) pp_row =
       )
     in
 
-    (* Mouse reflection *)
+    (* Focus and mouse reflection *)
+    if tab.focus && len > 0 then focus ui table_area;
     mouse_reflection ui area mr;
 
     (* Keys *)
@@ -1839,7 +1852,8 @@ let edit_text ui area s scroll selection =
 let rich_edit_text ui area (edit : Edit.t) =
   let sel = if edit.focus then edit.sel_range else None in
   let s', scroll', sel', ch = edit_text ui area edit.text edit.scroll sel in
-  Edit.set edit s';
+  if edit.focus then focus ui area;
+  if s' <> edit.text then Edit.set edit s';
   Edit.scroll edit scroll';
   if sel' <> None then
   (

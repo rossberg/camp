@@ -67,6 +67,7 @@ val label : t -> area -> align -> string -> unit
 val indicator : t -> color -> area -> bool -> unit
 val lcd : t -> area -> char -> unit
 
+val focus : t -> area -> unit
 val mouse_reflection : t -> area -> int -> unit
 
 val box : t -> area -> color -> unit
