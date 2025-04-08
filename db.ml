@@ -24,7 +24,7 @@ let return = Sqlite3.Rc.OK
 
 (* Caching *)
 
-module Map = Map.Make(String)
+module Map = Map.Make(Int64)
 
 let tracks_cache = ref Map.empty
 
@@ -71,6 +71,7 @@ let to_bool i data = Sqlite3.Data.to_bool_exn data.(i)
 let to_int i data = Sqlite3.Data.to_int_exn data.(i)
 let to_float i data = Sqlite3.Data.to_float_exn data.(i)
 let to_text i data = Sqlite3.Data.to_string_exn data.(i)
+let to_id i data = Sqlite3.Data.to_int64_exn data.(i)
 
 let to_bool_opt i data = Sqlite3.Data.to_bool data.(i)
 let to_int_opt i data = Sqlite3.Data.to_int data.(i)
@@ -84,6 +85,8 @@ let to_bool_default i data = to_default to_bool false i data
 let to_int_default i data = to_default to_int 0 i data
 let to_float_default i data = to_default to_float 0.0 i data
 let to_text_default i data = to_default to_text "" i data
+
+let to_id i data = to_default to_id (-1L) i data
 
 let to_pair to_x i to_y j data = (to_x i data, to_y j data)
 
@@ -568,11 +571,15 @@ let create_tracks = create_table
 
 let track_cols = 24
 
+let warmup = ref true
 let to_track i data : track =
-  let path = to_text_default (i + 0) data in
-  match Map.find_opt path !tracks_cache with
+  let id = to_id i data in
+  match Map.find_opt id !tracks_cache with
   | Some track -> track
   | None ->
+    let i = i + 1 in
+    let path = to_text_default (i + 0) data in
+if not !warmup then Printf.printf "[cache miss %s]\n%!" path;
     let track =
       {
         path = path;
@@ -585,12 +592,14 @@ let to_track i data : track =
         memo = None;
       }
     in
-    tracks_cache := Map.add path track !tracks_cache;
+    if id <> -1L then tracks_cache := Map.add id track !tracks_cache;
     track
 
 let bind_track stmt i (track : track) =
+(*
   if track.path <> "" && not (Map.mem track.path !tracks_cache) then
     tracks_cache := Map.add track.path track !tracks_cache;
+*)
   let* () = bind_text stmt (i + 0) track.path in
   let* () = bind_file stmt (i + 1) track.file in
   let* () = bind_opt bind_format stmt (i + 1 + file_cols) track.format in
@@ -617,22 +626,22 @@ let mem_track = stmt
 
 let find_track = stmt
   "
-    SELECT * FROM Tracks WHERE path = ?;
+    SELECT rowid, * FROM Tracks WHERE path = ?;
   " |> find_in_table (to_track 0)
 
 let iter_tracks = stmt
   "
-    SELECT * FROM Tracks;
+    SELECT rowid, * FROM Tracks;
   " |> iter_table [||] (to_track 0)
 
 let iter_tracks_for_path = stmt
   "
-    SELECT * FROM Tracks WHERE path LIKE ? AND NOT (path LIKE ?);
+    SELECT rowid, * FROM Tracks WHERE path LIKE ? AND NOT (path LIKE ?);
   " |> iter_table_prefix_except (to_track 0)
 
 let iter_tracks_for_path_rec = stmt
   "
-    SELECT * FROM Tracks WHERE path LIKE ?;
+    SELECT rowid, * FROM Tracks WHERE path LIKE ?;
   " |> iter_table_prefix (to_track 0)
 
 let insert_track = stmt @@
@@ -829,7 +838,7 @@ let albums_fields =
 
 let iter_tracks_for_path_single = stmt @@
   "
-    SELECT " ^ tracks_fields ^ "
+    SELECT rowid, " ^ tracks_fields ^ "
     FROM Tracks
     WHERE path LIKE ?1
       AND (?2 = '%' OR artist = ?2 OR albumartist = ?2)
@@ -841,7 +850,7 @@ let iter_tracks_for_path_single = stmt @@
 
 let iter_tracks_for_path_multi db path artist albums = stmt @@
   "
-    SELECT " ^ tracks_fields ^ "
+    SELECT rowid, " ^ tracks_fields ^ "
     FROM Tracks
     WHERE path LIKE ?1
       AND (?2 = '%' OR artist = ?2 OR albumartist = ?2)
@@ -854,7 +863,7 @@ let iter_tracks_for_path_multi db path artist albums = stmt @@
 
 let iter_tracks_for_path_search db path artists albums search = stmt @@
   artists_table 2 artists ^ "
-    SELECT " ^ tracks_fields ^ "
+    SELECT rowid, " ^ tracks_fields ^ "
     FROM Tracks
     " ^ artists_filter 2 artists ^ "
     WHERE path LIKE ?1
@@ -1132,7 +1141,7 @@ let playlist_albums_fields =
 
 let iter_playlist_tracks_for_path_single = stmt @@
   "
-    SELECT " ^ playlist_tracks_fields ^ "
+    SELECT Tracks.rowid, " ^ playlist_tracks_fields ^ "
     FROM Playlists LEFT JOIN Tracks ON Tracks.path = Playlists.track
     WHERE Playlists.path = ?1
       AND (?2 = '%' OR Tracks.artist = ?2 OR albumartist = ?2 OR
@@ -1145,7 +1154,7 @@ let iter_playlist_tracks_for_path_single = stmt @@
 
 let iter_playlist_tracks_for_path_multi db path artist albums = stmt @@
   "
-    SELECT " ^ playlist_tracks_fields ^ "
+    SELECT Tracks.rowid, " ^ playlist_tracks_fields ^ "
     FROM Playlists LEFT JOIN Tracks ON Tracks.path = Playlists.track
     WHERE Playlists.path = ?1
       AND (?2 = '%' OR Tracks.artist = ?2 OR albumartist = ?2 OR
@@ -1159,7 +1168,7 @@ let iter_playlist_tracks_for_path_multi db path artist albums = stmt @@
 
 let iter_playlist_tracks_for_path_search db path artists albums search = stmt @@
   artists_table 2 artists ^ "
-    SELECT " ^ playlist_tracks_fields ^ "
+    SELECT Tracks.rowid, " ^ playlist_tracks_fields ^ "
     FROM
       Playlists
       LEFT JOIN Tracks
@@ -1279,7 +1288,7 @@ let iter_playlist_tracks_for_path_as_albums db path artists search f =
 (*
 let iter_tracks_and_playlist_tracks_for_path = stmt
   "
-    SELECT Tracks.*, NULL, NULL, NULL, NULL, NULL
+    SELECT Tracks.rowid, Tracks.*, NULL, NULL, NULL, NULL, NULL
     FROM Tracks
     WHERE
       (Tracks.path LIKE ?1) AND

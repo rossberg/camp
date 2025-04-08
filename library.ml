@@ -254,13 +254,21 @@ let rescan_track' lib mode track =
     Db.insert_track lib.db track;
   changed
 
+let t_lookup = ref 0.0
+let t_rescan = ref 0.0
+let t_update = ref 0.0
+let now = Unix.gettimeofday
+
 let rescan_dir_tracks' lib mode (dir : dir) =
   try
+let t0 = now () in
     let new_tracks = ref [] in
     let old_tracks = ref Map.empty in
     Db.iter_tracks_for_path lib.db dir.path (fun track ->
       old_tracks := Map.add track.path track !old_tracks
     );
+let t1 = now () in
+t_lookup := !t_lookup +. (t1 -. t0);
     Array.iter (fun file ->
       let path = dir.path ^ file in
       if not (File.is_dir path) && Data.is_track_path path then
@@ -274,11 +282,18 @@ let rescan_dir_tracks' lib mode (dir : dir) =
           new_tracks := track :: !new_tracks
       )
     ) (File.read_dir dir.path);
+let t2 = now () in
+t_rescan := !t_rescan +. (t2 -. t1);
+List.iter (fun track -> Printf.printf "[old %s]\n%!" track.path) (List.map snd (Map.bindings !old_tracks));
     if !old_tracks <> Map.empty then
       Db.delete_tracks_bulk lib.db (List.map fst (Map.bindings !old_tracks));
     (* Parent may have been deleted in the mean time... *)
+List.iter (fun track -> Printf.printf "[new %s]\n%!" track.path) !new_tracks;
     if !new_tracks <> [] && Db.mem_dir lib.db dir.path then
       Db.insert_tracks_bulk lib.db !new_tracks;
+let t3 = now () in
+t_update := !t_update +. (t3 -. t2);
+Printf.printf "total lookup %.3fs rescan %.3fs update %.3fs (%s)\n%!" !t_lookup !t_rescan !t_update dir.path;
     !old_tracks <> Map.empty || !new_tracks <> []
   with exn ->
     Storage.log_exn "file" exn ("scanning tracks in directory " ^ dir.path);
@@ -580,6 +595,11 @@ let load_dirs lib =
   lib.root <- List.hd !dirs;
   ignore (treeify lib.root [] (List.tl !dirs));
 
+let t1 = now () in
+Db.iter_tracks lib.db ignore;  (* warm up cache *)
+let t2 = now () in
+Printf.printf "warmup %.3fs\n%!" (t2 -. t1);
+Db.warmup := false;
   rescan_root lib `Quick
 
 
