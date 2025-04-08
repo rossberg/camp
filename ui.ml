@@ -476,14 +476,16 @@ let lcd ui r d =
 let focus ui area =
   let x, y, w, h = dim ui area in
   let c = text_color ui in
-  let c1 = `Trans (c, 0x40) in
+  let c1 = `Trans (c, 0x60 (* 0x40 *)) in
   let c2 = `Trans (c, 0x00) in
-  let b = 6 in
+  let b = 8 (* 6 *) in
   Draw.gradient ui.win x y w b c1 `Vertical c2;
   Draw.gradient ui.win x (y + h - b) w b c2 `Vertical c1;
   Draw.gradient ui.win x y b h c1 `Horizontal c2;
-  Draw.gradient ui.win (x + w - b) y b h c2 `Horizontal c1;
+  Draw.gradient ui.win (x + w - b) y b h c2 `Horizontal c1
+(*
   Draw.fill ui.win x y w h (`Trans (c, 0x20))
+*)
 
 let mouse_reflection ui area r =
   let x, y, w, h = dim ui area in

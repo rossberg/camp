@@ -382,7 +382,8 @@ let rescan_dir_tracks' lib mode (dir : dir) =
           new_tracks := track :: !new_tracks
       )
     ) (File.read_dir dir.path);
-    Db.delete_tracks_bulk lib.db (List.map fst (Map.bindings !old_tracks));
+    if !old_tracks <> Map.empty then
+      Db.delete_tracks_bulk lib.db (List.map fst (Map.bindings !old_tracks));
     (* Parent may have been deleted in the mean time... *)
     if !new_tracks <> [] && Db.mem_dir lib.db dir.path then
       Db.insert_tracks_bulk lib.db !new_tracks;
