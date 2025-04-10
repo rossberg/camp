@@ -50,6 +50,8 @@ val of_map : 'a t -> Storage.map -> unit  (* assumes roots already set *)
 
 val to_map_extra : 'a t -> Storage.map
 
+val save_playlist : 'a t -> unit
+
 
 (* Scanning *)
 

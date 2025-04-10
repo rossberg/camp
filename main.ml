@@ -932,10 +932,11 @@ let run_playlist (st : _ State.t) =
         Table.push_undo pl.table;
       | `Outward ->
         (* Leaving area: snap back to original state *)
-        Table.pop_undo pl.table
+        Playlist.undo pl;
+        Playlist.save_playlist pl;
       | `Inward ->
         (* Reentering area: restore updated state *)
-        Table.pop_redo pl.table
+        Playlist.redo pl
       | `Inside | `Outside -> ()
       );
 
@@ -946,15 +947,17 @@ let run_playlist (st : _ State.t) =
           Playlist.move_selected pl delta;
           (* Erase intermediate new state *)
           Table.drop_undo pl.table;
-        | `Outside | `Outward ->
+        | `Outward ->
           (* Temporarily restore new state, modify, and immediately undo *)
           (* Restore new state *)
-          Table.pop_redo pl.table;
+          Playlist.redo pl;
           Playlist.move_selected pl delta;
           (* Erase intermediate new state *)
           Table.drop_undo pl.table;
           (* Undo new state, recovering original *)
-          Table.pop_undo pl.table;
+          Playlist.undo pl;
+          Playlist.save_playlist pl;
+        | `Outside -> ()
       )
     )
 
@@ -1692,29 +1695,36 @@ let run_library (st : _ State.t) =
             Table.push_undo lib.tracks;
           | `Outward ->
             (* Leaving area: snap back to original state *)
-            Table.pop_undo lib.tracks
+            Library.undo lib;
+            Library.save_playlist lib;
           | `Inward ->
             (* Reentering area: restore updated state *)
-            Table.pop_redo lib.tracks
+            Library.redo lib
           | `Inside | `Outside -> ()
           );
 
-          if delta <> 0 && Library.num_selected lib > 0 then
+          if delta <> 0 && Library.num_selected lib > 0 && sorting <> [] then
           (
-            match way with
-            | `Start | `Inside | `Inward ->
-              Library.move_selected lib delta;
-              (* Erase intermediate new state *)
-              Table.drop_undo lib.tracks;
-            | `Outside | `Outward ->
-              (* Temporarily restore new state, modify, and immediately undo *)
-              (* Restore new state *)
-              Table.pop_redo lib.tracks;
-              Library.move_selected lib delta;
-              (* Erase intermediate new state *)
-              Table.drop_undo lib.tracks;
-              (* Undo new state, recovering original *)
-              Table.pop_undo lib.tracks;
+            let prim_attr, order = List.hd dir.tracks_sorting in
+            if prim_attr = `Pos && order = `Asc then
+            (
+              match way with
+              | `Start | `Inside | `Inward ->
+                Library.move_selected lib delta;
+                (* Erase intermediate new state *)
+                Table.drop_undo lib.tracks;
+              | `Outward ->
+                (* Temporarily restore new state, modify, immediately undo *)
+                (* Restore new state *)
+                Library.redo lib;
+                Library.move_selected lib delta;
+                (* Erase intermediate new state *)
+                Table.drop_undo lib.tracks;
+                (* Undo new state, recovering original *)
+                Library.undo lib;
+                Library.save_playlist lib;
+              | `Outside -> ()
+            )
           )
         )
       )
