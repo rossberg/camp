@@ -977,16 +977,12 @@ let playlist_cols = 7
 
 
 let to_playlist_track i data : track =
-  let track = to_track i data in
   let pos = to_int_default (i + track_cols + 0) data - 1 in
+  let track = {(to_track i data) with pos} in
   if track.path <> "" then  (* came from tracks table *)
-  (
-    track.pos <- pos;
     track
-  )
   else
   (
-    let track = {track with pos} in
     let path = to_text (i + track_cols + 1) data in
     if M3u.is_separator path then
       {(Data.make_separator ()) with pos = track.pos}
