@@ -113,21 +113,38 @@ let size path = (stat path).Unix.st_size
 let time path = (stat path).Unix.st_mtime
 let set_time path time = Unix.utimes (normalize path) (Unix.time ()) time
 
+let run cmd =
+  let inp = Unix.open_process_in cmd in
+  let s = In_channel.input_all inp in
+  In_channel.close inp; s
+
+let init_tz () =
+  (* On Windows, TZ is not usually set, which makes time functions fail *)
+  try ignore (Unix.getenv "TZ") with Not_found ->
+    let cmd =
+      if Sys.win32 then
+        "tzutil /g"
+      else
+        "date +%Z"
+    in Unix.putenv "TZ" (run cmd)
+
 let year = 365.0 *. 24.0 *. 60.0 *. 60.0
 let local_time t =
   (* Windows localtime cannot handle negative dates *)
+  init_tz ();
   let ydelta = if t >= 0.0 then 0.0 else ceil (-.t /. year) in
   let tm = Unix.localtime (t +. ydelta *. year) in
   Unix.{tm with tm_year = tm.tm_year - int_of_float ydelta}
 
 let make_time tm =
+  init_tz ();
   let tm' =
-    if tm.Unix.tm_year > 70 then tm else
+    if tm.Unix.tm_year >= 70 then tm else
     (* Windows mktime cannot handle dates before 1971 *)
     Unix.{tm with tm_year = 70}
   in
   let t = fst (Unix.mktime tm') in
-  if tm.Unix.tm_year > 70 then t else t -. float (70 - tm.Unix.tm_year) *. year
+  if tm.Unix.tm_year >= 70 then t else t -. float (70 - tm.Unix.tm_year) *. year
 
 let zero_time =
   Unix.{

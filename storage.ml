@@ -58,7 +58,7 @@ let log_clear () =
 
 let log msg =
   Mutex.protect log_mutex (fun () ->
-    let tm = Unix.(localtime (time ())) in
+    let tm = File.local_time (Unix.time ()) in
     let msg' = Printf.sprintf
       "%04d-%02d-%02d %02d:%02d:%02d "
       (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
