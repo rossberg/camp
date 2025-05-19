@@ -8,6 +8,7 @@ type t =
   audio : Api.audio;
   mutable mute : bool;
   mutable volume : float;
+  mutable progress : float;
   mutable sound : Api.sound;
   mutable current : track option;
   mutable timemode : [`Elapse | `Remain];

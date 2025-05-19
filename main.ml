@@ -207,10 +207,12 @@ let run_control (st : _ State.t) =
     0.05 *. float_of_bool (Layout.ff_key lay focus) -.
     0.05 *. float_of_bool (Layout.rw_key lay focus)
   in
-  if progress' <> progress && not silence then
+  if (progress' <> ctl.progress || Api.Mouse.is_pressed `Left)
+  && progress' <> progress && not silence then
   (
-    (* Click or drag on seek bar: reposition audio *)
+    (* Click or drag on seek bar at new position: reposition audio *)
     Control.seek ctl (clamp 0.0 1.0 progress');
+    ctl.progress <- progress';
   );
 (*
   let s1 = fmt_time2 elapsed in

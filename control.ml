@@ -8,6 +8,7 @@ type t =
   audio : Api.audio;
   mutable mute : bool;
   mutable volume : float;
+  mutable progress : float;
   mutable sound : Api.sound;
   mutable current : track option;
   mutable timemode : [`Elapse | `Remain];
@@ -25,6 +26,7 @@ let make audio =
     audio;
     mute = false;
     volume = 0.5;
+    progress = 0.0;
     sound = Api.Audio.silence audio;
     current = None;
     timemode = `Elapse;
