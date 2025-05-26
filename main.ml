@@ -1346,9 +1346,8 @@ let run_library (st : _ State.t) =
     let pp_row i =
       let artist = tab.entries.(i) in
       Ui.text_color lay.ui,
-      Array.map (fun (attr, _) ->
-        `Text (Library.artist_attr_string artist attr)
-      ) dir.artists_columns
+      Array.map (fun (attr, _) -> `Text (Data.artist_attr_string artist attr))
+        dir.artists_columns
     in
 
     let sorting = convert_sorting dir.artists_columns dir.artists_sorting in
@@ -1452,7 +1451,7 @@ let run_library (st : _ State.t) =
       Ui.text_color lay.ui,
       Array.map (fun (attr, _) ->
         if attr <> `Cover then
-          `Text (Library.album_attr_string album attr)
+          `Text (Data.album_attr_string album attr)
         else if lib.cover then
           match Library.load_cover lib win album.path with
           | Some img -> `Image img
@@ -1468,9 +1467,9 @@ let run_library (st : _ State.t) =
         | Some img -> img
         | None -> Ui.nocover lay.ui
       and txt =
-        Library.album_attr_string album `AlbumArtist ^ " - " ^
-        Library.album_attr_string album `AlbumTitle ^ " (" ^
-        Library.album_attr_string album `Year ^ ")"
+        Data.album_attr_string album `AlbumArtist ^ " - " ^
+        Data.album_attr_string album `AlbumTitle ^ " (" ^
+        Data.album_attr_string album `Year ^ ")"
       in img, txt
     in
 
@@ -1599,7 +1598,7 @@ let run_library (st : _ State.t) =
       c,
       Array.map (fun (attr, _) ->
         if attr <> `Cover then
-          `Text (Library.track_attr_string track attr)
+          `Text (Data.track_attr_string track attr)
         else if lib.cover then
           match Library.load_cover lib win track.path with
           | Some img -> `Image img
@@ -1615,9 +1614,9 @@ let run_library (st : _ State.t) =
         | Some img -> img
         | None -> Ui.nocover lay.ui
       and txt =
-        let artist = Library.track_attr_string track `Artist in
-        let title = Library.track_attr_string track `Title in
-        let year = Library.track_attr_string track `Year in
+        let artist = Data.track_attr_string track `Artist in
+        let title = Data.track_attr_string track `Title in
+        let year = Data.track_attr_string track `Year in
         artist ^ " - " ^ title ^ (if year = "" then "" else " (" ^ year ^ ")")
       in img, txt
     in

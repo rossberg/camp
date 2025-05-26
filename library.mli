@@ -98,10 +98,6 @@ val has_track : 'a t -> track -> bool
 val attr_name : [< any_attr] -> string
 val attr_align : [< any_attr] -> [> `Left | `Right]
 
-val artist_attr_string : artist -> artist_attr -> string
-val album_attr_string : album -> album_attr -> string
-val track_attr_string : track -> track_attr -> string
-
 val refresh_artists_sync : 'a t -> unit
 val refresh_albums_sync : 'a t -> unit
 val refresh_tracks_sync : 'a t -> unit

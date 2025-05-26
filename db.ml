@@ -579,7 +579,7 @@ let to_track i data : track =
         format = to_format (i + 1 + file_cols) data;
         meta = to_meta (i + 1 + file_cols + format_cols) data;
         album = None;
-        pos = (match Track.(pos_artist_title (fields_of_path path)) with Some (i, _, _) -> i | None -> -1);
+        pos = (match Data.(pos_artist_title (fields_of_path path)) with Some (i, _, _) -> i | None -> -1);
         status = to_status (to_int_default (i + 1 + file_cols + format_cols + meta_cols) data);
       }
     in
@@ -1006,13 +1006,13 @@ let bind_playlist path pos stmt i (item : M3u.item) =
   Option.iter (fun (info : M3u.info) ->
     let* () = bind_text stmt (i + 3) info.title in
     let* () = bind_float stmt (i + 6) (float info.time) in
-    match Track.(artist_title (fields_of_name info.title)) with
+    match Data.(artist_title (fields_of_name info.title)) with
     | Some (artist, title) ->
       let* () = bind_text stmt (i + 4) artist in
       let* () = bind_text stmt (i + 5) title in
       ()
     | None ->
-      match Track.(pos_artist_title (fields_of_path path)) with
+      match Data.(pos_artist_title (fields_of_path path)) with
       | Some (_, artist, title) ->
         let* () = bind_text stmt (i + 4) artist in
         let* () = bind_text stmt (i + 5) title in

@@ -286,6 +286,157 @@ let string_of_date_time t =
     tm.tm_hour tm.tm_min tm.tm_sec
 
 
+let name_separator = String.make 80 '-'
+
+let fields_of_name name =
+  let len = String.length name in
+  let rec find i j =
+    if i >= len then [] else
+    if j >= len then [String.sub name i (len - i)] else
+    match String.index_from_opt name j '-' with
+    | Some j when j < len - 1 ->
+      if name.[j - 1] <> ' ' || name.[j + 1] <> ' ' then
+        find i (j + 2)
+      else
+        String.sub name i (j - i - 1) :: find (j + 2) (j + 4)
+    | _ -> [String.sub name i (len - i)]
+  in find 0 2
+
+let fields_of_path path =
+  if M3u.is_separator path then
+    [name_separator; name_separator]
+  else
+    fields_of_name File.(remove_extension (name path))
+
+let int_of_pos s =
+  match String.index_opt s '.' with
+  | None -> int_of_string_opt s
+  | Some i -> int_of_string_opt (String.sub s (i + 1) (String.length s - i - 1))
+
+let artist_title = function
+  | artist :: title :: rest -> Some (artist, String.concat " - " (title::rest))
+  | title :: [] -> Some ("[unknown]", title)
+  | [] -> None
+
+let pos_artist_title = function
+  | [] -> None
+  | ([_] | [_; _]) as fields ->
+    Option.map (fun (artist, title) -> -1, artist, title) (artist_title fields)
+  | pos :: rest ->
+    match int_of_pos pos, artist_title rest with
+    | Some pos, Some (artist, title) -> Some (pos - 1, artist, title)
+    | _, _ ->
+      Option.map (fun (artist, title) -> -1, artist, title) (artist_title rest)
+
+
+let nonzero zero f x = if x = zero then "" else f x
+let nonzero_int w x = nonzero 0 (fmt "%*d" w) x (* leading spaces for sorting *)
+let nonempty f x attr = match x with None -> "" | Some x -> f x attr
+let unknown f x attr = match nonempty f x attr with "" -> "[unknown]" | s -> s
+
+let file_attr_string path (file : file) = function
+  | `FilePath -> path
+  | `FileDir -> File.dir path
+  | `FileName -> File.name path
+  | `FileExt -> File.extension path
+  | `FileSize -> nonzero 0.0 (fmt "%3.1f MB") (float file.size /. 2.0 ** 20.0)
+  | `FileTime -> nonzero 0.0 string_of_date file.time
+
+let rec format_attr_string (format : Format.t) = function
+  | `Length -> nonzero 0.0 string_of_time format.time
+  | `Codec -> format.codec
+  | `Channels -> nonzero_int 2 format.channels
+  | `Depth ->
+    let depth = format.bitrate /. float format.rate /. float format.channels in
+    let fmts : _ format =
+      if float format.depth = Float.round depth then "%.0f" else "%.1f"
+    in nonzero 0.0 (fmt fmts) depth
+  | `SampleRate -> nonzero 0.0 (fmt "%3.1f KHz") (float format.rate /. 1000.0)
+  | `BitRate -> nonzero 0.0 (fmt "%4.0f kbps") (format.bitrate /. 1000.0)
+  | `Rate ->
+    let attr =
+      match format.codec with
+      | "MP3" | "OGG" | "OPUS" -> `BitRate
+      | _ -> `SampleRate
+    in format_attr_string format attr
+
+let rec meta_attr_string (meta : Meta.t) = function
+  | `Artist -> meta.artist
+  | `Title -> meta.title
+  | `AlbumArtist -> meta.albumartist
+  | `AlbumTitle -> meta.albumtitle
+  | `Track -> nonzero_int 3 meta.track
+  | `Tracks -> nonzero_int 3 meta.tracks
+  | `Disc -> nonzero_int 2 meta.disc
+  | `Discs -> nonzero_int 2 meta.discs
+  | `DiscTrack ->
+    if meta.disc = 0 then meta_attr_string meta `Track else
+    meta_attr_string meta `Disc ^ "." ^ fmt "%02d" meta.track
+  | `Date ->
+    if meta.date_txt = "" then nonzero_int 4 meta.year else meta.date_txt
+  | `Year -> nonzero_int 4 meta.year
+  | `Label -> meta.label
+  | `Country -> meta.country
+  | `Length -> nonzero 0.0 string_of_time meta.length
+  | `Rating ->
+    let star = "*" in  (* TODO: "★" *)
+    let len = String.length star in
+    String.init (meta.rating * len) (fun i -> star.[i mod len])
+  | `Cover -> nonempty (fun (pic : Meta.picture) () -> pic.data) meta.cover ()
+
+let artist_attr_string' attr path meta =
+  let s = nonempty meta_attr_string meta attr in
+  if s <> "" then s else
+  match pos_artist_title (fields_of_path path) with
+  | Some (_, artist, _) -> artist
+  | None -> "[unknown]"
+
+let title_attr_string' attr path meta =
+  let s = nonempty meta_attr_string meta attr in
+  if s <> "" then s else
+  match pos_artist_title (fields_of_path path) with
+  | Some (_, _, title) -> title
+  | None -> "[unknown]"
+
+let length_attr_string' format meta =
+  let s = nonempty format_attr_string format `Length in
+  if s <> "" then s else nonempty meta_attr_string meta `Length
+
+let artist_attr_string (artist : artist) = function
+  | `Artist -> artist.name
+  | `Tracks -> fmt "%4d" artist.tracks
+  | `Albums -> fmt "%3d" artist.albums
+
+let album_attr_string (album : album) = function
+  | `AlbumArtist -> artist_attr_string' `AlbumArtist album.path album.meta
+  | `AlbumTitle -> title_attr_string' `AlbumTitle album.path album.meta
+  | `Length -> length_attr_string' album.format album.meta
+  | #file_attr as attr -> file_attr_string album.path album.file attr
+  | #format_attr as attr -> nonempty format_attr_string album.format attr
+  | #meta_attr as attr -> nonempty meta_attr_string album.meta attr
+
+let track_attr_string (track : track) = function
+  | `Pos -> nonzero_int 3 (track.pos + 1)
+  | `Artist -> artist_attr_string' `Artist track.path track.meta
+  | `Title -> title_attr_string' `Title track.path track.meta
+  | `Length -> length_attr_string' track.format track.meta
+  | `AlbumArtist when not (M3u.is_separator track.path) ->
+    unknown meta_attr_string track.meta `AlbumArtist
+  | `AlbumTitle when not (M3u.is_separator track.path) ->
+    unknown meta_attr_string track.meta `AlbumTitle
+  | #file_attr as attr -> file_attr_string track.path track.file attr
+  | #format_attr as attr -> nonempty format_attr_string track.format attr
+  | #meta_attr as attr -> nonempty meta_attr_string track.meta attr
+
+let query_attr_string (track : track) = function
+  | #track_attr as attr -> track_attr_string track attr
+  | `True -> "T"
+  | `False -> "F"
+  | `Now -> string_of_date_time (Unix.gettimeofday ())
+  | `Random -> string_of_int (Random.int 0x1_0000_0000)
+  | `None -> assert false
+
+
 let string_of_order = function
   | `Asc -> "+"
   | `Desc -> "-"
@@ -421,6 +572,7 @@ let track_columns_of_string s = columns_of_string_add_cover 1 to_track_attr s
 module UCol = Camomile.UCol.Make (Camomile.UTF8)
 
 let compare_utf_8 s1 s2 = UCol.compare ~prec: `Primary s1 s2
+let compare_length s1 s2 = compare (String.length s1) (String.length s2)
 
 let compare_dir (dir1 : _ dir) (dir2 : _ dir) =
   match compare dir1.pos dir2.pos with
@@ -429,8 +581,8 @@ let compare_dir (dir1 : _ dir) (dir2 : _ dir) =
 
 let compare_attr : 'a. ([< any_attr] as 'a) -> _ = function
   | `Artist | `Title | `AlbumArtist | `AlbumTitle | `Country | `Label ->
-    fun s1 s2 -> compare_utf_8 s1 s2
-  | `Cover -> fun s1 s2 -> compare (String.length s1) (String.length s2)
+    compare_utf_8
+  | `Cover -> compare_length
   | _ -> compare
 
 let rec compare_attrs sorting ss1 ss2 =

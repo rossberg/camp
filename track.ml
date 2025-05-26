@@ -6,8 +6,6 @@ open Data
 
 (* Names *)
 
-let name_separator = String.make 80 '-'
-
 let name_of_path path =
   let file = File.name path in
   if Format.is_known_ext file then File.remove_extension file else file
@@ -30,47 +28,6 @@ let name track =
   match track.meta with
   | Some meta -> name_of_meta track.path meta
   | None -> name_of_path track.path
-
-
-let fields_of_name name =
-  let len = String.length name in
-  let rec find i j =
-    if i >= len then [] else
-    if j >= len then [String.sub name i (len - i)] else
-    match String.index_from_opt name j '-' with
-    | Some j when j < len - 1 ->
-      if name.[j - 1] <> ' ' || name.[j + 1] <> ' ' then
-        find i (j + 2)
-      else
-        String.sub name i (j - i - 1) :: find (j + 2) (j + 4)
-    | _ -> [String.sub name i (len - i)]
-  in find 0 2
-
-let fields_of_path path =
-  if M3u.is_separator path then
-    [name_separator; name_separator]
-  else
-    fields_of_name File.(remove_extension (name path))
-
-let int_of_pos s =
-  match String.index_opt s '.' with
-  | None -> int_of_string_opt s
-  | Some i -> int_of_string_opt (String.sub s (i + 1) (String.length s - i - 1))
-
-let artist_title = function
-  | artist :: title :: rest -> Some (artist, String.concat " - " (title::rest))
-  | title :: [] -> Some ("[unknown]", title)
-  | [] -> None
-
-let pos_artist_title = function
-  | [] -> None
-  | ([_] | [_; _]) as fields ->
-    Option.map (fun (artist, title) -> -1, artist, title) (artist_title fields)
-  | pos :: rest ->
-    match int_of_pos pos, artist_title rest with
-    | Some pos, Some (artist, title) -> Some (pos - 1, artist, title)
-    | _, _ ->
-      Option.map (fun (artist, title) -> -1, artist, title) (artist_title rest)
 
 
 let time track =
