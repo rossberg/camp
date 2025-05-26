@@ -284,16 +284,22 @@ t_lookup := !t_lookup +. (t1 -. t0);
     ) (File.read_dir dir.path);
 let t2 = now () in
 t_rescan := !t_rescan +. (t2 -. t1);
+(*
 List.iter (fun track -> Printf.printf "[old %s]\n%!" track.path) (List.map snd (Map.bindings !old_tracks));
+*)
     if !old_tracks <> Map.empty then
       Db.delete_tracks_bulk lib.db (List.map fst (Map.bindings !old_tracks));
     (* Parent may have been deleted in the mean time... *)
+(*
 List.iter (fun track -> Printf.printf "[new %s]\n%!" track.path) !new_tracks;
+*)
     if !new_tracks <> [] && Db.mem_dir lib.db dir.path then
       Db.insert_tracks_bulk lib.db !new_tracks;
 let t3 = now () in
 t_update := !t_update +. (t3 -. t2);
+(*
 Printf.printf "total lookup %.3fs rescan %.3fs update %.3fs (%s)\n%!" !t_lookup !t_rescan !t_update dir.path;
+*)
     !old_tracks <> Map.empty || !new_tracks <> []
   with exn ->
     Storage.log_exn "file" exn ("scanning tracks in directory " ^ dir.path);
@@ -595,11 +601,13 @@ let load_dirs lib =
   lib.root <- List.hd !dirs;
   ignore (treeify lib.root [] (List.tl !dirs));
 
+(*
 let t1 = now () in
 Db.iter_tracks lib.db ignore;  (* warm up cache *)
 let t2 = now () in
 Printf.printf "warmup %.3fs\n%!" (t2 -. t1);
 Db.warmup := false;
+*)
   rescan_root lib `Quick
 
 

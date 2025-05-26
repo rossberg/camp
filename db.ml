@@ -571,7 +571,6 @@ let create_tracks = create_table
 
 let track_cols = 24
 
-let warmup = ref true
 let to_track i data : track =
   let id = to_id i data in
   match Map.find_opt id !tracks_cache with
@@ -579,7 +578,6 @@ let to_track i data : track =
   | None ->
     let i = i + 1 in
     let path = to_text_default (i + 0) data in
-if not !warmup then Printf.printf "[cache miss %s]\n%!" path;
     let track =
       {
         path = path;
@@ -609,6 +607,12 @@ let bind_track stmt i (track : track) =
   return
 
 
+let init_cache db = (stmt
+  "
+    SELECT rowid, * FROM Tracks;
+  " |> iter_table [||] (to_track 0)) db ignore
+
+
 let count_tracks = stmt
   "
     SELECT COUNT(*) FROM Tracks;
@@ -626,22 +630,22 @@ let mem_track = stmt
 
 let find_track = stmt
   "
-    SELECT rowid, * FROM Tracks WHERE path = ?;
+    SELECT rowid FROM Tracks WHERE path = ?;
   " |> find_in_table (to_track 0)
 
 let iter_tracks = stmt
   "
-    SELECT rowid, * FROM Tracks;
+    SELECT rowid FROM Tracks;
   " |> iter_table [||] (to_track 0)
 
 let iter_tracks_for_path = stmt
   "
-    SELECT rowid, * FROM Tracks WHERE path LIKE ? AND NOT (path LIKE ?);
+    SELECT rowid FROM Tracks WHERE path LIKE ? AND NOT (path LIKE ?);
   " |> iter_table_prefix_except (to_track 0)
 
 let iter_tracks_for_path_rec = stmt
   "
-    SELECT rowid, * FROM Tracks WHERE path LIKE ?;
+    SELECT rowid FROM Tracks WHERE path LIKE ?;
   " |> iter_table_prefix (to_track 0)
 
 let insert_track = stmt @@
@@ -838,8 +842,7 @@ let albums_fields =
 
 let iter_tracks_for_path_single = stmt @@
   "
-    SELECT rowid, " ^ tracks_fields ^ "
-    FROM Tracks
+    SELECT rowid FROM Tracks
     WHERE path LIKE ?1
       AND (?2 = '%' OR artist = ?2 OR albumartist = ?2)
       AND (?3 = '%' OR albumtitle = ?3);
@@ -850,8 +853,7 @@ let iter_tracks_for_path_single = stmt @@
 
 let iter_tracks_for_path_multi db path artist albums = stmt @@
   "
-    SELECT rowid, " ^ tracks_fields ^ "
-    FROM Tracks
+    SELECT rowid FROM Tracks
     WHERE path LIKE ?1
       AND (?2 = '%' OR artist = ?2 OR albumartist = ?2)
       AND (albumtitle IN " ^ tuple 3 (Array.length albums) ^ ");
@@ -863,8 +865,7 @@ let iter_tracks_for_path_multi db path artist albums = stmt @@
 
 let iter_tracks_for_path_search db path artists albums search = stmt @@
   artists_table 2 artists ^ "
-    SELECT rowid, " ^ tracks_fields ^ "
-    FROM Tracks
+    SELECT rowid FROM Tracks
     " ^ artists_filter 2 artists ^ "
     WHERE path LIKE ?1
     " ^ albums_filter (2 + Array.length artists) albums ^ "
@@ -1322,6 +1323,7 @@ let init () =
   create_dirs db;
   create_tracks db;
   create_playlists db;
+  init_cache db;
   db
 
 let exit db =
