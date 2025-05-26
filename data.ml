@@ -66,6 +66,31 @@ type 'query dir =
   mutable tracks_sorting : track_attr sorting;
 }
 
+type memo =
+{
+  mutable pos : string;
+  mutable file_size : string;
+  mutable file_time : string;
+  mutable artist : string;
+  mutable title : string;
+  mutable album_artist : string;
+  mutable album_title : string;
+  mutable length : string;
+  mutable channels : string;
+  mutable depth : string;
+  mutable sample_rate : string;
+  mutable bit_rate : string;
+  mutable rate : string;
+  mutable track : string;
+  mutable tracks : string;
+  mutable disc : string;
+  mutable discs : string;
+  mutable disc_track : string;
+  mutable date : string;
+  mutable year : string;
+  mutable rating : string;
+}
+
 type file =
 {
   mutable size : int;
@@ -86,6 +111,7 @@ type album =
   file : file;
   mutable format : Format.t option;
   mutable meta : Meta.t option;
+  mutable memo : memo option;
 }
 
 type track =
@@ -97,6 +123,7 @@ type track =
   mutable album : album option;
   mutable pos : int;
   mutable status : [`Undet | `Predet | `Det | `Invalid | `Absent];
+  mutable memo : memo option;
 }
 
 
@@ -242,6 +269,7 @@ let make_album path : album =
     file = make_file ();
     format = None;
     meta = None;
+    memo = None;
   }
 
 let make_track path : track =
@@ -253,6 +281,32 @@ let make_track path : track =
     album = None;
     pos = -1;
     status = `Undet;
+    memo = None;
+  }
+
+let make_memo () : memo =
+  {
+    pos = "";
+    file_size = "";
+    file_time = "";
+    artist = "";
+    title = "";
+    album_artist = "";
+    album_title = "";
+    length = "";
+    channels = "";
+    depth = "";
+    sample_rate = "";
+    bit_rate = "";
+    rate = "";
+    track = "";
+    tracks = "";
+    disc = "";
+    discs = "";
+    disc_track = "";
+    date = "";
+    year = "";
+    rating = "";
   }
 
 let make_separator () : track =
@@ -407,7 +461,7 @@ let artist_attr_string (artist : artist) = function
   | `Tracks -> fmt "%4d" artist.tracks
   | `Albums -> fmt "%3d" artist.albums
 
-let album_attr_string (album : album) = function
+let album_attr_string' (album : album) = function
   | `AlbumArtist -> artist_attr_string' `AlbumArtist album.path album.meta
   | `AlbumTitle -> title_attr_string' `AlbumTitle album.path album.meta
   | `Length -> length_attr_string' album.format album.meta
@@ -415,7 +469,7 @@ let album_attr_string (album : album) = function
   | #format_attr as attr -> nonempty format_attr_string album.format attr
   | #meta_attr as attr -> nonempty meta_attr_string album.meta attr
 
-let track_attr_string (track : track) = function
+let track_attr_string' (track : track) = function
   | `Pos -> nonzero_int 3 (track.pos + 1)
   | `Artist -> artist_attr_string' `Artist track.path track.meta
   | `Title -> title_attr_string' `Title track.path track.meta
@@ -427,6 +481,96 @@ let track_attr_string (track : track) = function
   | #file_attr as attr -> file_attr_string track.path track.file attr
   | #format_attr as attr -> nonempty format_attr_string track.format attr
   | #meta_attr as attr -> nonempty meta_attr_string track.meta attr
+
+let attr_string' get_memo set_memo f x attr =
+  match (attr :> track_attr) with
+  | `FilePath | `FileDir | `FileName | `FileExt
+  | `Codec | `Label | `Country | `Cover ->
+    f x attr
+  | _ ->
+    let memo =
+      match get_memo x with
+      | Some memo -> memo
+      | None -> let memo = make_memo () in set_memo x (Some memo); memo
+    in
+    match attr with
+    | `Pos ->
+      if memo.pos <> "" then memo.pos else
+      let s = f x attr in memo.pos <- s; s
+    | `FileSize ->
+      if memo.file_size <> "" then memo.file_size else
+      let s = f x attr in memo.file_size <- s; s
+    | `FileTime ->
+      if memo.file_time <> "" then memo.file_time else
+      let s = f x attr in memo.file_time <- s; s
+    | `Length ->
+      if memo.length <> "" then memo.length else
+      let s = f x attr in memo.length <- s; s
+    | `Channels ->
+      if memo.channels <> "" then memo.channels else
+      let s = f x attr in memo.channels <- s; s
+    | `Depth ->
+      if memo.depth <> "" then memo.depth else
+      let s = f x attr in memo.depth <- s; s
+    | `SampleRate ->
+      if memo.sample_rate <> "" then memo.sample_rate else
+      let s = f x attr in memo.sample_rate <- s; s
+    | `BitRate ->
+      if memo.bit_rate <> "" then memo.bit_rate else
+      let s = f x attr in memo.bit_rate <- s; s
+    | `Rate ->
+      if memo.rate <> "" then memo.rate else
+      let s = f x attr in memo.rate <- s; s
+    | `Artist ->
+      if memo.artist <> "" then memo.artist else
+      let s = f x attr in memo.artist <- s; s
+    | `Title ->
+      if memo.title <> "" then memo.title else
+      let s = f x attr in memo.title <- s; s
+    | `AlbumArtist ->
+      if memo.album_artist <> "" then memo.album_artist else
+      let s = f x attr in memo.album_artist <- s; s
+    | `AlbumTitle ->
+      if memo.album_title <> "" then memo.album_title else
+      let s = f x attr in memo.album_title <- s; s
+    | `Track ->
+      if memo.track <> "" then memo.track else
+      let s = f x attr in memo.track <- s; s
+    | `Tracks ->
+      if memo.tracks <> "" then memo.tracks else
+      let s = f x attr in memo.tracks <- s; s
+    | `Disc ->
+      if memo.disc <> "" then memo.disc else
+      let s = f x attr in memo.disc <- s; s
+    | `Discs ->
+      if memo.discs <> "" then memo.discs else
+      let s = f x attr in memo.discs <- s; s
+    | `DiscTrack ->
+      if memo.disc_track <> "" then memo.disc_track else
+      let s = f x attr in memo.disc_track <- s; s
+    | `Date ->
+      if memo.date <> "" then memo.date else
+      let s = f x attr in memo.date <- s; s
+    | `Year ->
+      if memo.year <> "" then memo.year else
+      let s = f x attr in memo.year <- s; s
+    | `Rating ->
+      if memo.rating <> "" then memo.rating else
+      let s = f x attr in memo.rating <- s; s
+    | `FilePath | `FileDir | `FileName | `FileExt
+    | `Codec | `Label | `Country | `Cover ->
+      assert false
+
+let get_album_memo (album : album) = album.memo
+let get_track_memo (track : track) = track.memo
+let set_album_memo (album : album) memo = album.memo <- memo
+let set_track_memo (track : track) memo = track.memo <- memo
+
+let album_attr_string (album : album) (attr : album_attr) =
+  attr_string' get_album_memo set_album_memo album_attr_string' album attr
+
+let track_attr_string (track : track) attr =
+  attr_string' get_track_memo set_track_memo track_attr_string' track attr
 
 let query_attr_string (track : track) = function
   | #track_attr as attr -> track_attr_string track attr

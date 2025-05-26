@@ -518,6 +518,7 @@ let to_album i data : album =
     file = to_file (i + 1) data;
     format = to_format (i + 1 + file_cols) data;
     meta = to_meta (i + 1 + file_cols + format_cols) data;
+    memo = None;
   }
 
 let bind_album stmt i (album : album) =
@@ -581,6 +582,7 @@ let to_track i data : track =
         album = None;
         pos = (match Data.(pos_artist_title (fields_of_path path)) with Some (i, _, _) -> i | None -> -1);
         status = to_status (to_int_default (i + 1 + file_cols + format_cols + meta_cols) data);
+        memo = None;
       }
     in
     tracks_cache := Map.add path track !tracks_cache;
