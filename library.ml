@@ -93,11 +93,12 @@ let try_refresh action busy =
     true
 
 let rec refresher scan () =
-  ignore (
+  if not (
     try_refresh scan.artists_refresh scan.artists_busy ||
     try_refresh scan.albums_refresh scan.albums_busy ||
     try_refresh scan.tracks_refresh scan.tracks_busy
-  );
+  ) then
+    Unix.sleepf 0.05;
   refresher scan ()
 
 let rec scanner scan queue busy () =
