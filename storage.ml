@@ -22,6 +22,8 @@ let data_dir =
 let path filename =
   File.(data_dir // filename)
 
+let _ = if not (File.exists data_dir) then File.create_dir data_dir
+
 
 (* Temporary Files *)
 
@@ -86,6 +88,12 @@ let load filename f =
   with Sys_error _ | End_of_file | Scanf.Scan_failure _ | Failure _ as exn ->
     log_io_error "loading" filename exn
 
+let load_opt filename f =
+  try
+    if File.exists (path filename) then load filename f
+  with Sys_error _ | Failure _ as exn ->
+    log_io_error "loading" filename exn
+
 let save filename f =
   try
     if not (File.exists data_dir) then File.create_dir data_dir;
@@ -141,7 +149,7 @@ let string_of_map map =
 
 let load_map filename =
   let map = ref Map.empty in
-  load filename (fun file -> map := map_of_string (In_channel.input_all file));
+  load_opt filename (fun file -> map := map_of_string (In_channel.input_all file));
   !map
 
 let save_map filename map =

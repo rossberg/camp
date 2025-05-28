@@ -262,7 +262,7 @@ let save_playlist pl =
   )
 
 let load_playlist pl =
-  Storage.load playlist_file (fun file ->
+  Storage.load_opt playlist_file (fun file ->
     Table.set pl.table (Track.of_m3u (In_channel.input_all file))
   )
 

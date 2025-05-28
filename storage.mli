@@ -23,6 +23,7 @@ val log_clear : unit -> unit
 (* Loading & Saving *)
 
 val load : path -> (in_channel -> unit) -> unit
+val load_opt : path -> (in_channel -> unit) -> unit
 val save : path -> (out_channel -> unit) -> unit
 val append : path -> (out_channel -> unit) -> unit
 
