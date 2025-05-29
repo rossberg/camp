@@ -127,10 +127,11 @@ let run_control (st : _ State.t) =
     Option.iter (fun (track : Data.track) ->
       Option.iter (fun img ->
         let x, y, w, h = Ui.dim lay.ui (Layout.cover_area lay) in
-        let iw, _ = Api.Image.size img in
-        Api.Draw.clip win x y w h;
-        Api.Draw.image win x y (float w /. float iw) img;
-        Api.Draw.unclip win;
+        let iw, ih = Api.Image.size img in
+        let q = float w /. float h in
+        let iq = float iw /. float ih in
+        let ih' = int_of_float (float ih *. iq /. q) in
+        Api.Draw.image_part win x y w h 0 0 iw ih' img;
       ) (Library.load_cover st.library win track.path)
     ) ctl.current
   );

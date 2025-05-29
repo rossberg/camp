@@ -546,9 +546,7 @@ let button ui r ?(protrude=true) modkey focus active =
   let (x, y, w, h), status = element ui r modkey ~focus in
   let img = get_img ui ui.img_button in
   let sx, sy = if status = `Pressed then 800, 400 else 0, 200 in
-  Draw.clip ui.win x y w h;
-  Draw.image ui.win (x - sx) (y - sy) 1.0 img;
-  Draw.unclip ui.win;
+  Api.Draw.image_part ui.win x y w h sx sy w h img;
   if status <> `Pressed then
   (
     Draw.line ui.win (x + 2) (y + 1) (x + 2) (y + h - 2) (`Gray 0x50);
@@ -792,8 +790,11 @@ let table' ui area gw ch cols rows hscroll =
             (`Trans (bg, 0)) `Horizontal bg;
         )
       | `Image img ->
-        let iw, _ = Image.size img in
-        Draw.image ui.win !cx cy (float cw /. float iw) img;
+        let iw, ih = Api.Image.size img in
+        let q = float cw /. float ch in
+        let iq = float iw /. float ih in
+        let ih' = int_of_float (float ih *. iq /. q) in
+        Api.Draw.image_part ui.win !cx cy cw ch 0 0 iw ih' img;
       );
       Draw.unclip ui.win;
       cx := !cx + cw + gw;
@@ -1263,9 +1264,7 @@ let grid' ui area gw iw ch matrix =
         let scale = float iw /. float (max iw' ih') in
         let dx = int_of_float ((float iw -. scale *. float iw') /. 2.0) in
         let dy = int_of_float ((float iw -. scale *. float ih') /. 2.0) in
-        Draw.clip ui.win x y w h;
-        Draw.image ui.win (cx + dx) (cy + dy) scale img; 
-        Draw.unclip ui.win;
+        Api.Draw.image_part ui.win (cx + dx) (cy + dy) (iw - 2*dx) (iw - 2*dy) 0 0 iw' ih' img;
         let tw = Draw.text_width ui.win ch font txt in
         let dx = max 0 ((iw - tw - 2) / 2) in
         let fg, bg = if inv = `Inverted then `Black, c else c, `Black in

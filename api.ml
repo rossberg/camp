@@ -360,6 +360,12 @@ struct
     let v = vec2_of_point (x, y) in
     Raylib.draw_texture_ex img v 0.0 scale Raylib.Color.white
 
+  let image_part () x y w h x' y' w' h' img =
+    let r' = Raylib.Rectangle.create (float x') (float y') (float w') (float h') in
+    let r = Raylib.Rectangle.create (float x) (float y) (float w) (float h) in
+    let v = vec2_of_point (0, 0) in
+    Raylib.draw_texture_pro img r' r v 0.0 Raylib.Color.white
+
   let buffer () x y buf =
     let w, h = Buffer.size buf in
     let r = Raylib.Rectangle.create 0.0 0.0 (float w) (-. float h) in

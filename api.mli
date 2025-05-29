@@ -145,6 +145,7 @@ sig
   val text_width : window -> int -> font -> string -> int
   val text_spacing : window -> int -> font -> int
   val image : window -> int -> int -> float -> image -> unit
+  val image_part : window -> int -> int -> int -> int -> int -> int -> int -> int -> image -> unit
   val buffer : window -> int -> int -> buffer -> unit
 end
 
