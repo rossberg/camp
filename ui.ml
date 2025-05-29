@@ -755,21 +755,27 @@ type heading = string array * sorting
 let table' ui area gw ch cols rows hscroll =
   let x, y, w, h = dim ui area in
   Draw.fill ui.win x y w h `Black;
-  let mw = (gw + 1)/2 in
+  let mw = (gw + 1)/2 in  (* inner width padding *)
   let flex = max 0
     (w - Array.fold_left (fun w (cw, _) -> w + cw + gw) (2 * mw - gw + 1) cols) in
   let font = font ui ch in
-  Array.iteri (fun j (fg, inv, contents) ->
+  (* Draw row background first since it must be unclipped. *)
+  Array.iteri (fun j (fg, inv, _contents) ->
     let cy = y + j * ch in
     let bg = if j mod 2 = 0 then `Black else `Gray 0x10 in
-    let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
-    if bg <> `Black then Draw.fill ui.win x cy w ch bg;
-    let cx = ref (x + mw - hscroll) in
-    Array.iteri (fun i (cw, align) ->
-      let cw = if cw < 0 then flex / (- cw) else cw in
-      let cw' = min cw (x + w - mw - !cx) in
-      let left = max !cx (x + mw) in
-      Draw.clip ui.win left cy (cw' - max 0 (left - !cx)) ch;
+    let bg = if inv = `Inverted then fg else bg in
+    if bg <> `Black then Draw.fill ui.win x cy w ch bg
+  ) rows;
+  let cx = ref (x + mw - hscroll) in
+  Array.iteri (fun i (cw, align) ->
+    let cw = if cw < 0 then flex / (- cw) else cw in
+    let cw' = min cw (x + w - mw - !cx) in
+    let left = max !cx (x + mw) in
+    Draw.clip ui.win left y (cw' - max 0 (left - !cx)) h;
+    Array.iteri (fun j (fg, inv, contents) ->
+      let cy = y + j * ch in
+      let bg = if j mod 2 = 0 then `Black else `Gray 0x10 in
+      let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
       (match contents.(i) with
       | `Text text ->
         let tw = Draw.text_width ui.win ch font text in
@@ -795,11 +801,11 @@ let table' ui area gw ch cols rows hscroll =
         let iq = float iw /. float ih in
         let ih' = int_of_float (float ih *. iq /. q) in
         Api.Draw.image_part ui.win !cx cy cw ch 0 0 iw ih' img;
-      );
-      Draw.unclip ui.win;
-      cx := !cx + cw + gw;
-    ) cols
-  ) rows
+      )
+    ) rows;
+    Draw.unclip ui.win;
+    cx := !cx + cw + gw;
+  ) cols
 
 let table ui area gw ch cols rows hscroll =
   let (_, y, _, _), status = element ui area no_modkey in
@@ -1255,11 +1261,17 @@ let grid' ui area gw iw ch matrix =
   Draw.fill ui.win x y w h `Black;
   let mw = (gw + 1)/2 in
   let font = font ui ch in
-  Array.iteri (fun j row ->
-    let cy = y + mw + j * (iw + gw + ch) in
-    Array.iteri (fun i cell_opt ->
+  let nrows = Array.length matrix in
+  let ncols = if nrows = 0 then 0 else Array.length matrix.(0) in
+  for i = 0 to ncols - 1 do
+    let cx = x + mw + i * (iw + gw) in
+    Draw.clip ui.win (cx - 1) y (iw + 2) h;
+    for j = 0 to nrows - 1 do
       Option.iter (fun (img, c, inv, txt) ->
-        let cx = x + mw + i * (iw + gw) in
+        let cy = y + mw + j * (iw + gw + ch) in
+        let fg, bg = if inv = `Inverted then `Black, c else c, `Black in
+        if bg <> `Black then
+          Draw.fill ui.win (cx - 1) (cy - 1) (iw + 2) (iw + ch + 2) bg;
         let iw', ih' = Image.size img in
         let scale = float iw /. float (max iw' ih') in
         let dx = int_of_float ((float iw -. scale *. float iw') /. 2.0) in
@@ -1267,26 +1279,18 @@ let grid' ui area gw iw ch matrix =
         Api.Draw.image_part ui.win (cx + dx) (cy + dy) (iw - 2*dx) (iw - 2*dy) 0 0 iw' ih' img;
         let tw = Draw.text_width ui.win ch font txt in
         let dx = max 0 ((iw - tw - 2) / 2) in
-        let fg, bg = if inv = `Inverted then `Black, c else c, `Black in
-        let cliph = clamp 0 ch ((y + h) - (cy + iw)) in
-        if bg <> `Black then
-        (
-          Draw.clip ui.win cx (cy + iw) iw cliph;
-          Draw.fill ui.win cx (cy + iw) iw ch bg;
-          Draw.unclip ui.win;
-        );
-        Draw.clip ui.win (cx + 1) (cy + iw) (iw - 2) cliph;
         Draw.text ui.win (cx + dx + 1) (cy + iw) ch fg font txt;
         if tw > iw - 2 then
         (
           let rw = min (iw - 2) 16 in
-          Draw.gradient ui.win (cx + iw - rw) (cy + iw) rw ch
+          Draw.gradient ui.win (cx + iw - rw + 1) (cy + iw) rw ch
             (`Trans (bg, 0)) `Horizontal bg;
         );
-        Draw.unclip ui.win;
-      ) cell_opt
-    ) row
-  ) matrix
+      ) matrix.(j).(i)
+    done;
+    Draw.unclip ui.win
+  done
+
 
 let grid ui area gw iw ch matrix =
   let (x, y, _, _), status = element ui area no_modkey in
