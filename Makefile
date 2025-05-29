@@ -15,6 +15,9 @@ mac: $(NAME).exe $(ASSETS)
 	cp -rf platform/mac/* assets $(NAME).exe $(NAME).app/Contents
 	chmod +x $(NAME).app/Contents/MacOS/run.sh
 
+mac-debug: mac
+	codesign -s - -v -f --entitlements platform/mac-debug/debug.plist $(NAME).exe
+
 $(APPNAME)/%.dll:
 	cp `which $(@F)` $@
 
