@@ -1,10 +1,11 @@
 (* File Management *)
 
+type file = string
 type path = string
 
 (* Path to local storage *)
 
-val path : string -> path
+val path : file -> path
 
 val home_dir : path
 
@@ -22,10 +23,10 @@ val log_clear : unit -> unit
 
 (* Loading & Saving *)
 
-val load : path -> (in_channel -> unit) -> unit
-val load_opt : path -> (in_channel -> unit) -> unit
-val save : path -> (out_channel -> unit) -> unit
-val append : path -> (out_channel -> unit) -> unit
+val load : file -> (in_channel -> unit) -> unit
+val load_opt : file -> (in_channel -> unit) -> unit
+val save : file -> (out_channel -> unit) -> unit
+val append : file -> (out_channel -> unit) -> unit
 
 (* Key/value files *)
 

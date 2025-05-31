@@ -381,6 +381,7 @@ let to_dir i data : Query.expr dir =
     parent = to_text_opt (i + 1) data;
     name = to_text (i + 2) data;
     children = [||];
+    tracks = [||];
     pos = to_int (i + 3) data;
     nest = to_int (i + 4) data;
     search = to_text (i + 6) data;

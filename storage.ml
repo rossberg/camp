@@ -5,6 +5,7 @@ open Audio_file
 
 (* Directories *)
 
+type file = string
 type path = string
 
 module Dirs = Directories.Base_dirs ()
@@ -97,7 +98,14 @@ let load_opt filename f =
 let save filename f =
   try
     if not (File.exists data_dir) then File.create_dir data_dir;
-    File.with_open_out `Bin (path filename) f
+    let path = path filename in
+    let old_path = path ^ ".old" in
+    let new_path = path ^ ".new" in
+    if File.exists new_path then File.delete new_path;
+    File.with_open_out `Bin (path ^ ".new") f;
+    if File.exists path then File.move path old_path;
+    File.move new_path path;
+    if File.exists old_path then File.delete old_path;
   with Sys_error _ as exn ->
     log_io_error "saving" filename exn
 

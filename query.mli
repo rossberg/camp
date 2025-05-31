@@ -27,8 +27,9 @@ type query = {expr : expr; sort : (key * order) list}
 val parse_expr : string -> (expr, string) result
 val parse_query : string -> (query, string) result
 
-val check : expr -> Data.track -> bool
 val value : key -> Data.track -> value
+val check : expr -> Data.track -> bool
+val exec : expr -> query Data.dir -> Data.track array
 
 val string_of_key : key -> string
 val string_of_value : value -> string

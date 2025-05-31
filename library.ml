@@ -208,7 +208,7 @@ let attr_align attr = snd (attr_prop (attr :> any_attr))
 
 type scan_mode = [`Quick | `Thorough]
 
-let rescan_track'' _lib mode track =
+let rescan_track'' _lib mode (track : track) =
   let old = {track with path = track.path} in
   try
     if not (File.exists track.path) then
@@ -248,7 +248,7 @@ let rescan_track'' _lib mode track =
     Storage.log_exn "file" exn ("scanning track " ^ track.path);
     false
 
-let rescan_track' lib mode track =
+let rescan_track' lib mode (track : track) =
   let changed = rescan_track'' lib mode track in
   if changed then
     Db.insert_track lib.db track;
@@ -264,6 +264,7 @@ let rescan_dir_tracks' lib mode (dir : dir) =
 let t0 = now () in
     let new_tracks = ref [] in
     let old_tracks = ref Map.empty in
+    let all_tracks = Dynarray.create () in
     Db.iter_tracks_for_path lib.db dir.path (fun track ->
       old_tracks := Map.add track.path track !old_tracks
     );
@@ -278,10 +279,12 @@ t_lookup := !t_lookup +. (t1 -. t0);
           | Some track -> old_tracks := Map.remove path !old_tracks; track
           | None -> Data.make_track path
         in
+        Dynarray.add_last all_tracks track;
         if rescan_track'' lib mode track then
           new_tracks := track :: !new_tracks
       )
     ) (File.read_dir dir.path);
+    dir.tracks <- Dynarray.to_array all_tracks;
 let t2 = now () in
 t_rescan := !t_rescan +. (t2 -. t1);
 (*
@@ -426,7 +429,7 @@ and rescan_viewlist lib mode path =
   Safe_queue.add (true, path, fun () -> rescan_viewlist' lib mode path)
     lib.scan.file_queue
 
-and rescan_track lib mode track =
+and rescan_track lib mode (track : track) =
   Safe_queue.add (true, track.path, fun () -> rescan_track' lib mode track)
     lib.scan.file_queue
 
@@ -450,7 +453,7 @@ let rescan_busy lib =
 
 let length_browser lib = Table.length lib.browser
 
-let has_track lib track =
+let has_track lib (track : track) =
   let hasset, hasntset = lib.has_track in
   if Set.mem track.path hasset then
     true
@@ -728,7 +731,7 @@ let album_key (album : album) = (*album.track*)  (* TODO *)
   | None -> "[unknown]"
   | Some meta -> meta.albumtitle
 
-let track_key lib =
+let track_key lib : track -> string =
   if current_is_playlist lib || current_is_viewlist lib then
     fun track -> string_of_int track.pos
   else
@@ -813,7 +816,7 @@ let refresh_tracks_sync lib =
               (fun track -> tracks := track :: !tracks);
             let tracks' =
               sort_entries (Array.of_list !tracks) query.sort query_attr_string in
-            Array.iteri (fun pos track -> track.pos <- pos; f track) tracks'
+            Array.iteri (fun pos (track : track) -> track.pos <- pos; f track) tracks'
           )
         ) (viewlist_query lib dir)
     )
@@ -1092,7 +1095,7 @@ let remove_if p lib n =
   (
     let order = normalize_playlist lib in
     let js = Table.remove_if p lib.tracks n in
-    Array.iter (fun track -> track.pos <- js.(track.pos)) lib.tracks.entries;
+    Array.iter (fun (track : track) -> track.pos <- js.(track.pos)) lib.tracks.entries;
     restore_playlist lib order;
     save_playlist lib;
     refresh_artists_albums_sync lib;  (* could be slow... *)
@@ -1132,7 +1135,8 @@ let move_selected lib d =
   (
     let order = normalize_playlist lib in
     let js = Table.move_selected lib.tracks d in
-    Array.iter (fun track -> track.pos <- js.(track.pos)) lib.tracks.entries;
+    Array.iter (fun (track : track) -> track.pos <- js.(track.pos))
+      lib.tracks.entries;
     restore_playlist lib order;
     save_playlist lib;
   )
@@ -1141,14 +1145,14 @@ let move_selected lib d =
 let undo lib =
   let order = normalize_playlist lib in
   Table.pop_undo lib.tracks;
-  Array.iteri (fun i track -> track.pos <- i) lib.tracks.entries;
+  Array.iteri (fun i (track : track) -> track.pos <- i) lib.tracks.entries;
   restore_playlist lib order;
   save_playlist lib
 
 let redo lib =
   let order = normalize_playlist lib in
   Table.pop_redo lib.tracks;
-  Array.iteri (fun i track -> track.pos <- i) lib.tracks.entries;
+  Array.iteri (fun i (track : track) -> track.pos <- i) lib.tracks.entries;
   restore_playlist lib order;
   save_playlist lib
 
@@ -1247,3 +1251,23 @@ let of_map lib m =
   );
   read_map m "lib_cover" (fun s -> lib.cover <- scan s "%d" bool);
   refresh_artists_albums_tracks lib
+
+
+let clear_track (track : track) = track.memo <- None
+
+let rec clear_dir (dir : dir) =
+  Array.iter clear_dir dir.children;
+  Array.iter clear_track dir.tracks
+
+let library_name = "library.bin"
+
+let save_db lib =
+  Storage.save library_name (fun oc ->
+    clear_dir lib.root;
+    Marshal.to_channel oc lib.root []
+  )
+
+let load_db lib =
+  Storage.load library_name (fun ic ->
+    lib.root <- (Marshal.from_channel ic : dir)
+  )

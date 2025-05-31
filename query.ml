@@ -57,7 +57,7 @@ let meta_value (meta_opt : Meta.t option) =
   | `Rating -> IntV meta.rating
   | `Cover -> BoolV (meta.cover <> None)
 
-let value key track =
+let value key (track : track) =
   match key with
   | `True -> BoolV true
   | `False -> BoolV false
@@ -290,6 +290,19 @@ and check q track =
   match eval q track with
   | BoolV b -> b
   | _ -> assert false
+
+
+let exec_track q a track =
+  if check q track then Dynarray.add_last a track
+
+let rec exec_dir q a (dir : _ dir) =
+  Array.iter (exec_dir q a) dir.children;
+  Array.iter (exec_track q a) dir.tracks
+
+let exec q dir =
+  let a = Dynarray.create () in
+  exec_dir q a dir;
+  Dynarray.to_array a
 
 
 (* Parsing *)

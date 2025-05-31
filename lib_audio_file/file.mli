@@ -64,6 +64,7 @@ val with_open_append : mode -> path -> (out_channel -> 'a) -> 'a
 val load : mode -> path -> string
 val store : mode -> path -> string -> unit
 val copy : path -> path -> unit
+val move : path -> path -> unit
 val delete : path -> unit
 
 val make_writable : path -> unit

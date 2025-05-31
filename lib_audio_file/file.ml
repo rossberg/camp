@@ -232,6 +232,8 @@ let copy src_path dst_path =
   );
   set_time dst_path (time src_path)
 
+let move src_path dst_path = Unix.rename (normalize src_path) (normalize dst_path)
+
 let delete path = Sys.remove (normalize path)
 
 let make_writable path = Unix.chmod (normalize path) 0o660

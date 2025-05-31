@@ -52,6 +52,9 @@ val to_map_extra : 'a t -> Storage.map
 
 val save_playlist : 'a t -> unit
 
+val save_db : 'a t -> unit
+val load_db : 'a t -> unit
+
 
 (* Scanning *)
 

@@ -42,28 +42,18 @@ type display = [`Table | `Grid]
 
 (* Data *)
 
-type 'query dir =
+type file =
 {
-  path : path;  (* primary *)
-  parent : path option;
-  nest : int;
-  mutable name : string;
-  mutable pos : int;
-  mutable children : 'query dir array;
-  mutable search : string;
-  mutable query : 'query option;
-  mutable folded : bool;
-  mutable artists_shown : bool;
-  mutable albums_shown : display option;
-  mutable tracks_shown : display option;
-  mutable divider_width : int;
-  mutable divider_height : int;
-  mutable artists_columns : artist_attr columns;
-  mutable albums_columns : album_attr columns;
-  mutable tracks_columns : track_attr columns;
-  mutable artists_sorting : artist_attr sorting;
-  mutable albums_sorting : album_attr sorting;
-  mutable tracks_sorting : track_attr sorting;
+  mutable size : int;
+  mutable time : date;
+  mutable age : date;
+}
+
+type artist =
+{
+  name : string;  (* primary *)
+  mutable albums : int;
+  mutable tracks : int;
 }
 
 type memo =
@@ -91,20 +81,6 @@ type memo =
   mutable rating : string;
 }
 
-type file =
-{
-  mutable size : int;
-  mutable time : date;
-  mutable age : date;
-}
-
-type artist =
-{
-  name : string;  (* primary *)
-  mutable albums : int;
-  mutable tracks : int;
-}
-
 type album =
 {
   path : path;  (* primary *)
@@ -124,6 +100,31 @@ type track =
   mutable pos : int;
   mutable status : [`Undet | `Predet | `Det | `Invalid | `Absent];
   mutable memo : memo option;
+}
+
+type 'query dir =
+{
+  path : path;  (* primary *)
+  parent : path option;
+  nest : int;
+  mutable name : string;
+  mutable pos : int;
+  mutable children : 'query dir array;
+  mutable tracks : track array;
+  mutable search : string;
+  mutable query : 'query option;
+  mutable folded : bool;
+  mutable artists_shown : bool;
+  mutable albums_shown : display option;
+  mutable tracks_shown : display option;
+  mutable divider_width : int;
+  mutable divider_height : int;
+  mutable artists_columns : artist_attr columns;
+  mutable albums_columns : album_attr columns;
+  mutable tracks_columns : track_attr columns;
+  mutable artists_sorting : artist_attr sorting;
+  mutable albums_sorting : album_attr sorting;
+  mutable tracks_sorting : track_attr sorting;
 }
 
 
@@ -230,6 +231,7 @@ let make_dir path parent nest pos : 'a dir =
     nest;
     pos;
     children = [||];
+    tracks = [||];
     search = "";
     query = None;
     folded = true;
@@ -394,7 +396,7 @@ let file_attr_string path (file : file) = function
   | `FileName -> File.name path
   | `FileExt -> File.extension path
   | `FileSize -> nonzero 0.0 (fmt "%3.1f MB") (float file.size /. 2.0 ** 20.0)
-  | `FileTime -> nonzero 0.0 string_of_date file.time
+  | `FileTime -> nonzero 0.0 string_of_date_time file.time
 
 let rec format_attr_string (format : Format.t) = function
   | `Length -> nonzero 0.0 string_of_time format.time

@@ -80,9 +80,9 @@ let of_m3u s = Array.mapi of_pos_m3u_item (Array.of_list (M3u.parse_ext s))
 
 (* Updating queue *)
 
-let queue = Safe_queue.create ()
+let queue : track Safe_queue.t = Safe_queue.create ()
 
-let update track =
+let update (track : track) =
   if track.file.age >= 0.0 then
   (
     track.file.age <- -1.0;
