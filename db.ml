@@ -989,20 +989,20 @@ let playlist_cols = 7
 
 
 let to_playlist_track i data : track =
-  let pos = to_int_default (i + track_cols + 0) data - 1 in
+  let pos = to_int_default (i + track_cols + 1) data - 1 in
   let track = {(to_track i data) with pos} in
   if track.path <> "" then  (* came from tracks table *)
     track
   else
   (
-    let path = to_text (i + track_cols + 1) data in
+    let path = to_text (i + track_cols + 2) data in
     if M3u.is_separator path then
       {(Data.make_separator ()) with pos = track.pos}
     else
     (
-      let artist = to_text_default (i + track_cols + 2) data in
-      let title = to_text_default (i + track_cols + 3) data in
-      let length = to_float_default (i + track_cols + 4) data in
+      let artist = to_text_default (i + track_cols + 3) data in
+      let title = to_text_default (i + track_cols + 4) data in
+      let length = to_float_default (i + track_cols + 5) data in
       let meta =
         if artist = "" && title = "" then None else
         Some {(Meta.meta track.path None) with artist; title; length}
