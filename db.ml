@@ -145,7 +145,7 @@ let bind_format stmt i (format : Format.t) =
   assert (7 = format_cols);
   return
 
-let lodate = File.(make_time Unix.{zero_time with tm_year = -70})  (* 1900 *)
+let lodate = File.(make_time zero_time)  (* 1900 *)
 let hidate = File.(make_time Unix.{zero_time with tm_year = 130})  (* 2100 *)
 
 let bind_meta stmt i (meta : Meta.t) =

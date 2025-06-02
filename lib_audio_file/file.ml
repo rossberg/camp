@@ -139,12 +139,12 @@ let local_time t =
 let make_time tm =
   init_tz ();
   let tm' =
-    if tm.Unix.tm_year >= 70 then tm else
+    if tm.Unix.tm_year >= 71 then tm else
     (* Windows mktime cannot handle dates before 1971 *)
-    Unix.{tm with tm_year = 70}
+    Unix.{tm with tm_year = 71}
   in
   let t = fst (Unix.mktime tm') in
-  if tm.Unix.tm_year >= 70 then t else t -. float (70 - tm.Unix.tm_year) *. year
+  if tm.Unix.tm_year >= 71 then t else t -. float (71 - tm.Unix.tm_year) *. year
 
 let zero_time =
   Unix.{
