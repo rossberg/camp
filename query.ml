@@ -106,7 +106,9 @@ let string_of_value = function
 
 (* Queries *)
 
+type track = Data.track
 type order = Data.order
+type sorting = Data.track_attr Data.sorting
 
 type unop = Not | Neg
 type binop =
@@ -120,7 +122,7 @@ type expr =
   | Un of unop * expr
   | Bin of binop * expr * expr
 
-type query = {expr : expr; sort : (key * order) list}
+type query = {expr : expr; sort : sorting}
 
 type type_ =
   | BoolT
@@ -149,8 +151,12 @@ let keys =
   ]
 
 
-let string_of_key (k : key) =
-  fst (List.find (fun (_, x) -> x = k) keys)
+let empty_query = {expr = Key `False; sort = []}
+let full_query = {expr = Key `True; sort = []}
+
+
+let string_of_key k =
+  fst (List.find (fun (_, x) -> x = (k :> key)) keys)
 
 let string_of_order = function
   | `Asc -> ""
@@ -229,6 +235,14 @@ let rec validate q =
     )
 
 
+let rec string_contains_at' s i s' j =
+  j = String.length s' ||
+  s.[i + j] = s'.[j] && string_contains_at' s i s' (j + 1)
+
+let string_contains_at s i s' =
+  String.length s - i >= String.length s' &&
+  string_contains_at' s i s' 0
+
 let rec index_sub_from_opt s i s' =
   if s' = "" then Some i else
   match String.index_from_opt s i s'.[0] with
@@ -236,7 +250,7 @@ let rec index_sub_from_opt s i s' =
   | Some j ->
     if j + String.length s' > String.length s then
       None
-    else if String.sub s j (String.length s') = s' then
+    else if string_contains_at s j s' then
       Some j
     else if j + String.length s' >= String.length s then
       None
@@ -292,17 +306,22 @@ and check q track =
   | _ -> assert false
 
 
-let exec_track q a track =
-  if check q track then Dynarray.add_last a track
+let exec_track e p a track =
+  if check e track && p track then Dynarray.add_last a track
 
-let rec exec_dir q a (dir : _ dir) =
-  Array.iter (exec_dir q a) dir.children;
-  Array.iter (exec_track q a) dir.tracks
+let rec exec_dir e p a (dir : _ dir) =
+  Array.iter (exec_dir e p a) dir.children;
+  Array.iter (exec_track e p a) dir.tracks
 
-let exec q dir =
+let sort s tracks =
+  if s <> [] then Array.stable_sort (Data.compare_track s) tracks
+
+let exec q p dir =
   let a = Dynarray.create () in
-  exec_dir q a dir;
-  Dynarray.to_array a
+  exec_dir q.expr p a dir;
+  let tracks = Dynarray.to_array a in
+  sort q.sort tracks;
+  tracks
 
 
 (* Parsing *)
@@ -570,10 +589,10 @@ and parse_disj_rest q1 s i =
 let rec parse_sort s i =
   match token s i with
   | EndToken, _ -> []
-  | KeyToken key, j -> (key, `Asc) :: parse_sort s j
+  | KeyToken (#track_attr as key), j -> (key, `Asc) :: parse_sort s j
   | BinopToken Sub, j ->
     (match token s j with
-    | KeyToken key, k -> (key, `Desc) :: parse_sort s k
+    | KeyToken (#track_attr as key), k -> (key, `Desc) :: parse_sort s k
     | _ -> raise (SyntaxError j)
     )
   | _ -> raise (SyntaxError i)

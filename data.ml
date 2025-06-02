@@ -113,6 +113,7 @@ type 'query dir =
   mutable tracks : track array;
   mutable search : string;
   mutable query : 'query option;
+  mutable view : ('query, string) result;
   mutable folded : bool;
   mutable artists_shown : bool;
   mutable albums_shown : display option;
@@ -234,6 +235,7 @@ let make_dir path parent nest pos : 'a dir =
     tracks = [||];
     search = "";
     query = None;
+    view = Error "";
     folded = true;
     artists_shown = false;
     albums_shown = None;
@@ -315,6 +317,66 @@ let make_separator () : track =
   let track = make_track M3u.separator in
   track.status <- `Det;
   track
+
+
+let accumulate_string s1 s2 =
+  if s1 = s2 then s1 else ""
+
+let accumulate_option accumulate opt1 opt2 =
+  match opt1, opt2 with
+  | None, _ -> opt2
+  | _, None -> opt1
+  | Some x1, Some x2 -> Some (accumulate x1 x2)
+
+let accumulate_file (file1 : file) (file2 : file) =
+  {
+    size = file1.size + file2.size;
+    time = max file1.time file2.time;
+    age = max file1.age file2.age;
+  }
+
+let accumulate_format (format1 : Format.t) (format2 : Format.t) =
+  Format.{
+    codec = accumulate_string format1.codec format2.codec;
+    channels = min format1.channels format2.channels;
+    depth = min format1.depth format2.depth;
+    rate = min format1.rate format2.rate;
+    bitrate = min format1.bitrate format2.bitrate;
+    time = format1.time +. format2.time;
+    size = format1.size + format2.size;
+  }
+
+let accumulate_meta (meta1 : Meta.t) (meta2 : Meta.t) =
+  { Meta.unknown with
+    artist = accumulate_string meta1.artist meta2.artist;
+    title = accumulate_string meta1.title meta2.title;
+    tracks = meta1.tracks + meta2.tracks;
+    albumartist = accumulate_string meta1.albumartist meta2.albumartist;
+    albumtitle = accumulate_string meta1.albumtitle meta2.albumtitle;
+    year = max meta1.year meta2.year;
+    date = max meta1.date meta2.date;
+    label = accumulate_string meta1.label meta2.label;
+    country = accumulate_string meta1.country meta2.country;
+    length = meta1.length +. meta2.length;
+    rating = max meta1.rating meta2.rating;
+  }
+
+let accumulate_album (album1 : album) (album2 : album) =
+  {
+    path = album1.path;  (* arbitrary *)
+    file = accumulate_file album1.file album2.file;
+    format = accumulate_option accumulate_format album1.format album2.format;
+    meta = accumulate_option accumulate_meta album1.meta album2.meta;
+    memo = None;
+  }
+
+let accumulate_artist (artist1 : artist) (artist2 : artist) =
+  assert (artist1.name = artist2.name);
+  {
+    name = artist1.name;
+    albums = artist1.albums + artist2.albums;
+    tracks = artist1.tracks + artist2.tracks;
+  }
 
 
 (* String Conversion *)
@@ -731,14 +793,19 @@ let compare_attr : 'a. ([< any_attr] as 'a) -> _ = function
   | `Cover -> compare_length
   | _ -> compare
 
-let rec compare_attrs sorting ss1 ss2 =
-  match sorting, ss1, ss2 with
-  | (attr, order)::sorting', s1::ss1', s2::ss2' ->
-    (match compare_attr attr s1 s2 with
-    | 0 -> compare_attrs sorting' ss1' ss2'
+let rec compare_entry attr_string sorting e1 e2 =
+  match sorting with
+  | [] -> 0
+  | (attr, order)::sorting' ->
+    let s1 = attr_string e1 attr in
+    let s2 = attr_string e2 attr in
+    match compare_attr attr s1 s2 with
+    | 0 -> compare_entry attr_string sorting' e1 e2
     | r -> if order = `Asc then +r else -r
-    )
-  | _, _, _ -> 0
+
+let compare_artist sorting a1 a2 = compare_entry artist_attr_string sorting a1 a2
+let compare_album sorting a1 a2 = compare_entry album_attr_string sorting a1 a2
+let compare_track sorting t1 t2 = compare_entry track_attr_string sorting t1 t2
 
 
 let rev_order = function

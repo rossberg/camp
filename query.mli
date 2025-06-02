@@ -1,7 +1,9 @@
 (* Queries *)
 
 type key = Data.query_attr
+type track = Data.track
 type order = Data.order
+type sorting = Data.track_attr Data.sorting
 
 type unop = Not | Neg
 type binop =
@@ -22,14 +24,18 @@ type value =
   | DateV of Data.date
   | TextV of string
 
-type query = {expr : expr; sort : (key * order) list}
+type query = {expr : expr; sort : sorting}
+
+val empty_query : query
+val full_query : query
 
 val parse_expr : string -> (expr, string) result
 val parse_query : string -> (query, string) result
 
-val value : key -> Data.track -> value
-val check : expr -> Data.track -> bool
-val exec : expr -> query Data.dir -> Data.track array
+val value : key -> track -> value
+val check : expr -> track -> bool
+val exec : query -> (track -> bool) -> query Data.dir -> track array
+val sort : sorting -> track array -> unit
 
 val string_of_key : key -> string
 val string_of_value : value -> string

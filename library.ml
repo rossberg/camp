@@ -8,8 +8,7 @@ module Map = Map.Make(String)
 
 
 type time = float
-type dir = Query.expr Data.dir
-type db = Db.t
+type dir = Query.query Data.dir
 
 type scan =
 {
@@ -36,7 +35,6 @@ type cover =
 
 type 'a t =
 {
-  db : db;
   scan : scan;
   mutable root : dir;
   mutable current : dir option;
@@ -133,14 +131,13 @@ let make_scan () =
   ignore (Domain.spawn (refresher scan));
   scan
 
-let make db =
+let make () =
   let root = Data.make_dir "" None (-1) 0 in
   root.name <- "All";
   root.folded <- false;
   root.artists_shown <- true;
   root.albums_shown <- Some `Table;
   {
-    db;
     scan = make_scan ();
     root;
     current = None;
@@ -204,12 +201,65 @@ let attr_name attr = fst (attr_prop (attr :> any_attr))
 let attr_align attr = snd (attr_prop (attr :> any_attr))
 
 
+(* Lookup *)
+
+let rec find_dir lib path = find_dir' path lib.root
+and find_dir' path (dir : dir) = Array.find_map (find_dir'' path) dir.children
+and find_dir'' path (dir : dir) =
+  if String.starts_with path ~prefix: dir.path then
+    if String.length path = String.length dir.path then
+      Some dir
+    else
+      find_dir' path dir
+  else
+    None
+
+let rec find_track lib path = find_track' path lib.root
+and find_track' path (dir : dir) =
+  Array.find_map (find_track'' path) dir.children
+and find_track'' path (dir : dir) =
+  if String.starts_with path ~prefix: dir.path then
+    if File.dir path = dir.path then
+      Array.find_opt (fun (track : track) -> track.path = path) dir.tracks
+    else
+      find_track' path dir
+  else
+    None
+
+let find_item lib (item : M3u.item) =
+  match find_track lib item.path with
+  | None -> Track.of_m3u_item item
+  | Some track -> track
+
+
+(* Data Persistence *)
+
+let library_name = "library.bin"
+
+let clear_track (track : track) = track.memo <- None
+
+let rec clear_dir (dir : dir) =
+  Array.iter clear_dir dir.children;
+  Array.iter clear_track dir.tracks
+
+let save_db lib =
+  Storage.save library_name (fun oc ->
+    clear_dir lib.root;
+    Marshal.to_channel oc lib.root []
+  )
+
+let load_db lib =
+  Storage.load library_name (fun ic ->
+    lib.root <- (Marshal.from_channel ic : dir)
+  )
+
+
 (* Scanning *)
 
 type scan_mode = [`Quick | `Thorough]
 
-let rescan_track'' _lib mode (track : track) =
-  let old = {track with path = track.path} in
+let rescan_track' _lib mode (track : track) =
+  let old = {track with memo = None} in
   try
     if not (File.exists track.path) then
     (
@@ -241,177 +291,124 @@ let rescan_track'' _lib mode (track : track) =
         track.status <- `Det;
       )
     );
+    let time = Unix.gettimeofday () in
+    let memo = track.memo in
+    track.memo <- None;
+    track.file.age <- time;
+    old.file.age <- time;
     let changed = track <> old in
-    if changed then track.file.age <- Unix.gettimeofday ();
+    if not changed then track.memo <- memo;
     changed
   with exn ->
     Storage.log_exn "file" exn ("scanning track " ^ track.path);
     false
 
-let rescan_track' lib mode (track : track) =
-  let changed = rescan_track'' lib mode track in
-  if changed then
-    Db.insert_track lib.db track;
-  changed
-
-let t_lookup = ref 0.0
-let t_rescan = ref 0.0
-let t_update = ref 0.0
-let now = Unix.gettimeofday
-
 let rescan_dir_tracks' lib mode (dir : dir) =
   try
-let t0 = now () in
-    let new_tracks = ref [] in
-    let old_tracks = ref Map.empty in
-    let all_tracks = Dynarray.create () in
-    Db.iter_tracks_for_path lib.db dir.path (fun track ->
-      old_tracks := Map.add track.path track !old_tracks
-    );
-let t1 = now () in
-t_lookup := !t_lookup +. (t1 -. t0);
+    let new_tracks = Dynarray.create () in
+    let old_tracks =
+      Array.fold_left (fun map (track : track) ->
+        Map.add track.path track map
+      ) Map.empty dir.tracks
+    in
+    let updates = ref 0 in
     Array.iter (fun file ->
       let path = dir.path ^ file in
       if not (File.is_dir path) && Data.is_track_path path then
       (
         let track =
-          match Map.find_opt path !old_tracks with
-          | Some track -> old_tracks := Map.remove path !old_tracks; track
+          match Map.find_opt path old_tracks with
+          | Some track -> track
           | None -> Data.make_track path
         in
-        Dynarray.add_last all_tracks track;
-        if rescan_track'' lib mode track then
-          new_tracks := track :: !new_tracks
+        Dynarray.add_last new_tracks track;
+        if rescan_track' lib mode track then incr updates
       )
     ) (File.read_dir dir.path);
-    dir.tracks <- Dynarray.to_array all_tracks;
-let t2 = now () in
-t_rescan := !t_rescan +. (t2 -. t1);
-(*
-List.iter (fun track -> Printf.printf "[old %s]\n%!" track.path) (List.map snd (Map.bindings !old_tracks));
-*)
-    if !old_tracks <> Map.empty then
-      Db.delete_tracks_bulk lib.db (List.map fst (Map.bindings !old_tracks));
-    (* Parent may have been deleted in the mean time... *)
-(*
-List.iter (fun track -> Printf.printf "[new %s]\n%!" track.path) !new_tracks;
-*)
-    if !new_tracks <> [] && Db.mem_dir lib.db dir.path then
-      Db.insert_tracks_bulk lib.db !new_tracks;
-let t3 = now () in
-t_update := !t_update +. (t3 -. t2);
-(*
-Printf.printf "total lookup %.3fs rescan %.3fs update %.3fs (%s)\n%!" !t_lookup !t_rescan !t_update dir.path;
-*)
-    !old_tracks <> Map.empty || !new_tracks <> []
+    dir.tracks <- Dynarray.to_array new_tracks;
+    !updates > 0 || Array.length dir.tracks <> Map.cardinal old_tracks
   with exn ->
     Storage.log_exn "file" exn ("scanning tracks in directory " ^ dir.path);
     true
 
-let rescan_playlist' lib _mode path =
+let rescan_playlist' lib _mode (dir : dir) =
   try
-    let s = File.load `Bin path in
-    let items = M3u.parse_ext s in
-    let items' = List.map (M3u.resolve (File.dir path)) items in
-    Db.delete_playlists_for_path lib.db path;
-    Db.insert_playlists_bulk lib.db path items';
+    let s = File.load `Bin dir.path in
+    let items = Array.of_list (M3u.parse_ext s) in
+    let items' = Array.map (M3u.resolve (File.dir dir.path)) items in
+    dir.tracks <-
+      Array.mapi (fun pos item -> {(find_item lib item) with pos}) items';
     true
   with
   | Sys_error _ -> true
-  | exn ->
-    Storage.log_exn "file" exn ("scanning playlist " ^ path);
-    true
+  | exn -> Storage.log_exn "file" exn ("scanning playlist " ^ dir.path); true
 
-let rescan_viewlist' lib _mode path =
+let rescan_viewlist' lib _mode (dir : dir) =
   try
-    let s = File.load `Bin path in
-    Db.delete_playlists_for_path lib.db path;
-    Db.insert_viewlists lib.db path s;
-    true
+    let s = File.load `Bin dir.path in
+    dir.view <- Query.parse_query s;
+    match dir.view with
+    | Error msg -> error lib (msg ^ " in viewlist query " ^ dir.path); true
+    | Ok query ->
+      let tracks = Query.exec query (Fun.const true) lib.root in
+      dir.tracks <-
+        Array.mapi (fun pos (track : track) -> {track with pos}) tracks; true
   with
   | Sys_error _ -> true
-  | exn ->
-    Storage.log_exn "file" exn ("scanning viewlist " ^ path);
-    true
+  | exn -> Storage.log_exn "file" exn ("scanning viewlist " ^ dir.path); true
 
 
 let rec rescan_dir' lib mode (origin : dir) =
-  let new_dirs = ref [] in
-  let old_dirs = ref Map.empty in
-  Db.iter_dirs_for_path_rec lib.db origin.path (fun dir ->
-    old_dirs := Map.add dir.path dir !old_dirs
-  );
-  old_dirs := Map.remove origin.path !old_dirs;
-
-  let rec scan_path path nest =
+  let rec scan_file (parent : dir) old_dirs file =
+    let parent_path = parent.path in
+    let path = File.(parent_path // file) in
+    let subdir () =
+      match Map.find_opt path old_dirs with
+      | Some dir -> dir
+      | None -> Data.make_dir path (Some parent_path) (parent.nest + 1) 0
+    in
     if File.is_dir path then
-      scan_dir path nest
-    else if Data.is_track_path path then
-      scan_track path
+      scan_dir (subdir ())
     else if Data.(is_playlist_path path || is_viewlist_path path) then
-      scan_playlist_or_viewlist path nest
+      scan_playlist_or_viewlist (subdir ())
+    else if Data.is_track_path path then
+      Some []  (* deferred to directory scan *)
     else
       None
 
-  and scan_dir path nest' =
+  and scan_dir (dir : dir) =
     Domain.cpu_relax ();
-    let nest = nest' + 1 in
+    let old_dirs =
+      Array.fold_left (fun map (dir : dir) ->
+        Map.add dir.path dir map
+      ) Map.empty dir.children
+    in
     match
       let dirs_of = Option.value ~default: [] in
       Array.fold_left (fun r file ->
-        match r, scan_path File.(path // file) nest with
+        match r, scan_file dir old_dirs file with
         | None, None -> None
         | dirs1, dirs2 -> Some (dirs_of dirs1 @ dirs_of dirs2)
-      ) None (File.read_dir path)
+      ) None (File.read_dir dir.path)
     with
     | None -> None
     | Some dirs ->
-      let dir =
-        if nest = origin.nest then origin else
-        let dirpath = File.(path // "") in
-        match Map.find_opt dirpath !old_dirs with
-        | Some dir -> old_dirs := Map.remove dirpath !old_dirs; dir
-        | None ->
-          let parent = Some (Data.parent_path path) in
-          let dir = Data.make_dir dirpath parent nest 0 in  (* TODO: pos *)
-          if Data.is_track_path path then
-            dir.name <- File.remove_extension dir.name;
-          new_dirs := dir :: !new_dirs;
-          dir
-      in
+      if Data.is_track_path dir.name then
+        dir.name <- File.remove_extension dir.name;
       dir.children <- Array.of_list dirs;
       Array.stable_sort Data.compare_dir dir.children;
       rescan_dir_tracks lib mode dir;
       Some [dir]
 
-  and scan_track _path =
-    Some []  (* deferred to directory scan *)
-
-  and scan_playlist_or_viewlist path nest =
-    let dir =
-      match Map.find_opt path !old_dirs with
-      | Some dir -> old_dirs := Map.remove path !old_dirs; dir
-      | None ->
-        let parent = Some (Data.parent_path path) in
-        let dir = Data.make_dir path parent (nest + 1) 0 in  (* TODO: pos *)
-        dir.name <- File.remove_extension dir.name;
-        new_dirs := dir :: !new_dirs;
-        dir
-    in
+  and scan_playlist_or_viewlist (dir : dir) =
+    dir.name <- File.remove_extension dir.name;
     Some [dir]
   in
 
   try
     if File.exists_dir origin.path then
-      ignore (scan_dir origin.path (origin.nest - 1));
-    Map.iter (fun dirpath _ ->
-      Db.delete_tracks_for_path_rec lib.db dirpath
-    ) !old_dirs;
-    Db.delete_dirs_bulk lib.db (List.map fst (Map.bindings !old_dirs));
-    (* Root may have been deleted in the mean time... *)
-    if !new_dirs <> [] && Db.mem_dir lib.db origin.path then
-      Db.insert_dirs_bulk lib.db !new_dirs;
-    !old_dirs <> Map.empty || !new_dirs <> []
+      ignore (scan_dir origin);
+    true
   with exn ->
     Storage.log_exn "file" exn ("scanning directory " ^ origin.path);
     true
@@ -421,12 +418,12 @@ and rescan_dir lib mode (dir : dir) =
   Safe_queue.add (false, dir.path, fun () -> rescan_dir' lib mode dir)
     lib.scan.dir_queue
 
-and rescan_playlist lib mode path =
-  Safe_queue.add (true, path, fun () -> rescan_playlist' lib mode path)
+and rescan_playlist lib mode (dir : dir) =
+  Safe_queue.add (true, dir.path, fun () -> rescan_playlist' lib mode dir)
     lib.scan.file_queue
 
-and rescan_viewlist lib mode path =
-  Safe_queue.add (true, path, fun () -> rescan_viewlist' lib mode path)
+and rescan_viewlist lib mode (dir : dir) =
+  Safe_queue.add (true, dir.path, fun () -> rescan_viewlist' lib mode dir)
     lib.scan.file_queue
 
 and rescan_track lib mode (track : track) =
@@ -460,7 +457,7 @@ let has_track lib (track : track) =
   else if Set.mem track.path hasntset then
     false
   else
-    let has = Db.mem_track lib.db track.path in
+    let has = find_track lib track.path <> None in
     lib.has_track <-
       (if has then
          Set.add track.path hasset, hasntset
@@ -489,13 +486,13 @@ let focus_search lib =
 let update_query lib (dir : dir) =
   dir.query <-
     if dir.search = "" then (lib.error <- ""; None) else
-    match Query.parse_expr dir.search with
-    | Ok expr -> lib.error <- ""; Some expr
-    | Error msg -> error lib (msg ^ " in search query"); Some (Query.Key `False)
+    match Query.parse_query dir.search with
+    | Ok query -> lib.error <- ""; Some query
+    | Error msg -> error lib (msg ^ " in search query"); Some Query.empty_query
 
 
-let update_dir lib dir =
-  Db.update_dir lib.db dir
+let update_dir lib _dir =
+  save_db lib  (* TODO: very expensive *)
 
 let set_dir_opt lib dir_opt =
   Option.iter (fun (dir : dir) ->
@@ -508,7 +505,6 @@ let set_dir_opt lib dir_opt =
   ) lib.current;
   Table.deselect_all lib.browser;
   Table.clear_undo lib.tracks;
-  Db.clear_playlists lib.db;
   lib.current <- dir_opt;
   Option.iter (fun (dir : dir) ->
     Edit.set lib.search dir.search;
@@ -528,9 +524,9 @@ let select_dir lib i =
     set_dir_opt lib (Some dir);
     Table.select lib.browser i i;
     if Data.is_playlist_path dir.path then
-      rescan_playlist lib false dir.path
+      rescan_playlist lib false dir
     else if Data.is_viewlist_path dir.path then
-      rescan_viewlist lib false dir.path;
+      rescan_viewlist lib false dir
   )
 
 
@@ -550,7 +546,6 @@ let fold_dir lib dir status =
   if status <> dir.folded then
   (
     dir.folded <- status;
-    Db.insert_dir lib.db dir;
     refresh_browser lib;
     if not status && lib.current <> None then
     (
@@ -582,37 +577,6 @@ let current_is_shown_viewlist lib =
 
 
 (* Roots *)
-
-let load_dirs lib =
-  let dirs = ref [] in
-  Db.iter_dirs lib.db (fun dir -> dirs := dir :: !dirs);
-  if !dirs = [] then
-  (
-    (* Fresh library *)
-    dirs := [lib.root];
-    Db.insert_dir lib.db lib.root;
-  );
-
-  let rec treeify (parent : dir) children : dir list -> _ = function
-    | dir::dirs when String.starts_with ~prefix: parent.path dir.path ->
-      let dirs' = if Data.is_dir dir then treeify dir [] dirs else dirs in
-      treeify parent (dir::children) dirs'
-    | dirs ->
-      parent.children <- Array.of_list children;
-      Array.stable_sort Data.compare_dir parent.children; dirs
-  in
-  lib.root <- List.hd !dirs;
-  ignore (treeify lib.root [] (List.tl !dirs));
-
-(*
-let t1 = now () in
-Db.iter_tracks lib.db ignore;  (* warm up cache *)
-let t2 = now () in
-Printf.printf "warmup %.3fs\n%!" (t2 -. t1);
-Db.warmup := false;
-*)
-  rescan_root lib `Quick
-
 
 let make_root lib path pos =
   if not (File.exists path) then
@@ -653,8 +617,6 @@ let add_dirs lib paths pos =
           root.pos <- i;
           root
       );
-    Db.update_dirs_pos lib.db "" pos (+ len');
-    Array.iter (Db.insert_dir lib.db) roots';
     Array.iter (fun (dir : dir) -> rescan_dir lib `Thorough dir) roots';
     refresh_browser lib;
     true
@@ -670,9 +632,6 @@ let remove_dir lib path =
   | None -> ()
   | Some pos ->
     lib.current <- None;
-    Db.delete_dirs_for_path_rec lib.db dirpath;
-    Db.delete_tracks_for_path_rec lib.db dirpath;
-    Db.delete_playlists_for_path_rec lib.db dirpath;
     lib.root.children <-
       Array.init (Array.length roots - 1) (fun i ->
         if i < pos then
@@ -681,7 +640,6 @@ let remove_dir lib path =
           let root = roots.(i + 1) in
           root.pos <- i; root
       );
-    Db.update_dirs_pos lib.db "" pos (-1);
     refresh_browser lib
 
 let remove_dirs lib paths =
@@ -717,10 +675,6 @@ let select lib i j = Table.select lib.tracks i j
 let deselect lib i j = Table.deselect lib.tracks i j
 
 
-let artists_shown dir = dir.artists_shown
-let albums_shown dir = dir.albums_shown <> None
-let tracks_shown _dir = true (*dir.tracks_shown <> None*)
-
 let artists_sorting dir = dir.artists_sorting
 let albums_sorting dir = dir.albums_sorting
 let tracks_sorting dir = dir.tracks_sorting
@@ -738,44 +692,19 @@ let track_key lib : track -> string =
     fun track -> track.path
 
 
-let sort_entries entries sorting attr_string =
-  let enriched =
-    Array.map (fun entry ->
-      List.map (fun (attr, _) -> attr_string entry attr) sorting, entry
-    ) entries
-  in
-  let cmp e1 e2 = Data.compare_attrs sorting (fst e1) (fst e2) in
-  Array.stable_sort cmp enriched;
-  Array.map snd enriched
-
-let viewlist_query lib (dir : dir) =
-  match Db.find_viewlist lib.db dir.path with
-  | None -> None
-  | Some s ->
-    match Query.parse_query s with
-    | Error msg -> error lib (msg ^ " in viewlist query"); None
-    | Ok query -> Some
-      (match dir.query with
-      | None -> query
-      | Some expr -> Query.{query with expr = Bin (And, expr, query.expr)}
-      )
-
 let refresh_delay = 5.0
 
-let refresh lib (tab : _ Table.t) shown sorting attr_string key iter_db =
-  if lib.current = None || not (shown (Option.get lib.current)) then
-    Table.remove_all tab
-  else
-    let entries' = ref [||] in
-    Option.iter (fun (dir : dir) ->
-      let entries = ref [] in
-      iter_db dir (fun e -> entries := e :: !entries);
-      entries' :=
-        sort_entries (Array.of_list !entries) (sorting dir) attr_string;
-    ) lib.current;
+let refresh lib (tab : _ Table.t) attr_string sorting key exec =
+  match lib.current with
+  | None -> Table.remove_all tab
+  | Some dir ->
+    let entries = exec dir in
+    let sort = sorting dir in
+    if sort <> [] then
+      Array.stable_sort (Data.compare_entry attr_string sort) entries;
     Mutex.protect tab.mutex (fun () ->
       let selection = Table.save_selection tab in
-      Table.set tab !entries';
+      Table.set tab entries;
       Table.restore_selection tab selection key
     );
     if lib.refresh_time <> 0.0 then
@@ -783,92 +712,104 @@ let refresh lib (tab : _ Table.t) shown sorting attr_string key iter_db =
 
 let refresh_tracks_sync lib =
   lib.has_track <- Set.empty, Set.empty;
-  refresh lib lib.tracks tracks_shown tracks_sorting track_attr_string
-    (track_key lib)
-    (fun dir f ->
+  refresh lib lib.tracks track_attr_string tracks_sorting (track_key lib)
+    (fun dir ->
       let artists =
-        if Table.(num_selected lib.artists = length lib.artists) then [||] else
-        Array.map artist_key (Table.selected lib.artists)
+        Array.fold_left (fun s (artist : artist) -> Set.add artist.name s)
+          Set.empty (Table.selected lib.artists)
       and albums =
-        if Table.(num_selected lib.albums = length lib.albums) then [||] else
-        Array.map album_key (Table.selected lib.albums)
+        Array.fold_left (fun s (album : album) ->
+          Set.add (Data.album_attr_string album `AlbumTitle) s
+        ) Set.empty (Table.selected lib.albums)
       in
-      if dir.path = "" then
-        Db.iter_tracks_for_path_filter lib.db "%" artists albums dir.query f
-      else if Data.is_dir dir then
-        let path = File.(//) dir.path "%" in
-        Db.iter_tracks_for_path_filter lib.db path artists albums dir.query f
-      else if Data.is_playlist dir then
-        Db.iter_playlist_tracks_for_path lib.db dir.path artists albums dir.query f
-      else if Data.is_viewlist dir then
-        Option.iter (fun (query : Query.query) ->
-          if query.sort = [] then
-          (
-            (* Optimisation: avoid sorting twice *)
-            let pos = ref 0 in
-            Db.iter_tracks_for_path_filter lib.db "%" artists albums (Some query.expr)
-              (fun track -> track.pos <- !pos; incr pos; f track)
-          )
-          else
-          (
-            let tracks = ref [] in
-            Db.iter_tracks_for_path_filter lib.db "%" artists albums (Some query.expr)
-              (fun track -> tracks := track :: !tracks);
-            let tracks' =
-              sort_entries (Array.of_list !tracks) query.sort query_attr_string in
-            Array.iteri (fun pos (track : track) -> track.pos <- pos; f track) tracks'
-          )
-        ) (viewlist_query lib dir)
+      let filter (track : track) =
+        ( artists = Set.empty ||
+          Set.mem (Data.track_attr_string track `Artist) artists ||
+          Set.mem (Data.track_attr_string track `AlbumArtist) artists )
+        &&
+        ( albums = Set.empty ||
+          Set.mem (Data.track_attr_string track `AlbumTitle) albums )
+      in
+      let query =
+        match dir.view with
+        | Error msg when msg <> "" ->
+          error lib (msg ^ " in viewlist query"); Query.empty_query
+        | _ -> Option.value dir.query ~default: Query.full_query
+      in
+      Query.exec query filter dir
     )
 
-let refresh_albums_sync lib =
-  refresh lib lib.albums albums_shown albums_sorting album_attr_string album_key
-    (fun dir f ->
-      let artists =
-        if Table.(num_selected lib.artists = length lib.artists) then [||] else
-        Array.map artist_key (Table.selected lib.artists)
-      in
-      if dir.path = "" then
-        Db.iter_tracks_for_path_as_albums lib.db "%" artists dir.query f
-      else if Data.is_dir dir then
-        let path = File.(//) dir.path "%" in
-        Db.iter_tracks_for_path_as_albums lib.db path artists dir.query f
-      else if Data.is_playlist dir then
-        Db.iter_playlist_tracks_for_path_as_albums lib.db dir.path artists dir.query f
-      else if Data.is_viewlist dir then
-        Option.iter (fun (query : Query.query) ->
-          Db.iter_tracks_for_path_as_albums lib.db "%" artists (Some query.expr) f
-        ) (viewlist_query lib dir)
-    )
+module AlbumKey =
+struct
+  type t = string * string * string * string
+  let compare : t -> t -> int = compare
+end
 
-let refresh_artists_sync lib =
-  refresh lib lib.artists artists_shown artists_sorting artist_attr_string
-    artist_key
-    (fun dir f ->
-      if dir.path = "" then
-        Db.iter_tracks_for_path_as_artists lib.db "%" dir.query f
-      else if Data.is_dir dir then
-        let path = File.(//) dir.path "%" in
-        Db.iter_tracks_for_path_as_artists lib.db path dir.query f
-      else if Data.is_playlist dir then
-        Db.iter_playlist_tracks_for_path_as_artists lib.db dir.path dir.query f
-      else if Data.is_viewlist dir then
-        Option.iter (fun (query : Query.query) ->
-          Db.iter_tracks_for_path_as_artists lib.db "%" (Some query.expr) f
-        ) (viewlist_query lib dir)
-    )
+module AlbumMap = Stdlib.Map.Make(AlbumKey)
 
 let refresh_albums_tracks_sync lib =
-  refresh_albums_sync lib;
-  refresh_tracks_sync lib
+  refresh_tracks_sync lib;
+  refresh lib lib.albums album_attr_string albums_sorting album_key
+    (fun _dir ->
+      let map =
+        Array.fold_left (fun map (track : track) ->
+          let key : AlbumKey.t =
+            ( track_attr_string track `AlbumArtist,
+              track_attr_string track `AlbumTitle,
+              track_attr_string track `Codec,
+              track_attr_string track `Label
+            )
+          in
+          let meta = Option.value track.meta ~default: Meta.unknown in
+          let album : album =
+            { path = track.path;
+              file = track.file;
+              format = track.format;
+              meta = Some {meta with tracks = 1};
+              memo = None;
+            }
+          in
+          let album' =
+            match AlbumMap.find_opt key map with
+            | None -> album
+            | Some album' -> Data.accumulate_album album album'
+          in
+          AlbumMap.add key album' map
+        ) AlbumMap.empty lib.tracks.entries
+      in
+      let a = Dynarray.create () in
+      AlbumMap.iter (fun _ album -> Dynarray.add_last a album) map;
+      Dynarray.to_array a
+    )
 
 let refresh_artists_albums_sync lib =
-  refresh_artists_sync lib;
-  refresh_albums_sync lib
+  refresh lib lib.artists artist_attr_string artists_sorting artist_key
+    (fun _dir ->
+      let map =
+        Array.fold_left (fun map (album : album) ->
+          let key = album_attr_string album `AlbumArtist in
+          let artist : artist =
+            { name = key;
+              albums = 1;
+              tracks = (Option.get album.meta).tracks;
+            }
+          in
+          let artist' =
+            match Map.find_opt key map with
+            | None -> artist
+            | Some artist' -> Data.accumulate_artist artist artist'
+          in
+          Map.add key artist' map
+        ) Map.empty lib.albums.entries
+      in
+      let a = Dynarray.create () in
+      Map.iter (fun _ artist -> Dynarray.add_last a artist) map;
+      Dynarray.to_array a
+    )
 
 let refresh_artists_albums_tracks_sync lib =
-  refresh_artists_sync lib;
-  refresh_albums_tracks_sync lib
+  refresh_tracks_sync lib;
+  refresh_artists_albums_sync lib
 
 let refresh_tracks ?(busy = true) lib =
   if busy then
@@ -879,27 +820,27 @@ let refresh_tracks ?(busy = true) lib =
   Atomic.set lib.scan.tracks_refresh
     (Some (busy, fun () -> refresh_tracks_sync lib))
 
-let refresh_albums ?(busy = true) lib =
-  if busy then Atomic.set lib.scan.albums_busy true;
-  Atomic.set lib.scan.albums_refresh
-    (Some (busy, fun () -> refresh_albums_sync lib))
-
-let refresh_artists ?(busy = true) lib =
-  if busy then Atomic.set lib.scan.artists_busy true;
-  Atomic.set lib.scan.artists_refresh
-    (Some (busy, fun () -> refresh_artists_sync lib))
-
 let refresh_albums_tracks ?(busy = true) lib =
-  refresh_tracks lib ~busy;
-  refresh_albums lib ~busy
+  if busy then
+  (
+    Atomic.set lib.scan.albums_busy true;
+    Table.set lib.tracks [||];
+  );
+  Atomic.set lib.scan.albums_refresh
+    (Some (busy, fun () -> refresh_albums_tracks_sync lib))
 
 let refresh_artists_albums_tracks ?(busy = true) lib =
-  refresh_albums_tracks lib ~busy;
-  refresh_artists lib ~busy
+  if busy then
+  (
+    Atomic.set lib.scan.artists_busy true;
+    Table.set lib.tracks [||];
+  );
+  Atomic.set lib.scan.artists_refresh
+    (Some (busy, fun () -> refresh_artists_albums_tracks_sync lib))
 
 let refresh_artists_busy lib = Atomic.get lib.scan.artists_busy
-let refresh_albums_busy lib = Atomic.get lib.scan.albums_busy
-let refresh_tracks_busy lib = Atomic.get lib.scan.tracks_busy
+let refresh_albums_busy lib = Atomic.get lib.scan.albums_busy || refresh_artists_busy lib
+let refresh_tracks_busy lib = Atomic.get lib.scan.tracks_busy || refresh_albums_busy lib
 
 
 (*
@@ -943,9 +884,13 @@ let refresh_after_rescan lib =
 
 let reorder lib tab sorting attr_string key =
   Option.iter (fun (dir : dir) ->
-    let selection = Table.save_selection tab in
-    Table.set tab (sort_entries tab.entries (sorting dir) attr_string);
-    Table.restore_selection tab selection key;
+    let sort = sorting dir in
+    if sort <> [] then
+    (
+      let selection = Table.save_selection tab in
+      Array.stable_sort (Data.compare_entry attr_string sort) tab.entries;
+      Table.restore_selection tab selection key;
+    )
   ) lib.current
 
 let reorder_artists lib =
@@ -1000,8 +945,6 @@ let save_playlist lib =
     let items = Array.to_list (Array.map (Track.to_m3u_item) tracks) in
     let s = M3u.make_ext items in
     File.store `Bin dir.path s;
-    Db.delete_playlists_for_path_rec lib.db dir.path;
-    if items <> [] then Db.insert_playlists_bulk lib.db dir.path items;
   with exn ->
     Storage.log_exn "file" exn ("writing playlist " ^ dir.path)
 
@@ -1058,7 +1001,7 @@ let insert lib pos tracks =
     let tracks' = Array.mapi
       (fun i (track : track) ->
         let pos = pos'' + (if order = `Desc then len' - i - 1 else i) in
-        match Db.find_track lib.db track.path with
+        match find_track lib track.path with
         | Some track' -> {track' with pos}  (* clone to prevent aliasing! *)
         | None ->
           (* Abuse `Predet as an indication that the track isn't in lib *)
@@ -1243,31 +1186,11 @@ let of_map lib m =
       select_dir lib i;
       let dir = lib.browser.entries.(i) in
       if current_is_playlist lib then
-        rescan_playlist lib `Quick dir.path
+        rescan_playlist lib `Quick dir
       else if current_is_viewlist lib then
-        rescan_viewlist lib `Quick dir.path;
+        rescan_viewlist lib `Quick dir;
     ) (Array.find_index (fun (dir : dir) -> dir.path = s) lib.browser.entries);
-    if lib.current = None then lib.current <- Db.find_dir lib.db s;
+    if lib.current = None then lib.current <- find_dir lib s;
   );
   read_map m "lib_cover" (fun s -> lib.cover <- scan s "%d" bool);
   refresh_artists_albums_tracks lib
-
-
-let clear_track (track : track) = track.memo <- None
-
-let rec clear_dir (dir : dir) =
-  Array.iter clear_dir dir.children;
-  Array.iter clear_track dir.tracks
-
-let library_name = "library.bin"
-
-let save_db lib =
-  Storage.save library_name (fun oc ->
-    clear_dir lib.root;
-    Marshal.to_channel oc lib.root []
-  )
-
-let load_db lib =
-  Storage.load library_name (fun ic ->
-    lib.root <- (Marshal.from_channel ic : dir)
-  )

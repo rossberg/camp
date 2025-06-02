@@ -15,13 +15,13 @@ type 'cache t =
 
 (* Constructor *)
 
-let make ui audio db =
+let make ui audio =
   {
     config = Config.make ();
     layout = Layout.make ui;
     control = Control.make audio;
     playlist = Playlist.make ();
-    library = Library.make db;
+    library = Library.make ();
     filesel = Filesel.make ();
   }
 
@@ -271,8 +271,7 @@ let load st =
   Random.self_init ();
 
   Playlist.load_playlist st.playlist;
-  Library.load_dirs st.library;
-  (*Library.load_db st.library;*)
+  Library.load_db st.library;
 
   let map = Storage.load_map state_file in
   let pos = layout_of_map st.layout map in

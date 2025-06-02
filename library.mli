@@ -1,14 +1,12 @@
 (* Library *)
 
 open Data
-type dir = Query.expr Data.dir
-type db = Db.t
+type dir = Query.query Data.dir
 type scan
 type cover
 
 type 'cache t =
 {
-  db : db;
   scan : scan;
   mutable root : dir;
   mutable current : dir option;
@@ -28,7 +26,7 @@ type 'cache t =
 
 (* Constructor *)
 
-val make : db -> 'a t
+val make : unit -> 'a t
 
 
 (* Validation *)
@@ -84,7 +82,6 @@ val select_dir : 'a t -> int -> unit
 val deselect_dir : 'a t -> unit
 
 val update_dir : 'a t -> dir -> unit
-val load_dirs : 'a t -> unit
 val add_dirs : 'a t -> path list -> int -> bool
 val remove_dirs : 'a t -> path list -> unit
 
@@ -101,16 +98,13 @@ val has_track : 'a t -> track -> bool
 val attr_name : [< any_attr] -> string
 val attr_align : [< any_attr] -> [> `Left | `Right]
 
-val refresh_artists_sync : 'a t -> unit
-val refresh_albums_sync : 'a t -> unit
 val refresh_tracks_sync : 'a t -> unit
-val refresh_artists_albums_tracks_sync : 'a t -> unit
 val refresh_albums_tracks_sync : 'a t -> unit
-val refresh_artists : ?busy: bool -> 'a t -> unit
-val refresh_albums : ?busy: bool -> 'a t -> unit
+val refresh_artists_albums_tracks_sync : 'a t -> unit
+
 val refresh_tracks : ?busy: bool -> 'a t -> unit
-val refresh_artists_albums_tracks : ?busy: bool -> 'a t -> unit
 val refresh_albums_tracks : ?busy: bool -> 'a t -> unit
+val refresh_artists_albums_tracks : ?busy: bool -> 'a t -> unit
 
 val refresh_artists_busy : 'a t -> bool
 val refresh_albums_busy : 'a t -> bool

@@ -1219,11 +1219,7 @@ let run_library (st : _ State.t) =
     (* Click on Artists button: toggle artist pane *)
     dir.artists_shown <- artists';
     if nothing_shown dir then
-    (
       dir.tracks_shown <- Some `Table;  (* switch to tracks *)
-      Library.refresh_tracks lib;
-    );
-    Library.refresh_artists lib;
     Library.update_dir lib dir;
   );
 
@@ -1239,8 +1235,6 @@ let run_library (st : _ State.t) =
     dir.albums_shown <- cycle_shown dir.albums_shown;
     if nothing_shown dir then
       dir.albums_shown <- Some `Table;
-    if albums <> (dir.albums_shown <> None) then
-      Library.refresh_albums lib;
     Library.update_dir lib dir;
   );
 
@@ -1256,8 +1250,6 @@ let run_library (st : _ State.t) =
     dir.tracks_shown <- cycle_shown dir.tracks_shown;
     if nothing_shown dir then
       dir.tracks_shown <- Some `Table;
-    if tracks <> (dir.tracks_shown <> None) then
-      Library.refresh_tracks lib;
     Library.update_dir lib dir;
   );
 
@@ -2128,14 +2120,13 @@ and run' (st : _ State.t) =
 
 let startup () =
   Storage.clear_temp ();
-  let db = Db.init () in
   let audio = Api.Audio.init () in
   let win = Api.Window.init 0 0 0 0 App.name in
   Api.Window.hide win;  (* hide during initialisation *)
   let ui = Ui.make win in
-  let st0 = State.make ui audio db in
+  let st0 = State.make ui audio in
   let success, (x, y) = State.load st0 in
-  let st = if success then st0 else State.make ui audio db in
+  let st = if success then st0 else State.make ui audio in
   let w = Layout.control_min_w + st.layout.library_width in
   let h = Layout.control_min_h + st.layout.playlist_height in
   Api.Draw.start win `Black;
@@ -2145,7 +2136,6 @@ let startup () =
   at_exit (fun () ->
     State.save st;
     Storage.clear_temp ();
-    Db.exit db
   );
   st
 
