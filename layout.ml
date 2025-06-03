@@ -271,6 +271,9 @@ let sep_button = edit_button 0 0 "SEP" ([], `Insert)
 let del_button = edit_button 1 1 "DEL" ([], `Delete)
 let crop_button = edit_button 1 2 "CROP" ([`Shift], `Delete)
 let clean_button = edit_button 1 3 "CLEAN" ([`Command], `Delete)
+let del_button_alt g = Ui.key g.ui ([], `Backspace) true
+let crop_button_alt g = Ui.key g.ui ([`Shift], `Backspace) true
+let clean_button_alt g = Ui.key g.ui ([`Command], `Backspace) true
 let undo_button = edit_button 2 4 "UNDO" ([`Command], `Char 'Z')
 let redo_button = edit_button 2 5 "REDO" ([`Shift; `Command], `Char 'Z')
 let tag_button = edit_button 3 6 "TAG" ([`Command], `Char 'T')
@@ -346,6 +349,7 @@ let browser_mouse g = Ui.rich_table_mouse g.ui (browser_area g) (gutter_w g) (te
 let browser_error_box g = Ui.box g.ui (browser_area g) (Ui.error_color g.ui)
 
 let del_key g = Ui.key g.ui ([`Command], `Delete) true
+let backspace_key g = Ui.key g.ui ([`Command], `Backspace) true
 
 
 (* View Panes *)

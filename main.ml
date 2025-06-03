@@ -652,7 +652,8 @@ let run_edit (st : _ State.t) =
   let pl_del_avail = pl_edit && pl_sel > 0 in
   let lib_del_avail = lib_edit && lib_sel > 0 in
   let del_avail = pl_del_avail || lib_del_avail in
-  if Layout.del_button lay (if del_avail then Some false else None) then
+  if Layout.del_button lay (if del_avail then Some false else None)
+  || del_avail && Layout.del_button_alt lay then
   (
     (* Click on Delete button: remove selected tracks from playlist *)
     View.remove_selected view;
@@ -661,7 +662,8 @@ let run_edit (st : _ State.t) =
   let pl_crop_avail = pl_edit && pl_sel < pl_len in
   let lib_crop_avail = lib_edit && lib_sel < lib_len in
   let crop_avail = pl_crop_avail || lib_crop_avail in
-  if Layout.crop_button lay (if crop_avail then Some false else None) then
+  if Layout.crop_button lay (if crop_avail then Some false else None)
+  || crop_avail && Layout.crop_button_alt lay then
   (
     (* Click on Crop button: remove unselected tracks from playlist *)
     View.remove_unselected view;
@@ -670,7 +672,8 @@ let run_edit (st : _ State.t) =
   let pl_clean_avail = pl_edit && snd pl.total > 0 in
   let lib_clean_avail = lib_edit (* TODO: && snd pl.total > 0 *) in
   let clean_avail = pl_clean_avail || lib_clean_avail in
-  if Layout.clean_button lay (if clean_avail then Some false else None) then
+  if Layout.clean_button lay (if clean_avail then Some false else None)
+  || clean_avail && Layout.clean_button_alt lay then
   (
     (* Click on Clean button: remove invalid tracks from playlist *)
     View.remove_invalid view;
@@ -1163,7 +1166,7 @@ let run_library (st : _ State.t) =
   );
 
   (* Keys *)
-  if Layout.del_key lay then
+  if browser.focus && (Layout.del_key lay || Layout.backspace_key lay) then
   (
     match Library.selected_dir lib with
     | Some i when browser.entries.(i).parent = Some "" ->
