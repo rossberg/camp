@@ -53,7 +53,7 @@ type way = [`Start | `Inside | `Outside | `Outward | `Inward]
 val key : t -> modifier list * key -> bool -> bool
 val mouse : t -> area -> side -> bool
 val drag : t -> area -> size -> [`Drag of size * way | `Drop | `Click | `None]
-val wheel : t -> area -> float
+val wheel : t -> area -> float * float
 
 (* UI elements *)
 

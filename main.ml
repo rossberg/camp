@@ -180,7 +180,7 @@ let run_control (st : _ State.t) =
   let vol_mouse = Layout.volume_bar lay ctl.volume in
   let volume' =
     (if mute_mouse then ctl.volume else vol_mouse) +.
-    0.05 *. Layout.volume_wheel lay +.
+    0.05 *. snd (Layout.volume_wheel lay) +.
     0.05 *. (float_of_bool (Layout.volup_key lay focus) -.
     float_of_bool (Layout.voldown_key lay focus))
   in
