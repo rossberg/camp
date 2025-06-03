@@ -270,8 +270,9 @@ let save st =
 let load st =
   Random.self_init ();
 
-  Playlist.load_playlist st.playlist;
   Library.load_db st.library;
+  Library.rescan_root st.library `Thorough;
+  Playlist.load_playlist st.playlist;
 
   let map = Storage.load_map state_file in
   let pos = layout_of_map st.layout map in

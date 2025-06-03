@@ -306,8 +306,9 @@ and check q track =
   | _ -> assert false
 
 
-let exec_track e p a track =
-  if check e track && p track then Dynarray.add_last a track
+let exec_track e p a (track : track) =
+  if not (M3u.is_separator track.path) && check e track && p track then
+    Dynarray.add_last a track
 
 let rec exec_dir e p a (dir : _ dir) =
   Array.iter (exec_dir e p a) dir.children;

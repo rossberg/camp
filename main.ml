@@ -1181,7 +1181,7 @@ let run_library (st : _ State.t) =
   (
     let shift = Api.Key.is_modifier_down `Shift in
     if shift then
-      (* Scanning indicator clicked: purge cached covers *)
+      (* Scanning indicator shift-clicked: purge cached covers *)
       Library.purge_covers lib;
 
     if Library.rescan_busy lib = None then
@@ -1583,7 +1583,7 @@ let run_library (st : _ State.t) =
         | `Invalid -> Ui.warn_color lay.ui
         | `Undet -> Ui.semilit_color (Ui.text_color lay.ui)
         | `Predet | `Det ->
-          if Data.is_separator track || Library.has_track lib track then
+          if track.pos = -1 || Data.is_separator track || Library.has_track lib track then
             Ui.text_color lay.ui
           else
             Ui.warn_color lay.ui

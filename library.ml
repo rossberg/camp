@@ -48,7 +48,6 @@ type 'a t =
   mutable refresh_time : time;
   mutable cover : bool;
   mutable covers : cover Map.t;
-  mutable has_track : Set.t * Set.t;
 }
 
 
@@ -151,7 +150,6 @@ let make () =
     refresh_time = 0.0;
     cover = true;
     covers = Map.empty;
-    has_track = Set.empty, Set.empty;
   }
 
 
@@ -219,7 +217,7 @@ and find_track' path (dir : dir) =
   Array.find_map (find_track'' path) dir.children
 and find_track'' path (dir : dir) =
   if String.starts_with path ~prefix: dir.path then
-    if File.dir path = dir.path then
+    if File.(dir path // "") = dir.path then
       Array.find_opt (fun (track : track) -> track.path = path) dir.tracks
     else
       find_track' path dir
@@ -229,7 +227,11 @@ and find_track'' path (dir : dir) =
 let find_item lib (item : M3u.item) =
   match find_track lib item.path with
   | None -> Track.of_m3u_item item
-  | Some track -> track
+  | Some track -> assert (track.pos = -1); track
+
+
+let has_track lib (track : track) =
+  find_track lib track.path <> None
 
 
 (* Data Persistence *)
@@ -287,7 +289,7 @@ let rescan_track' _lib mode (track : track) =
       then
       (
         track.format <- Some (Format.read track.path);
-        track.meta <- Some (Meta.load track.path);
+        track.meta <- Some {(Meta.load track.path) with cover = None};
         track.status <- `Det;
       )
     );
@@ -313,7 +315,8 @@ let rescan_dir_tracks' lib mode (dir : dir) =
     in
     let updates = ref 0 in
     Array.iter (fun file ->
-      let path = dir.path ^ file in
+      let dir_path = dir.path in
+      let path = File.(dir_path // file) in
       if not (File.is_dir path) && Data.is_track_path path then
       (
         let track =
@@ -350,7 +353,7 @@ let rescan_viewlist' lib _mode (dir : dir) =
     match dir.view with
     | Error msg -> error lib (msg ^ " in viewlist query " ^ dir.path); true
     | Ok query ->
-      let tracks = Query.exec query (Fun.const true) lib.root in
+      let tracks = Query.exec query (fun (track : track) -> track.pos = -1) lib.root in
       dir.tracks <-
         Array.mapi (fun pos (track : track) -> {track with pos}) tracks; true
   with
@@ -362,15 +365,15 @@ let rec rescan_dir' lib mode (origin : dir) =
   let rec scan_file (parent : dir) old_dirs file =
     let parent_path = parent.path in
     let path = File.(parent_path // file) in
-    let subdir () =
-      match Map.find_opt path old_dirs with
+    let subdir path' =
+      match Map.find_opt path' old_dirs with
       | Some dir -> dir
-      | None -> Data.make_dir path (Some parent_path) (parent.nest + 1) 0
+      | None -> Data.make_dir path' (Some parent_path) (parent.nest + 1) 0
     in
     if File.is_dir path then
-      scan_dir (subdir ())
+      scan_dir (subdir File.(path // ""))
     else if Data.(is_playlist_path path || is_viewlist_path path) then
-      scan_playlist_or_viewlist (subdir ())
+      scan_playlist_or_viewlist (subdir path)
     else if Data.is_track_path path then
       Some []  (* deferred to directory scan *)
     else
@@ -450,23 +453,6 @@ let rescan_busy lib =
 
 let length_browser lib = Table.length lib.browser
 
-let has_track lib (track : track) =
-  let hasset, hasntset = lib.has_track in
-  if Set.mem track.path hasset then
-    true
-  else if Set.mem track.path hasntset then
-    false
-  else
-    let has = find_track lib track.path <> None in
-    lib.has_track <-
-      (if has then
-         Set.add track.path hasset, hasntset
-      else
-         hasset, Set.add track.path hasntset
-      );
-    has
-
-
 let defocus lib =
   Table.defocus lib.browser;
   Table.defocus lib.artists;
@@ -492,7 +478,7 @@ let update_query lib (dir : dir) =
 
 
 let update_dir lib _dir =
-  save_db lib  (* TODO: very expensive *)
+  save_db lib  (* TODO: quite expensive, separate dir configs? *)
 
 let set_dir_opt lib dir_opt =
   Option.iter (fun (dir : dir) ->
@@ -711,7 +697,6 @@ let refresh lib (tab : _ Table.t) attr_string sorting key exec =
       lib.refresh_time <- Unix.gettimeofday () +. refresh_delay
 
 let refresh_tracks_sync lib =
-  lib.has_track <- Set.empty, Set.empty;
   refresh lib lib.tracks track_attr_string tracks_sorting (track_key lib)
     (fun dir ->
       let artists =
@@ -747,8 +732,7 @@ end
 
 module AlbumMap = Stdlib.Map.Make(AlbumKey)
 
-let refresh_albums_tracks_sync lib =
-  refresh_tracks_sync lib;
+let refresh_albums_sync lib =
   refresh lib lib.albums album_attr_string albums_sorting album_key
     (fun _dir ->
       let map =
@@ -782,7 +766,7 @@ let refresh_albums_tracks_sync lib =
       Dynarray.to_array a
     )
 
-let refresh_artists_albums_sync lib =
+let refresh_artists_sync lib =
   refresh lib lib.artists artist_attr_string artists_sorting artist_key
     (fun _dir ->
       let map =
@@ -807,6 +791,14 @@ let refresh_artists_albums_sync lib =
       Dynarray.to_array a
     )
 
+let refresh_albums_tracks_sync lib =
+  refresh_tracks_sync lib;
+  refresh_albums_sync lib
+
+let refresh_artists_albums_sync lib =
+  refresh_albums_sync lib;
+  refresh_artists_sync lib
+
 let refresh_artists_albums_tracks_sync lib =
   refresh_tracks_sync lib;
   refresh_artists_albums_sync lib
@@ -825,6 +817,7 @@ let refresh_albums_tracks ?(busy = true) lib =
   (
     Atomic.set lib.scan.albums_busy true;
     Table.set lib.tracks [||];
+    Table.set lib.albums [||];
   );
   Atomic.set lib.scan.albums_refresh
     (Some (busy, fun () -> refresh_albums_tracks_sync lib))
@@ -834,6 +827,8 @@ let refresh_artists_albums_tracks ?(busy = true) lib =
   (
     Atomic.set lib.scan.artists_busy true;
     Table.set lib.tracks [||];
+    Table.set lib.albums [||];
+    Table.set lib.artists [||];
   );
   Atomic.set lib.scan.artists_refresh
     (Some (busy, fun () -> refresh_artists_albums_tracks_sync lib))
@@ -1182,14 +1177,8 @@ let of_map lib m =
     Table.set_vscroll lib.browser
       (scan s "%d" (num 0 (max 0 (length_browser lib - 1)))) 4);
   read_map m "browser_current" (fun s ->
-    Option.iter (fun i ->
-      select_dir lib i;
-      let dir = lib.browser.entries.(i) in
-      if current_is_playlist lib then
-        rescan_playlist lib `Quick dir
-      else if current_is_viewlist lib then
-        rescan_viewlist lib `Quick dir;
-    ) (Array.find_index (fun (dir : dir) -> dir.path = s) lib.browser.entries);
+    Option.iter (fun i -> select_dir lib i)
+      (Array.find_index (fun (dir : dir) -> dir.path = s) lib.browser.entries);
     if lib.current = None then lib.current <- find_dir lib s;
   );
   read_map m "lib_cover" (fun s -> lib.cover <- scan s "%d" bool);

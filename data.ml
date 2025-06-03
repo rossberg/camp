@@ -58,7 +58,7 @@ type artist =
 
 type memo =
 {
-  mutable pos : string;
+  mutable pos : string;  (* 0-based *)
   mutable file_size : string;
   mutable file_time : string;
   mutable artist : string;
@@ -228,7 +228,7 @@ let make_dir path parent nest pos : 'a dir =
   {
     path;
     parent;
-    name = if path = "" then path else File.name path;
+    name = if path = "" then "" else File.name path;
     nest;
     pos;
     children = [||];

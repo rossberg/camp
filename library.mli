@@ -20,7 +20,6 @@ type 'cache t =
   mutable refresh_time : time;
   mutable cover : bool;
   mutable covers : cover Map.Make(String).t;
-  mutable has_track : Set.Make(String).t * Set.Make(String).t;
 }
 
 
