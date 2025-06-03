@@ -271,7 +271,7 @@ let load st =
   Random.self_init ();
 
   Library.load_db st.library;
-  Library.rescan_root st.library `Thorough;
+  Library.rescan_root st.library `Quick;
   Playlist.load_playlist st.playlist;
 
   let map = Storage.load_map state_file in
