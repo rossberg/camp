@@ -112,7 +112,7 @@ type sorting = Data.track_attr Data.sorting
 
 type unop = Not | Neg
 type binop =
-  And | Or | EQ | NE | LT | GT | LE | GE | IN | NI | Add | Sub | Mul | Cat
+  | And | Or | EQ | NE | LT | GT | LE | GE | IN | NI | Add | Sub | Mul | Cat
 type expr =
   | Text of string
   | Int of int * string
@@ -315,7 +315,13 @@ let rec exec_dir e p a (dir : _ dir) =
   Array.iter (exec_track e p a) dir.tracks
 
 let sort s tracks =
-  if s <> [] then Array.stable_sort (Data.compare_track s) tracks
+  if s <> [] then
+  (
+    let tracks' =
+      Array.map (fun tr -> Data.key_entry track_attr_string s tr, tr) tracks in
+    Array.stable_sort compare tracks';
+    Array.iteri (fun i (_, tr) -> tracks.(i) <- tr) tracks';
+  )
 
 let exec q p dir =
   let a = Dynarray.create () in
@@ -487,7 +493,7 @@ let rec coerce_bool = function
       Bin (Or, Bin (IN, q, Key key), q')
     ) search_keys (Key `False)
   | Int (_, s) | Time (_, s) ->
-    (* Treat otehr literals in Boolean position as search terms as well *)
+    (* Treat other literals in Boolean position as search terms as well *)
     coerce_bool (Text s)
   | Un (Neg, q) ->
     (* Treat negation in Boolean position as logical negation *)

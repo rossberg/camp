@@ -680,14 +680,23 @@ let track_key lib : track -> string =
 
 let refresh_delay = 5.0
 
+let sort attr_string sorting entries =
+  if sorting <> [] then
+  (
+    let entries' =
+      Array.map (fun entry -> Data.key_entry attr_string sorting entry, entry)
+        entries
+    in
+    Array.stable_sort compare entries';
+    Array.iteri (fun i (_, entry) -> entries.(i) <- entry) entries';
+  )
+
 let refresh lib (tab : _ Table.t) attr_string sorting key exec =
   match lib.current with
   | None -> Table.remove_all tab
   | Some dir ->
     let entries = exec dir in
-    let sort = sorting dir in
-    if sort <> [] then
-      Array.stable_sort (Data.compare_entry attr_string sort) entries;
+    sort attr_string (sorting dir) entries;
     Mutex.protect tab.mutex (fun () ->
       let selection = Table.save_selection tab in
       Table.set tab entries;
@@ -879,11 +888,11 @@ let refresh_after_rescan lib =
 
 let reorder lib tab sorting attr_string key =
   Option.iter (fun (dir : dir) ->
-    let sort = sorting dir in
-    if sort <> [] then
+    let s = sorting dir in
+    if s <> [] then
     (
       let selection = Table.save_selection tab in
-      Array.stable_sort (Data.compare_entry attr_string sort) tab.entries;
+      sort attr_string s tab.entries;
       Table.restore_selection tab selection key;
     )
   ) lib.current

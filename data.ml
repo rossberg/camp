@@ -787,25 +787,13 @@ let compare_dir (dir1 : _ dir) (dir2 : _ dir) =
   | 0 -> compare_utf_8 dir1.name dir2.name
   | i -> i
 
-let compare_attr : 'a. ([< any_attr] as 'a) -> _ = function
-  | `Artist | `Title | `AlbumArtist | `AlbumTitle | `Country | `Label ->
-    compare_utf_8
-  | `Cover -> compare_length
-  | _ -> compare
 
-let rec compare_entry attr_string sorting e1 e2 =
-  match sorting with
-  | [] -> 0
-  | (attr, order)::sorting' ->
-    let s1 = attr_string e1 attr in
-    let s2 = attr_string e2 attr in
-    match compare_attr attr s1 s2 with
-    | 0 -> compare_entry attr_string sorting' e1 e2
-    | r -> if order = `Asc then +r else -r
+let key_entry' e attr_string (attr, order) =
+  let s = attr_string e attr in
+  if order = `Asc then s else String.map Char.(fun c -> chr (255 - code c)) s
 
-let compare_artist sorting a1 a2 = compare_entry artist_attr_string sorting a1 a2
-let compare_album sorting a1 a2 = compare_entry album_attr_string sorting a1 a2
-let compare_track sorting t1 t2 = compare_entry track_attr_string sorting t1 t2
+let key_entry attr_string sorting e =
+  List.map (key_entry' e attr_string) sorting
 
 
 let rev_order = function
