@@ -1042,8 +1042,9 @@ let run_library (st : _ State.t) =
   && Api.Draw.frame win mod spin_delay = 0 then
     Table.dirty browser;   (* to draw spinner *)
 
+  let entries = browser.entries in  (* could change concurrently *)
   let pp_entry i =
-    let dir = browser.entries.(i) in
+    let dir = entries.(i) in
     let spinning =
       match Library.rescan_busy lib with
       | None -> false
@@ -1080,7 +1081,7 @@ let run_library (st : _ State.t) =
 
   | `Fold i ->
     (* Click on triangle: fold/unfold entry *)
-    let dir = browser.entries.(i) in
+    let dir = entries.(i) in
     Library.fold_dir lib dir (not dir.folded)
 
   | `Click (Some i) ->
@@ -1156,7 +1157,7 @@ let run_library (st : _ State.t) =
     Option.iter (fun pos ->
       let rec find_root_pos i j =
         if i = pos then j else
-        find_root_pos (i + 1) (if browser.entries.(i).nest = 0 then j + 1 else j)
+        find_root_pos (i + 1) (if entries.(i).nest = 0 then j + 1 else j)
       in
       if Library.add_dirs lib dropped (find_root_pos 0 0) then
         Library.refresh_artists_albums_tracks lib
@@ -1169,8 +1170,8 @@ let run_library (st : _ State.t) =
   if browser.focus && (Layout.del_key lay || Layout.backspace_key lay) then
   (
     match Library.selected_dir lib with
-    | Some i when browser.entries.(i).parent = Some "" ->
-      Library.remove_dirs lib [browser.entries.(i).path];
+    | Some i when entries.(i).parent = Some "" ->
+      Library.remove_dirs lib [entries.(i).path];
       Library.refresh_artists_albums_tracks lib
     | _ ->
       Library.error lib "Cannot remove non-root directories";
@@ -1194,14 +1195,14 @@ let run_library (st : _ State.t) =
       match Library.selected_dir lib with
       | None -> Library.rescan_root lib mode
       | Some i ->
-        let dir = lib.browser.entries.(i) in
+        let dir = entries.(i) in
         if Data.is_dir dir then Library.rescan_dirs lib mode [|dir|]
     )
   );
 
   (* Browse modes *)
   let have_dir = lib.current <> None in
-  let dir = Option.value lib.current ~default: browser.entries.(0) in
+  let dir = Option.value lib.current ~default: entries.(0) in
   let cycle_shown = function
     | None -> Some `Table
     | Some `Table -> Some `Grid
@@ -1339,8 +1340,9 @@ let run_library (st : _ State.t) =
       Array.map (fun (attr, _) -> Library.attr_name attr) dir.artists_columns
     in
 
+    let entries = tab.entries in  (* could change concurrently *)
     let pp_row i =
-      let artist = tab.entries.(i) in
+      let artist = entries.(i) in
       Ui.text_color lay.ui,
       Array.map (fun (attr, _) -> `Text (Data.artist_attr_string artist attr))
         dir.artists_columns
@@ -1442,8 +1444,9 @@ let run_library (st : _ State.t) =
     && Api.Draw.frame win mod refresh_delay = 2 then
       Table.dirty tab;  (* to capture cover updates *)
 
+    let entries = tab.entries in  (* could change concurrently *)
     let pp_row i =
-      let album = tab.entries.(i) in
+      let album = entries.(i) in
       Ui.text_color lay.ui,
       Array.map (fun (attr, _) ->
         if attr <> `Cover then
@@ -1457,7 +1460,7 @@ let run_library (st : _ State.t) =
     in
 
     let pp_cell i =
-      let album = tab.entries.(i) in
+      let album = entries.(i) in
       let img =
         match Library.load_cover lib win album.path with
         | Some img -> img
@@ -1574,8 +1577,9 @@ let run_library (st : _ State.t) =
     && Api.Draw.frame win mod refresh_delay = 5 then
       Table.dirty tab;  (* to capture cover updates *)
 
+    let entries = tab.entries in  (* may update concurrently *)
     let pp_row i =
-      let track = tab.entries.(i) in
+      let track = entries.(i) in
       let c =
         if (track.status = `Undet || track.status = `Predet)
         && Library.rescan_busy lib = None then
@@ -1604,7 +1608,7 @@ let run_library (st : _ State.t) =
     in
 
     let pp_cell i =
-      let track = tab.entries.(i) in
+      let track = entries.(i) in
       let img =
         match Library.load_cover lib win track.path with
         | Some img -> img
@@ -1655,7 +1659,7 @@ let run_library (st : _ State.t) =
       let tracks =
         if Api.Key.are_modifiers_down [`Command]
         then Library.selected lib
-        else [|tab.entries.(i)|]
+        else [|entries.(i)|]
       in
       if tracks <> [||] then
       (
