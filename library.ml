@@ -489,8 +489,10 @@ let rec rescan_dir' lib mode (origin : dir) =
     in
     if File.is_dir path then
       scan_dir (subdir File.(path // ""))
-    else if Data.(is_playlist_path path || is_viewlist_path path) then
-      scan_playlist_or_viewlist (subdir path)
+    else if Data.is_playlist_path path then
+      scan_playlist (subdir path)
+    else if Data.is_viewlist_path path then
+      scan_viewlist (subdir path)
     else if Data.is_track_path path then
       Some []  (* deferred to directory scan *)
     else
@@ -520,8 +522,14 @@ let rec rescan_dir' lib mode (origin : dir) =
       rescan_dir_tracks lib mode dir;
       Some [dir]
 
-  and scan_playlist_or_viewlist (dir : dir) =
+  and scan_playlist (dir : dir) =
     dir.name <- File.remove_extension dir.name;
+    rescan_playlist lib mode dir;
+    Some [dir]
+
+  and scan_viewlist (dir : dir) =
+    dir.name <- File.remove_extension dir.name;
+    rescan_viewlist lib mode dir;
     Some [dir]
   in
 
@@ -627,9 +635,9 @@ let select_dir lib i =
     set_dir_opt lib (Some dir);
     Table.select lib.browser i i;
     if Data.is_playlist_path dir.path then
-      rescan_playlist lib false dir
+      rescan_playlist lib `Thorough dir
     else if Data.is_viewlist_path dir.path then
-      rescan_viewlist lib false dir
+      rescan_viewlist lib `Thorough dir
   )
 
 
@@ -959,9 +967,12 @@ let refresh_artists_albums_tracks ?(busy = true) lib =
   Atomic.set lib.scan.artists_refresh
     (Some (busy, fun () -> refresh_artists_albums_tracks_sync lib))
 
-let refresh_artists_busy lib = Atomic.get lib.scan.artists_busy
-let refresh_albums_busy lib = Atomic.get lib.scan.albums_busy || refresh_artists_busy lib
-let refresh_tracks_busy lib = Atomic.get lib.scan.tracks_busy || refresh_albums_busy lib
+let refresh_artists_busy lib =
+  Atomic.get lib.scan.artists_busy
+let refresh_albums_busy lib =
+  Atomic.get lib.scan.albums_busy || refresh_artists_busy lib
+let refresh_tracks_busy lib =
+  Atomic.get lib.scan.tracks_busy || refresh_albums_busy lib
 
 
 (*
