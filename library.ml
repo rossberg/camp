@@ -9,25 +9,26 @@ module Map = Map.Make(String)
 
 type time = float
 
-type view =
+type 'attr view =
+{
+  mutable shown : display option;
+  mutable columns : 'attr columns;
+  mutable sorting : 'attr sorting;
+}
+
+type views =
 {
   mutable search : string;
   mutable query : Query.query option;
   mutable folded : bool;
   mutable divider_width : int;
   mutable divider_height : int;
-  mutable artists_shown : bool;
-  mutable albums_shown : display option;
-  mutable tracks_shown : display option;
-  mutable artists_columns : artist_attr columns;
-  mutable albums_columns : album_attr columns;
-  mutable tracks_columns : track_attr columns;
-  mutable artists_sorting : artist_attr sorting;
-  mutable albums_sorting : album_attr sorting;
-  mutable tracks_sorting : track_attr sorting;
+  mutable artists : artist_attr view;
+  mutable albums : album_attr view;
+  mutable tracks : track_attr view;
 }
 
-type dir = view Data.dir
+type dir = views Data.dir
 
 type scan =
 {
@@ -137,25 +138,28 @@ let tracks_columns : track_attr columns =
   `FilePath, 400;
 |]
 
-let make_view path : view =
+let make_view shown columns sorting : _ view =
+  { shown; columns; sorting }
+
+let make_views path : views =
   {
     search = "";
     query = None;
     folded = true;
     divider_width = 100;
     divider_height = 100;
-    artists_shown = false;
-    albums_shown = None;
-    tracks_shown = Some `Table;
-    artists_columns = artists_columns;
-    albums_columns = albums_columns;
-    tracks_columns = tracks_columns;
-    artists_sorting = [`Artist, `Asc];
-    albums_sorting = [`AlbumArtist, `Asc; `AlbumTitle, `Asc; `Codec, `Asc];
-    tracks_sorting =
-      if is_playlist_path path || is_viewlist_path path || Format.is_known_ext path
-      then [`Pos, `Asc]
-      else [`Artist, `Asc; `Title, `Asc; `Codec, `Asc];
+    artists =
+      make_view None artists_columns [`Artist, `Asc];
+    albums =
+      make_view None albums_columns
+        [`AlbumArtist, `Asc; `AlbumTitle, `Asc; `Codec, `Asc];
+    tracks =
+      make_view (Some `Table) tracks_columns
+        ( if is_playlist_path path
+          || is_viewlist_path path
+          || Format.is_known_ext path
+          then [`Pos, `Asc]
+          else [`Artist, `Asc; `Title, `Asc; `Codec, `Asc] );
   }
 
 
@@ -218,11 +222,11 @@ let make_scan () =
   scan
 
 let make () =
-  let root = Data.make_dir "" None (-1) 0 (make_view "") in
+  let root = Data.make_dir "" None (-1) 0 (make_views "") in
   root.name <- "All";
   root.view.folded <- false;
-  root.view.artists_shown <- true;
-  root.view.albums_shown <- Some `Table;
+  root.view.artists.shown <- Some `Table;
+  root.view.albums.shown <- Some `Table;
   {
     scan = make_scan ();
     root;
@@ -356,7 +360,7 @@ let load_browser lib =
   Storage.load browser_name (fun ic ->
     try
       while true do
-        let path, view = (Marshal.from_channel ic : path * view) in
+        let path, view = (Marshal.from_channel ic : path * views) in
         match find_dir lib path with
         | None -> ()
         | Some dir -> dir.view <- view
@@ -485,7 +489,7 @@ let rec rescan_dir' lib mode (origin : dir) =
       | Some dir -> dir
       | None ->
         Data.make_dir path' (Some parent_path) (parent.nest + 1) 0
-          (make_view path')
+          (make_views path')
     in
     if File.is_dir path then
       scan_dir (subdir File.(path // ""))
@@ -679,12 +683,12 @@ let current_is_viewlist lib =
 let current_is_shown_playlist lib =
   match lib.current with
   | None -> false
-  | Some dir -> dir.view.tracks_shown <> None && Data.is_playlist dir
+  | Some dir -> dir.view.tracks.shown <> None && Data.is_playlist dir
 
 let current_is_shown_viewlist lib =
   match lib.current with
   | None -> false
-  | Some dir -> dir.view.tracks_shown <> None && Data.is_viewlist dir
+  | Some dir -> dir.view.tracks.shown <> None && Data.is_viewlist dir
 
 
 (* Roots *)
@@ -706,7 +710,7 @@ let make_root lib path pos =
     with
     | Some dir ->
       failwith (dirpath ^ " overlaps with " ^ dir.name ^ " (" ^ dir.path ^ ")")
-    | None -> Data.make_dir dirpath (Some "") 0 pos (make_view dirpath)
+    | None -> Data.make_dir dirpath (Some "") 0 pos (make_views dirpath)
   )
 
 let add_dirs lib paths pos =
@@ -786,9 +790,9 @@ let select lib i j = Table.select lib.tracks i j
 let deselect lib i j = Table.deselect lib.tracks i j
 
 
-let artists_sorting view = view.artists_sorting
-let albums_sorting view = view.albums_sorting
-let tracks_sorting view = view.tracks_sorting
+let artists_sorting (view : views) = view.artists.sorting
+let albums_sorting (view : views) = view.albums.sorting
+let tracks_sorting (view : views) = view.tracks.sorting
 
 let artist_key (artist : artist) = artist.name
 let album_key (album : album) = (*album.track*)  (* TODO *)
@@ -1092,7 +1096,7 @@ let normalize_playlist lib =
     refresh_artists_albums_tracks_sync lib;  (* could be slow... *)
   );
   let dir = Option.get lib.current in
-  match dir.view.tracks_sorting with
+  match dir.view.tracks.sorting with
   | (`Pos, `Asc)::_ -> `Asc
   | (`Pos, `Desc)::_ ->
     let selection = Table.save_selection lib.tracks in
@@ -1287,7 +1291,7 @@ let to_map lib =
     "browser_scroll", fmt "%d" lib.browser.vscroll;
     "browser_current",
       (Option.value lib.current
-        ~default: (Data.make_dir "-" None 0 0 (make_view "-"))).path;
+        ~default: (Data.make_dir "-" None 0 0 (make_views "-"))).path;
     "lib_cover", fmt "%d" (Bool.to_int lib.cover);
   ]
 

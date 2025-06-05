@@ -2,25 +2,26 @@
 
 open Data
 
-type view =
+type 'attr view =
+{
+  mutable shown : display option;
+  mutable columns : 'attr columns;
+  mutable sorting : 'attr sorting;
+}
+
+type views =
 {
   mutable search : string;
   mutable query : Query.query option;
   mutable folded : bool;
   mutable divider_width : int;
   mutable divider_height : int;
-  mutable artists_shown : bool;
-  mutable albums_shown : display option;
-  mutable tracks_shown : display option;
-  mutable artists_columns : artist_attr columns;
-  mutable albums_columns : album_attr columns;
-  mutable tracks_columns : track_attr columns;
-  mutable artists_sorting : artist_attr sorting;
-  mutable albums_sorting : album_attr sorting;
-  mutable tracks_sorting : track_attr sorting;
+  mutable artists : artist_attr view;
+  mutable albums : album_attr view;
+  mutable tracks : track_attr view;
 }
 
-type dir = view Data.dir
+type dir = views Data.dir
 type scan
 type cover
 
