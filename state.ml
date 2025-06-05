@@ -67,11 +67,12 @@ let foci_library (lib : _ Library.t) =
   match lib.current with
   | None -> []
   | Some dir ->
-    (if dir.artists_shown && not (Library.refresh_artists_busy lib) then
+    let view = dir.view in
+    (if view.artists_shown && not (Library.refresh_artists_busy lib) then
       [foci_table f lib.artists] else []) @
-    (if dir.albums_shown <> None && not (Library.refresh_albums_busy lib) then
+    (if view.albums_shown <> None && not (Library.refresh_albums_busy lib) then
       [foci_table f lib.albums] else []) @
-    (if dir.tracks_shown <> None && not (Library.refresh_tracks_busy lib) then
+    (if view.tracks_shown <> None && not (Library.refresh_tracks_busy lib) then
       [foci_table f lib.tracks] else [])
 
 let foci_filesel (fs : _ Filesel.t) =
@@ -271,6 +272,7 @@ let load st =
   Random.self_init ();
 
   Library.load_db st.library;
+  Library.load_browser st.library;
   Library.rescan_root st.library `Quick;
   Playlist.load_playlist st.playlist;
 

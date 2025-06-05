@@ -1,7 +1,26 @@
 (* Library *)
 
 open Data
-type dir = Query.query Data.dir
+
+type view =
+{
+  mutable search : string;
+  mutable query : Query.query option;
+  mutable folded : bool;
+  mutable divider_width : int;
+  mutable divider_height : int;
+  mutable artists_shown : bool;
+  mutable albums_shown : display option;
+  mutable tracks_shown : display option;
+  mutable artists_columns : artist_attr columns;
+  mutable albums_columns : album_attr columns;
+  mutable tracks_columns : track_attr columns;
+  mutable artists_sorting : artist_attr sorting;
+  mutable albums_sorting : album_attr sorting;
+  mutable tracks_sorting : track_attr sorting;
+}
+
+type dir = view Data.dir
 type scan
 type cover
 
@@ -51,6 +70,9 @@ val save_playlist : 'a t -> unit
 
 val save_db : 'a t -> unit
 val load_db : 'a t -> unit
+
+val save_browser : 'a t -> unit
+val load_browser : 'a t -> unit
 
 
 (* Scanning *)

@@ -34,7 +34,7 @@ val parse_query : string -> (query, string) result
 
 val value : key -> track -> value
 val check : expr -> track -> bool
-val exec : query -> (track -> bool) -> query Data.dir -> track array
+val exec : query -> (track -> bool) -> 'a Data.dir -> track array
 val sort : sorting -> track array -> unit
 
 val string_of_key : key -> string

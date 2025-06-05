@@ -102,30 +102,17 @@ type track =
   mutable memo : memo option;
 }
 
-type 'query dir =
+type 'view dir =
 {
   path : path;  (* primary *)
   parent : path option;
   nest : int;
   mutable name : string;
   mutable pos : int;
-  mutable children : 'query dir array;
+  mutable children : 'view dir array;
   mutable tracks : track array;
-  mutable search : string;
-  mutable query : 'query option;
-  mutable view : ('query, string) result;
-  mutable folded : bool;
-  mutable artists_shown : bool;
-  mutable albums_shown : display option;
-  mutable tracks_shown : display option;
-  mutable divider_width : int;
-  mutable divider_height : int;
-  mutable artists_columns : artist_attr columns;
-  mutable albums_columns : album_attr columns;
-  mutable tracks_columns : track_attr columns;
-  mutable artists_sorting : artist_attr sorting;
-  mutable albums_sorting : album_attr sorting;
-  mutable tracks_sorting : track_attr sorting;
+  mutable error : string;  (* for view lists *)
+  mutable view : 'view;
 }
 
 
@@ -177,54 +164,7 @@ let date_of_year y =
 
 (* Constructors *)
 
-let artists_columns : artist_attr columns =
-[|
-  `Artist, 150;
-  `Albums, 20;
-  `Tracks, 20;
-|]
-
-let albums_columns : album_attr columns =
-[|
-  `Cover, 30;
-  `FileTime, 110;
-  `Rating, 30;
-  `AlbumArtist, 150;
-  `AlbumTitle, 180;
-  `Length, 30;
-  `Tracks, 20;
-  `Date, 60;
-  `Country, 50;
-  `Label, 50;
-  `Codec, 30;
-  `Rate, 50;
-  `FileSize, 50;
-  `FilePath, 400;
-|]
-
-let tracks_columns : track_attr columns =
-[|
-  `Pos, 20;
-  `Cover, 30;
-  `FileTime, 70;
-  `Rating, 30;
-  `Artist, 150;
-  `Title, 180;
-  `Length, 30;
-  `AlbumArtist, 100;
-  `AlbumTitle, 150;
-  `DiscTrack, 20;
-  `Date, 60;
-  `Country, 50;
-  `Label, 50;
-  `Codec, 30;
-  `Rate, 50;
-  `FileSize, 50;
-  `FilePath, 400;
-|]
-
-
-let make_dir path parent nest pos : 'a dir =
+let make_dir path parent nest pos view : 'a dir =
   {
     path;
     parent;
@@ -233,24 +173,8 @@ let make_dir path parent nest pos : 'a dir =
     pos;
     children = [||];
     tracks = [||];
-    search = "";
-    query = None;
-    view = Error "";
-    folded = true;
-    artists_shown = false;
-    albums_shown = None;
-    tracks_shown = Some `Table;
-    divider_width = 100;
-    divider_height = 100;
-    artists_columns = artists_columns;
-    albums_columns = albums_columns;
-    tracks_columns = tracks_columns;
-    artists_sorting = [`Artist, `Asc];
-    albums_sorting = [`AlbumArtist, `Asc; `AlbumTitle, `Asc; `Codec, `Asc];
-    tracks_sorting =
-      if is_playlist_path path || is_viewlist_path path || Format.is_known_ext path
-      then [`Pos, `Asc]
-      else [`Artist, `Asc; `Title, `Asc; `Codec, `Asc];
+    error = "";
+    view;
   }
 
 let make_file () : file =

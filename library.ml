@@ -8,7 +8,26 @@ module Map = Map.Make(String)
 
 
 type time = float
-type dir = Query.query Data.dir
+
+type view =
+{
+  mutable search : string;
+  mutable query : Query.query option;
+  mutable folded : bool;
+  mutable divider_width : int;
+  mutable divider_height : int;
+  mutable artists_shown : bool;
+  mutable albums_shown : display option;
+  mutable tracks_shown : display option;
+  mutable artists_columns : artist_attr columns;
+  mutable albums_columns : album_attr columns;
+  mutable tracks_columns : track_attr columns;
+  mutable artists_sorting : artist_attr sorting;
+  mutable albums_sorting : album_attr sorting;
+  mutable tracks_sorting : track_attr sorting;
+}
+
+type dir = view Data.dir
 
 type scan =
 {
@@ -72,6 +91,74 @@ let ok lib =
 
 (* Constructor *)
 
+let artists_columns : artist_attr columns =
+[|
+  `Artist, 150;
+  `Albums, 20;
+  `Tracks, 20;
+|]
+
+let albums_columns : album_attr columns =
+[|
+  `Cover, 30;
+  `FileTime, 110;
+  `Rating, 30;
+  `AlbumArtist, 150;
+  `AlbumTitle, 180;
+  `Length, 30;
+  `Tracks, 20;
+  `Date, 60;
+  `Country, 50;
+  `Label, 50;
+  `Codec, 30;
+  `Rate, 50;
+  `FileSize, 50;
+  `FilePath, 400;
+|]
+
+let tracks_columns : track_attr columns =
+[|
+  `Pos, 20;
+  `Cover, 30;
+  `FileTime, 70;
+  `Rating, 30;
+  `Artist, 150;
+  `Title, 180;
+  `Length, 30;
+  `AlbumArtist, 100;
+  `AlbumTitle, 150;
+  `DiscTrack, 20;
+  `Date, 60;
+  `Country, 50;
+  `Label, 50;
+  `Codec, 30;
+  `Rate, 50;
+  `FileSize, 50;
+  `FilePath, 400;
+|]
+
+let make_view path : view =
+  {
+    search = "";
+    query = None;
+    folded = true;
+    divider_width = 100;
+    divider_height = 100;
+    artists_shown = false;
+    albums_shown = None;
+    tracks_shown = Some `Table;
+    artists_columns = artists_columns;
+    albums_columns = albums_columns;
+    tracks_columns = tracks_columns;
+    artists_sorting = [`Artist, `Asc];
+    albums_sorting = [`AlbumArtist, `Asc; `AlbumTitle, `Asc; `Codec, `Asc];
+    tracks_sorting =
+      if is_playlist_path path || is_viewlist_path path || Format.is_known_ext path
+      then [`Pos, `Asc]
+      else [`Artist, `Asc; `Title, `Asc; `Codec, `Asc];
+  }
+
+
 let rec complete scan path =
   let paths = Atomic.get scan.completed in
   if not (Atomic.compare_and_set scan.completed paths (path::paths)) then
@@ -131,11 +218,11 @@ let make_scan () =
   scan
 
 let make () =
-  let root = Data.make_dir "" None (-1) 0 in
+  let root = Data.make_dir "" None (-1) 0 (make_view "") in
   root.name <- "All";
-  root.folded <- false;
-  root.artists_shown <- true;
-  root.albums_shown <- Some `Table;
+  root.view.folded <- false;
+  root.view.artists_shown <- true;
+  root.view.albums_shown <- Some `Table;
   {
     scan = make_scan ();
     root;
@@ -237,6 +324,7 @@ let has_track lib (track : track) =
 (* Data Persistence *)
 
 let library_name = "library.bin"
+let browser_name = "browser.bin"
 
 let clear_track (track : track) = track.memo <- None
 
@@ -253,6 +341,27 @@ let save_db lib =
 let load_db lib =
   Storage.load library_name (fun ic ->
     lib.root <- (Marshal.from_channel ic : dir)
+  )
+
+let rec save_view oc (dir : dir) =
+  Marshal.to_channel oc (dir.path, dir.view) [];
+  Array.iter (save_view oc) dir.children
+
+let save_browser lib =
+  Storage.save browser_name (fun oc ->
+    save_view oc lib.root
+  )
+
+let load_browser lib =
+  Storage.load browser_name (fun ic ->
+    try
+      while true do
+        let path, view = (Marshal.from_channel ic : path * view) in
+        match find_dir lib path with
+        | None -> ()
+        | Some dir -> dir.view <- view
+      done
+    with End_of_file -> ()
   )
 
 
@@ -349,13 +458,19 @@ let rescan_playlist' lib _mode (dir : dir) =
 let rescan_viewlist' lib _mode (dir : dir) =
   try
     let s = File.load `Bin dir.path in
-    dir.view <- Query.parse_query s;
-    match dir.view with
-    | Error msg -> error lib (msg ^ " in viewlist query " ^ dir.path); true
+    (match Query.parse_query s with
+    | Error msg ->
+      dir.error <- msg ^ " in viewlist query " ^ dir.path;
+      dir.tracks <- [||];
+      error lib dir.error
     | Ok query ->
-      let tracks = Query.exec query (fun (track : track) -> track.pos = -1) lib.root in
+      let tracks =
+        Query.exec query (fun (track : track) -> track.pos = -1) lib.root in
+      dir.error <- "";
       dir.tracks <-
-        Array.mapi (fun pos (track : track) -> {track with pos}) tracks; true
+        Array.mapi (fun pos (track : track) -> {track with pos}) tracks;
+    );
+    true
   with
   | Sys_error _ -> true
   | exn -> Storage.log_exn "file" exn ("scanning viewlist " ^ dir.path); true
@@ -368,7 +483,9 @@ let rec rescan_dir' lib mode (origin : dir) =
     let subdir path' =
       match Map.find_opt path' old_dirs with
       | Some dir -> dir
-      | None -> Data.make_dir path' (Some parent_path) (parent.nest + 1) 0
+      | None ->
+        Data.make_dir path' (Some parent_path) (parent.nest + 1) 0
+          (make_view path')
     in
     if File.is_dir path then
       scan_dir (subdir File.(path // ""))
@@ -469,23 +586,23 @@ let focus_search lib =
   Edit.focus lib.search
 
 
-let update_query lib (dir : dir) =
-  dir.query <-
-    if dir.search = "" then (lib.error <- ""; None) else
-    match Query.parse_query dir.search with
+let update_view_query lib (dir : dir) =
+  dir.view.query <-
+    if dir.view.search = "" then (lib.error <- ""; None) else
+    match Query.parse_query dir.view.search with
     | Ok query -> lib.error <- ""; Some query
     | Error msg -> error lib (msg ^ " in search query"); Some Query.empty_query
 
 
 let update_dir lib _dir =
-  save_db lib  (* TODO: quite expensive, separate dir configs? *)
+  save_browser lib
 
 let set_dir_opt lib dir_opt =
   Option.iter (fun (dir : dir) ->
     (* In case some input has been made but not yet sent *)
-    if lib.search.text <> dir.search then
+    if lib.search.text <> dir.view.search then
     (
-      dir.search <- lib.search.text;
+      dir.view.search <- lib.search.text;
       update_dir lib dir;
     )
   ) lib.current;
@@ -493,8 +610,8 @@ let set_dir_opt lib dir_opt =
   Table.clear_undo lib.tracks;
   lib.current <- dir_opt;
   Option.iter (fun (dir : dir) ->
-    Edit.set lib.search dir.search;
-    if dir.query = None then update_query lib dir;
+    Edit.set lib.search dir.view.search;
+    if dir.view.query = None then update_view_query lib dir;
   ) lib.current
 
 let selected_dir lib =
@@ -521,7 +638,7 @@ let refresh_browser lib =
     Option.iter (fun (cur : dir) ->
       if cur.path = dir.path then lib.current <- Some dir) lib.current;
     dir ::
-    (if dir.folded then acc else Array.fold_right entries dir.children acc)
+    (if dir.view.folded then acc else Array.fold_right entries dir.children acc)
   in
   let selection = Table.save_selection lib.browser in
   Table.set lib.browser (Array.of_list (entries lib.root []));
@@ -529,9 +646,9 @@ let refresh_browser lib =
 
 
 let fold_dir lib dir status =
-  if status <> dir.folded then
+  if status <> dir.view.folded then
   (
-    dir.folded <- status;
+    dir.view.folded <- status;
     refresh_browser lib;
     if not status && lib.current <> None then
     (
@@ -554,12 +671,12 @@ let current_is_viewlist lib =
 let current_is_shown_playlist lib =
   match lib.current with
   | None -> false
-  | Some dir -> dir.tracks_shown <> None && Data.is_playlist dir
+  | Some dir -> dir.view.tracks_shown <> None && Data.is_playlist dir
 
 let current_is_shown_viewlist lib =
   match lib.current with
   | None -> false
-  | Some dir -> dir.tracks_shown <> None && Data.is_viewlist dir
+  | Some dir -> dir.view.tracks_shown <> None && Data.is_viewlist dir
 
 
 (* Roots *)
@@ -581,7 +698,7 @@ let make_root lib path pos =
     with
     | Some dir ->
       failwith (dirpath ^ " overlaps with " ^ dir.name ^ " (" ^ dir.path ^ ")")
-    | None -> Data.make_dir dirpath (Some "") 0 pos
+    | None -> Data.make_dir dirpath (Some "") 0 pos (make_view dirpath)
   )
 
 let add_dirs lib paths pos =
@@ -661,9 +778,9 @@ let select lib i j = Table.select lib.tracks i j
 let deselect lib i j = Table.deselect lib.tracks i j
 
 
-let artists_sorting dir = dir.artists_sorting
-let albums_sorting dir = dir.albums_sorting
-let tracks_sorting dir = dir.tracks_sorting
+let artists_sorting view = view.artists_sorting
+let albums_sorting view = view.albums_sorting
+let tracks_sorting view = view.tracks_sorting
 
 let artist_key (artist : artist) = artist.name
 let album_key (album : album) = (*album.track*)  (* TODO *)
@@ -696,7 +813,7 @@ let refresh lib (tab : _ Table.t) attr_string sorting key exec =
   | None -> Table.remove_all tab
   | Some dir ->
     let entries = exec dir in
-    sort attr_string (sorting dir) entries;
+    sort attr_string (sorting dir.view) entries;
     Mutex.protect tab.mutex (fun () ->
       let selection = Table.save_selection tab in
       Table.set tab entries;
@@ -725,10 +842,10 @@ let refresh_tracks_sync lib =
           Set.mem (Data.track_attr_string track `AlbumTitle) albums )
       in
       let query =
-        match dir.view with
-        | Error msg when msg <> "" ->
-          error lib (msg ^ " in viewlist query"); Query.empty_query
-        | _ -> Option.value dir.query ~default: Query.full_query
+        if dir.error <> "" then
+          (error lib dir.error; Query.empty_query)
+        else
+          Option.value dir.view.query ~default: Query.full_query
       in
       Query.exec query filter dir
     )
@@ -888,7 +1005,7 @@ let refresh_after_rescan lib =
 
 let reorder lib tab sorting attr_string key =
   Option.iter (fun (dir : dir) ->
-    let s = sorting dir in
+    let s = sorting dir.view in
     if s <> [] then
     (
       let selection = Table.save_selection tab in
@@ -911,10 +1028,10 @@ let reorder_tracks lib =
 
 let set_search lib search =
   Option.iter (fun (dir : dir) ->
-    if dir.search <> search || dir.query = None then
+    if dir.view.search <> search || dir.view.query = None then
     (
-      dir.search <- search;
-      update_query lib dir;
+      dir.view.search <- search;
+      update_view_query lib dir;
       update_dir lib dir;
       refresh_artists_albums_tracks lib;
     )
@@ -964,7 +1081,7 @@ let normalize_playlist lib =
     refresh_artists_albums_tracks_sync lib;  (* could be slow... *)
   );
   let dir = Option.get lib.current in
-  match dir.tracks_sorting with
+  match dir.view.tracks_sorting with
   | (`Pos, `Asc)::_ -> `Asc
   | (`Pos, `Desc)::_ ->
     let selection = Table.save_selection lib.tracks in
@@ -1158,7 +1275,8 @@ let to_map lib =
   [
     "browser_scroll", fmt "%d" lib.browser.vscroll;
     "browser_current",
-      (Option.value lib.current ~default: (Data.make_dir "-" None 0 0)).path;
+      (Option.value lib.current
+        ~default: (Data.make_dir "-" None 0 0 (make_view "-"))).path;
     "lib_cover", fmt "%d" (Bool.to_int lib.cover);
   ]
 

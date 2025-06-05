@@ -807,7 +807,7 @@ let run_edit (st : _ State.t) =
   let pl_save_avail = pl_focus in
   let lib_save_avail = lib_focus &&
     (match lib.current with
-    | Some dir -> dir.tracks_shown <> None
+    | Some dir -> dir.view.tracks_shown <> None
     | None -> false
     )
   in
@@ -1053,13 +1053,13 @@ let run_library (st : _ State.t) =
       | None -> false
       | Some path ->
         path = dir.path ||
-        dir.folded && String.starts_with ~prefix: dir.path path
+        dir.view.folded && String.starts_with ~prefix: dir.path path
     in
     let spin = if not spinning then "" else " " ^ spin win
-    and folded = if dir.children = [||] then None else Some dir.folded
+    and folded = if dir.children = [||] then None else Some dir.view.folded
     and c =
       if dir.path = File.(dir current_path // "")
-      || dir.folded && String.starts_with ~prefix: dir.path current_path
+      || dir.view.folded && String.starts_with ~prefix: dir.path current_path
       then `White
       else Ui.text_color lay.ui
     in dir.nest, folded, c, dir.name ^ spin
@@ -1085,7 +1085,7 @@ let run_library (st : _ State.t) =
   | `Fold i ->
     (* Click on triangle: fold/unfold entry *)
     let dir = entries.(i) in
-    Library.fold_dir lib dir (not dir.folded)
+    Library.fold_dir lib dir (not dir.view.folded)
 
   | `Click (Some i) ->
     (* Click on dir name: switch view *)
@@ -1206,17 +1206,20 @@ let run_library (st : _ State.t) =
   (* Browse modes *)
   let have_dir = lib.current <> None in
   let dir = Option.value lib.current ~default: entries.(0) in
+  let view = dir.view in
   let cycle_shown = function
     | None -> Some `Table
     | Some `Table -> Some `Grid
     | Some `Grid -> None
   in
 
-  let nothing_shown (dir : Library.dir) =
-    not dir.artists_shown && dir.albums_shown = None && dir.tracks_shown = None
+  let nothing_shown (view : Library.view) =
+    not view.artists_shown &&
+    view.albums_shown = None &&
+    view.tracks_shown = None
   in
 
-  let artists = have_dir && dir.artists_shown in
+  let artists = have_dir && view.artists_shown in
   Layout.artists_label lay;
   Layout.artists_indicator lay artists;
   let artists' =
@@ -1224,45 +1227,47 @@ let run_library (st : _ State.t) =
   if have_dir && artists' <> artists then
   (
     (* Click on Artists button: toggle artist pane *)
-    dir.artists_shown <- artists';
-    if nothing_shown dir then
-      dir.tracks_shown <- Some `Table;  (* switch to tracks *)
+    view.artists_shown <- artists';
+    if nothing_shown view then
+      view.tracks_shown <- Some `Table;  (* switch to tracks *)
     Library.update_dir lib dir;
   );
 
-  let albums = have_dir && dir.albums_shown <> None in
+  let albums = have_dir && view.albums_shown <> None in
   Layout.albums_label lay;
-  Layout.albums_indicator1 lay (dir.albums_shown = Some `Table);
-  Layout.albums_indicator2 lay (dir.albums_shown = Some `Grid);
+  Layout.albums_indicator1 lay (view.albums_shown = Some `Table);
+  Layout.albums_indicator2 lay (view.albums_shown = Some `Grid);
   let albums' =
     Layout.albums_button lay (if have_dir then Some albums else None) in
   if have_dir && albums' <> albums then
   (
     (* Click on Albums button: toggle artist pane *)
-    dir.albums_shown <- cycle_shown dir.albums_shown;
-    if nothing_shown dir then
-      dir.albums_shown <- Some `Table;
+    view.albums_shown <- cycle_shown view.albums_shown;
+    if nothing_shown view then
+      view.albums_shown <- Some `Table;
     Library.update_dir lib dir;
   );
 
-  let tracks = have_dir && dir.tracks_shown <> None in
+  let tracks = have_dir && view.tracks_shown <> None in
   Layout.tracks_label lay;
-  Layout.tracks_indicator1 lay (dir.tracks_shown = Some `Table);
-  Layout.tracks_indicator2 lay (dir.tracks_shown = Some `Grid);
+  Layout.tracks_indicator1 lay (view.tracks_shown = Some `Table);
+  Layout.tracks_indicator2 lay (view.tracks_shown = Some `Grid);
   let tracks' =
     Layout.tracks_button lay (if have_dir then Some tracks else None) in
   if have_dir && tracks' <> tracks then
   (
     (* Click on Tracks button: toggle artist pane *)
-    dir.tracks_shown <- cycle_shown dir.tracks_shown;
-    if nothing_shown dir then
-      dir.tracks_shown <- Some `Table;
+    view.tracks_shown <- cycle_shown view.tracks_shown;
+    if nothing_shown view then
+      view.tracks_shown <- Some `Table;
     Library.update_dir lib dir;
   );
 
-  let show_artists = have_dir && dir.artists_shown && lay.playlist_shown in
-  let show_albums = have_dir && dir.albums_shown <> None && lay.playlist_shown in
-  let show_tracks = not have_dir || dir.tracks_shown <> None || not lay.playlist_shown in
+  let show_artists = have_dir && view.artists_shown && lay.playlist_shown in
+  let show_albums =
+    have_dir && view.albums_shown <> None && lay.playlist_shown in
+  let show_tracks =
+    not have_dir || view.tracks_shown <> None || not lay.playlist_shown in
   lay.right_shown <- show_artists && show_albums;
   lay.lower_shown <- show_tracks && (show_artists || show_albums);
 
@@ -1338,9 +1343,10 @@ let run_library (st : _ State.t) =
     let busy = Library.refresh_artists_busy lib in
     let tab = if busy then busy_artists else lib.artists in
     let cols =
-      Array.map (fun (attr, cw) -> cw, Library.attr_align attr) dir.artists_columns
+      Array.map (fun (attr, cw) -> cw, Library.attr_align attr)
+        view.artists_columns
     and headings =
-      Array.map (fun (attr, _) -> Library.attr_name attr) dir.artists_columns
+      Array.map (fun (attr, _) -> Library.attr_name attr) view.artists_columns
     in
 
     let entries = tab.entries in  (* could change concurrently *)
@@ -1348,10 +1354,10 @@ let run_library (st : _ State.t) =
       let artist = entries.(i) in
       Ui.text_color lay.ui,
       Array.map (fun (attr, _) -> `Text (Data.artist_attr_string artist attr))
-        dir.artists_columns
+        view.artists_columns
     in
 
-    let sorting = convert_sorting dir.artists_columns dir.artists_sorting in
+    let sorting = convert_sorting view.artists_columns view.artists_sorting in
     (match artists_table lay cols (Some (headings, sorting)) tab pp_row with
     | `None | `Scroll | `Move _ -> ()
 
@@ -1362,20 +1368,21 @@ let run_library (st : _ State.t) =
 
     | `Sort i ->
       (* Click on column header: reorder view accordingly *)
-      let attr = fst dir.artists_columns.(i) in
+      let attr = fst view.artists_columns.(i) in
       let k =
         Bool.to_int (Api.Key.is_modifier_down `Shift) +
         Bool.to_int (Api.Key.is_modifier_down `Alt) * 2 +
         Bool.to_int (Api.Key.is_modifier_down `Command) * (-4)
       in
-      dir.artists_sorting <-
-        Data.insert_sorting `Artist attr k 4 dir.artists_sorting;
+      view.artists_sorting <-
+        Data.insert_sorting `Artist attr k 4 view.artists_sorting;
       Library.update_dir lib dir;
       Library.reorder_artists lib;
 
     | `Arrange ->
       (* Column resizing: update column widths *)
-      Array.mapi_inplace (fun i (a, _) -> a, fst cols.(i)) dir.artists_columns;
+      Array.mapi_inplace (fun i (a, _) ->
+        a, fst cols.(i)) view.artists_columns;
       if have_dir then Library.update_dir lib dir;
 
     | `Click (Some _i) when Api.Mouse.is_doubleclick `Left ->
@@ -1438,12 +1445,13 @@ let run_library (st : _ State.t) =
     let busy = Library.refresh_albums_busy lib in
     let tab = if busy then busy_albums else lib.albums in
     let cols =
-      Array.map (fun (attr, cw) -> cw, Library.attr_align attr) dir.albums_columns
+      Array.map (fun (attr, cw) -> cw, Library.attr_align attr)
+        view.albums_columns
     and headings =
-      Array.map (fun (attr, _) -> Library.attr_name attr) dir.albums_columns
+      Array.map (fun (attr, _) -> Library.attr_name attr) view.albums_columns
     in
 
-    if Option.get dir.albums_shown = `Grid
+    if Option.get view.albums_shown = `Grid
     && Api.Draw.frame win mod refresh_delay = 2 then
       Table.dirty tab;  (* to capture cover updates *)
 
@@ -1459,7 +1467,7 @@ let run_library (st : _ State.t) =
           | Some img -> `Image img
           | None -> `Text ""
         else `Text ""
-      ) dir.albums_columns
+      ) view.albums_columns
     in
 
     let pp_cell i =
@@ -1475,10 +1483,10 @@ let run_library (st : _ State.t) =
       in img, txt
     in
 
-    let sorting = convert_sorting dir.albums_columns dir.albums_sorting in
+    let sorting = convert_sorting view.albums_columns view.albums_sorting in
     let header = Some (headings, sorting) in
     (match
-      match Option.get dir.albums_shown with
+      match Option.get view.albums_shown with
       | `Table -> albums_table lay cols header tab pp_row
       | `Grid -> albums_grid lay lay.albums_grid header tab pp_cell
     with
@@ -1491,20 +1499,20 @@ let run_library (st : _ State.t) =
 
     | `Sort i ->
       (* Click on column header: reorder view accordingly *)
-      let attr = fst dir.albums_columns.(i) in
+      let attr = fst view.albums_columns.(i) in
       let k =
         Bool.to_int (Api.Key.is_modifier_down `Shift) +
         Bool.to_int (Api.Key.is_modifier_down `Alt) * 2 +
         Bool.to_int (Api.Key.is_modifier_down `Command) * (-4)
       in
-      dir.albums_sorting <-
-        Data.insert_sorting `None attr k 4 dir.albums_sorting;
+      view.albums_sorting <-
+        Data.insert_sorting `None attr k 4 view.albums_sorting;
       Library.update_dir lib dir;
       Library.reorder_albums lib;
 
     | `Arrange ->
       (* Column resizing: update column widths *)
-      Array.mapi_inplace (fun i (a, _) -> a, fst cols.(i)) dir.albums_columns;
+      Array.mapi_inplace (fun i (a, _) -> a, fst cols.(i)) view.albums_columns;
       if have_dir then Library.update_dir lib dir;
 
     | `Click (Some _i) when Api.Mouse.is_doubleclick `Left ->
@@ -1571,12 +1579,13 @@ let run_library (st : _ State.t) =
     let busy = Library.refresh_tracks_busy lib in
     let tab = if busy then busy_tracks else lib.tracks in
     let cols =
-      Array.map (fun (attr, cw) -> cw, Library.attr_align attr) dir.tracks_columns
+      Array.map (fun (attr, cw) -> cw, Library.attr_align attr)
+        view.tracks_columns
     and headings =
-      Array.map (fun (attr, _) -> Library.attr_name attr) dir.tracks_columns
+      Array.map (fun (attr, _) -> Library.attr_name attr) view.tracks_columns
     in
 
-    if Option.get dir.tracks_shown = `Grid
+    if Option.get view.tracks_shown = `Grid
     && Api.Draw.frame win mod refresh_delay = 5 then
       Table.dirty tab;  (* to capture cover updates *)
 
@@ -1607,7 +1616,7 @@ let run_library (st : _ State.t) =
           | Some img -> `Image img
           | None -> `Text ""
         else `Text ""
-      ) dir.tracks_columns
+      ) view.tracks_columns
     in
 
     let pp_cell i =
@@ -1624,10 +1633,10 @@ let run_library (st : _ State.t) =
       in img, txt
     in
 
-    let sorting = convert_sorting dir.tracks_columns dir.tracks_sorting in
+    let sorting = convert_sorting view.tracks_columns view.tracks_sorting in
     let header = Some (headings, sorting) in
     (match
-      match Option.get dir.tracks_shown with
+      match Option.get view.tracks_shown with
       | `Table -> tracks_table lay cols header tab pp_row
       | `Grid -> tracks_grid lay lay.tracks_grid header tab pp_cell
     with
@@ -1638,7 +1647,7 @@ let run_library (st : _ State.t) =
 
     | `Sort i ->
       (* Click on column header: reorder view accordingly *)
-      let attr = fst dir.tracks_columns.(i) in
+      let attr = fst view.tracks_columns.(i) in
       let k =
         Bool.to_int (Api.Key.is_modifier_down `Shift) +
         Bool.to_int (Api.Key.is_modifier_down `Alt) * 2 +
@@ -1647,14 +1656,14 @@ let run_library (st : _ State.t) =
       let primary =
         if Library.current_is_playlist lib
         || Library.current_is_viewlist lib then `Pos else `FilePath in
-      dir.tracks_sorting <-
-        Data.insert_sorting primary attr k 4 dir.tracks_sorting;
+      view.tracks_sorting <-
+        Data.insert_sorting primary attr k 4 view.tracks_sorting;
       Library.update_dir lib dir;
       Library.reorder_tracks lib;
 
     | `Arrange ->
       (* Column resizing: update column widths *)
-      Array.mapi_inplace (fun i (a, _) -> a, fst cols.(i)) dir.tracks_columns;
+      Array.mapi_inplace (fun i (a, _) -> a, fst cols.(i)) view.tracks_columns;
       if have_dir then Library.update_dir lib dir;
 
     | `Click (Some i) when Api.Mouse.is_doubleclick `Left ->
@@ -1709,7 +1718,7 @@ let run_library (st : _ State.t) =
 
           if delta <> 0 && Library.num_selected lib > 0 && sorting <> [] then
           (
-            let prim_attr, order = List.hd dir.tracks_sorting in
+            let prim_attr, order = List.hd view.tracks_sorting in
             if prim_attr = `Pos && order = `Asc then
             (
               match way with
