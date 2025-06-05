@@ -559,25 +559,28 @@ let drop_on_browser (st : _ State.t) tracks =
   if st.layout.library_shown then
   (
     Option.iter (fun i ->
-      let dir = browser.entries.(i) in
-      if Data.is_playlist dir then
+      if i < Array.length browser.entries then
       (
-        (* Drag & drop onto playlist browser entry: send tracks there *)
-        (* Since the dir might not be selected, and updating views is
-         * asynchronous, write to file directly *)
-        (try
-          let s = Track.to_m3u tracks in
-          let s' = File.load `Bin dir.path in
-          File.store `Bin dir.path (s' ^ s)
-        with exn ->
-          Storage.log_exn "file" exn ("modifying playlist " ^ dir.path)
-        );
-        if Library.selected_dir lib = Some i then
+        let dir = browser.entries.(i) in
+        if Data.is_playlist dir then
         (
-          Library.deselect_dir lib;  (* force reload *)
-          Library.select_dir lib i;
-          Library.refresh_artists_albums_tracks lib;
-        );
+          (* Drag & drop onto playlist browser entry: send tracks there *)
+          (* Since the dir might not be selected, and updating views is
+           * asynchronous, write to file directly *)
+          (try
+            let s = Track.to_m3u tracks in
+            let s' = File.load `Bin dir.path in
+            File.store `Bin dir.path (s' ^ s)
+          with exn ->
+            Storage.log_exn "file" exn ("modifying playlist " ^ dir.path)
+          );
+          if Library.selected_dir lib = Some i then
+          (
+            Library.deselect_dir lib;  (* force reload *)
+            Library.select_dir lib i;
+            Library.refresh_artists_albums_tracks lib;
+          );
+        )
       )
     ) (Layout.browser_mouse lay browser)
   )
