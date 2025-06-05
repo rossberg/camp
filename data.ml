@@ -702,6 +702,7 @@ let track_columns_of_string s = columns_of_string_add_cover 1 to_track_attr s
 (* String Comparison *)
 
 module UCol = Camomile.UCol.Make (Camomile.UTF8)
+module UCase = Camomile.CaseMap.Make (Camomile.UTF8)
 
 let compare_utf_8 s1 s2 = UCol.compare ~prec: `Primary s1 s2
 let compare_length s1 s2 = compare (String.length s1) (String.length s2)
@@ -713,7 +714,7 @@ let compare_dir (dir1 : _ dir) (dir2 : _ dir) =
 
 
 let key_entry' e attr_string (attr, order) =
-  let s = attr_string e attr in
+  let s = UCol.sort_key (UCase.lowercase (attr_string e attr)) in
   if order = `Asc then s else String.map Char.(fun c -> chr (255 - code c)) s
 
 let key_entry attr_string sorting e =
