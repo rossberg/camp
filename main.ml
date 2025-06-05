@@ -1287,14 +1287,15 @@ let run_library (st : _ State.t) =
       )
     );
 
-    let ch = Layout.search_text lay lib.search in
+    let search = lib.search.text in
+    let _ = Layout.search_text lay lib.search in
     if lib.search.focus then
     (
       (* Have or gained focus: make sure it's consistent *)
       State.defocus_all st;
       Library.focus_search lib;
     );
-    if ch = Uchar.of_char '\n' || ch = Uchar.of_char ' ' then
+    if lib.search.text <> search then
     (
       (* Entered Space or Return: update search in dir *)
       Library.set_search lib lib.search.text;
