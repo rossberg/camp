@@ -1073,7 +1073,7 @@ let rich_table ui area gw ch sw sh mr cols header_opt (tab : _ Table.t) pp_row =
     (* Vertical scrollbar *)
     let wdx, wdy = wheel_status ui r in
     let wdx, wdy = if Float.abs wdx > Float.abs wdy then wdx, 0.0 else 0.0, wdy in
-    let vwheel = not shift && len > page in
+    let vwheel = not shift && len > page || wdy = 0.0 in
     let h' = page * ch in
     let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * ch)) in
     let pos = if len = 0 then 0.0 else float tab.vscroll /. float len in
