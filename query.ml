@@ -259,6 +259,9 @@ let rec index_sub_from_opt s i s' =
 
 let string_contains ~inner s = index_sub_from_opt s 0 inner <> None
 
+let string_contains_caseless ~inner s =
+  string_contains ~inner: (Data.UCase.casefolding inner) (Data.UCase.casefolding s)
+
 
 let rec eval q track =
   match q with
@@ -284,8 +287,8 @@ let rec eval q track =
     | GT, v1, v2 -> BoolV (v1 > v2)
     | LE, v1, v2 -> BoolV (v1 <= v2)
     | GE, v1, v2 -> BoolV (v1 >= v2)
-    | IN, TextV t1, TextV t2 -> BoolV (string_contains ~inner: t1 t2)
-    | NI, TextV t1, TextV t2 -> BoolV (not (string_contains ~inner: t1 t2))
+    | IN, TextV t1, TextV t2 -> BoolV (string_contains_caseless ~inner: t1 t2)
+    | NI, TextV t1, TextV t2 -> BoolV (not (string_contains_caseless ~inner: t1 t2))
     | Add, IntV i1, IntV i2 -> IntV (i1 + i2)
     | Add, TimeV t1, TimeV t2 -> TimeV (t1 +. t2)
     | Add, DateV t1, TimeV t2 -> DateV (t1 +. t2)
@@ -480,6 +483,9 @@ let rec token s i =
     | Some key -> KeyToken key, j
     | None -> raise (SyntaxError i)
     )
+  | c when c >= '\x80' ->
+    let s', j = scan_word s i in
+    TextToken s', j
   | _ -> raise (SyntaxError i)
 
 
