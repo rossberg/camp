@@ -714,7 +714,7 @@ let compare_dir (dir1 : _ dir) (dir2 : _ dir) =
 
 
 let key_entry' e attr_string (attr, order) =
-  let s = UCol.sort_key (UCase.lowercase (attr_string e attr)) in
+  let s = UCol.sort_key (UCase.casefolding (attr_string e attr)) in
   if order = `Asc then s else String.map Char.(fun c -> chr (255 - code c)) s
 
 let key_entry attr_string sorting e =
