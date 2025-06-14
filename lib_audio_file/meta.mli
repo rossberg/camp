@@ -45,6 +45,9 @@ val date : int -> int -> int -> time
 val date_of_string : string -> time  (* returns 0.0 on error *)
 val year_of_string : string -> int   (* returns 0 on error *)
 
+val int_of_total_string : string -> int    (* returns 0 on error *)
+val total_of_total_string : string -> int  (* returns 0 on error *)
+
 val unknown : t
 
 val meta : path -> tag option -> t

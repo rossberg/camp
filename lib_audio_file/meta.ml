@@ -149,23 +149,26 @@ let text_tag_field names _path tag : string =
   | None -> ""
   | Some s -> s
 
+let int_of_total_string s : int =
+  let k = Option.value (String.index_opt s '/') ~default: (String.length s) in
+  Option.value (int_of_string_opt (String.sub s 0 k)) ~default: 0
+
+let total_of_total_string s : int =
+  let k = Option.value (String.index_opt s '/') ~default: (String.length s - 1) in
+  Option.value (int_of_string_opt (String.sub s (k + 1) (String.length s - k - 1))) ~default: 0
+
 let int_tag_field names path tag : int =
   match tag_field names tag with
   | None -> 0
   | Some s ->
-    let k = Option.value (String.index_opt s '/') ~default:(String.length s) in
-    match int_of_string_opt (String.sub s 0 k) with
-    | Some i -> i
-    | None -> warn_field names path tag s; 0
+    let i = int_of_total_string s in
+    if i = 0 then warn_field names path tag s;
+    0
 
-let maxint_tag_field names _path tag : int =
+let total_tag_field names _path tag : int =
   match tag_field names tag with
   | None -> 0
-  | Some s ->
-    let k = Option.value (String.index_opt s '/') ~default:(String.length s - 1) in
-    match int_of_string_opt (String.sub s (k + 1) (String.length s - k - 1)) with
-    | Some i -> i
-    | None -> 0
+  | Some s -> total_of_total_string s
 
 let time_tag_field names path tag : float =
   match tag_field names tag with
@@ -319,10 +322,10 @@ let meta path tag =
       artist = text_tag_field ("TPE1", "ARTIST") path tag;
       title = text_tag_field ("TIT2", "TITLE") path tag;
       track = int_tag_field ("TRCK", "TRACKNUMBER") path tag;
-      tracks = maxint_tag_field ("TRCK", "TRACKNUMBER") path tag;
+      tracks = total_tag_field ("TRCK", "TRACKNUMBER") path tag;
       track_txt = text_tag_field ("TRCK", "TRACKNUMBER") path tag;
       disc = int_tag_field ("TPOS", "DISCNUMBER") path tag;
-      discs = maxint_tag_field ("TPOS", "DISCNUMBER") path tag;
+      discs = total_tag_field ("TPOS", "DISCNUMBER") path tag;
       disc_txt = text_tag_field ("TPOS", "DISCNUMBER") path tag;
       albumartist = text_tag_field ("TPE2", "ALBUMARTIST") path tag;
       albumtitle = text_tag_field ("TALB", "ALBUM") path tag;

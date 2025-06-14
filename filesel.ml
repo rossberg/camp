@@ -320,37 +320,32 @@ let reorder_files fs k =
 
 (* Persistance *)
 
-open Storage
+let print_state fs =
+  let open Struct.Print in
+  record (fun fs -> [
+    "path", string fs.path;
+    "columns", array nat fs.columns;
+  ]) fs
 
-let of_map fs m =
-  read_map m "file_path" (fun s -> set_dir_path fs s);
-  read_map m "file_cols" (fun s ->
-    fs.columns <- Array.of_list
-      (List.filter_map int_of_string_opt (String.split_on_char ' ' s))
+let print_intern fs =
+  let open Struct.Print in
+  print_state fs @@
+  record (fun fs -> [
+    "roots", array string (Array.map (fun (dir : dir) -> dir.path) fs.roots);
+    "dirs", nat (Table.length fs.dirs);
+    "files", nat (Table.length fs.files);
+    "dir", option string
+      (Option.map (fun i -> fs.dirs.entries.(i).path) (Table.first_selected fs.dirs));
+    "file", option string
+      (Option.map (fun i -> fs.files.entries.(i).name) (Table.first_selected fs.files));
+    "input", string fs.input.text;
+  ]) fs
+
+let parse_state fs =
+  let open Struct.Parse in
+  record (fun r->
+    apply (r $? "path") string
+      (fun s -> set_dir_path fs s);
+    apply (r $? "columns") (array nat)
+      (fun ws -> fs.columns <- ws);
   )
-
-let to_map fs =
-  Map.of_list
-  [
-    "file_path", fs.path;
-    "file_cols", String.concat " "
-      (Array.to_list (Array.map string_of_int fs.columns));
-  ]
-
-let to_map_extra fs =
-  Map.of_list
-  [
-    "file_roots", String.concat " "
-      Array.(to_list (map (fun (dir : dir) -> dir.path) fs.roots));
-    "file_dirs", string_of_int (Table.length fs.dirs);
-    "file_files", string_of_int (Table.length fs.files);
-    "file_dir",
-      (match Table.first_selected fs.dirs with
-      | Some i -> fs.dirs.entries.(i).path
-      | None -> "");
-    "file_file",
-      (match Table.first_selected fs.files with
-      | Some i -> fs.files.entries.(i).name
-      | None -> "");
-    "file_input", fs.input.text;
-  ]

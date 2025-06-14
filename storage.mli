@@ -26,18 +26,9 @@ val log_clear : unit -> unit
 val load : file -> (in_channel -> unit) -> unit
 val load_opt : file -> (in_channel -> unit) -> unit
 val save : file -> (out_channel -> unit) -> unit
-val append : file -> (out_channel -> unit) -> unit
+val save_append : file -> (out_channel -> unit) -> unit
 
-(* Key/value files *)
-
-module Map : Map.S with type key = string
-type map = string Map.t
-
-val read_map : map -> string -> (string -> unit) -> unit
-val combine_map : map -> map -> map
-
-val load_map : path -> map
-val save_map : path -> map -> unit
-
-val string_of_map : map -> string
-val map_of_string : string -> map
+val load_string : file -> (string -> unit) -> unit
+val load_string_opt : file -> (string -> unit) -> unit
+val save_string : file -> (unit -> string) -> unit
+val save_string_append : file -> (unit -> string) -> unit

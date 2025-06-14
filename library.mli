@@ -46,6 +46,7 @@ type 'cache t =
 (* Constructor *)
 
 val make : unit -> 'a t
+val make_views : string -> views
 
 
 (* Validation *)
@@ -62,10 +63,9 @@ val error : 'a t -> string -> unit
 
 (* Persistance *)
 
-val to_map : 'a t -> Storage.map
-val of_map : 'a t -> Storage.map -> unit  (* assumes roots already set *)
-
-val to_map_extra : 'a t -> Storage.map
+val print_state : 'a t -> Struct.t
+val print_intern : 'a t -> Struct.t
+val parse_state : 'a t -> Struct.t -> unit  (* assumes roots already set *)
 
 val save_playlist : 'a t -> unit
 

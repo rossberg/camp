@@ -327,8 +327,8 @@ let has_track lib (track : track) =
 
 (* Data Persistence *)
 
-let library_name = "library.bin"
-let browser_name = "browser.bin"
+let library_name = "library.conf"
+let browser_name = "browser.conf"
 
 let clear_track (track : track) = track.memo <- None
 
@@ -336,36 +336,205 @@ let rec clear_dir (dir : dir) =
   Array.iter clear_dir dir.children;
   Array.iter clear_track dir.tracks
 
+
 let save_db lib =
-  Storage.save library_name (fun oc ->
+  Storage.save_string library_name (fun () ->
     clear_dir lib.root;
-    Marshal.to_channel oc lib.root []
+    Struct.print (Data.Print.dir () lib.root)
   )
 
 let load_db lib =
-  Storage.load library_name (fun ic ->
-    lib.root <- (Marshal.from_channel ic : dir)
+  Storage.load_string library_name (fun s ->
+    lib.root <- Data.Parse.dir (make_views "") (Struct.parse s)
   )
 
-let rec save_view oc (dir : dir) =
-  Marshal.to_channel oc (dir.path, dir.view) [];
-  Array.iter (save_view oc) dir.children
+
+module Print =
+struct
+  include Struct.Print
+
+  let attr_enum =
+  [
+    "POS", `Pos;
+    "PTH", `FilePath;
+    "DIR", `FileDir;
+    "NAM", `FileName;
+    "EXT", `FileExt;
+    "SIZ", `FileSize;
+    "TIM", `FileTime;
+    "COD", `Codec;
+    "CHA", `Channels;
+    "DEP", `Depth;
+    "KHZ", `SampleRate;
+    "BPS", `BitRate;
+    "RES", `Rate;
+    "ART", `Artist;
+    "TIT", `Title;
+    "LEN", `Length;
+    "RAT", `Rating;
+    "ALA", `AlbumArtist;
+    "ALB", `AlbumTitle;
+    "TRK", `Track;
+    "TRS", `Tracks;
+    "DSC", `Disc;
+    "DSS", `Discs;
+    "DTR", `DiscTrack;
+    "ALS", `Albums;
+    "DAT", `Date;
+    "YER", `Year;
+    "LAB", `Label;
+    "CTY", `Country;
+    "COV", `Cover;
+    "TRU", `True;
+    "FLS", `False;
+    "NOW", `Now;
+    "RND", `Random;
+  ]
+
+  let any_attr = enum attr_enum
+  let artist_attr (x : artist_attr) = any_attr (x :> any_attr)
+  let album_attr (x : album_attr) = any_attr (x :> any_attr)
+  let track_attr (x : track_attr) = any_attr (x :> any_attr)
+
+  let display_enum = ["table", `Table; "grid", `Grid]
+  let display = enum display_enum
+
+  let order_enum = ["asc", `Asc; "desc", `Desc]
+  let order = enum order_enum
+
+  let sorting attr = list (pair attr order)
+  let columns attr = array (pair attr nat)
+
+  let view attr =
+    record (fun (x : 'a view) -> [
+      "shown", option display x.shown;
+      "columns", columns attr x.columns;
+      "sort", sorting attr x.sorting;
+    ])
+
+  let views =
+    record (fun (x : views) -> [
+      "search", string x.search;
+      (* query omitted and reconstructed from search *)
+      "fold", bool x.folded;
+      "div_w", nat x.divider_width;
+      "div_h", nat x.divider_height;
+      "artists", view artist_attr x.artists;
+      "albums", view album_attr x.albums;
+      "tracks", view track_attr x.tracks;
+    ])
+
+  let dir (x : dir) =
+    let rec tree (dir : dir) =
+      (dir.path, dir.view) :: List.concat_map tree (Array.to_list dir.children)
+    in map views (tree x)
+end
+
+module Parse =
+struct
+  include Struct.Parse
+
+  let any_attr = enum Print.attr_enum
+
+  let artist_attr u =
+    match any_attr u with
+    | #artist_attr as x -> x
+    | _ -> raise Struct.Type_error
+
+  let album_attr u =
+    match any_attr u with
+    | #album_attr as x -> x
+    | _ -> raise Struct.Type_error
+
+  let track_attr u =
+    match any_attr u with
+    | #track_attr as x -> x
+    | _ -> raise Struct.Type_error
+
+  let display = enum Print.display_enum
+  let order = enum Print.order_enum
+
+  let sorting attr = list (pair attr order)
+  let columns attr = array (pair attr nat)
+
+  let view attr : t -> 'a view =
+    record (fun r -> {
+      shown = option display (r $ "shown");
+      columns = columns attr (r $ "columns");
+      sorting = sorting attr (r $ "sort");
+    })
+
+  let views : t -> views =
+    record (fun r -> {
+      search = string (r $ "search");
+      query = None;
+      folded = bool (r $ "fold");
+      divider_width = nat (r $ "div_w");
+      divider_height = nat (r $ "div_h");
+      artists = view artist_attr (r $ "artists");
+      albums = view album_attr (r $ "albums");
+      tracks = view track_attr (r $ "tracks");
+    })
+
+  let dir u =
+    let map = map views u in
+    let rec tree (dir : dir) =
+      Option.iter (fun v -> dir.view <- v) (List.assoc_opt dir.path map);
+      Array.iter tree dir.children
+    in tree
+end
+
+(*
+module Print :
+sig
+  include module type of Struct.Print
+
+  val any_attr : any_attr -> t
+  val artist_attr : artist_attr -> t
+  val album_attr : album_attr -> t
+  val track_attr : track_attr -> t
+
+  val display : display -> t
+  val order : order -> t
+  val sorting : ('a -> t) -> 'a sorting -> t
+  val columns : ('a -> t) -> 'a columns -> t
+
+  val view : ('a -> t) -> 'a view -> t
+  val views : views -> t
+  val dir : dir -> t
+end
+
+module Parse :
+sig
+  include module type of Struct.Parse
+
+  val any_attr : t -> any_attr
+  val artist_attr : t -> artist_attr
+  val album_attr : t -> album_attr
+  val track_attr : t -> track_attr
+
+  val display : t -> display
+  val order : t -> order
+  val sorting : (t -> 'a) -> t -> 'a sorting
+  val columns : (t -> 'a) -> t -> 'a columns
+
+  val view : (t -> 'a) -> t -> 'a view
+  val views : t -> views
+  val dir : t -> dir -> unit
+end
+*)
 
 let save_browser lib =
-  Storage.save browser_name (fun oc ->
-    save_view oc lib.root
+  Storage.save_string browser_name (fun () ->
+    Struct.print (Print.dir lib.root)
   )
 
 let load_browser lib =
-  Storage.load browser_name (fun ic ->
+  Storage.load_string_opt browser_name (fun s ->
     try
-      while true do
-        let path, view = (Marshal.from_channel ic : path * views) in
-        match find_dir lib path with
-        | None -> ()
-        | Some dir -> dir.view <- view
-      done
-    with End_of_file -> ()
+      Parse.dir (Struct.parse s) lib.root
+    with Struct.Syntax_error _ | Struct.Type_error as exn ->
+      Storage.log_exn "parse" exn "while loading browser state"
   )
 
 
@@ -1279,49 +1448,46 @@ let purge_covers lib =
 
 (* Persistance *)
 
-open Storage
-let fmt = Printf.sprintf
-let scan = Scanf.sscanf
-let bool x = x <> 0
-let num l h x = max l (min h x)
+let print_state lib =
+  let open Struct.Print in
+  record (fun lib -> [
+    "browser_scroll", int lib.browser.vscroll;
+    "browser_current", option string (Option.map (fun dir -> dir.path) lib.current);
+    "lib_cover", bool lib.cover;
+  ]) lib
 
-let to_map lib =
-  Map.of_list
-  [
-    "browser_scroll", fmt "%d" lib.browser.vscroll;
-    "browser_current",
-      (Option.value lib.current
-        ~default: (Data.make_dir "-" None 0 0 (make_views "-"))).path;
-    "lib_cover", fmt "%d" (Bool.to_int lib.cover);
-  ]
+let print_intern lib =
+  let open Struct.Print in
+  print_state lib @@
+  record (fun lib -> [
+    "browser_pos", option int lib.browser.pos;
+    "browser_length", int (Array.length lib.browser.entries);
+    "browser_selected", option (pair int string)
+      (Option.map (fun i -> i, lib.browser.entries.(i).name)
+        (selected_dir lib));
+    "tracks_pos", option int lib.tracks.pos;
+    "tracks_vscroll", int lib.tracks.vscroll;
+    "tracks_hscroll", int lib.tracks.hscroll;
+    "tracks_length", int (Array.length lib.tracks.entries);
+    "root_length", int (Array.length lib.root.children);
+    "lib_error", string lib.error;
+    "lib_error_time", float lib.error_time;
+  ]) lib
 
-let to_map_extra lib =
-  Map.of_list
-  [
-    "browser_pos", fmt "%d" (Option.value lib.browser.pos ~default: (-1));
-    "browser_length", fmt "%d" (Array.length lib.browser.entries);
-    "browser_selected",
-      (Option.value (Option.map (fun i ->
-          fmt "%d(%s)" i lib.browser.entries.(i).name
-        ) (selected_dir lib)) ~default: "");
-    "tracks_pos", fmt "%d" (Option.value lib.tracks.pos ~default: (-1));
-    "tracks_vscroll", fmt "%d" lib.tracks.vscroll;
-    "tracks_hscroll", fmt "%d" lib.tracks.hscroll;
-    "tracks_length", fmt "%d" (Array.length lib.tracks.entries);
-    "root_length", fmt "%d" (Array.length lib.root.children);
-    "lib_error", fmt "%s" lib.error;
-    "lib_error_time", fmt "%.1f" lib.error_time;
-  ]
-
-let of_map lib m =
-  refresh_browser lib;
-  read_map m "browser_scroll" (fun s ->
-    Table.set_vscroll lib.browser
-      (scan s "%d" (num 0 (max 0 (length_browser lib - 1)))) 4);
-  read_map m "browser_current" (fun s ->
-    Option.iter (fun i -> select_dir lib i)
-      (Array.find_index (fun (dir : dir) -> dir.path = s) lib.browser.entries);
-    if lib.current = None then lib.current <- find_dir lib s;
-  );
-  read_map m "lib_cover" (fun s -> lib.cover <- scan s "%d" bool);
-  refresh_artists_albums_tracks lib
+let parse_state lib =
+  let open Struct.Parse in
+  record (fun r ->
+    refresh_browser lib;
+    apply (r $? "browser_scroll") (num 0 (max 0 (length_browser lib - 1)))
+      (fun i -> Table.set_vscroll lib.browser i 4);
+    apply (r $? "browser_current") string
+      (fun i ->
+        Option.iter (select_dir lib)
+          (Array.find_index (fun (dir : dir) -> dir.path = i)
+            lib.browser.entries);
+        if lib.current = None then lib.current <- find_dir lib i;
+      );
+    apply (r $? "lib_cover") bool
+      (fun b -> lib.cover <- b);
+    refresh_artists_albums_tracks lib
+  )

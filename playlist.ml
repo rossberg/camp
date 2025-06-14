@@ -257,13 +257,13 @@ let deselect pl i0 j0 =
 let playlist_file = "playlist.m3u"
 
 let save_playlist pl =
-  Storage.save playlist_file (fun file ->
-    Out_channel.output_string file (Track.to_m3u pl.table.entries)
+  Storage.save_string playlist_file (fun () ->
+    Track.to_m3u pl.table.entries
   )
 
 let load_playlist pl =
-  Storage.load_opt playlist_file (fun file ->
-    Table.set pl.table (Track.of_m3u (In_channel.input_all file))
+  Storage.load_string_opt playlist_file (fun s ->
+    Table.set pl.table (Track.of_m3u s)
   )
 
 
@@ -384,57 +384,45 @@ let redo pl = Table.pop_redo pl.table
 
 (* Persistance *)
 
-open Storage
-let fmt = Printf.sprintf
-let scan = Scanf.sscanf
-let bool x = x <> 0
-let num l h x = max l (min h x)
-let num_opt l h x = if x < 0 then None else Some (num l h x)
+let print_state pl =
+  let open Struct.Print in
+  record (fun pl -> [
+    "pos", option nat pl.table.pos;
+    "scroll", nat pl.table.vscroll;
+    "shuffle", bool (pl.shuffle <> None);
+  ]) pl
 
-let opt f = function
-  | None -> ""
-  | Some i -> f i
+let print_intern pl =
+  let open Struct.Print in
+  print_state pl @@
+  record (fun pl -> [
+    "length", nat (Table.length pl.table);
+    "selected", pair nat (option (pair nat nat))
+      ( Table.IntSet.cardinal pl.table.selected,
+        if pl.table.selected = Table.IntSet.empty then None else
+        Some Table.IntSet.(min_elt pl.table.selected, max_elt pl.table.selected) );
+    "sel_range", option (pair nat nat) pl.table.sel_range;
+    "total", pair float nat pl.total;
+    "total_selected", pair float nat pl.total_selected;
+    "undo", nat (List.length !(pl.table.undos));
+    "redo", nat (List.length !(pl.table.redos));
+    "shuffling", option (
+      record (fun sh -> [
+        "length", nat (Array.length sh.tracks);
+        "pos", option nat sh.pos;
+        "unobserved", nat sh.unobserved;
+      ])) pl.shuffle;
+  ]) pl
 
-let opt_int_pair = opt (fun (i, j) -> string_of_int i ^ ", " ^ string_of_int j)
-
-let to_map pl =
-  Map.of_list
-  [
-    "shuffle", fmt "%d" (Bool.to_int (pl.shuffle <> None));
-    "play_pos", fmt "%d" (Option.value pl.table.pos ~default: (-1));
-    "play_scroll", fmt "%d" pl.table.vscroll;
-  ]
-
-let to_map_extra pl =
-  Map.of_list @@
-  [
-    "play_length", fmt "%d" (Table.length pl.table);
-    "play_selected", fmt "%d" (Table.IntSet.cardinal pl.table.selected) ^
-      ( if pl.table.selected = Table.IntSet.empty then "" else
-        Table.IntSet.(fmt "(%d-%d)"
-          (min_elt pl.table.selected) (max_elt pl.table.selected)) );
-    "play_sel_range", fmt "%s" (opt_int_pair pl.table.sel_range);
-    "play_total", fmt "%.2f, %d" (fst pl.total) (snd pl.total);
-    "play_total_selected", fmt "%.2f, %d"
-    (fst pl.total_selected) (snd pl.total_selected);
-    "play_undo_length", fmt "%d" (List.length !(pl.table.undos));
-    "play_redo_length", fmt "%d" (List.length !(pl.table.redos));
-  ] @
-  match pl.shuffle with
-  | None -> []
-  | Some sh ->
-    [
-      "shuffle_length", fmt "%d" (Array.length sh.tracks);
-      "shuffle_pos", fmt "%d" (Option.value sh.pos ~default: (-1));
-      "shuffle_unobserved", fmt "%d" sh.unobserved;
-    ]
-
-let of_map pl m =
-  let lim = max 0 (Table.length pl.table - 1) in
-  refresh_total pl;
-  read_map m "play_pos"
-    (fun s -> Table.set_pos pl.table (scan s "%d" (num_opt 0 lim)));
-  read_map m "play_scroll"
-    (fun s -> Table.set_vscroll pl.table (scan s "%d" (num 0 lim)) 4);
-  read_map m "shuffle"
-    (fun s -> if scan s "%d" bool then shuffle pl pl.table.pos)
+let parse_state pl =
+  let open Struct.Parse in
+  record (fun r ->
+    let lim = max 0 (Table.length pl.table - 1) in
+    refresh_total pl;
+    apply (r $? "pos") (option (num 0 lim))
+      (fun i -> Table.set_pos pl.table i);
+    apply (r $? "scroll") (num 0 lim)
+      (fun i -> Table.set_vscroll pl.table i 4);
+    apply (r $? "shuffle") bool
+      (fun b -> if b then shuffle pl pl.table.pos);
+  )

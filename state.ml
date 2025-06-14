@@ -97,74 +97,70 @@ let focus_prev st = focus_switch st (List.rev (foci st))
 
 (* Layout Persistance *)
 
-open Storage
-let fmt = Printf.sprintf
-let scan = Scanf.sscanf
+let side_enum = ["left", `Left; "right", `Right]
 
-let value = Fun.id
-let bool x = x <> 0
-let num l h x = max l (min h x)
-let num_pair lx ly hx hy x y = num lx hx x, num ly hy y
-
-let layout_to_map lay =
+let print_layout lay =
   let open Layout in
+  let open Struct.Print in
   let x, y = Api.Window.pos (Ui.window lay.ui) in
   let x =
     if lay.library_shown || not lay.filesel_shown then x
     else x + lay.library_width
   in
-  Map.of_list
-  [
-    "win_pos", fmt "%d, %d" x y;
-    "color_palette", fmt "%d" (Ui.get_palette lay.ui);
-    "text_size", fmt "%d" lay.text;
-    "play_open", fmt "%d" (Bool.to_int lay.playlist_shown);
-    "play_height", fmt "%d" lay.playlist_height;
-    "lib_open", fmt "%d" (Bool.to_int lay.library_shown);
-    "lib_side", fmt "%d" (Bool.to_int (lay.library_side = `Right));
-    "lib_width", fmt "%d" lay.library_width;
-    "browser_width", fmt "%d" lay.browser_width;
-    "upper_height", fmt "%d" lay.upper_height;
-    "left_width", fmt "%d" lay.left_width;
-    "directories_width", fmt "%d" lay.directories_width;
-    "albums_grid", fmt "%d" lay.albums_grid;
-    "tracks_grid", fmt "%d" lay.tracks_grid;
-  ]
+  record (fun lay -> [
+    "win_pos", pair int int (x, y);
+    "color_palette", nat (Ui.get_palette lay.ui);
+    "text_size", nat lay.text;
+    "play_open", bool lay.playlist_shown;
+    "play_height", nat lay.playlist_height;
+    "lib_open", bool lay.library_shown;
+    "lib_side", enum side_enum lay.library_side;
+    "lib_width", nat lay.library_width;
+    "browser_width", nat lay.browser_width;
+    "upper_height", nat lay.upper_height;
+    "left_width", nat lay.left_width;
+    "directories_width", nat lay.directories_width;
+    "albums_grid", nat lay.albums_grid;
+    "tracks_grid", nat lay.tracks_grid;
+  ]) lay
 
-let layout_of_map lay m =  (* assumes playlist and library already loaded *)
+let parse_layout lay pos =  (* assumes playlist and library already loaded *)
   let open Layout in
+  let open Struct.Parse in
   let win = Ui.window lay.ui in
   let ww, wh = Layout.(control_min_w, control_min_h) in
   let sx, sy = Api.Window.min_pos win in
   let sw, sh = Api.Window.max_size win in
-  let pos = ref (0, 0) in
-  read_map m "win_pos" (fun s -> pos :=
-    scan s "%d , %d" (num_pair sx sy (sx + sw - 20) (sy + sh - 20)));
-  read_map m "color_palette" (fun s ->
-    Ui.set_palette lay.ui (scan s "%d" (num 0 (Ui.num_palette lay.ui - 1))));
-  read_map m "text" (fun s -> lay.text <- scan s "%d" (num 6 64));
-  read_map m "play_open" (fun s -> lay.playlist_shown <- scan s "%d" bool);
-  read_map m "play_height" (fun s ->
-    lay.playlist_height <- scan s "%d" (num (playlist_min lay) (sh - wh)));
-  read_map m "lib_open" (fun s -> lay.library_shown <- scan s "%d" bool);
-  read_map m "lib_side" (fun s ->
-    lay.library_side <- if scan s "%d" bool then `Right else `Left);
-  read_map m "lib_width" (fun s ->
-    lay.library_width <- scan s "%d" (num (library_min lay) (sw - ww)));
-  read_map m "browser_width" (fun s ->
-    lay.browser_width <- scan s "%d" (num (browser_min lay) (browser_max lay)));
-  read_map m "left_width" (fun s ->
-    lay.left_width <- scan s "%d" (num (left_min lay) (left_max lay)));
-  read_map m "upper_height" (fun s ->
-    lay.upper_height <- scan s "%d" (num (upper_min lay) (upper_max lay)));
-  read_map m "directories_width" (fun s ->
-    lay.directories_width <- scan s "%d"
-      (num (directories_min lay) (directories_max lay)));
-  read_map m "albums_grid"
-    (fun s -> lay.albums_grid <- scan s "%d" (num 10 1000));
-  read_map m "tracks_grid"
-    (fun s -> lay.tracks_grid <- scan s "%d" (num 10 1000));
-  !pos
+  record (fun r ->
+    apply (r $? "win_pos") (pair (num sx (sx + sw + 20)) (num sy (sy + sh - 20)))
+      (fun p -> pos := p);
+    apply (r $? "color_palette") (num 0 (Ui.num_palette lay.ui - 1))
+      (fun i -> Ui.set_palette lay.ui i);
+    apply (r $? "text") (num 6 64)
+      (fun h -> lay.text <- h);
+    apply (r $? "play_open") bool
+      (fun b -> lay.playlist_shown <- b);
+    apply (r $? "play_height") (num (playlist_min lay) (sh - wh))
+      (fun h -> lay.playlist_height <- h);
+    apply (r $? "lib_open") bool
+      (fun b -> lay.library_shown <- b);
+    apply (r $? "lib_side") (enum side_enum)
+      (fun s -> lay.library_side <- s);
+    apply (r $? "lib_width") (num (library_min lay) (sw - ww))
+      (fun w -> lay.library_width <- w);
+    apply (r $? "browser_width") (num (browser_min lay) (browser_max lay))
+      (fun w -> lay.browser_width <- w);
+    apply (r $? "left_width") (num (left_min lay) (left_max lay))
+      (fun w -> lay.left_width <- w);
+    apply (r $? "upper_height") (num (upper_min lay) (upper_max lay))
+      (fun h -> lay.upper_height <- h);
+    apply (r $? "directories_width") (num (directories_min lay) (directories_max lay))
+      (fun w -> lay.directories_width <- w);
+    apply (r $? "albums_grid") (num 10 1000)
+      (fun w -> lay.albums_grid <- w);
+    apply (r $? "tracks_grid") (num 10 1000)
+      (fun w -> lay.tracks_grid <- w);
+  )
 
 
 (* Persistance *)
@@ -172,28 +168,40 @@ let layout_of_map lay m =  (* assumes playlist and library already loaded *)
 let state_file = "state.conf"
 let state_header = App.name
 
-let to_map st =
-  List.fold_left combine_map Map.empty
-  [
-    layout_to_map st.layout;
-    Config.to_map st.config;
-    Control.to_map st.control;
-    Playlist.to_map st.playlist;
-    Library.to_map st.library;
-    Filesel.to_map st.filesel;
-  ]
+let print_state st =
+  let open Struct.Print in
+  record (fun st -> [
+    "layout", print_layout st.layout;
+    "config", Config.print_state st.config;
+    "control", Control.print_state st.control;
+    "playlist", Playlist.print_state st.playlist;
+    "library", Library.print_state st.library;
+    "filesel", Filesel.print_state st.filesel;
+  ]) st
 
-let to_map_extra st =
-  List.fold_left combine_map Map.empty
-  [
-    to_map st;
-    Control.to_map_extra st.control;
-    Playlist.to_map_extra st.playlist;
-    Library.to_map_extra st.library;
-    Filesel.to_map_extra st.filesel;
-  ]
+let print_intern st =
+  let open Struct.Print in
+  record (fun st -> [
+    "layout", print_layout st.layout;
+    "config", Config.print_intern st.config;
+    "control", Control.print_intern st.control;
+    "playlist", Playlist.print_intern st.playlist;
+    "library", Library.print_intern st.library;
+    "filesel", Filesel.print_intern st.filesel;
+  ]) st
 
-let to_string st = string_of_map (to_map_extra st)
+let to_string st = Struct.print (print_intern st)
+
+let parse_state st pos =
+  let open Struct.Parse in
+  record (fun r ->
+    apply (r $? "layout") (parse_layout st.layout pos) ignore;
+    apply (r $? "config") (Config.parse_state st.config) ignore;
+    apply (r $? "control") (Control.parse_state st.control) ignore;
+    apply (r $? "playlist") (Playlist.parse_state st.playlist) ignore;
+    apply (r $? "library") (Library.parse_state st.library) ignore;
+    apply (r $? "filesel") (Filesel.parse_state st.filesel) ignore;
+  )
 
 
 (* Validation *)
@@ -265,24 +273,23 @@ and dump st errors =
 
 let save st =
   Library.save_db st.library;
+  Library.save_browser st.library;
   Playlist.save_playlist st.playlist;
-  Storage.save_map state_file (to_map st)
+  Storage.save_string state_file (fun () -> Struct.print (print_state st))
 
 let load st =
   Random.self_init ();
 
+  let pos = ref (0, 0) in
   Library.load_db st.library;
   Library.load_browser st.library;
   Library.rescan_root st.library `Quick;
   Playlist.load_playlist st.playlist;
-
-  let map = Storage.load_map state_file in
-  let pos = layout_of_map st.layout map in
-  Config.of_map st.config map;
-  Control.of_map st.control map;
-  Playlist.of_map st.playlist map;
-  Library.of_map st.library map;
-  Filesel.of_map st.filesel map;
+  Storage.load_string_opt state_file (fun s ->
+    try parse_state st pos (Struct.parse s)
+    with Struct.Syntax_error _ | Struct.Type_error as exn ->
+      Storage.log_exn "parse" exn "while loading state"
+  );
 
   focus_playlist st;
   if st.control.current = None && Playlist.length st.playlist > 0 then
@@ -292,4 +299,4 @@ let load st =
       st.control.current;
   );
 
-  try ok st; true, pos with _ -> false, pos
+  (try ok st; true with _ -> false), !pos

@@ -110,72 +110,66 @@ let switch_if_empty ctl track_opt =
 
 (* Persistance *)
 
-open Storage
-let fmt = Printf.sprintf
-let scan = Scanf.sscanf
+let timemode_enum = ["elapsed", `Elapse; "remain", `Remain]
+let repeat_enum = ["none", `None; "one", `One; "all", `All]
 
-let value = Fun.id
-let bool x = x <> 0
-let num l h x = max l (min h x)
-let pair x y = x, y
+let print_loop =
+  let open Struct.Print in
+  variant (function
+    | `None -> "none", unit ()
+    | `A t -> "a", float t
+    | `AB tt -> "ab", pair float float tt
+  )
 
+let parse_loop =
+  let open Struct.Parse in
+  variant (function
+    | "none", t -> unit t; `None
+    | "a", t -> `A (float t)
+    | "ab", t ->
+      `AB ((pair float float >-> fun (t1, t2) -> t1, max t1 t2) t)
+    | _ -> raise Struct.Type_error
+  )
 
-let to_map ctl =
+let print_state ctl =
+  let open Struct.Print in
   let length = Api.Audio.length ctl.audio in
   let played = Api.Audio.played ctl.audio in
-  Map.of_list
-  [
-    "volume", fmt "%.2f" ctl.volume;
-    "mute", fmt "%d" (Bool.to_int ctl.mute);
-    "play", fmt "%s" (match ctl.current with Some s -> s.path | None -> "");
-    "seek", fmt "%.4f" (if length > 0.0 then played /. length else 0.0);
-    "timemode", fmt "%d" (Bool.to_int (ctl.timemode = `Remain));
-    "info_cover", fmt "%d" (Bool.to_int ctl.cover);
-    "repeat", fmt "%d"
-      (match ctl.repeat with
-      | `None -> 0
-      | `One -> 1
-      | `All -> 2
-      );
-    let a, b =
-      match ctl.loop with
-      | `None -> -1.0, -1.0
-      | `A t1 -> t1, -1.0
-      | `AB tt -> tt
-    in
-    "loop", fmt "%.4f, %.4f" a b;
-  ]
+  record (fun ctl -> [
+    "volume", float ctl.volume;
+    "mute", bool ctl.mute;
+    "play", option string (Option.map (fun (t : track) -> t.path) ctl.current);
+    "seek", float (if length > 0.0 then played /. length else 0.0);
+    "repeat", enum repeat_enum ctl.repeat;
+    "loop", print_loop ctl.loop;
+    "timemode", enum timemode_enum ctl.timemode;
+    "cover", bool ctl.cover;
+  ]) ctl
 
-let to_map_extra ctl =
-  Map.of_list
-  [
-    "fps", fmt "%d" (Bool.to_int ctl.fps);
-  ]
+let print_intern ctl =
+  let open Struct.Print in
+  print_state ctl @@
+  record (fun ctl -> [
+    "fps", bool ctl.fps;
+  ]) ctl
 
-
-let of_map ctl m =
-  read_map m "volume" (fun s -> ctl.volume <- scan s "%f" (num 0.0 1.0));
-  read_map m "mute" (fun s -> ctl.mute <- scan s "%d" bool);
-  read_map m "play" (fun s ->
-    if s <> "" then switch ctl (Data.make_track s) false
-  );
-  read_map m "seek" (fun s -> seek ctl (scan s "%f" (num 0.0 1.0)));
-  read_map m "repeat" (fun s ->
-    ctl.repeat <-
-      (match scan s "%d" value with
-      | 1 -> `One
-      | 2 -> `All
-      | _ -> `None
-      )
-  );
-  read_map m "loop" (fun s ->
-    ctl.loop <-
-      (match scan s "%f, %f" pair with
-      | t1, _t2 when t1 < 0.0 -> `None
-      | t1, t2 when t2 < 0.0 -> `A t1
-      | t1, t2 -> `AB (t1, max t1 t2)
-      )
-  );
-  read_map m "timemode" (fun s ->
-    ctl.timemode <- if scan s "%d" bool then `Remain else `Elapse);
-  read_map m "info_cover" (fun s -> ctl.cover <- scan s "%d" bool)
+let parse_state ctl =
+  let open Struct.Parse in
+  record (fun r ->
+    apply (r $? "volume") (interval 0.0 1.0)
+      (fun q -> ctl.volume <- q);
+    apply (r $? "mute") bool
+      (fun b -> ctl.mute <- b);
+    apply (r $? "play") (option string)
+      (Option.iter (fun s -> switch ctl (Data.make_track s) false));
+    apply (r $? "seek") (interval 0.0 1.0)
+      (fun q -> seek ctl q);
+    apply (r $? "repeat") (enum repeat_enum)
+      (fun r -> ctl.repeat <- r);
+    apply (r $? "loop") parse_loop
+      (fun l -> ctl.loop <- l);
+    apply (r $? "timemode") (enum timemode_enum)
+      (fun m -> ctl.timemode <- m);
+    apply (r $? "cover") bool
+      (fun b -> ctl.cover <- b)
+  )

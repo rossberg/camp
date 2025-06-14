@@ -54,7 +54,7 @@ let clear_temp () =
 let log_file = "error.log"
 let log_mutex = Mutex.create ()
 
-let append_fwd = ref (fun _ -> assert false)
+let save_string_append_fwd = ref (fun _ -> assert false)
 
 let log_clear () =
   Mutex.protect log_mutex (fun () -> File.store `Bin (path log_file) "")
@@ -68,7 +68,7 @@ let log msg =
       tm.tm_hour tm.tm_min tm.tm_sec ^ msg ^ "\n"
     in
     Out_channel.output_string stderr msg';
-    !append_fwd log_file (fun file -> Out_channel.output_string file msg');
+    !save_string_append_fwd log_file (fun () -> msg');
     Out_channel.flush_all ()
   )
 
@@ -109,56 +109,23 @@ let save filename f =
   with Sys_error _ as exn ->
     log_io_error "saving" filename exn
 
-let append filename f =
+let save_append filename f =
   try
     if not (File.exists data_dir) then File.create_dir data_dir;
     File.with_open_append `Bin (path filename) f
   with Sys_error _ as exn ->
     log_io_error "appending to" filename exn
 
-let _ = append_fwd := append
+let load_string filename f =
+  load filename (fun ic -> f (In_channel.input_all ic))
 
+let load_string_opt filename f =
+  load_opt filename (fun ic -> f (In_channel.input_all ic))
 
-(* Key/value file *)
+let save_string filename f =
+  save filename (fun oc -> Out_channel.output_string oc (f ()))
 
-module Map = Map.Make(String)
-type map = string Map.t
+let save_string_append filename f =
+  save_append filename (fun oc -> Out_channel.output_string oc (f ()))
 
-let read_map map key f =
-  match Map.find_opt key map with
-  | None -> ()
-  | Some value -> try f value with exn -> log_io_error "reading key" key exn
-
-let combine_map map1 map2 =
-  Map.union (fun key _ _ -> failwith ("conflicting key: " ^ key)) map1 map2
-
-let map_of_string s =
-  let map = ref Map.empty in
-  List.iteri (fun i line ->
-    match String.index_opt line '=' with
-    | Some n ->
-      let key = String.(trim (sub line 0 n)) in
-      let value = String.(trim (sub line (n + 1) (length line - n - 1))) in
-      map := Map.add key value !map
-    | None when String.trim line = "" -> ()
-    | None -> failwith ("line " ^ string_of_int i ^ ": syntax error")
-  ) (String.split_on_char '\n' s);
-  !map
-
-let string_of_map map =
-  let buf = Buffer.create 1024 in
-  Map.iter (fun key value ->
-    Buffer.add_string buf key;
-    Buffer.add_string buf " = ";
-    Buffer.add_string buf value;
-    Buffer.add_string buf "\n";
-  ) map;
-  Buffer.contents buf
-
-let load_map filename =
-  let map = ref Map.empty in
-  load_opt filename (fun file -> map := map_of_string (In_channel.input_all file));
-  !map
-
-let save_map filename map =
-  save filename (fun file -> Out_channel.output_string file (string_of_map map))
+let _ = save_string_append_fwd := save_string_append

@@ -569,136 +569,6 @@ let query_attr_string (track : track) = function
   | `None -> assert false
 
 
-let string_of_order = function
-  | `Asc -> "+"
-  | `Desc -> "-"
-
-let order_of_char = function
-  | '+' -> `Asc
-  | '-' -> `Desc
-  | _ -> failwith ""
-
-
-let attr_str =
-[
-  `Pos, "POS";
-  `FilePath, "PTH";
-  `FileDir, "DIR";
-  `FileName, "NAM";
-  `FileExt, "EXT";
-  `FileSize, "SIZ";
-  `FileTime, "TIM";
-  `Codec, "COD";
-  `Channels, "CHA";
-  `Depth, "DEP";
-  `SampleRate, "KHZ";
-  `BitRate, "BPS";
-  `Rate, "RES";
-  `Artist, "ART";
-  `Title, "TIT";
-  `Length, "LEN";
-  `Rating, "RAT";
-  `AlbumArtist, "ALA";
-  `AlbumTitle, "ALB";
-  `Track, "TRK";
-  `Tracks, "TRS";
-  `Disc, "DSC";
-  `Discs, "DSS";
-  `DiscTrack, "DTR";
-  `Albums, "ALS";
-  `Date, "DAT";
-  `Year, "YER";
-  `Label, "LAB";
-  `Country, "CTY";
-  `Cover, "COV";
-  `True, "TRU";
-  `False, "FLS";
-  `Now, "NOW";
-  `Random, "RND";
-]
-
-let string_of_attr attr = List.assoc (attr :> any_attr) attr_str
-let attr_of_string s = fst (List.find (fun (_, s') -> s' = s) attr_str)
-
-let rec string_of_sorting = function
-  | [] -> ""
-  | (attr, order)::sorting' ->
-    string_of_order order ^ string_of_attr attr ^ string_of_sorting sorting'
-
-let rec sorting_of_string' to_attr s i =
-  if i = String.length s then [] else
-  let order = order_of_char s.[i] in
-  let attr = to_attr (attr_of_string (String.sub s (i + 1) 3)) in
-  (attr, order) :: sorting_of_string' to_attr s (i + 4)
-
-let sorting_of_string to_attr s =
-  try
-    sorting_of_string' to_attr s 0
-  with exn ->
-    Storage.log_exn "internal" exn ("malformed sorting format: " ^ s);
-    raise exn
-
-let string_of_column (attr, w) = string_of_attr attr ^ string_of_int w
-let column_of_string to_attr s =
-  to_attr (attr_of_string (String.sub s 0 3)),
-  int_of_string (String.sub s 3 (String.length s - 3))
-
-let string_of_columns cs =
-  String.concat " " (Array.to_list (Array.map string_of_column cs))
-
-let columns_of_string to_attr s =
-  try
-    Array.of_list (List.map (column_of_string to_attr)
-      (List.filter ((<>) "") (String.split_on_char ' ' s)))
-  with exn ->
-    Storage.log_exn "internal" exn ("malformed columns format: " ^ s);
-    raise exn
-
-(* TODO: this is a temporary conversion hack for retro-introducing covers. *)
-let columns_of_string_add_cover i to_attr s =
-  let columns = columns_of_string to_attr s in
-  let disctrack = function
-    | `Track, w -> `DiscTrack, w
-    | other -> other
-  in
-  if fst columns.(i) = `Cover then Array.map disctrack columns else
-  Array.init (Array.length columns + 1) (fun j ->
-    match compare j i with
-    | -1 -> disctrack columns.(j)
-    | +1 -> disctrack columns.(j - 1)
-    | _ -> `Cover, 30
-  )
-
-let to_artist_attr = function
-  | #artist_attr as attr -> attr
-  | _ -> failwith "to_artist_attr"
-
-let to_album_attr = function
-  | #album_attr as attr -> attr
-  | _ -> failwith "to_album_column"
-
-let to_track_attr = function
-  | #track_attr as attr -> attr
-  | _ -> failwith "to_track_column"
-
-
-let string_of_artist_sorting (s : artist_attr sorting) = string_of_sorting s
-let string_of_album_sorting (s : album_attr sorting) = string_of_sorting s
-let string_of_track_sorting (s : track_attr sorting) = string_of_sorting s
-
-let string_of_artist_columns (cs : artist_attr columns) = string_of_columns cs
-let string_of_album_columns (cs : album_attr columns) = string_of_columns cs
-let string_of_track_columns (cs : track_attr columns) = string_of_columns cs
-
-let artist_sorting_of_string s = sorting_of_string to_artist_attr s
-let album_sorting_of_string s = sorting_of_string to_album_attr s
-let track_sorting_of_string s = sorting_of_string to_track_attr s
-
-let artist_columns_of_string s = columns_of_string to_artist_attr s
-let album_columns_of_string s = columns_of_string_add_cover 0 to_album_attr s
-let track_columns_of_string s = columns_of_string_add_cover 1 to_track_attr s
-
-
 (* String Comparison *)
 
 module UCol = Camomile.UCol.Make (Camomile.UTF8)
@@ -749,3 +619,157 @@ let rec insert_sorting primary attr i n = function
       (attr, `Asc)::sorting''
 
 let remove_sorting attr = insert_sorting `None attr (-1) max_int
+
+
+(* Persistence *)
+
+module Print =
+struct
+  include Struct.Print
+
+  let status_enum =
+    [
+      "undet", `Undet;
+      "predet", `Predet;
+      "det", `Det;
+      "invalid", `Invalid;
+      "absent", `Absent;
+    ]
+
+  let status = enum status_enum
+
+  let file =
+    record (fun (x : file) -> [
+      "size", int x.size;
+      "time", float x.time;
+      "age", float x.age;
+    ])
+
+  let format =
+    record (fun (x : Format.t) -> [
+      "codec", string x.codec;
+      "channels", int x.channels;
+      "depth", int x.depth;
+      "rate", int x.rate;
+      "bitrate", float x.bitrate;
+      "time", float x.time;
+      "size", int x.size;
+    ])
+
+  let meta =
+    record (fun (x : Meta.t) -> [
+      "loaded", bool x.loaded;
+      "artist", string x.artist;
+      "title", string x.title;
+      "track", string x.track_txt;
+      "disc", string x.disc_txt;
+      "aartist", string x.albumartist;
+      "album", string x.albumtitle;
+      "year", nat x.year;
+      "date", string x.date_txt;
+      "label", string x.label;
+      "country", string x.country;
+      "length", float x.length;
+      "rating", num 1 5 x.rating;
+    ])
+
+  let track =
+    record (fun (x : track) -> assert (x.pos = -1); [
+      "path", string x.path;
+      "file", file x.file;
+      "format", option format x.format;
+      "meta", option meta x.meta;
+      (* pos should be -1 *)
+      "status", status x.status;
+    ])
+
+  let rec dir () =
+    record (fun (x : _ dir) -> [
+      "path", string x.path;
+      "parent", option string x.parent;
+      "nest", int x.nest;
+      "name", string x.name;
+      "pos", int x.pos;
+      "children", array (dir ()) x.children;
+      "tracks", array track (if x.path <> "" && File.is_dir x.path then x.tracks else [||]);
+      "error", string x.error;
+    ])
+end
+
+module Parse =
+struct
+  include Struct.Parse
+
+  let status = enum Print.status_enum
+
+  let file : t -> file =
+    record (fun r -> {
+      size = int (r $ "size");
+      time = float (r $ "time");
+      age = float (r $ "age");
+    })
+
+  let format : t -> Format.t =
+    record (fun r -> Format.{
+      codec = string (r $ "codec");
+      channels = int (r $ "channels");
+      depth = int (r $ "depth");
+      rate = int (r $ "rate");
+      bitrate = float (r $ "bitrate");
+      time = float (r $ "time");
+      size = int (r $ "size");
+    })
+
+  let meta : t -> Meta.t =
+    record (fun r ->
+      let track_txt = string (r $ "track") in
+      let disc_txt = string (r $ "disc") in
+      let date_txt = string (r $ "date") in
+      Meta.{
+        loaded = bool (r $ "loaded");
+        artist = string (r $ "artist");
+        title = string (r $ "title");
+        track = Meta.int_of_total_string track_txt;
+        tracks = Meta.total_of_total_string track_txt;
+        track_txt;
+        disc = Meta.int_of_total_string disc_txt;
+        discs = Meta.total_of_total_string disc_txt;
+        disc_txt;
+        albumartist = string (r $ "aartist");
+        albumtitle = string (r $ "album");
+        year = nat (r $ "year");
+        date = Meta.date_of_string date_txt;
+        date_txt;
+        label = string (r $ "label");
+        country = string (r $ "country");
+        length = float (r $ "length");
+        rating = num 1 5 (r $ "rating");
+        cover = None;
+      }
+    )
+
+  let track : t -> track =
+    record (fun r -> {
+      path = string (r $ "path");
+      file = file (r $ "file");
+      format = option format (r $ "format");
+      meta = option meta (r $ "meta");
+      album = None;
+      pos = -1;
+      status = status (r $ "status");
+      memo = None;
+    })
+
+  let rec dir view =
+    record (fun r -> {
+      path = string (r $ "path");
+      parent = option string (r $ "parent");
+      nest = int (r $ "nest");
+      name = string (r $ "name");
+      pos = int (r $ "pos");
+      children = array (dir view) (r $ "children");
+      tracks = array track (r $ "tracks");
+      error = string (r $ "error");
+      view;
+    })
+end

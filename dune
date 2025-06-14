@@ -4,7 +4,7 @@
   (modules
     safe_queue
     edit table
-    data track query storage
+    data track query struct storage
     control playlist library filesel config
     api ui layout
     state app main

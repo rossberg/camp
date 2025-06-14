@@ -34,23 +34,23 @@ let ok cfg =
 
 (* Persistance *)
 
-open Storage
-let fmt = Printf.sprintf
-let scan = Scanf.sscanf
+let print_state =
+  let open Struct.Print in
+  record (fun cfg -> [
+    "delay_track_update", float cfg.delay_track_update;
+    "exec_tag", string cfg.exec_tag;
+    "exec_tag_max_len", nat cfg.exec_tag_max_len;
+  ])
 
-let num l h x = max l (min h x)
+let print_intern = print_state
 
-let to_map cfg =
-  Map.of_list
-  [
-    "delay_track_update", fmt "%.1f" cfg.delay_track_update;
-    "exec_tag", cfg.exec_tag;
-    "exec_tag_max_len", fmt "%d" cfg.exec_tag_max_len;
-  ]
-
-let of_map cfg m =
-  read_map m "delay_track_update" (fun s ->
-    cfg.delay_track_update <- scan s "%f" (num 1.0 Float.infinity));
-  read_map m "exec_tag" (fun s -> cfg.exec_tag <- s);
-  read_map m "exec_tag_max_len" (fun s ->
-    cfg.exec_tag_max_len <- scan s "%d" (num 0 max_int))
+let parse_state cfg =
+  let open Struct.Parse in
+  record (fun r ->
+    apply (r $? "delay_track_update") (interval 1.0 Float.infinity)
+      (fun t -> cfg.delay_track_update <- t);
+    apply (r $? "exec_tag") string
+      (fun s -> cfg.exec_tag <- s);
+    apply (r $? "exec_tag_max_len") nat
+      (fun n -> cfg.exec_tag_max_len <- n);
+  )

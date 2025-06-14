@@ -46,10 +46,9 @@ val ok : ('a, 'b) t -> error list
 
 (* Persistance *)
 
-val to_map : ('a, 'b) t -> Storage.map
-val of_map : ('a, 'b) t -> Storage.map -> unit
-
-val to_map_extra : ('a, 'b) t -> Storage.map
+val print_state : ('a, 'b) t -> Struct.t
+val print_intern : ('a, 'b) t -> Struct.t
+val parse_state : ('a, 'b) t -> Struct.t -> unit
 
 
 (* Focus *)
