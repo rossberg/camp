@@ -329,7 +329,7 @@ let print_state fs =
 
 let print_intern fs =
   let open Struct.Print in
-  print_state fs @@
+  print_state fs @@@
   record (fun fs -> [
     "roots", array string (Array.map (fun (dir : dir) -> dir.path) fs.roots);
     "dirs", nat (Table.length fs.dirs);

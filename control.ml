@@ -148,7 +148,7 @@ let print_state ctl =
 
 let print_intern ctl =
   let open Struct.Print in
-  print_state ctl @@
+  print_state ctl @@@
   record (fun ctl -> [
     "fps", bool ctl.fps;
   ]) ctl

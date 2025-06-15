@@ -1399,7 +1399,7 @@ let print_state lib =
 
 let print_intern lib =
   let open Struct.Print in
-  print_state lib @@
+  print_state lib @@@
   record (fun lib -> [
     "browser_pos", option int lib.browser.pos;
     "browser_length", int (Array.length lib.browser.entries);

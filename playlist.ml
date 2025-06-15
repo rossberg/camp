@@ -394,7 +394,7 @@ let print_state pl =
 
 let print_intern pl =
   let open Struct.Print in
-  print_state pl @@
+  print_state pl @@@
   record (fun pl -> [
     "length", nat (Table.length pl.table);
     "selected", pair nat (option (pair nat nat))

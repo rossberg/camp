@@ -205,7 +205,7 @@ struct
   let variant f x = let l, t = f x in Brace ([string l, t], flat t)
   let transform f g x = f (g x)
 
-  let (@@) u1 u2 =
+  let (@@@) u1 u2 =
     match u1, u2 with
     | Brack (us1, b1), Brack (us2, b2) -> Brack (us1 @ us2, b1 && b2)
     | Brace (lus1, b1), Brace (lus2, b2) -> Brace (lus1 @ lus2, b1 && b2)

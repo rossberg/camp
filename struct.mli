@@ -36,7 +36,7 @@ sig
   val record : ('a -> (string * t) list) -> 'a -> t
   val variant : ('a -> string * t) -> 'a -> t
   val transform : ('a -> t) -> ('b -> 'a) -> 'b -> t
-  val (@@) : t -> t -> t  (* raise Invalid_argument *)
+  val (@@@) : t -> t -> t  (* raise Invalid_argument *)
 end
 
 module Parse :
