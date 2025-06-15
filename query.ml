@@ -107,6 +107,8 @@ let string_of_value = function
 (* Queries *)
 
 type track = Data.track
+type album = Data.album
+type artist = Data.artist
 type order = Data.order
 type sorting = Data.track_attr Data.sorting
 
@@ -309,13 +311,12 @@ and check q track =
   | _ -> assert false
 
 
-let exec_track e p a (track : track) =
-  if not (M3u.is_separator track.path) && check e track && p track then
-    Dynarray.add_last a track
+let exec_track e p f (track : track) =
+  if not (M3u.is_separator track.path) && check e track && p track then f track
 
-let rec exec_dir e p a (dir : _ dir) =
-  Array.iter (exec_dir e p a) dir.children;
-  Array.iter (exec_track e p a) dir.tracks
+let rec exec_dir e p f (dir : _ dir) =
+  Array.iter (exec_dir e p f) dir.children;
+  Array.iter (exec_track e p f) dir.tracks
 
 let sort s tracks =
   if s <> [] then
@@ -326,12 +327,62 @@ let sort s tracks =
     Array.iteri (fun i (_, tr) -> tracks.(i) <- tr) tracks';
   )
 
-let exec q p dir =
+module AlbumKey =
+struct
+  type t = string * string * string * string
+  let compare : t -> t -> int = compare
+end
+module AlbumMap = Map.Make(AlbumKey)
+module ArtistMap = Map.Make(String)
+
+let album_key (track : track) : AlbumKey.t =
+  ( track_attr_string track `AlbumArtist,
+    track_attr_string track `AlbumTitle,
+    track_attr_string track `Codec,
+    track_attr_string track `Label
+  )
+
+let array_of_map iter map =
   let a = Dynarray.create () in
-  exec_dir q.expr p a dir;
-  let tracks = Dynarray.to_array a in
-  sort q.sort tracks;
-  tracks
+  iter (fun _ x -> Dynarray.add_last a x) map;
+  Dynarray.to_array a
+
+let exec with_artists with_albums with_tracks q p dir =
+  let tracks = Dynarray.create () in
+  let album_map = ref AlbumMap.empty in
+  let artist_map = ref ArtistMap.empty in
+  exec_dir q.expr p (fun track ->
+    if with_tracks then Dynarray.add_last tracks track;
+    if with_albums || with_artists then
+    (
+      let album_key = album_key track in
+      let album = Data.album_of_track track in
+      let album' =
+        match AlbumMap.find_opt album_key !album_map with
+        | None -> album
+        | Some album' -> Data.accumulate_album album album'
+      in
+      album_map := AlbumMap.add album_key album' !album_map;
+      if with_artists then
+      (
+        let artist = Data.artist_of_album album' in
+        artist_map := ArtistMap.add artist.name artist !artist_map;
+      )
+    )
+  ) dir;
+  (if with_artists then array_of_map ArtistMap.iter !artist_map else [||]),
+  (if with_albums then array_of_map AlbumMap.iter !album_map else [||]),
+  ( let tracks = if with_tracks then Dynarray.to_array tracks else [||] in
+    sort q.sort tracks;
+    tracks
+  )
+
+let exec_tracks q p dir = let _, _, z = exec false false true q p dir in z
+let exec_albums q p dir = let _, y, _ = exec false true false q p dir in y
+let exec_artists q p dir = let x, _, _ = exec true false false q p dir in x
+let exec_albums_tracks q p dir = let _, y, z = exec false true true q p dir in y, z
+let exec_artists_albums q p dir = let x, y, _ = exec true true false q p dir in x, y
+let exec_artists_albums_tracks q p dir = exec true true true q p dir
 
 
 (* Parsing *)

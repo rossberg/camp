@@ -243,6 +243,23 @@ let make_separator () : track =
   track
 
 
+let album_of_track (track : track) : album =
+  let meta = Option.value track.meta ~default: Meta.unknown in
+  { path = track.path;
+    file = track.file;
+    format = track.format;
+    meta = Some {meta with tracks = 1};
+    memo = None;
+  }
+
+let album_artist_fwd = ref (fun _ -> assert false)
+let artist_of_album (album : album) : artist =
+  { name = !album_artist_fwd album;
+    albums = 1;
+    tracks = (Option.get album.meta).tracks;
+  }
+
+
 let accumulate_string s1 s2 =
   if s1 = s2 then s1 else ""
 
@@ -568,6 +585,8 @@ let query_attr_string (track : track) = function
   | `Random -> string_of_int (Random.int 0x1_0000_0000)
   | `None -> assert false
 
+let _ = album_artist_fwd := fun album -> album_attr_string album `AlbumArtist
+
 
 (* String Comparison *)
 
@@ -670,7 +689,7 @@ struct
       "label", string x.label;
       "country", string x.country;
       "length", float x.length;
-      "rating", num 1 5 x.rating;
+      "rating", num 0 5 x.rating;
     ])
 
   let track =

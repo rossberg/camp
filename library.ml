@@ -637,8 +637,8 @@ let rescan_viewlist' lib _mode (dir : dir) =
       dir.tracks <- [||];
       error lib dir.error
     | Ok query ->
-      let tracks =
-        Query.exec query (fun (track : track) -> track.pos = -1) lib.root in
+      let filter (track : track) = (track.pos = -1) in
+      let tracks = Query.exec_tracks query filter lib.root in
       dir.error <- "";
       dir.tracks <-
         Array.mapi (fun pos (track : track) -> {track with pos}) tracks;
@@ -978,6 +978,24 @@ let track_key lib : track -> string =
 
 let refresh_delay = 5.0
 
+let filter_artist lib =
+  let artists =
+    Array.fold_left (fun s (artist : artist) -> Set.add artist.name s)
+      Set.empty (Table.selected lib.artists)
+  in fun (track : track) ->
+    artists = Set.empty ||
+    Set.mem (Data.track_attr_string track `Artist) artists ||
+    Set.mem (Data.track_attr_string track `AlbumArtist) artists
+
+let filter_album lib =
+  let albums =
+    Array.fold_left (fun s (album : album) ->
+      Set.add (Data.album_attr_string album `AlbumTitle) s
+    ) Set.empty (Table.selected lib.albums)
+  in fun (track : track) ->
+    albums = Set.empty ||
+    Set.mem (Data.track_attr_string track `AlbumTitle) albums
+
 let sort attr_string sorting entries =
   if sorting <> [] then
   (
@@ -993,7 +1011,13 @@ let refresh lib (tab : _ Table.t) attr_string sorting key exec =
   match lib.current with
   | None -> Table.remove_all tab
   | Some dir ->
-    let entries = exec dir in
+    let query =
+      if dir.error <> "" then
+        (error lib dir.error; Query.empty_query)
+      else
+        Option.value dir.view.query ~default: Query.full_query
+    in
+    let entries = exec dir query in
     sort attr_string (sorting dir.view) entries;
     Mutex.protect tab.mutex (fun () ->
       let selection = Table.save_selection tab in
@@ -1003,112 +1027,51 @@ let refresh lib (tab : _ Table.t) attr_string sorting key exec =
     if lib.refresh_time <> 0.0 then
       lib.refresh_time <- Unix.gettimeofday () +. refresh_delay
 
-let refresh_tracks_sync lib =
+let refresh_tracks lib =
   refresh lib lib.tracks track_attr_string tracks_sorting (track_key lib)
-    (fun dir ->
-      let artists =
-        Array.fold_left (fun s (artist : artist) -> Set.add artist.name s)
-          Set.empty (Table.selected lib.artists)
-      and albums =
-        Array.fold_left (fun s (album : album) ->
-          Set.add (Data.album_attr_string album `AlbumTitle) s
-        ) Set.empty (Table.selected lib.albums)
-      in
-      let filter (track : track) =
-        ( artists = Set.empty ||
-          Set.mem (Data.track_attr_string track `Artist) artists ||
-          Set.mem (Data.track_attr_string track `AlbumArtist) artists )
-        &&
-        ( albums = Set.empty ||
-          Set.mem (Data.track_attr_string track `AlbumTitle) albums )
-      in
-      let query =
-        if dir.error <> "" then
-          (error lib dir.error; Query.empty_query)
-        else
-          Option.value dir.view.query ~default: Query.full_query
-      in
-      Query.exec query filter dir
-    )
-
-module AlbumKey =
-struct
-  type t = string * string * string * string
-  let compare : t -> t -> int = compare
-end
-
-module AlbumMap = Stdlib.Map.Make(AlbumKey)
-
-let refresh_albums_sync lib =
+let refresh_albums lib =
   refresh lib lib.albums album_attr_string albums_sorting album_key
-    (fun _dir ->
-      let map =
-        Array.fold_left (fun map (track : track) ->
-          let key : AlbumKey.t =
-            ( track_attr_string track `AlbumArtist,
-              track_attr_string track `AlbumTitle,
-              track_attr_string track `Codec,
-              track_attr_string track `Label
-            )
-          in
-          let meta = Option.value track.meta ~default: Meta.unknown in
-          let album : album =
-            { path = track.path;
-              file = track.file;
-              format = track.format;
-              meta = Some {meta with tracks = 1};
-              memo = None;
-            }
-          in
-          let album' =
-            match AlbumMap.find_opt key map with
-            | None -> album
-            | Some album' -> Data.accumulate_album album album'
-          in
-          AlbumMap.add key album' map
-        ) AlbumMap.empty lib.tracks.entries
-      in
-      let a = Dynarray.create () in
-      AlbumMap.iter (fun _ album -> Dynarray.add_last a album) map;
-      Dynarray.to_array a
-    )
-
-let refresh_artists_sync lib =
+let refresh_artists lib =
   refresh lib lib.artists artist_attr_string artists_sorting artist_key
-    (fun _dir ->
-      let map =
-        Array.fold_left (fun map (album : album) ->
-          let key = album_attr_string album `AlbumArtist in
-          let artist : artist =
-            { name = key;
-              albums = 1;
-              tracks = (Option.get album.meta).tracks;
-            }
-          in
-          let artist' =
-            match Map.find_opt key map with
-            | None -> artist
-            | Some artist' -> Data.accumulate_artist artist artist'
-          in
-          Map.add key artist' map
-        ) Map.empty lib.albums.entries
-      in
-      let a = Dynarray.create () in
-      Map.iter (fun _ artist -> Dynarray.add_last a artist) map;
-      Dynarray.to_array a
+
+let refresh_tracks_sync lib =
+  refresh_tracks lib
+    (fun dir query ->
+      let filter_artist = filter_artist lib in
+      let filter_album = filter_album lib in
+      let filter (track : track) = filter_artist track && filter_album track in
+      Query.exec_tracks query filter dir
     )
 
 let refresh_albums_tracks_sync lib =
-  refresh_tracks_sync lib;
-  refresh_albums_sync lib
+  refresh_tracks lib
+    (fun dir query ->
+      let filter = filter_artist lib in
+      let albums, tracks = Query.exec_albums_tracks query filter dir in
+      refresh_albums lib (fun _dir _query -> albums);
+      tracks
+    )
 
 let refresh_artists_albums_sync lib =
-  refresh_albums_sync lib;
-  refresh_artists_sync lib
+  refresh_albums lib
+    (fun dir query ->
+      let filter _ = true in
+      let artists, albums = Query.exec_artists_albums query filter dir in
+      refresh_artists lib (fun _dir _query -> artists);
+      albums
+    )
 
 let refresh_artists_albums_tracks_sync lib =
-  refresh_tracks_sync lib;
-  refresh_artists_albums_sync lib
+  refresh_tracks lib
+    (fun dir query ->
+      let filter _ = true in
+      let artists, albums, tracks =
+        Query.exec_artists_albums_tracks query filter dir in
+      refresh_artists lib (fun _dir _query -> artists);
+      refresh_albums lib (fun _dir _query -> albums);
+      tracks
+    )
+
 
 let refresh_tracks ?(busy = true) lib =
   if busy then

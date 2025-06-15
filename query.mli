@@ -2,6 +2,8 @@
 
 type key = Data.query_attr
 type track = Data.track
+type album = Data.album
+type artist = Data.artist
 type order = Data.order
 type sorting = Data.track_attr Data.sorting
 
@@ -34,8 +36,18 @@ val parse_query : string -> (query, string) result
 
 val value : key -> track -> value
 val check : expr -> track -> bool
-val exec : query -> (track -> bool) -> 'a Data.dir -> track array
 val sort : sorting -> track array -> unit
+
+val exec_tracks : query -> (track -> bool) -> 'a Data.dir -> track array
+val exec_albums : query -> (track -> bool) -> 'a Data.dir -> album array
+val exec_artists : query -> (track -> bool) -> 'a Data.dir -> artist array
+val exec_albums_tracks :
+  query -> (track -> bool) -> 'a Data.dir -> album array * track array
+val exec_artists_albums :
+  query -> (track -> bool) -> 'a Data.dir -> artist array * album array
+val exec_artists_albums_tracks :
+  query -> (track -> bool) -> 'a Data.dir ->
+    artist array * album array * track array
 
 val string_of_key : key -> string
 val string_of_value : value -> string
