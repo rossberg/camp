@@ -226,8 +226,8 @@ let make_scan () =
 type save = {mutable it : 'a. 'a t -> unit}
 let save_db_fwd = {it = ignore}
 let rec saver lib () =
-  save_db_fwd.it lib;
   Unix.sleepf 30.0;
+  save_db_fwd.it lib;
   saver lib ()
 
 let make () =
@@ -343,20 +343,11 @@ let has_track lib (track : track) =
 let library_name = "library.conf"
 let browser_name = "browser.conf"
 
-let clear_track (track : track) = track.memo <- None
-
-let rec clear_dir (dir : dir) =
-  Array.iter clear_dir dir.children;
-  Array.iter clear_track dir.tracks
-
-
 let save_db lib =
   if Atomic.exchange lib.scan.changed false then
   (
-Printf.printf "[saving]\n%!";
     Storage.save_string library_name (fun () ->
-      clear_dir lib.root;
-      Struct.print (Data.Print.dir () lib.root);
+      Struct.print (Data.Print.dir () lib.root)
     )
   )
 
@@ -370,7 +361,7 @@ let _ = save_db_fwd.it <- save_db
 
 module Print =
 struct
-  include Struct.Print
+  open Struct.Print
 
   let attr_enum =
   [
@@ -451,7 +442,7 @@ end
 
 module Parse =
 struct
-  include Struct.Parse
+  open Struct.Parse
 
   let any_attr = enum Print.attr_enum
 

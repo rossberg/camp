@@ -644,7 +644,7 @@ let remove_sorting attr = insert_sorting `None attr (-1) max_int
 
 module Print =
 struct
-  include Struct.Print
+  open Struct.Print
 
   let status_enum =
     [
@@ -710,14 +710,14 @@ struct
       "name", string x.name;
       "pos", int x.pos;
       "children", array (dir ()) x.children;
-      "tracks", array track (if x.path <> "" && File.is_dir x.path then x.tracks else [||]);
+      "tracks", array track (if is_dir x then x.tracks else [||]);
       "error", string x.error;
     ])
 end
 
 module Parse =
 struct
-  include Struct.Parse
+  open Struct.Parse
 
   let status = enum Print.status_enum
 
