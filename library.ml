@@ -45,6 +45,7 @@ type scan =
   artists_busy : bool Atomic.t;
   albums_busy : bool Atomic.t;
   tracks_busy : bool Atomic.t;
+  changed : bool Atomic.t;
 }
 
 type cover =
@@ -68,7 +69,6 @@ type 'a t =
   mutable refresh_time : time;
   mutable cover : bool;
   mutable covers : cover Map.t;
-  mutable db_changed : bool;
 }
 
 
@@ -214,6 +214,7 @@ let make_scan () =
       artists_busy = Atomic.make false;
       albums_busy = Atomic.make false;
       tracks_busy = Atomic.make false;
+      changed = Atomic.make false;
     }
   in
   ignore (Domain.spawn (scanner scan scan.dir_queue scan.dir_busy));
@@ -222,28 +223,38 @@ let make_scan () =
   ignore (Domain.spawn (refresher scan));
   scan
 
+type save = {mutable it : 'a. 'a t -> unit}
+let save_db_fwd = {it = ignore}
+let rec saver lib () =
+  save_db_fwd.it lib;
+  Unix.sleepf 30.0;
+  saver lib ()
+
 let make () =
   let root = Data.make_dir "" None (-1) 0 (make_views "") in
   root.name <- "All";
   root.view.folded <- false;
   root.view.artists.shown <- Some `Table;
   root.view.albums.shown <- Some `Table;
-  {
-    scan = make_scan ();
-    root;
-    current = None;
-    browser = Table.make 0;
-    artists = Table.make 0;
-    albums = Table.make 0;
-    tracks = Table.make 100;
-    search = Edit.make 100;
-    error = "";
-    error_time = 0.0;
-    refresh_time = 0.0;
-    cover = true;
-    covers = Map.empty;
-    db_changed = false;
-  }
+  let lib =
+    {
+      scan = make_scan ();
+      root;
+      current = None;
+      browser = Table.make 0;
+      artists = Table.make 0;
+      albums = Table.make 0;
+      tracks = Table.make 100;
+      search = Edit.make 100;
+      error = "";
+      error_time = 0.0;
+      refresh_time = 0.0;
+      cover = true;
+      covers = Map.empty;
+    }
+  in
+  ignore (Domain.spawn (saver lib));
+  lib
 
 
 (* Error Messages *)
@@ -340,18 +351,21 @@ let rec clear_dir (dir : dir) =
 
 
 let save_db lib =
-  if lib.db_changed then
+  if Atomic.exchange lib.scan.changed false then
+  (
+Printf.printf "[saving]\n%!";
     Storage.save_string library_name (fun () ->
       clear_dir lib.root;
-      let s = Struct.print (Data.Print.dir () lib.root) in
-      lib.db_changed <- false;
-      s
+      Struct.print (Data.Print.dir () lib.root);
     )
+  )
 
 let load_db lib =
   Storage.load_string library_name (fun s ->
     lib.root <- Data.Parse.dir (make_views "") (Struct.parse s)
   )
+
+let _ = save_db_fwd.it <- save_db
 
 
 module Print =
@@ -578,7 +592,7 @@ let rescan_dir_tracks' lib mode (dir : dir) =
     dir.tracks <- Dynarray.to_array new_tracks;
     let changed =
       !updates > 0 || Array.length dir.tracks <> Map.cardinal old_tracks in
-    lib.db_changed <- lib.db_changed || changed;
+    if changed then Atomic.set lib.scan.changed true;
     changed
   with exn ->
     Storage.log_exn "file" exn ("scanning tracks in directory " ^ dir.path);
@@ -625,7 +639,7 @@ let rec rescan_dir' lib mode (origin : dir) =
       match Map.find_opt path' old_dirs with
       | Some dir -> dir
       | None ->
-        lib.db_changed <- lib.db_changed || change_if_new;
+        if change_if_new then Atomic.set lib.scan.changed true;
         Data.make_dir path' (Some parent_path) (parent.nest + 1) 0
           (make_views path')
     in
@@ -656,19 +670,22 @@ let rec rescan_dir' lib mode (origin : dir) =
       ) None (File.read_dir dir.path)
     with
     | None ->
-      lib.db_changed <- lib.db_changed || dir.children <> [||];
+      if dir.children <> [||] then Atomic.set lib.scan.changed true;
       None
     | Some dirs ->
       if Data.is_track_path dir.name then
       (
-        lib.db_changed <- true;
+        Atomic.set lib.scan.changed true;
         dir.name <- File.remove_extension dir.name;
       );
       let children = Array.of_list dirs in
       Array.stable_sort Data.compare_dir children;
-      lib.db_changed <- lib.db_changed ||
-        Array.map (fun dir -> dir.path) dir.children <>
-        Array.map (fun dir -> dir.path) children;
+      if
+        Array.length children <> Array.length dir.children ||
+        Array.map (fun dir -> dir.path) children <>
+        Array.map (fun dir -> dir.path) dir.children;
+      then
+        Atomic.set lib.scan.changed true;
       dir.children <- children;
       rescan_dir_tracks lib mode dir;
       Some [dir]
