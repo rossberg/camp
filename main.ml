@@ -2159,6 +2159,7 @@ let startup () =
   Api.Window.set_size win w h;
   Api.Draw.finish win;
   at_exit (fun () ->
+    Api.Audio.pause st.control.audio;
     State.save st;
     Storage.clear_temp ();
   );
