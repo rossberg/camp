@@ -68,6 +68,7 @@ type 'a t =
   mutable refresh_time : time;
   mutable cover : bool;
   mutable covers : cover Map.t;
+  mutable db_changed : bool;
 }
 
 
@@ -241,6 +242,7 @@ let make () =
     refresh_time = 0.0;
     cover = true;
     covers = Map.empty;
+    db_changed = false;
   }
 
 
@@ -338,10 +340,13 @@ let rec clear_dir (dir : dir) =
 
 
 let save_db lib =
-  Storage.save_string library_name (fun () ->
-    clear_dir lib.root;
-    Struct.print (Data.Print.dir () lib.root)
-  )
+  if lib.db_changed then
+    Storage.save_string library_name (fun () ->
+      clear_dir lib.root;
+      let s = Struct.print (Data.Print.dir () lib.root) in
+      lib.db_changed <- false;
+      s
+    )
 
 let load_db lib =
   Storage.load_string library_name (fun s ->
@@ -484,46 +489,6 @@ struct
     in tree
 end
 
-(*
-module Print :
-sig
-  include module type of Struct.Print
-
-  val any_attr : any_attr -> t
-  val artist_attr : artist_attr -> t
-  val album_attr : album_attr -> t
-  val track_attr : track_attr -> t
-
-  val display : display -> t
-  val order : order -> t
-  val sorting : ('a -> t) -> 'a sorting -> t
-  val columns : ('a -> t) -> 'a columns -> t
-
-  val view : ('a -> t) -> 'a view -> t
-  val views : views -> t
-  val dir : dir -> t
-end
-
-module Parse :
-sig
-  include module type of Struct.Parse
-
-  val any_attr : t -> any_attr
-  val artist_attr : t -> artist_attr
-  val album_attr : t -> album_attr
-  val track_attr : t -> track_attr
-
-  val display : t -> display
-  val order : t -> order
-  val sorting : (t -> 'a) -> t -> 'a sorting
-  val columns : (t -> 'a) -> t -> 'a columns
-
-  val view : (t -> 'a) -> t -> 'a view
-  val views : t -> views
-  val dir : t -> dir -> unit
-end
-*)
-
 let save_browser lib =
   Storage.save_string browser_name (fun () ->
     Struct.print (Print.dir lib.root)
@@ -611,7 +576,10 @@ let rescan_dir_tracks' lib mode (dir : dir) =
       )
     ) (File.read_dir dir.path);
     dir.tracks <- Dynarray.to_array new_tracks;
-    !updates > 0 || Array.length dir.tracks <> Map.cardinal old_tracks
+    let changed =
+      !updates > 0 || Array.length dir.tracks <> Map.cardinal old_tracks in
+    lib.db_changed <- lib.db_changed || changed;
+    changed
   with exn ->
     Storage.log_exn "file" exn ("scanning tracks in directory " ^ dir.path);
     true
@@ -653,19 +621,20 @@ let rec rescan_dir' lib mode (origin : dir) =
   let rec scan_file (parent : dir) old_dirs file =
     let parent_path = parent.path in
     let path = File.(parent_path // file) in
-    let subdir path' =
+    let subdir path' change_if_new =
       match Map.find_opt path' old_dirs with
       | Some dir -> dir
       | None ->
+        lib.db_changed <- lib.db_changed || change_if_new;
         Data.make_dir path' (Some parent_path) (parent.nest + 1) 0
           (make_views path')
     in
     if File.is_dir path then
-      scan_dir (subdir File.(path // ""))
+      scan_dir (subdir File.(path // "") false)
     else if Data.is_playlist_path path then
-      scan_playlist (subdir path)
+      scan_playlist (subdir path true)
     else if Data.is_viewlist_path path then
-      scan_viewlist (subdir path)
+      scan_viewlist (subdir path true)
     else if Data.is_track_path path then
       Some []  (* deferred to directory scan *)
     else
@@ -686,12 +655,21 @@ let rec rescan_dir' lib mode (origin : dir) =
         | dirs1, dirs2 -> Some (dirs_of dirs1 @ dirs_of dirs2)
       ) None (File.read_dir dir.path)
     with
-    | None -> None
+    | None ->
+      lib.db_changed <- lib.db_changed || dir.children <> [||];
+      None
     | Some dirs ->
       if Data.is_track_path dir.name then
+      (
+        lib.db_changed <- true;
         dir.name <- File.remove_extension dir.name;
-      dir.children <- Array.of_list dirs;
-      Array.stable_sort Data.compare_dir dir.children;
+      );
+      let children = Array.of_list dirs in
+      Array.stable_sort Data.compare_dir children;
+      lib.db_changed <- lib.db_changed ||
+        Array.map (fun dir -> dir.path) dir.children <>
+        Array.map (fun dir -> dir.path) children;
+      dir.children <- children;
       rescan_dir_tracks lib mode dir;
       Some [dir]
 
