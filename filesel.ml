@@ -321,14 +321,14 @@ let reorder_files fs k =
 (* Persistance *)
 
 let print_state fs =
-  let open Struct.Print in
+  let open Text.Print in
   record (fun fs -> [
     "path", string fs.path;
     "columns", array nat fs.columns;
   ]) fs
 
 let print_intern fs =
-  let open Struct.Print in
+  let open Text.Print in
   print_state fs @@@
   record (fun fs -> [
     "roots", array string (Array.map (fun (dir : dir) -> dir.path) fs.roots);
@@ -342,7 +342,7 @@ let print_intern fs =
   ]) fs
 
 let parse_state fs =
-  let open Struct.Parse in
+  let open Text.Parse in
   record (fun r->
     apply (r $? "path") string
       (fun s -> set_dir_path fs s);

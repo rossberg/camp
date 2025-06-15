@@ -114,7 +114,7 @@ let timemode_enum = ["elapsed", `Elapse; "remain", `Remain]
 let repeat_enum = ["none", `None; "one", `One; "all", `All]
 
 let print_loop =
-  let open Struct.Print in
+  let open Text.Print in
   variant (function
     | `None -> "none", unit ()
     | `A t -> "a", float t
@@ -122,17 +122,17 @@ let print_loop =
   )
 
 let parse_loop =
-  let open Struct.Parse in
+  let open Text.Parse in
   variant (function
     | "none", t -> unit t; `None
     | "a", t -> `A (float t)
     | "ab", t ->
       `AB ((pair float float >-> fun (t1, t2) -> t1, max t1 t2) t)
-    | _ -> raise Struct.Type_error
+    | _ -> raise Text.Type_error
   )
 
 let print_state ctl =
-  let open Struct.Print in
+  let open Text.Print in
   let length = Api.Audio.length ctl.audio in
   let played = Api.Audio.played ctl.audio in
   record (fun ctl -> [
@@ -147,14 +147,14 @@ let print_state ctl =
   ]) ctl
 
 let print_intern ctl =
-  let open Struct.Print in
+  let open Text.Print in
   print_state ctl @@@
   record (fun ctl -> [
     "fps", bool ctl.fps;
   ]) ctl
 
 let parse_state ctl =
-  let open Struct.Parse in
+  let open Text.Parse in
   record (fun r ->
     apply (r $? "volume") (interval 0.0 1.0)
       (fun q -> ctl.volume <- q);

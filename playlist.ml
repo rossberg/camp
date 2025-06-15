@@ -385,7 +385,7 @@ let redo pl = Table.pop_redo pl.table
 (* Persistance *)
 
 let print_state pl =
-  let open Struct.Print in
+  let open Text.Print in
   record (fun pl -> [
     "pos", option nat pl.table.pos;
     "scroll", nat pl.table.vscroll;
@@ -393,7 +393,7 @@ let print_state pl =
   ]) pl
 
 let print_intern pl =
-  let open Struct.Print in
+  let open Text.Print in
   print_state pl @@@
   record (fun pl -> [
     "length", nat (Table.length pl.table);
@@ -415,7 +415,7 @@ let print_intern pl =
   ]) pl
 
 let parse_state pl =
-  let open Struct.Parse in
+  let open Text.Parse in
   record (fun r ->
     let lim = max 0 (Table.length pl.table - 1) in
     refresh_total pl;

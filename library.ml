@@ -340,20 +340,20 @@ let has_track lib (track : track) =
 
 (* Data Persistence *)
 
-let library_name = "library.conf"
+let library_name = "library.bin"
 let browser_name = "browser.conf"
 
 let save_db lib =
   if Atomic.exchange lib.scan.changed false then
   (
     Storage.save_string library_name (fun () ->
-      Struct.print (Data.Print.dir () lib.root)
+      Bin.encode (Data.Encode.dir ()) lib.root
     )
   )
 
 let load_db lib =
   Storage.load_string library_name (fun s ->
-    lib.root <- Data.Parse.dir (make_views "") (Struct.parse s)
+    lib.root <- Bin.decode (Data.Decode.dir (make_views "")) s
   )
 
 let _ = save_db_fwd.it <- save_db
@@ -361,7 +361,7 @@ let _ = save_db_fwd.it <- save_db
 
 module Print =
 struct
-  open Struct.Print
+  open Text.Print
 
   let attr_enum =
   [
@@ -442,24 +442,24 @@ end
 
 module Parse =
 struct
-  open Struct.Parse
+  open Text.Parse
 
   let any_attr = enum Print.attr_enum
 
   let artist_attr u =
     match any_attr u with
     | #artist_attr as x -> x
-    | _ -> raise Struct.Type_error
+    | _ -> raise Text.Type_error
 
   let album_attr u =
     match any_attr u with
     | #album_attr as x -> x
-    | _ -> raise Struct.Type_error
+    | _ -> raise Text.Type_error
 
   let track_attr u =
     match any_attr u with
     | #track_attr as x -> x
-    | _ -> raise Struct.Type_error
+    | _ -> raise Text.Type_error
 
   let display = enum Print.display_enum
   let order = enum Print.order_enum
@@ -496,14 +496,14 @@ end
 
 let save_browser lib =
   Storage.save_string browser_name (fun () ->
-    Struct.print (Print.dir lib.root)
+    Text.print (Print.dir lib.root)
   )
 
 let load_browser lib =
   Storage.load_string_opt browser_name (fun s ->
     try
-      Parse.dir (Struct.parse s) lib.root
-    with Struct.Syntax_error _ | Struct.Type_error as exn ->
+      Parse.dir (Text.parse s) lib.root
+    with Text.Syntax_error _ | Text.Type_error as exn ->
       Storage.log_exn "parse" exn "while loading browser state"
   )
 
@@ -1398,7 +1398,7 @@ let purge_covers lib =
 (* Persistance *)
 
 let print_state lib =
-  let open Struct.Print in
+  let open Text.Print in
   record (fun lib -> [
     "browser_scroll", int lib.browser.vscroll;
     "browser_current", option string (Option.map (fun dir -> dir.path) lib.current);
@@ -1406,7 +1406,7 @@ let print_state lib =
   ]) lib
 
 let print_intern lib =
-  let open Struct.Print in
+  let open Text.Print in
   print_state lib @@@
   record (fun lib -> [
     "browser_pos", option int lib.browser.pos;
@@ -1424,7 +1424,7 @@ let print_intern lib =
   ]) lib
 
 let parse_state lib =
-  let open Struct.Parse in
+  let open Text.Parse in
   record (fun r ->
     refresh_browser lib;
     apply (r $? "browser_scroll") (num 0 (max 0 (length_browser lib - 1)))

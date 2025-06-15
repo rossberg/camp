@@ -644,7 +644,7 @@ let remove_sorting attr = insert_sorting `None attr (-1) max_int
 
 module Print =
 struct
-  open Struct.Print
+  open Text.Print
 
   let status_enum =
     [
@@ -717,7 +717,7 @@ end
 
 module Parse =
 struct
-  open Struct.Parse
+  open Text.Parse
 
   let status = enum Print.status_enum
 
@@ -791,4 +791,163 @@ struct
       error = string (r $ "error");
       view;
     })
+end
+
+module Encode =
+struct
+  open Bin.Encode
+
+  let status_enum =
+    [
+      0, `Undet;
+      1, `Predet;
+      2, `Det;
+      3, `Invalid;
+      4, `Absent;
+    ]
+
+  let status = enum status_enum
+
+  let file =
+    record (fun (x : file) -> [
+      nat x.size;
+      float x.time;
+      float x.age;
+    ])
+
+  let format =
+    record (fun (x : Format.t) -> [
+      string x.codec;
+      nat x.channels;
+      nat x.depth;
+      nat x.rate;
+      float x.bitrate;
+      float x.time;
+      nat x.size;
+    ])
+
+  let meta =
+    record (fun (x : Meta.t) -> [
+      bool x.loaded;
+      string x.artist;
+      string x.title;
+      string x.track_txt;
+      string x.disc_txt;
+      string x.albumartist;
+      string x.albumtitle;
+      nat x.year;
+      string x.date_txt;
+      string x.label;
+      string x.country;
+      float x.length;
+      nat x.rating;
+    ])
+
+  let track =
+    record (fun (x : track) -> assert (x.pos = -1); [
+      string x.path;
+      file x.file;
+      option format x.format;
+      option meta x.meta;
+      (* pos should be -1 *)
+      status x.status;
+    ])
+
+  let rec dir () =
+    record (fun (x : _ dir) -> [
+      string x.path;
+      option string x.parent;
+      option nat (if x.nest = -1 then None else Some x.nest);
+      string x.name;
+      option nat (if x.pos = -1 then None else Some x.pos);
+      array (dir ()) x.children;
+      array track (if is_dir x then x.tracks else [||]);
+      string x.error;
+    ])
+end
+
+module Decode =
+struct
+  open Bin.Decode
+
+  let status = enum Encode.status_enum
+
+  let file =
+    record (fun n buf ->
+      if n <> 3 then error buf;
+      let size = nat buf in
+      let time = float buf in
+      let age = float buf in
+      {size; time; age}
+    )
+
+  let format =
+    record (fun n buf ->
+      if n <> 7 then error buf;
+      let codec = string buf in
+      let channels = nat buf in
+      let depth = nat buf in
+      let rate = nat buf in
+      let bitrate = float buf in
+      let time = float buf in
+      let size = nat buf in
+      Format.{codec; channels; depth; rate; bitrate; time; size}
+    )
+
+  let meta =
+    record (fun n buf ->
+      if n <> 13 then error buf;
+      let loaded = bool buf in
+      let artist = string buf in
+      let title = string buf in
+      let track_txt = string buf in
+      let disc_txt = string buf in
+      let albumartist = string buf in
+      let albumtitle = string buf in
+      let year = nat buf in
+      let date_txt = string buf in
+      let label = string buf in
+      let country = string buf in
+      let length = float buf in
+      let rating = num 0 5 buf in
+      Meta.{
+        loaded; artist; title;
+        track = Meta.int_of_total_string track_txt;
+        tracks = Meta.total_of_total_string track_txt;
+        track_txt;
+        disc = Meta.int_of_total_string disc_txt;
+        discs = Meta.total_of_total_string disc_txt;
+        disc_txt;
+        albumartist; albumtitle; year;
+        date = Meta.date_of_string date_txt;
+        date_txt;
+        label; country; length; rating;
+        cover = None;
+      }
+    )
+
+  let track =
+    record (fun n buf ->
+      if n <> 5 then error buf;
+      let path = string buf in
+      let file = file buf in
+      let format = option format buf in
+      let meta = option meta buf in
+      let status = status buf in
+      {path; file; format; meta; album = None; pos = -1; status; memo = None}
+    )
+
+  let rec dir view =
+    record (fun n buf ->
+      if n <> 8 then error buf;
+      let path = string buf in
+      let parent = option string buf in
+      let nest = Option.value (option nat buf) ~default: (-1) in
+      let name = string buf in
+      let pos = Option.value (option nat buf) ~default: (-1) in
+      let children = array (dir view) buf in
+      let tracks = array track buf in
+      let error = string buf in
+      {path; parent; nest; name; pos; children; tracks; error; view}
+    )
 end

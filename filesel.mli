@@ -46,9 +46,9 @@ val ok : ('a, 'b) t -> error list
 
 (* Persistance *)
 
-val print_state : ('a, 'b) t -> Struct.t
-val print_intern : ('a, 'b) t -> Struct.t
-val parse_state : ('a, 'b) t -> Struct.t -> unit
+val print_state : ('a, 'b) t -> Text.t
+val print_intern : ('a, 'b) t -> Text.t
+val parse_state : ('a, 'b) t -> Text.t -> unit
 
 
 (* Focus *)

@@ -35,7 +35,7 @@ let ok cfg =
 (* Persistance *)
 
 let print_state =
-  let open Struct.Print in
+  let open Text.Print in
   record (fun cfg -> [
     "delay_track_update", float cfg.delay_track_update;
     "exec_tag", string cfg.exec_tag;
@@ -45,7 +45,7 @@ let print_state =
 let print_intern = print_state
 
 let parse_state cfg =
-  let open Struct.Parse in
+  let open Text.Parse in
   record (fun r ->
     apply (r $? "delay_track_update") (interval 1.0 Float.infinity)
       (fun t -> cfg.delay_track_update <- t);

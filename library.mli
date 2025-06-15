@@ -63,9 +63,9 @@ val error : 'a t -> string -> unit
 
 (* Persistance *)
 
-val print_state : 'a t -> Struct.t
-val print_intern : 'a t -> Struct.t
-val parse_state : 'a t -> Struct.t -> unit  (* assumes roots already set *)
+val print_state : 'a t -> Text.t
+val print_intern : 'a t -> Text.t
+val parse_state : 'a t -> Text.t -> unit  (* assumes roots already set *)
 
 val save_playlist : 'a t -> unit
 

@@ -101,7 +101,7 @@ let side_enum = ["left", `Left; "right", `Right]
 
 let print_layout lay =
   let open Layout in
-  let open Struct.Print in
+  let open Text.Print in
   let x, y = Api.Window.pos (Ui.window lay.ui) in
   let x =
     if lay.library_shown || not lay.filesel_shown then x
@@ -126,7 +126,7 @@ let print_layout lay =
 
 let parse_layout lay pos =  (* assumes playlist and library already loaded *)
   let open Layout in
-  let open Struct.Parse in
+  let open Text.Parse in
   let win = Ui.window lay.ui in
   let ww, wh = Layout.(control_min_w, control_min_h) in
   let sx, sy = Api.Window.min_pos win in
@@ -169,7 +169,7 @@ let state_file = "state.conf"
 let state_header = App.name
 
 let print_state st =
-  let open Struct.Print in
+  let open Text.Print in
   record (fun st -> [
     "layout", print_layout st.layout;
     "config", Config.print_state st.config;
@@ -180,7 +180,7 @@ let print_state st =
   ]) st
 
 let print_intern st =
-  let open Struct.Print in
+  let open Text.Print in
   record (fun st -> [
     "layout", print_layout st.layout;
     "config", Config.print_intern st.config;
@@ -190,10 +190,10 @@ let print_intern st =
     "filesel", Filesel.print_intern st.filesel;
   ]) st
 
-let to_string st = Struct.print (print_intern st)
+let to_string st = Text.print (print_intern st)
 
 let parse_state st pos =
-  let open Struct.Parse in
+  let open Text.Parse in
   record (fun r ->
     apply (r $? "layout") (parse_layout st.layout pos) ignore;
     apply (r $? "config") (Config.parse_state st.config) ignore;
@@ -275,7 +275,7 @@ let save st =
   Library.save_db st.library;
   Library.save_browser st.library;
   Playlist.save_playlist st.playlist;
-  Storage.save_string state_file (fun () -> Struct.print (print_state st))
+  Storage.save_string state_file (fun () -> Text.print (print_state st))
 
 let load st =
   Random.self_init ();
@@ -286,8 +286,8 @@ let load st =
   Library.rescan_root st.library `Quick;
   Playlist.load_playlist st.playlist;
   Storage.load_string_opt state_file (fun s ->
-    try parse_state st pos (Struct.parse s)
-    with Struct.Syntax_error _ | Struct.Type_error as exn ->
+    try parse_state st pos (Text.parse s)
+    with Text.Syntax_error _ | Text.Type_error as exn ->
       Storage.log_exn "parse" exn "while loading state"
   );
 
