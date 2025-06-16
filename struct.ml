@@ -142,17 +142,16 @@ let expect tok st =
 
 let rec parse_sep parse_x term st =
   let st' = save st in
-  match parse_x st with
-  | exception Syntax_error _ ->
+  if next st = term then [] else
+  (
     reset st st';
-    expect term st;
-    []
-  | x ->
+    let x = parse_x st in
     let st' = save st in
     if next st = Token.Comma then
       x :: parse_sep parse_x term st
     else
       (reset st st'; expect term st; [x])
+  )
 
 let rec parse_val st =
   let j = save st in
