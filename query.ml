@@ -311,22 +311,6 @@ and check q track =
   | _ -> assert false
 
 
-let exec_track e p f (track : track) =
-  if not (M3u.is_separator track.path) && check e track && p track then f track
-
-let rec exec_dir e p f (dir : _ dir) =
-  Array.iter (exec_dir e p f) dir.children;
-  Array.iter (exec_track e p f) dir.tracks
-
-let sort s tracks =
-  if s <> [] then
-  (
-    let tracks' =
-      Array.map (fun tr -> Data.key_entry track_attr_string s tr, tr) tracks in
-    Array.stable_sort compare tracks';
-    Array.iteri (fun i (_, tr) -> tracks.(i) <- tr) tracks';
-  )
-
 module AlbumKey =
 struct
   type t = string * string * string * string
@@ -347,26 +331,42 @@ let array_of_map iter map =
   iter (fun _ x -> Dynarray.add_last a x) map;
   Dynarray.to_array a
 
+let rec iter_dir f (dir : _ dir) =
+  Array.iter (iter_dir f) dir.children;
+  Array.iter f dir.tracks
+
+let sort s tracks =
+  if s <> [] then
+  (
+    let tracks' =
+      Array.map (fun tr -> Data.key_entry track_attr_string s tr, tr) tracks in
+    Array.stable_sort compare tracks';
+    Array.iteri (fun i (_, tr) -> tracks.(i) <- tr) tracks';
+  )
+
 let exec with_artists with_albums with_tracks q p dir =
   let tracks = Dynarray.create () in
   let album_map = ref AlbumMap.empty in
   let artist_map = ref ArtistMap.empty in
-  exec_dir q.expr p (fun track ->
-    if with_tracks then Dynarray.add_last tracks track;
-    if with_albums || with_artists then
+  iter_dir (fun track ->
+    if not (M3u.is_separator track.path) && check q.expr track && p track then
     (
-      let album_key = album_key track in
-      let album = Data.album_of_track track in
-      let album' =
-        match AlbumMap.find_opt album_key !album_map with
-        | None -> album
-        | Some album' -> Data.accumulate_album album album'
-      in
-      album_map := AlbumMap.add album_key album' !album_map;
-      if with_artists then
+      if with_tracks then Dynarray.add_last tracks track;
+      if with_albums || with_artists then
       (
-        let artist = Data.artist_of_album album' in
-        artist_map := ArtistMap.add artist.name artist !artist_map;
+        let album_key = album_key track in
+        let album = Data.album_of_track track in
+        let album' =
+          match AlbumMap.find_opt album_key !album_map with
+          | None -> album
+          | Some album' -> Data.accumulate_album album album'
+        in
+        album_map := AlbumMap.add album_key album' !album_map;
+        if with_artists then
+        (
+          let artist = Data.artist_of_album album' in
+          artist_map := ArtistMap.add artist.name artist !artist_map;
+        )
       )
     )
   ) dir;

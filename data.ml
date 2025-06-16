@@ -58,7 +58,6 @@ type artist =
 
 type memo =
 {
-  mutable pos : string;  (* 0-based *)
   mutable file_size : string;
   mutable file_time : string;
   mutable artist : string;
@@ -97,7 +96,7 @@ type track =
   mutable format : Format.t option;
   mutable meta : Meta.t option;
   mutable album : album option;
-  mutable pos : int;
+  mutable pos : int;  (* 0-based *)
   mutable status : [`Undet | `Predet | `Det | `Invalid | `Absent];
   mutable memo : memo option;
 }
@@ -214,7 +213,6 @@ let make_track path : track =
 
 let make_memo () : memo =
   {
-    pos = "";
     file_size = "";
     file_time = "";
     artist = "";
@@ -490,7 +488,7 @@ let track_attr_string' (track : track) = function
 let attr_string' get_memo set_memo f x attr =
   match (attr :> track_attr) with
   | `FilePath | `FileDir | `FileName | `FileExt
-  | `Codec | `Label | `Country | `Cover ->
+  | `Codec | `Label | `Country | `Cover | `Pos ->
     f x attr
   | _ ->
     let memo =
@@ -499,9 +497,6 @@ let attr_string' get_memo set_memo f x attr =
       | None -> let memo = make_memo () in set_memo x (Some memo); memo
     in
     match attr with
-    | `Pos ->
-      if memo.pos <> "" then memo.pos else
-      let s = f x attr in memo.pos <- s; s
     | `FileSize ->
       if memo.file_size <> "" then memo.file_size else
       let s = f x attr in memo.file_size <- s; s
@@ -563,7 +558,7 @@ let attr_string' get_memo set_memo f x attr =
       if memo.rating <> "" then memo.rating else
       let s = f x attr in memo.rating <- s; s
     | `FilePath | `FileDir | `FileName | `FileExt
-    | `Codec | `Label | `Country | `Cover ->
+    | `Codec | `Label | `Country | `Cover | `Pos ->
       assert false
 
 let get_album_memo (album : album) = album.memo
