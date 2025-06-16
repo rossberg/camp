@@ -95,7 +95,7 @@ let focus_next st = focus_switch st (foci st)
 let focus_prev st = focus_switch st (List.rev (foci st))
 
 
-(* Layout Persistance *)
+(* Layout Persistence *)
 
 let side_enum = ["left", `Left; "right", `Right]
 
@@ -163,7 +163,7 @@ let parse_layout lay pos =  (* assumes playlist and library already loaded *)
   )
 
 
-(* Persistance *)
+(* Persistence *)
 
 let state_file = "state.conf"
 let state_header = App.name
@@ -269,7 +269,7 @@ and dump st errors =
   )
 
 
-(* Persistance pt 2 *)
+(* Persistence pt 2 *)
 
 let save st =
   Library.save_db st.library;

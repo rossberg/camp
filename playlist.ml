@@ -382,7 +382,7 @@ let undo pl = Table.pop_undo pl.table
 let redo pl = Table.pop_redo pl.table
 
 
-(* Persistance *)
+(* Persistence *)
 
 let print_state pl =
   let open Text.Print in

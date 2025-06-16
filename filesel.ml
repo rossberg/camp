@@ -318,7 +318,7 @@ let reorder_files fs k =
   Table.restore_selection fs.files selection (fun (file : file) -> file.name)
 
 
-(* Persistance *)
+(* Persistence *)
 
 let print_state fs =
   let open Text.Print in

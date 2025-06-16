@@ -108,7 +108,7 @@ let switch_if_empty ctl track_opt =
   | _, _ -> ()
 
 
-(* Persistance *)
+(* Persistence *)
 
 let timemode_enum = ["elapsed", `Elapse; "remain", `Remain]
 let repeat_enum = ["none", `None; "one", `One; "all", `All]

@@ -61,7 +61,7 @@ val ok : 'a t -> error list
 val error : 'a t -> string -> unit
 
 
-(* Persistance *)
+(* Persistence *)
 
 val print_state : 'a t -> Text.t
 val print_intern : 'a t -> Text.t

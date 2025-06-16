@@ -27,7 +27,7 @@ type error = string
 val ok : 'a t -> error list
 
 
-(* Persistance *)
+(* Persistence *)
 
 val print_state : 'a t -> Text.t
 val print_intern : 'a t -> Text.t

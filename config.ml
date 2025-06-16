@@ -32,7 +32,7 @@ let ok cfg =
   []
 
 
-(* Persistance *)
+(* Persistence *)
 
 let print_state =
   let open Text.Print in

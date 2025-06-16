@@ -1395,7 +1395,7 @@ let purge_covers lib =
   lib.covers <- Map.empty
 
 
-(* Persistance *)
+(* Persistence *)
 
 let print_state lib =
   let open Text.Print in
