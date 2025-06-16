@@ -1097,6 +1097,9 @@ let run_library (st : _ State.t) =
       Library.select_dir lib i;  (* do bureaucracy *)
       Library.deselect_all lib;
       Library.refresh_artists_albums_tracks lib;
+      let dir' = entries.(i) in
+      lay.left_width <- dir'.view.divider_width;
+      lay.upper_height <- dir'.view.divider_height;
     );
     if Api.Mouse.is_doubleclick `Left then
     (
@@ -1570,6 +1573,7 @@ let run_library (st : _ State.t) =
         (Layout.left_min lay) (Layout.left_max lay) in
       (* Possible drag of divider: update pane width *)
       lay.left_width <- left_width';
+      dir.view.divider_width <- left_width';
     );
   );
 
@@ -1782,6 +1786,7 @@ let run_library (st : _ State.t) =
         (Layout.upper_min lay) (Layout.upper_max lay) in
       (* Possible drag of divider: update pane width *)
       lay.upper_height <- upper_height';
+      dir.view.divider_height <- upper_height';
     );
   );
 
