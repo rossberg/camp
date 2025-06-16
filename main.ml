@@ -2170,8 +2170,7 @@ let _main =
     Printexc.record_backtrace true;
     (* Work around apparent bug in GC scheduler. *)
     Gc.(set {(get ()) with space_overhead = 10});
-    let st = startup () in
-    run st
+    run (startup ())
   with exn ->
     Storage.log_exn "internal" exn "";
     Stdlib.exit 2

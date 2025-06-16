@@ -602,8 +602,23 @@ let compare_dir (dir1 : _ dir) (dir2 : _ dir) =
   | i -> i
 
 
+let attr_fold attr =
+  match (attr :> _) with
+  | `FileSize | `FileTime
+  | `Length | `Channels | `Depth | `SampleRate | `BitRate | `Rate
+  | `Track | `Tracks | `Disc | `Discs | `DiscTrack | `Date | `Year
+  | `Rating | `Cover
+  | `Pos
+  | `Albums ->
+    Fun.id
+  | `FilePath | `FileDir | `FileName | `FileExt
+  | `Codec
+  | `Artist | `Title | `AlbumArtist | `AlbumTitle
+  | `Label | `Country ->
+    fun s -> UCol.sort_key s
+
 let key_entry' e attr_string (attr, order) =
-  let s = UCol.sort_key (UCase.casefolding (attr_string e attr)) in
+  let s = attr_fold attr (UCase.casefolding (attr_string e attr)) in
   if order = `Asc then s else String.map Char.(fun c -> chr (255 - code c)) s
 
 let key_entry attr_string sorting e =
