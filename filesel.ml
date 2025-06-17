@@ -22,13 +22,13 @@ type dir =
   mutable files : file array;
 }
 
-type ('a, 'b) t =
+type ('op, 'cache) t =
 {
-  mutable op : 'a option;
+  mutable op : 'op option;
   mutable path : path;
   roots : dir array;
-  dirs : (dir, 'b) Table.t;
-  files : (file, 'b) Table.t;
+  dirs : (dir, 'cache) Table.t;
+  files : (file, 'cache) Table.t;
   input : Edit.t;
   mutable columns : int array;
 }

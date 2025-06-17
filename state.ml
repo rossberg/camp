@@ -1,6 +1,11 @@
 (* Program State *)
 
-type 'a filesel_op = [`LoadPlaylist | `SavePlaylist of (Data.track, 'a) Table.t]
+type 'a filesel_op =
+[
+  | `LoadPlaylist
+  | `SavePlaylist of (Data.track, 'a) Table.t
+  | `InsertDir
+]
 
 type 'cache t =
 {

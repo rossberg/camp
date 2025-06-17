@@ -267,16 +267,16 @@ let edit_w = 25
 let edit_h = 20
 let edit_button i j label key g = Ui.labeled_button g.ui (ep, margin g + i*5 + j*edit_w, - edit_h, edit_w, edit_h) (button_label_h g) (Ui.inactive_color g.ui) label key true
 
-let sep_button = edit_button 0 0 "SEP" ([], `Insert)
-let del_button = edit_button 1 1 "DEL" ([], `Delete)
-let crop_button = edit_button 1 2 "CROP" ([`Shift], `Delete)
-let clean_button = edit_button 1 3 "CLEAN" ([`Command], `Delete)
+let tag_button = edit_button 0 0 "TAG" ([`Command], `Char 'T')
+let sep_button = edit_button 1 1 "SEP" ([], `Insert)
+let del_button = edit_button 2 2 "DEL" ([], `Delete)
+let crop_button = edit_button 2 3 "CROP" ([`Shift], `Delete)
+let clean_button = edit_button 2 4 "CLEAN" ([`Command], `Delete)
 let del_button_alt g = Ui.key g.ui ([], `Backspace) true
 let crop_button_alt g = Ui.key g.ui ([`Shift], `Backspace) true
 let clean_button_alt g = Ui.key g.ui ([`Command], `Backspace) true
-let undo_button = edit_button 2 4 "UNDO" ([`Command], `Char 'Z')
-let redo_button = edit_button 2 5 "REDO" ([`Shift; `Command], `Char 'Z')
-let tag_button = edit_button 3 6 "TAG" ([`Command], `Char 'T')
+let undo_button = edit_button 3 5 "UNDO" ([`Command], `Char 'Z')
+let redo_button = edit_button 3 6 "REDO" ([`Shift; `Command], `Char 'Z')
 let save_button = edit_button 4 7 "SAVE" ([`Command], `Char 'S')
 let load_button = edit_button 4 8 "LOAD" ([`Command], `Char 'O')
 
@@ -350,6 +350,15 @@ let browser_error_box g = Ui.box g.ui (browser_area g) (Ui.error_color g.ui)
 
 let del_key g = Ui.key g.ui ([`Command], `Delete) true
 let backspace_key g = Ui.key g.ui ([`Command], `Backspace) true
+
+(* Buttons *)
+let ledit_button i j label key g = Ui.labeled_button g.ui (bp, margin g + i*5 + j*edit_w, - edit_h, edit_w, edit_h) (button_label_h g) (Ui.inactive_color g.ui) label key true
+
+let insert_button = ledit_button 0 0 "ADD" ([], `None)
+let remove_button = ledit_button 0 1 "DEL" ([], `None)
+let create_button = ledit_button 0 2 "NEW" ([], `None)
+let view_button = ledit_button 0 3 "VIEW" ([], `None)
+let rescan_button = ledit_button 1 4 "SCAN" ([], `None)
 
 
 (* View Panes *)
