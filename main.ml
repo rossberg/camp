@@ -1803,7 +1803,7 @@ let run_library (st : _ State.t) =
     Api.Clipboard.write win s;
   );
 
-  if Layout.lib_cover_key lay then lib.cover <- not lib.cover;
+  if Layout.lib_cover_key lay then Library.activate_covers lib (not lib.cover);
 
   let grid_delta n =
     if n <= 20 then 2 else

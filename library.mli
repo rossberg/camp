@@ -16,30 +16,30 @@ type views =
   mutable folded : bool;
   mutable divider_width : int;
   mutable divider_height : int;
-  mutable artists : artist_attr view;
-  mutable albums : album_attr view;
-  mutable tracks : track_attr view;
+  artists : artist_attr view;
+  albums : album_attr view;
+  tracks : track_attr view;
 }
 
 type dir = views Data.dir
 type scan
 type cover
 
-type 'cache t =
+type 'cache t = private
 {
-  scan : scan;
   mutable root : dir;
   mutable current : dir option;
-  mutable browser : (dir, 'cache) Table.t;
-  mutable artists : (artist, 'cache) Table.t;
-  mutable albums : (album, 'cache) Table.t;
-  mutable tracks : (track, 'cache) Table.t;
-  mutable search : Edit.t;
   mutable error : string;
   mutable error_time : time;
   mutable refresh_time : time;
   mutable cover : bool;
-  mutable covers : cover Map.Make(String).t;
+  search : Edit.t;
+  browser : (dir, 'cache) Table.t;
+  artists : (artist, 'cache) Table.t;
+  albums : (album, 'cache) Table.t;
+  tracks : (track, 'cache) Table.t;
+  covers : cover Map.Make(String).t Atomic.t;
+  scan : scan;
 }
 
 
@@ -182,3 +182,4 @@ val redo : 'a t -> unit
 
 val load_cover : 'a t -> Api.window -> path -> Api.image option
 val purge_covers : 'a t -> unit
+val activate_covers : 'a t -> bool -> unit

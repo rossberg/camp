@@ -6,7 +6,7 @@ type track = Data.track
 
 type shuffle
 
-type 'cache t =
+type 'cache t = private
 {
   table : (track, 'cache) Table.t;
   mutable total : time * int;

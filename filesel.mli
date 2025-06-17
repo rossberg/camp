@@ -3,7 +3,7 @@
 type path = Data.path
 type time = Data.time
 
-type file =
+type file = private
 {
   name : string;
   size : int;
@@ -11,7 +11,7 @@ type file =
   is_dir : bool;
 }
 
-type dir =
+type dir = private
 {
   path : path;
   nest : int;

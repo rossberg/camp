@@ -23,9 +23,9 @@ type views =
   mutable folded : bool;
   mutable divider_width : int;
   mutable divider_height : int;
-  mutable artists : artist_attr view;
-  mutable albums : album_attr view;
-  mutable tracks : track_attr view;
+  artists : artist_attr view;
+  albums : album_attr view;
+  tracks : track_attr view;
 }
 
 type dir = views Data.dir
@@ -54,21 +54,21 @@ type cover =
   | ScannedCover of Meta.picture
   | Cover of Api.image
 
-type 'a t =
+type 'cache t =
 {
-  scan : scan;
   mutable root : dir;
   mutable current : dir option;
-  mutable browser : (dir, 'a) Table.t;
-  mutable artists : (artist, 'a) Table.t;
-  mutable albums : (album, 'a) Table.t;
-  mutable tracks : (track, 'a) Table.t;
-  mutable search : Edit.t;
   mutable error : string;
   mutable error_time : time;
   mutable refresh_time : time;
   mutable cover : bool;
-  mutable covers : cover Map.t;
+  search : Edit.t;
+  browser : (dir, 'cache) Table.t;
+  artists : (artist, 'cache) Table.t;
+  albums : (album, 'cache) Table.t;
+  tracks : (track, 'cache) Table.t;
+  covers : cover Map.t Atomic.t;
+  scan : scan;
 }
 
 
@@ -238,19 +238,19 @@ let make () =
   root.view.albums.shown <- Some `Table;
   let lib =
     {
-      scan = make_scan ();
       root;
       current = None;
-      browser = Table.make 0;
-      artists = Table.make 0;
-      albums = Table.make 0;
-      tracks = Table.make 100;
-      search = Edit.make 100;
       error = "";
       error_time = 0.0;
       refresh_time = 0.0;
       cover = true;
-      covers = Map.empty;
+      search = Edit.make 100;
+      browser = Table.make 0;
+      artists = Table.make 0;
+      albums = Table.make 0;
+      tracks = Table.make 100;
+      covers = Atomic.make Map.empty;
+      scan = make_scan ();
     }
   in
   ignore (Domain.spawn (saver lib));
@@ -508,11 +508,62 @@ let load_browser lib =
   )
 
 
+(* Covers *)
+
+let rec update_cover lib path cover =
+  let covers = Atomic.get lib.covers in
+  let covers' = Map.add path cover covers in
+  if not (Atomic.compare_and_set lib.covers covers covers') then
+    update_cover lib path cover
+
+let rescan_cover' lib path =
+  try
+    let cover =
+      try
+        let meta = Meta.load path in
+        match meta.cover with
+        | None -> NoCover
+        | Some pic -> ScannedCover pic
+      with Sys_error _ -> NoCover
+    in
+    update_cover lib path cover;
+    false
+  with exn ->
+    Storage.log_exn "file" exn ("scanning cover " ^ path);
+    false
+
+let rescan_cover lib path =
+  update_cover lib path ScanCover;
+  Safe_queue.add (false, path, fun () -> rescan_cover' lib path)
+    lib.scan.cover_queue
+
+let load_cover lib win path =
+  if M3u.is_separator path then None else
+  match Map.find_opt path (Atomic.get lib.covers) with
+  | Some (NoCover | ScanCover) -> None
+  | Some (Cover image) -> Some image
+  | Some (ScannedCover pic) ->
+    let cover, result =
+      match Api.Image.load_from_memory win pic.mime pic.data with
+      | exception _ -> NoCover, None
+      | image -> Cover image, Some image
+    in update_cover lib path cover; result
+  | None -> rescan_cover lib path; None
+
+
+let purge_covers lib =
+  Atomic.set lib.covers Map.empty
+
+let activate_covers lib b =
+  lib.cover <- b;
+  if not b then purge_covers lib
+
+
 (* Scanning *)
 
 type scan_mode = [`Quick | `Thorough]
 
-let rescan_track' _lib mode (track : track) =
+let rescan_track' lib mode (track : track) =
   let old = {track with memo = None} in
   try
     if not (File.exists track.path) then
@@ -540,9 +591,13 @@ let rescan_track' _lib mode (track : track) =
         track.file.size <> old.file.size || track.file.time <> old.file.time
       then
       (
+        let meta = Meta.load track.path in
         track.format <- Some (Format.read track.path);
-        track.meta <- Some {(Meta.load track.path) with cover = None};
+        track.meta <- Some {meta with cover = None};
         track.status <- `Det;
+        Option.iter (fun cover ->
+          update_cover lib track.path (ScannedCover cover)
+        ) meta.cover;
       )
     );
     let time = Unix.gettimeofday () in
@@ -1352,47 +1407,6 @@ let redo lib =
   Array.iteri (fun i (track : track) -> track.pos <- i) lib.tracks.entries;
   restore_playlist lib order;
   save_playlist lib
-
-
-(* Covers *)
-
-let rescan_cover' lib path =
-  try
-    let cover =
-      try
-        let meta = Meta.load path in
-        match meta.cover with
-        | None -> NoCover
-        | Some pic -> ScannedCover pic
-      with Sys_error _ -> NoCover
-    in
-    lib.covers <- Map.add path cover lib.covers;
-    false
-  with exn ->
-    Storage.log_exn "file" exn ("scanning cover " ^ path);
-    false
-
-let rescan_cover lib path =
-  lib.covers <- Map.add path ScanCover lib.covers;
-  Safe_queue.add (false, path, fun () -> rescan_cover' lib path)
-    lib.scan.cover_queue
-
-let load_cover lib win path =
-  if M3u.is_separator path then None else
-  match Map.find_opt path lib.covers with
-  | Some (NoCover | ScanCover) -> None
-  | Some (Cover image) -> Some image
-  | Some (ScannedCover pic) ->
-    let cover, result =
-      match Api.Image.load_from_memory win pic.mime pic.data with
-      | exception _ -> NoCover, None
-      | image -> Cover image, Some image
-    in lib.covers <- Map.add path cover lib.covers; result
-  | None -> rescan_cover lib path; None
-
-
-let purge_covers lib =
-  lib.covers <- Map.empty
 
 
 (* Persistence *)
