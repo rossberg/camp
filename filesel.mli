@@ -9,12 +9,14 @@ type file = private
   size : int;
   time : time;
   is_dir : bool;
+  accessible : bool;
 }
 
 type dir = private
 {
   path : path;
   nest : int;
+  accessible : bool;
   mutable folded : bool;
   mutable children : dir array;
   mutable files : file array;

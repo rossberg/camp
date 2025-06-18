@@ -11,12 +11,14 @@ type file =
   size : int;
   time : time;
   is_dir : bool;
+  accessible : bool;
 }
 
 type dir =
 {
   path : path;
   nest : int;
+  accessible : bool;
   mutable folded : bool;
   mutable children : dir array;
   mutable files : file array;
@@ -81,12 +83,14 @@ let make_file path name =
   try
     let st = File.stat path in
     let is_dir = (st.st_kind = Unix.S_DIR) in
-    Unix.access path (if is_dir then Unix.[R_OK; X_OK] else Unix.[R_OK]);
     Some {
       name;
       size = st.st_size;
       time = st.st_mtime;
       is_dir;
+      accessible =
+        try Unix.access path (if is_dir then Unix.[R_OK; X_OK] else Unix.[R_OK]); true
+        with _ -> false
     }
   with _ -> None
 
@@ -94,10 +98,15 @@ let make_dir path nest =
   {
     path;
     nest;
+    accessible = (try Unix.access path Unix.[R_OK; X_OK]; true with _ -> false);
     folded = true;
     children = [||];
     files = [||];
   }
+
+let dir_of_file path nest file =
+  make_dir File.(path // file.name) nest
+
 
 let roots () =
   if not Sys.win32 then [make_dir File.sep 0] else
@@ -111,11 +120,7 @@ let roots () =
       roots'
   in detect 'A'
 
-let dir_of_file path nest file =
-  make_dir File.(path // file.name) nest
-
-let populate_dir (dir : dir) =
-  if dir.files = [||] && dir.children = [||] then
+let scan_dir (dir : dir) =
   try
     let names = File.read_dir dir.path in
     Array.sort Data.compare_utf_8 names;
@@ -124,28 +129,35 @@ let populate_dir (dir : dir) =
     let files_opt = List.map2 make_file paths names in
     let files = List.filter_map Fun.id files_opt in
     let dirs, files' = List.partition (fun file -> file.is_dir) files in
+    let old_children = dir.children in
     dir.children <-
       Array.of_list (List.map (dir_of_file dir.path (dir.nest + 1)) dirs);
     dir.files <- Array.append (Array.of_list dirs) (Array.of_list files');
-  with Sys_error _ -> ()
+    Array.iter (fun dir ->
+      Option.iter (fun old ->
+        if dir.accessible then
+        (
+          dir.folded <- old.folded;
+          dir.children <- old.children;
+          dir.files <- old.files;
+        )
+      ) (Array.find_opt (fun (old : dir) -> old.path = dir.path) old_children)
+    ) dir.children;
+  with Sys_error _ | Unix.Unix_error _ ->
+    dir.files <- [||];
+    dir.children <- [||]
 
-let rec populate_path' root path : dir =
-  let dirpath = File.dir path in
-  let parent =
-    if dirpath = path then root else
-    populate_path' root dirpath
-  in
-  parent.folded <- false;
-  Array.iter populate_dir parent.children;
-  Option.get
-    (Array.find_opt (fun (dir : dir) -> dir.path = path) parent.children)
-
-let populate_path fs =
-  let root = make_dir "" (-1) in
+let scan_path fs =
+  let root = make_dir "" (-1) in  (* dummy *)
   root.children <- fs.roots;
-  let dir = populate_path' root fs.path in
-  Array.iter populate_dir dir.children;
-  dir
+  let rec climb path =
+    let parent_path = File.dir path in
+    let parent = if parent_path = path then root else climb parent_path in
+    match Array.find_opt (fun (d : dir) -> d.path = path) parent.children with
+    | Some dir -> scan_dir dir; parent.folded <- false; dir
+    | None -> if parent != root then parent else fs.roots.(0)
+      (* Fall back to parent if child does not exist; first root if no parent *)
+  in climb fs.path
 
 let make () =
   let roots = Array.of_list (roots ()) in
@@ -160,10 +172,14 @@ let make () =
       columns = [|12; 200; 80; 80|];
     }
   in
-  ignore (populate_path fs);
+  ignore (scan_path fs);
   refresh_dirs fs;
-  let i = Array.find_index (fun (dir : dir) -> dir.path = fs.path) fs.dirs.entries in
-  Table.select fs.dirs (Option.get i) (Option.get i);
+  let i =
+    match Array.find_index (fun (dir : dir) -> dir.path = fs.path) fs.dirs.entries with
+    | Some i -> i
+    | None -> 0
+  in
+  Table.select fs.dirs i i;
   refresh_files fs;
   fs
 
@@ -201,7 +217,7 @@ let select_dir fs i =
   Table.select fs.dirs i i;
   let dir = fs.dirs.entries.(i) in
   fs.path <- dir.path;
-  populate_dir dir;
+  scan_dir dir;
   refresh_files fs
 
 let set_dir_path fs path =
@@ -210,11 +226,11 @@ let set_dir_path fs path =
     let old = fs.path in
     try
       fs.path <- path;
-      let dir = populate_path fs in
+      let dir = scan_path fs in
       refresh_dirs fs;
       let i = Array.find_index ((==) dir) fs.dirs.entries in
       select_dir fs (Option.get i);
-    with Sys_error _ ->
+    with Sys_error _ | Unix.Unix_error _ ->
       fs.path <- old;
   )
 
@@ -234,15 +250,15 @@ let deselect_file_if_input_differs fs =
   | _ -> ()
 
 
-let fold_dir fs dir status =
-  if status <> dir.folded then
+let fold_dir fs dir fold =
+  if fold <> dir.folded && (dir.accessible || fold) then
   (
-    dir.folded <- status;
-    if status
-    && String.starts_with ~prefix: (File.(//) dir.path "") fs.path then
-      set_dir_path fs dir.path
-    else
-      refresh_dirs fs;
+    if dir.folded then scan_dir dir;
+    dir.folded <- fold;
+    if fold && String.starts_with ~prefix: (File.(//) dir.path "") fs.path then
+      (* Current selection folded away, fall back to folded dir *)
+      set_dir_path fs dir.path;
+    refresh_dirs fs
   )
 
 
@@ -260,7 +276,7 @@ let current_file_exists fs =
 let current_sel_is_dir fs =
   match selected_file fs with
   | None -> false
-  | Some i -> fs.files.entries.(i).is_dir
+  | Some i -> let file = fs.files.entries.(i) in file.is_dir && file.accessible
 
 
 let reset fs =
@@ -278,7 +294,7 @@ let columns fs =
 let headings = [|""; "File Name"; "File Size"; "File Date"|]
 
 let string_of_mode is_dir = if is_dir then "►" else "   "
-let string_of_size size = Data.fmt "%3.1f MB" (float size /. 2.0 ** 20.0)
+let string_of_size size = Data.fmt "%3.2f MB" (float size /. 2.0 ** 20.0)
 
 let string_of_col file = function
   | 0 -> string_of_mode file.is_dir

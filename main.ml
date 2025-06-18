@@ -1927,7 +1927,6 @@ let run_filesel (st : _ State.t) =
 
   let pp_entry i =
     let dir = dirs.entries.(i) in
-    let folded = if dir.children = [||] then None else Some dir.folded in
     let name =
       if File.dir dir.path <> dir.path then
         File.name dir.path
@@ -1936,8 +1935,14 @@ let run_filesel (st : _ State.t) =
       else  (* Special case for Windows drives: strip slash *)
         String.(sub dir.path 0 (length dir.path - length File.sep))
     and c =
-      if dir.path = Storage.home_dir then `White else Ui.text_color lay.ui in
-    dir.nest, folded, c, name
+      if dir.path = Storage.home_dir
+      || dir.folded
+      && String.starts_with ~prefix: (File.(//) dir.path "") Storage.home_dir
+      then `White
+      else Ui.text_color lay.ui
+    in
+    let c' = if dir.accessible then c else Ui.semilit_color c in
+    dir.nest, Some dir.folded, c', name
   in
 
   let dir = Filesel.selected_dir fs in
@@ -1985,7 +1990,9 @@ let run_filesel (st : _ State.t) =
 
   let pp_row i =
     let file = files.entries.(i) in
-    (if file.name = fs.input.text then `White else Ui.text_color lay.ui),
+    let c =
+      if file.name = fs.input.text then `White else Ui.text_color lay.ui in
+    (if file.accessible then c else Ui.semilit_color c),
     Array.map (fun s -> `Text s) (Filesel.row file)
   in
 
