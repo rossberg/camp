@@ -1222,7 +1222,22 @@ let run_library (st : _ State.t) =
   if Layout.rescan_button lay (if rescan_avail then Some false else None) then
   (
     (* Click on Rescan (Scan) button: rescan directory, view, or files *)
-    (* TODO *)
+    Option.iter (fun i ->
+      let dir = entries.(i) in
+      let mode =
+        if Api.Key.is_modifier_down `Shift
+        || dir.view.tracks.shown <> None && Table.has_selection lib.tracks
+        || dir.view.albums.shown <> None && Table.has_selection lib.albums
+        || dir.view.artists.shown <> None && Table.has_selection lib.artists
+        then `Thorough else `Quick
+      in
+      Library.rescan_tracks lib mode (
+        if Library.has_selection lib then
+          Library.selected lib
+        else
+          Array.copy lib.tracks.entries
+      )
+    ) (Library.selected_dir lib)
   );
 
 (*
