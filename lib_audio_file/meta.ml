@@ -163,7 +163,7 @@ let int_tag_field names path tag : int =
   | Some s ->
     let i = int_of_total_string s in
     if i = 0 then warn_field names path tag s;
-    0
+    i
 
 let total_tag_field names _path tag : int =
   match tag_field names tag with
