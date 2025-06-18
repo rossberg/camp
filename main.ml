@@ -1231,12 +1231,10 @@ let run_library (st : _ State.t) =
         || dir.view.artists.shown <> None && Table.has_selection lib.artists
         then `Thorough else `Quick
       in
-      Library.rescan_tracks lib mode (
-        if Library.has_selection lib then
-          Library.selected lib
-        else
-          Array.copy lib.tracks.entries
-      )
+      if Library.has_selection lib then
+        Library.rescan_tracks lib mode (Library.selected lib)
+      else
+        Library.rescan_dirs lib mode [|dir|]
     ) (Library.selected_dir lib)
   );
 
