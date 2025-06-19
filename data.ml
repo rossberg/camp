@@ -251,10 +251,10 @@ let album_of_track (track : track) : album =
   }
 
 let album_artist_fwd = ref (fun _ -> assert false)
-let artist_of_album (album : album) : artist =
+let artist_of_album_track (album : album) : artist =
   { name = !album_artist_fwd album;
     albums = 1;
-    tracks = (Option.get album.meta).tracks;
+    tracks = 1;
   }
 
 

@@ -366,8 +366,15 @@ let exec with_artists with_albums with_tracks q p dir =
         album_map := AlbumMap.add album_key album' !album_map;
         if with_artists then
         (
-          let artist = Data.artist_of_album album' in
-          artist_map := ArtistMap.add artist.name artist !artist_map;
+          let artist = Data.artist_of_album_track album' in
+          let artist' =
+            if album == album' then artist else {artist with albums = 0} in
+          let artist'' =
+            match ArtistMap.find_opt artist.name !artist_map with
+            | None -> artist'
+            | Some artist'' -> Data.accumulate_artist artist' artist''
+          in
+          artist_map := ArtistMap.add artist.name artist'' !artist_map;
         )
       )
     )
