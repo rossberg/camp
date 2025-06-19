@@ -338,6 +338,7 @@ let search_x g = margin g + search_label_w g + 3
 let search_y g = 2 * margin g + indicator_w g + view_h + label_h g
 let search_label g = Ui.label g.ui (bp, margin g, search_y g + (text_h g - label_h g + 1)/2, search_label_w g, label_h g) `Left "SEARCH"
 let search_button g = Ui.mouse g.ui (bp, margin g, search_y g, search_label_w g, text_h g) `Left
+let search_key g = Ui.key g.ui ([`Command], `Char 'F') true
 let search_box g = Ui.box g.ui (bp, search_x g, search_y g, - divider_w g, text_h g) `Black
 let search_text g = Ui.rich_edit_text g.ui (bp, search_x g + 2, search_y g, - divider_w g - 2, text_h g)
 

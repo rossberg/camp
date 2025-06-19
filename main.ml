@@ -1361,15 +1361,20 @@ let run_library (st : _ State.t) =
   Layout.search_box lay;
   if have_dir then
   (
-    if Layout.search_button lay then
+    if Layout.search_key lay then
     (
-      (* Click on Search label: clear search *)
+      (* Search button pressed: focus search *)
+      Library.focus_search lib;
+    )
+    else if Layout.search_button lay then
+    (
+      (* Click on Search label: clear and focus search *)
       if lib.search.text <> "" then
       (
         Edit.clear lib.search;
         Library.set_search lib "";
-        Library.focus_search lib;
-      )
+      );
+      Library.focus_search lib;
     );
 
     let search = lib.search.text in
