@@ -1368,6 +1368,7 @@ let run_library (st : _ State.t) =
       (
         Edit.clear lib.search;
         Library.set_search lib "";
+        Library.focus_search lib;
       )
     );
 
