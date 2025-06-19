@@ -867,17 +867,36 @@ let refresh_browser lib =
   Table.restore_selection lib.browser selection (fun dir -> dir.path)
 
 
-let fold_dir lib dir status =
-  if status <> dir.view.folded then
+let rec fold_dir lib dir fold =
+  if fold <> dir.view.folded then
   (
-    dir.view.folded <- status;
+    dir.view.folded <- fold;
     refresh_browser lib;
-    if not status && lib.current <> None then
+    if not fold && lib.current <> None then
     (
+      Option.iter (fun parent -> fold_dir lib (Option.get (find_dir lib parent)) fold)
+        dir.parent;
+      (* If current dir was previously folded away, then reselect it. *)
       Option.iter (fun i -> Table.select lib.browser i i)
         (Array.find_index (fun dir -> lib.current = Some dir) lib.browser.entries)
     );
   )
+
+let insert_dir lib path =
+  match find_dir lib File.(dir path // "") with
+  | None -> None
+  | Some parent ->
+    ignore (rescan_dir' lib `Quick parent);
+    refresh_browser lib;
+    Array.find_opt (fun (dir : dir) -> dir.path = path) parent.children
+
+let remove_dir lib path =
+  match find_dir lib File.(dir path // "") with
+  | None -> false
+  | Some parent ->
+    ignore (rescan_dir' lib `Quick parent);
+    refresh_browser lib;
+    not (Array.exists (fun (dir : dir) -> dir.path = path) parent.children)
 
 
 let current_is_playlist lib =
@@ -899,76 +918,6 @@ let current_is_shown_viewlist lib =
   match lib.current with
   | None -> false
   | Some dir -> dir.view.tracks.shown <> None && Data.is_viewlist dir
-
-
-(* Roots *)
-
-let make_root lib path pos =
-  if not (File.exists path) then
-    failwith (path ^ " does not exist")
-  else if not (File.is_dir path) then
-    failwith (path ^ " is not a directory")
-  else
-  (
-    let dirpath = File.(path // "") in
-    match
-      Array.find_opt (fun (dir : dir) ->
-        path = dir.path ||
-        String.starts_with ~prefix: dirpath dir.path ||
-        String.starts_with ~prefix: dir.path dirpath
-      ) lib.root.children
-    with
-    | Some dir ->
-      failwith (dirpath ^ " overlaps with " ^ dir.name ^ " (" ^ dir.path ^ ")")
-    | None -> Data.make_dir dirpath (Some "") 0 pos (make_views dirpath)
-  )
-
-let add_dirs lib paths pos =
-  let paths = Array.of_list paths in
-  lib.error <- "";
-  try
-    let roots = lib.root.children in
-    let roots' = Array.mapi (fun i path -> make_root lib path (pos + i)) paths in
-    let len = Array.length roots in
-    let len' = Array.length roots' in
-    lib.root.children <-
-      Array.init (len + len') (fun i ->
-        if i < pos then
-          roots.(i)
-        else if i < pos + len' then
-          roots'.(i - pos)
-        else
-          let root = roots.(i - len') in
-          root.pos <- i;
-          root
-      );
-    Array.iter (fun (dir : dir) -> rescan_dir lib `Thorough dir) roots';
-    refresh_browser lib;
-    true
-  with Failure msg ->
-    error lib msg;
-    false
-
-
-let remove_dir lib path =
-  let dirpath = File.(path // "") in
-  let roots = lib.root.children in
-  match Array.find_index (fun (root : dir) -> root.path = dirpath) roots with
-  | None -> ()
-  | Some pos ->
-    lib.current <- None;
-    lib.root.children <-
-      Array.init (Array.length roots - 1) (fun i ->
-        if i < pos then
-          roots.(i)
-        else
-          let root = roots.(i + 1) in
-          root.pos <- i; root
-      );
-    refresh_browser lib
-
-let remove_dirs lib paths =
-  List.iter (remove_dir lib) paths
 
 
 (* Views *)
@@ -1212,6 +1161,77 @@ let reorder_tracks lib =
   reorder lib lib.tracks tracks_sorting track_attr_string (track_key lib)
 
 
+(* Roots *)
+
+let make_root lib path pos =
+  if not (File.exists path) then
+    failwith (path ^ " does not exist")
+  else if not (File.is_dir path) then
+    failwith (path ^ " is not a directory")
+  else
+  (
+    let dirpath = File.(path // "") in
+    match
+      Array.find_opt (fun (dir : dir) ->
+        path = dir.path ||
+        String.starts_with ~prefix: dirpath dir.path ||
+        String.starts_with ~prefix: dir.path dirpath
+      ) lib.root.children
+    with
+    | Some dir ->
+      failwith (dirpath ^ " overlaps with " ^ dir.name ^ " (" ^ dir.path ^ ")")
+    | None -> Data.make_dir dirpath (Some "") 0 pos (make_views dirpath)
+  )
+
+let insert_roots lib paths pos =
+  let paths = Array.of_list paths in
+  lib.error <- "";
+  try
+    let roots = lib.root.children in
+    let roots' = Array.mapi (fun i path -> make_root lib path (pos + i)) paths in
+    let len = Array.length roots in
+    let len' = Array.length roots' in
+    lib.root.children <-
+      Array.init (len + len') (fun i ->
+        if i < pos then
+          roots.(i)
+        else if i < pos + len' then
+          roots'.(i - pos)
+        else
+          let root = roots.(i - len') in
+          root.pos <- i;
+          root
+      );
+    Array.iter (fun (dir : dir) -> rescan_dir lib `Thorough dir) roots';
+    refresh_browser lib;
+    refresh_artists_albums_tracks lib;
+    true
+  with Failure msg ->
+    error lib msg;
+    false
+
+let remove_root lib path =
+  let dirpath = File.(path // "") in
+  let roots = lib.root.children in
+  match Array.find_index (fun (root : dir) -> root.path = dirpath) roots with
+  | None -> ()
+  | Some pos ->
+    lib.current <- None;
+    lib.root.children <-
+      Array.init (Array.length roots - 1) (fun i ->
+        if i < pos then
+          roots.(i)
+        else
+          let root = roots.(i + 1) in
+          root.pos <- i; root
+      );
+    refresh_browser lib;
+    refresh_artists_albums_tracks lib
+
+let remove_roots lib paths =
+  List.iter (remove_root lib) paths
+
+
 (* Search *)
 
 let set_search lib search =
@@ -1325,6 +1345,9 @@ let insert lib pos tracks =
       lib.tracks.entries.(i).pos <- lib.tracks.entries.(i).pos + len'
     done;
     Table.insert lib.tracks pos'' tracks';
+    Option.iter (fun (dir : dir) ->
+      dir.tracks <- Array.copy lib.tracks.entries;
+    ) lib.current;
     select lib pos'' (pos'' + len' - 1);
     restore_playlist lib order;
     save_playlist lib;
@@ -1337,6 +1360,7 @@ let remove_all lib =
   (
     let order = normalize_playlist lib in
     Table.remove_all lib.tracks;
+    Option.iter (fun (dir : dir) -> dir.tracks <- [||]) lib.current;
     restore_playlist lib order;
     save_playlist lib;
   )
@@ -1348,6 +1372,9 @@ let remove_if p lib n =
     let order = normalize_playlist lib in
     let js = Table.remove_if p lib.tracks n in
     Array.iter (fun (track : track) -> track.pos <- js.(track.pos)) lib.tracks.entries;
+    Option.iter (fun (dir : dir) ->
+      dir.tracks <- Array.copy lib.tracks.entries;
+    ) lib.current;
     restore_playlist lib order;
     save_playlist lib;
     refresh_artists_albums_sync lib;  (* could be slow... *)

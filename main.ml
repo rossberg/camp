@@ -1165,9 +1165,7 @@ let run_library (st : _ State.t) =
         if i = pos then j else
         find_root_pos (i + 1) (if entries.(i).nest = 0 then j + 1 else j)
       in
-      if Library.add_dirs lib dropped (find_root_pos 0 0) then
-        Library.refresh_artists_albums_tracks lib
-      else
+      if not (Library.insert_roots lib dropped (find_root_pos 0 0)) then
         Layout.browser_error_box lay;  (* flash *)
     ) (Layout.browser_mouse lay browser)
   );
@@ -1177,17 +1175,16 @@ let run_library (st : _ State.t) =
   if Layout.insert_button lay (if insert_avail then Some false else None) then
   (
     (* Click on Insert (Add) button: add directory or playlist *)
-    st.filesel.op <- Some `InsertDir;
+    st.filesel.op <- Some `InsertRoot;
     st.layout.filesel_shown <- true;
     Edit.set st.filesel.input "";
-    Edit.move_begin st.filesel.input;
     State.defocus_all st;
     Filesel.focus_input st.filesel;
   );
 
   let remove_avail =
     match Library.selected_dir lib with
-    | Some i -> entries.(i).parent = Some ""
+    | Some i -> entries.(i).parent = Some "" || Data.is_playlist entries.(i)
     | None -> false
   in
   if Layout.remove_button lay (if remove_avail then Some false else None)
@@ -1196,19 +1193,45 @@ let run_library (st : _ State.t) =
   (
     (* Click on Remove (Del) button: remove directory or playlist *)
     let i = Option.get (Library.selected_dir lib) in
-    Library.remove_dirs lib [entries.(i).path];
-    Library.refresh_artists_albums_tracks lib;
+    let dir = entries.(i) in
+    if Data.is_dir dir then
+      Library.remove_roots lib [dir.path]
+    else if dir.tracks <> [||] then
+    (
+      Library.error lib "Playlist is not empty";
+      Layout.browser_error_box lay  (* flash *)
+    )
+    else
+    (
+      try
+        File.delete dir.path;
+        if not (Library.remove_dir lib dir.path) then
+          Layout.browser_error_box lay  (* flash *)
+        else
+          Library.refresh_artists_albums_tracks lib
+      with Sys_error _ ->
+        Layout.browser_error_box lay  (* flash *)
+    )
   );
 
   let create_avail =
     match Library.selected_dir lib with
-    | Some i -> entries.(i).parent <> None && Data.is_dir entries.(i)
+    | Some i -> entries.(i).parent <> None
     | None -> false
   in
   if Layout.create_button lay (if create_avail then Some false else None) then
   (
     (* Click on Create (New) button: create new playlist *)
-    (* TODO *)
+    let i = Option.get (Library.selected_dir lib) in
+    let dir = entries.(i) in
+    st.filesel.op <- Some `CreatePlaylist;
+    st.layout.filesel_shown <- true;
+    Edit.set st.filesel.input ".m3u";
+    Edit.move_begin st.filesel.input;
+    State.defocus_all st;
+    Filesel.focus_input st.filesel;
+    let path = if Data.is_dir dir then dir.path else File.dir dir.path in
+    Filesel.set_dir_path st.filesel path;
   );
 
   let view_avail = create_avail && lib.search.text <> "" in
@@ -1237,20 +1260,6 @@ let run_library (st : _ State.t) =
         Library.rescan_dirs lib mode [|dir|]
     ) (Library.selected_dir lib)
   );
-
-(*
-  (* Keys *)
-  if browser.focus && (Layout.del_key lay || Layout.backspace_key lay) then
-  (
-    match Library.selected_dir lib with
-    | Some i when entries.(i).parent = Some "" ->
-      Library.remove_dirs lib [entries.(i).path];
-      Library.refresh_artists_albums_tracks lib
-    | _ ->
-      Library.error lib "Cannot remove non-root directories";
-      Layout.browser_error_box lay;  (* flash *)
-  );
-*)
 
   (* Scanning indicator *)
   Layout.scan_label lay;
@@ -1915,12 +1924,12 @@ let run_library (st : _ State.t) =
 (* File Selection *)
 
 let is_write_op = function
-  | `LoadPlaylist | `InsertDir -> false
-  | `SavePlaylist _ -> true
+  | `LoadPlaylist | `InsertRoot -> false
+  | `SavePlaylist _ | `CreatePlaylist -> true
 
 let is_dir_op = function
-  | `InsertDir -> true
-  | `LoadPlaylist | `SavePlaylist _ -> false
+  | `InsertRoot -> true
+  | `LoadPlaylist | `SavePlaylist _ | `CreatePlaylist -> false
 
 let run_filesel (st : _ State.t) =
   let fs = st.filesel in
@@ -2136,11 +2145,32 @@ let run_filesel (st : _ State.t) =
         );
         State.focus_playlist st;
 
-      | Some `InsertDir ->
+      | Some `CreatePlaylist ->
+        let lib = st.library in
+        (try
+          match Library.find_dir lib File.(dir path // "") with
+          | None ->
+            Library.error lib
+              ("Error creating file " ^ path ^ ", path is outside library");
+            Layout.browser_error_box lay;  (* flash *)
+          | Some parent ->
+            let path = if M3u.is_known_ext path then path else path ^ ".m3u" in
+            File.store `Bin path "";
+            match Library.insert_dir lib path with
+            | None -> raise (Sys_error "library is out of sync")
+            | Some dir ->
+              Library.fold_dir lib parent false;
+              Option.iter (Library.select_dir lib)
+                (Array.find_index ((==) dir) lib.browser.entries)
+        with Sys_error msg ->
+          Library.error lib ("Error creating file " ^ path ^ ", " ^ msg);
+          Layout.browser_error_box lay;  (* flash *)
+        );
+        State.focus_playlist st;
+
+      | Some `InsertRoot ->
         let roots = st.library.root.children in
-        if Library.add_dirs st.library [path] (Array.length roots) then
-          Library.refresh_artists_albums_tracks st.library
-        else
+        if not (Library.insert_roots st.library [path] (Array.length roots)) then
           Layout.browser_error_box lay;  (* flash *)
         State.focus_library st.library.browser st;
       );

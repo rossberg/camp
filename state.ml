@@ -4,7 +4,8 @@ type 'a filesel_op =
 [
   | `LoadPlaylist
   | `SavePlaylist of (Data.track, 'a) Table.t
-  | `InsertDir
+  | `CreatePlaylist
+  | `InsertRoot
 ]
 
 type 'cache t =

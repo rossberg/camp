@@ -93,8 +93,6 @@ val refresh_after_rescan : 'a t -> unit
 
 val length_browser : 'a t -> int
 
-val fold_dir : 'a t -> dir -> bool -> unit
-
 val focus_search : 'a t -> unit
 val focus_browser : 'a t -> unit
 val refresh_browser : 'a t -> unit
@@ -103,9 +101,14 @@ val selected_dir : 'a t -> int option
 val select_dir : 'a t -> int -> unit
 val deselect_dir : 'a t -> unit
 
+val insert_roots : 'a t -> path list -> int -> bool
+val remove_roots : 'a t -> path list -> unit
+
+val find_dir : 'a t -> path -> dir option
+val insert_dir : 'a t -> path -> dir option
+val remove_dir : 'a t -> path -> bool
 val update_dir : 'a t -> dir -> unit
-val add_dirs : 'a t -> path list -> int -> bool
-val remove_dirs : 'a t -> path list -> unit
+val fold_dir : 'a t -> dir -> bool -> unit
 
 val current_is_playlist : 'a t -> bool
 val current_is_viewlist : 'a t -> bool

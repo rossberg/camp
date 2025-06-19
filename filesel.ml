@@ -220,20 +220,6 @@ let select_dir fs i =
   scan_dir dir;
   refresh_files fs
 
-let set_dir_path fs path =
-  if path <> fs.path then
-  (
-    let old = fs.path in
-    try
-      fs.path <- path;
-      let dir = scan_path fs in
-      refresh_dirs fs;
-      let i = Array.find_index ((==) dir) fs.dirs.entries in
-      select_dir fs (Option.get i);
-    with Sys_error _ | Unix.Unix_error _ ->
-      fs.path <- old;
-  )
-
 let select_file fs i =
   Table.deselect_all fs.files;
   Table.select fs.files i i;
@@ -249,6 +235,20 @@ let deselect_file_if_input_differs fs =
     deselect_file fs
   | _ -> ()
 
+
+let set_dir_path fs path =
+  let path =
+    if path <> File.(path // "") then path else
+    String.sub path 0 (String.length path - String.length File.sep)
+  and old = fs.path in
+  try
+    fs.path <- path;
+    let dir = scan_path fs in
+    refresh_dirs fs;
+    let i = Array.find_index ((==) dir) fs.dirs.entries in
+    select_dir fs (Option.get i)   (* refreshes file view as well *)
+  with Sys_error _ | Unix.Unix_error _ ->
+    fs.path <- old
 
 let fold_dir fs dir fold =
   if fold <> dir.folded && (dir.accessible || fold) then
