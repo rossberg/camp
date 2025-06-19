@@ -597,6 +597,10 @@ let compare_dir (dir1 : _ dir) (dir2 : _ dir) =
   | i -> i
 
 
+let contains_utf_8 s1 s2 =
+  try ignore (UCol.search ~prec: `Primary s2 s1 0); true with Not_found -> false
+
+
 let attr_fold attr =
   match (attr :> _) with
   | `FileSize | `FileTime
@@ -610,10 +614,10 @@ let attr_fold attr =
   | `Codec
   | `Artist | `Title | `AlbumArtist | `AlbumTitle
   | `Label | `Country ->
-    fun s -> UCol.sort_key s
+    fun s -> UCol.sort_key ~prec: `Primary s
 
 let key_entry' e attr_string (attr, order) =
-  let s = attr_fold attr (UCase.casefolding (attr_string e attr)) in
+  let s = attr_fold attr (attr_string e attr) in
   if order = `Asc then s else String.map Char.(fun c -> chr (255 - code c)) s
 
 let key_entry attr_string sorting e =

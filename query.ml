@@ -261,6 +261,8 @@ let rec index_sub_from_opt s i s' =
 
 let string_contains ~inner s = index_sub_from_opt s 0 inner <> None
 
+(* TODO: use Data.contains_utf_8 (and remove UCase), once Camomile bug
+ * https://github.com/ocaml-community/Camomile/issues/10 is fixed. *)
 let string_contains_caseless ~inner s =
   string_contains ~inner: (Data.UCase.casefolding inner) (Data.UCase.casefolding s)
 
