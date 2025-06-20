@@ -1440,6 +1440,7 @@ let run_library (st : _ State.t) =
 
     let busy = Library.refresh_artists_busy lib in
     let tab = if busy then busy_artists else lib.artists in
+    let old_selected = tab.selected in
     let cols =
       Array.map (fun (attr, cw) -> cw, Library.attr_align attr)
         view.artists.columns
@@ -1505,7 +1506,8 @@ let run_library (st : _ State.t) =
     | `Click _ ->
       (* Single-click: grab focus, update filter *)
       State.focus_library tab st;
-      Library.refresh_albums_tracks lib;
+      if not (Table.IntSet.equal tab.selected old_selected) then
+        Library.refresh_albums_tracks lib;
 
     | `Drag _ ->
       (* Drag: adjust cursor *)
@@ -1542,6 +1544,7 @@ let run_library (st : _ State.t) =
 
     let busy = Library.refresh_albums_busy lib in
     let tab = if busy then busy_albums else lib.albums in
+    let old_selected = tab.selected in
     let cols =
       Array.map (fun (attr, cw) -> cw, Library.attr_align attr)
         view.albums.columns
@@ -1629,7 +1632,8 @@ let run_library (st : _ State.t) =
     | `Click _ ->
       (* Single-click: grab focus, update filter *)
       State.focus_library tab st;
-      Library.refresh_tracks lib;
+      if not (Table.IntSet.equal tab.selected old_selected) then
+        Library.refresh_tracks lib;
 
     | `Drag _ ->
       (* Drag: adjust cursor *)
@@ -2311,7 +2315,8 @@ let startup () =
 let _main =
   try
     Printexc.record_backtrace true;
-    (* Work around apparent bug in GC scheduler. *)
+    Arg.parse ["--dperf", Arg.Set App.debug_perf, "Log times"] ignore "";
+    (* Work around seeming bug in GC scheduler. *)
     Gc.(set {(get ()) with space_overhead = 10});
     run (startup ())
   with exn ->

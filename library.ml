@@ -183,9 +183,9 @@ let try_refresh action busy =
 
 let rec refresher scan () =
   if not (
-    try_refresh scan.artists_refresh scan.artists_busy ||
+    try_refresh scan.tracks_refresh scan.tracks_busy ||
     try_refresh scan.albums_refresh scan.albums_busy ||
-    try_refresh scan.tracks_refresh scan.tracks_busy
+    try_refresh scan.artists_refresh scan.artists_busy
   ) then
     Unix.sleepf 0.05;
   refresher scan ()
@@ -665,8 +665,8 @@ let rescan_viewlist' lib _mode (dir : dir) =
       dir.tracks <- [||];
       error lib dir.error
     | Ok query ->
-      let filter (track : track) = (track.pos = -1) in
-      let tracks = Query.exec_tracks query filter lib.root in
+      let filter (track : track) = false, false, (track.pos = -1) in
+      let _, _, tracks = Query.exec query filter lib.root in
       dir.error <- "";
       dir.tracks <-
         Array.mapi (fun pos (track : track) -> {track with pos}) tracks;
@@ -977,7 +977,7 @@ let filter_artist lib =
     Set.mem (Data.track_attr_string track `Artist) artists ||
     Set.mem (Data.track_attr_string track `AlbumArtist) artists
 
-let filter_album lib =
+let filter_album lib  =
   let albums =
     Array.fold_left (fun s (album : album) ->
       Set.add (Data.album_attr_string album `AlbumTitle) s
@@ -986,18 +986,32 @@ let filter_album lib =
     albums = Set.empty ||
     Set.mem (Data.track_attr_string track `AlbumTitle) albums
 
+let filter lib with_artists with_albums with_tracks =
+  let filter_artist = filter_artist lib in
+  let filter_album = filter_album lib in
+  fun (track : track) ->
+    let has_artist = filter_artist track in
+    let has_album = filter_album track in
+    with_artists,
+    with_albums && has_artist,
+    with_tracks && has_artist && has_album
+
 let sort attr_string sorting entries =
   if sorting <> [] then
   (
+    let t_start = Unix.gettimeofday () in
     let entries' =
       Array.map (fun entry -> Data.key_entry attr_string sorting entry, entry)
         entries
     in
     Array.stable_sort compare entries';
     Array.iteri (fun i (_, entry) -> entries.(i) <- entry) entries';
+    let t_finish = Unix.gettimeofday () in
+    if !App.debug_perf then
+      Printf.printf "    [sort] %.3f s\n%!" (t_finish -. t_start);
   )
 
-let refresh lib (tab : _ Table.t) attr_string sorting key exec =
+let refresh_view lib (tab : _ Table.t) attr_string sorting key f =
   match lib.current with
   | None -> Table.remove_all tab
   | Some dir ->
@@ -1007,7 +1021,7 @@ let refresh lib (tab : _ Table.t) attr_string sorting key exec =
       else
         Option.value dir.view.query ~default: Query.full_query
     in
-    let entries = exec dir query in
+    let entries = f dir query in
     sort attr_string (sorting dir.view) entries;
     Mutex.protect tab.mutex (fun () ->
       let selection = Table.save_selection tab in
@@ -1017,48 +1031,45 @@ let refresh lib (tab : _ Table.t) attr_string sorting key exec =
     if lib.refresh_time <> 0.0 then
       lib.refresh_time <- Unix.gettimeofday () +. refresh_delay
 
-let refresh_tracks lib =
-  refresh lib lib.tracks track_attr_string tracks_sorting (track_key lib)
-let refresh_albums lib =
-  refresh lib lib.albums album_attr_string albums_sorting album_key
-let refresh_artists lib =
-  refresh lib lib.artists artist_attr_string artists_sorting artist_key
+let refresh_tracks_view lib f =
+  refresh_view lib lib.tracks track_attr_string tracks_sorting (track_key lib) f
+let refresh_albums_view lib f =
+  refresh_view lib lib.albums album_attr_string albums_sorting album_key f
+let refresh_artists_view lib f =
+  refresh_view lib lib.artists artist_attr_string artists_sorting artist_key f
 
 let refresh_tracks_sync lib =
-  refresh_tracks lib
+  refresh_tracks_view lib
     (fun dir query ->
-      let filter_artist = filter_artist lib in
-      let filter_album = filter_album lib in
-      let filter (track : track) = filter_artist track && filter_album track in
-      Query.exec_tracks query filter dir
+      let _, _, tracks = Query.exec query (filter lib false false true) dir in
+      tracks
     )
 
 let refresh_albums_tracks_sync lib =
-  refresh_tracks lib
+  refresh_tracks_view lib
     (fun dir query ->
-      let filter = filter_artist lib in
-      let albums, tracks = Query.exec_albums_tracks query filter dir in
-      refresh_albums lib (fun _dir _query -> albums);
+      let _, albums, tracks =
+        Query.exec query (filter lib false true true) dir in
+      refresh_albums_view lib (fun _dir _query -> albums);
       tracks
     )
 
 let refresh_artists_albums_sync lib =
-  refresh_albums lib
+  refresh_albums_view lib
     (fun dir query ->
-      let filter _ = true in
-      let artists, albums = Query.exec_artists_albums query filter dir in
-      refresh_artists lib (fun _dir _query -> artists);
+      let artists, albums, _ =
+        Query.exec query (filter lib true true false) dir in
+      refresh_artists_view lib (fun _dir _query -> artists);
       albums
     )
 
 let refresh_artists_albums_tracks_sync lib =
-  refresh_tracks lib
+  refresh_tracks_view lib
     (fun dir query ->
-      let filter _ = true in
       let artists, albums, tracks =
-        Query.exec_artists_albums_tracks query filter dir in
-      refresh_artists lib (fun _dir _query -> artists);
-      refresh_albums lib (fun _dir _query -> albums);
+        Query.exec query (filter lib true true true) dir in
+      refresh_artists_view lib (fun _dir _query -> artists);
+      refresh_albums_view lib (fun _dir _query -> albums);
       tracks
     )
 
@@ -1479,5 +1490,5 @@ let parse_state lib =
       );
     apply (r $? "lib_cover") bool
       (fun b -> lib.cover <- b);
-    refresh_artists_albums_tracks lib
+    refresh_artists_albums_tracks lib;
   )

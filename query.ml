@@ -200,6 +200,8 @@ let string_of_query {expr; sort} =
     (List.map (fun (k, o) -> string_of_order o ^ string_of_key k) sort)
 
 
+(* Validation *)
+
 exception TypeError
 
 let rec validate q =
@@ -267,6 +269,8 @@ let string_contains_caseless ~inner s =
   string_contains ~inner: (Data.UCase.casefolding inner) (Data.UCase.casefolding s)
 
 
+(* Evaluation *)
+
 let rec eval q track =
   match q with
   | Text s -> TextV s
@@ -313,6 +317,8 @@ and check q track =
   | _ -> assert false
 
 
+(* Execution *)
+
 module AlbumKey =
 struct
   type t = string * string * string * string
@@ -328,10 +334,62 @@ let album_key (track : track) : AlbumKey.t =
     track_attr_string track `Label
   )
 
-let array_of_map iter map =
-  let a = Dynarray.create () in
-  iter (fun _ x -> Dynarray.add_last a x) map;
-  Dynarray.to_array a
+let new_album_of_track (track : track) : album =
+  let meta = Option.value track.meta ~default: Meta.unknown in
+  { path = track.path;
+    file = track.file;
+    format = track.format;
+    meta = Some {meta with tracks = 1};
+    memo = None;
+  }
+
+let new_artist_of_track (track : track) : artist =
+  { name = Data.track_attr_string track `AlbumArtist;
+    albums = 1;
+    tracks = 1;
+  }
+
+let accumulate_string s1 s2 =
+  if s1 = s2 then s1 else ""
+
+let accumulate_option accumulate opt1 opt2 =
+  match opt1, opt2 with
+  | None, _ -> opt2
+  | _, None -> opt1
+  | Some x1, Some x2 -> Some (accumulate x1 x2)
+
+let accumulate_file (file1 : file) (file2 : file) =
+  {
+    size = file1.size + file2.size;
+    time = max file1.time file2.time;
+    age = max file1.age file2.age;
+  }
+
+let accumulate_format (format1 : Format.t) (format2 : Format.t) =
+  Format.{
+    codec = accumulate_string format1.codec format2.codec;
+    channels = min format1.channels format2.channels;
+    depth = min format1.depth format2.depth;
+    rate = min format1.rate format2.rate;
+    bitrate = min format1.bitrate format2.bitrate;
+    time = format1.time +. format2.time;
+    size = format1.size + format2.size;
+  }
+
+let accumulate_meta (meta1 : Meta.t) (meta2 : Meta.t) =
+  { Meta.unknown with
+    artist = accumulate_string meta1.artist meta2.artist;
+    title = accumulate_string meta1.title meta2.title;
+    tracks = meta1.tracks + meta2.tracks;
+    albumartist = accumulate_string meta1.albumartist meta2.albumartist;
+    albumtitle = accumulate_string meta1.albumtitle meta2.albumtitle;
+    year = max meta1.year meta2.year;
+    date = max meta1.date meta2.date;
+    label = accumulate_string meta1.label meta2.label;
+    country = accumulate_string meta1.country meta2.country;
+    length = meta1.length +. meta2.length;
+    rating = max meta1.rating meta2.rating;
+  }
 
 let rec iter_dir f (dir : _ dir) =
   Array.iter (iter_dir f) dir.children;
@@ -346,52 +404,71 @@ let sort s tracks =
     Array.iteri (fun i (_, tr) -> tracks.(i) <- tr) tracks';
   )
 
-let exec with_artists with_albums with_tracks q p dir =
+let exec q p dir =
+  let t_start = Unix.gettimeofday () in
+  let t_check = ref 0.0 in
   let tracks = Dynarray.create () in
+  let albums = Dynarray.create () in
+  let artists = Dynarray.create () in
   let album_map = ref AlbumMap.empty in
   let artist_map = ref ArtistMap.empty in
   iter_dir (fun track ->
-    if not (M3u.is_separator track.path) && check q.expr track && p track then
+    let b1 = not (M3u.is_separator track.path) in
+    let t1 = Unix.gettimeofday () in
+    let b2 = check q.expr track in
+    let t2 = Unix.gettimeofday () in
+    t_check := !t_check +. t2 -. t1;
+    if b1 && b2 then
+(*
+    if not (M3u.is_separator track.path) && check q.expr track then
+*)
     (
-      if with_tracks then Dynarray.add_last tracks track;
-      if with_albums || with_artists then
+      let to_artists, to_albums, to_tracks = p track in
+      if to_tracks then Dynarray.add_last tracks track;
+      if to_albums || to_artists then
       (
         let album_key = album_key track in
-        let album = Data.album_of_track track in
-        let album' =
+        let album = new_album_of_track track in
+        let is_new_album =
           match AlbumMap.find_opt album_key !album_map with
-          | None -> album
-          | Some album' -> Data.accumulate_album album album'
+          | None ->
+            album_map := AlbumMap.add album_key album !album_map;
+            if to_albums then Dynarray.add_last albums album;
+            true
+          | Some album' ->
+            album'.file <- accumulate_file album'.file album.file;
+            album'.format <-
+              accumulate_option accumulate_format album'.format album.format;
+            album'.meta <-
+              accumulate_option accumulate_meta album'.meta album.meta;
+            false
         in
-        album_map := AlbumMap.add album_key album' !album_map;
-        if with_artists then
+        if to_artists then
         (
-          let artist = Data.artist_of_album_track album' in
-          let artist' =
-            if album == album' then artist else {artist with albums = 0} in
-          let artist'' =
-            match ArtistMap.find_opt artist.name !artist_map with
-            | None -> artist'
-            | Some artist'' -> Data.accumulate_artist artist' artist''
-          in
-          artist_map := ArtistMap.add artist.name artist'' !artist_map;
+          let artist = new_artist_of_track track in
+          match ArtistMap.find_opt artist.name !artist_map with
+          | None ->
+            artist_map := ArtistMap.add artist.name artist !artist_map;
+            Dynarray.add_last artists artist
+          | Some artist' ->
+            artist'.tracks <- artist'.tracks + artist.albums;
+            if is_new_album then
+              artist'.albums <- artist'.albums + artist.albums;
         )
       )
     )
   ) dir;
-  (if with_artists then array_of_map ArtistMap.iter !artist_map else [||]),
-  (if with_albums then array_of_map AlbumMap.iter !album_map else [||]),
-  ( let tracks = if with_tracks then Dynarray.to_array tracks else [||] in
-    sort q.sort tracks;
-    tracks
-  )
-
-let exec_tracks q p dir = let _, _, z = exec false false true q p dir in z
-let exec_albums q p dir = let _, y, _ = exec false true false q p dir in y
-let exec_artists q p dir = let x, _, _ = exec true false false q p dir in x
-let exec_albums_tracks q p dir = let _, y, z = exec false true true q p dir in y, z
-let exec_artists_albums q p dir = let x, y, _ = exec true true false q p dir in x, y
-let exec_artists_albums_tracks q p dir = exec true true true q p dir
+  Dynarray.to_array artists,
+  Dynarray.to_array albums,
+  let tracks = Dynarray.to_array tracks in
+  let t_sort = Unix.gettimeofday () in
+  sort q.sort tracks;
+  let t_finish = Unix.gettimeofday () in
+  if !App.debug_perf then
+    Printf.printf "    [exec %s] %.3f s = %.3f search (%.3f check), %.3f sort\n%!"
+    (let s = string_of_expr q.expr in String.(sub s 0 (min 30 (length s)) ^ "..."))
+    (t_finish -. t_start) (t_sort -. t_start) !t_check (t_finish -. t_sort);
+  tracks
 
 
 (* Parsing *)
