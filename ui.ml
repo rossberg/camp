@@ -352,7 +352,7 @@ let drag_status ui r (stepx, stepy) =
   match ui.drag_extra with
   | No_drag ->
     ui.drag_extra <- Drag {pos = m; moved = false; inside = true};
-    `None
+    `Take
   | Drag {pos; moved; inside} ->
     let dx, dy = sub m pos in
     let dx' = if stepx = 0 then dx else dx / stepx in
@@ -983,7 +983,9 @@ let rich_table ui area gw ch sw sh mr cols header_opt (tab : _ Table.t) pp_row =
         if not (shift || command) then
         (
           match drag_status ui r (max_int, ch) with
-          | `None ->
+          | `None -> `None
+
+          | `Take ->
             (* Click *)
             if i >= limit then
             (
@@ -1367,7 +1369,9 @@ let grid_table ui area gw iw ch sw mr header_opt (tab : _ Table.t) pp_cell =
         if not (shift || command) then
         (
           match drag_status ui r (max_int, ch) with
-          | `None ->
+          | `None -> `None
+
+          | `Take ->
             (* Click *)
             if on_bg then
             (
