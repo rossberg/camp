@@ -494,7 +494,7 @@ let string_of_token = function
   | IntToken (_, s) -> s
   | TimeToken (_, s) -> s
   | DateToken t -> Date.string_of_date t
-  | KeyToken x -> "$" ^ string_of_key x
+  | KeyToken x -> "#" ^ string_of_key x
   | UnopToken op -> string_of_unop op
   | BinopToken op -> string_of_binop op
   | LParToken -> "("
@@ -577,13 +577,12 @@ let rec token s i =
   | ')' -> RParToken, i + 1
   | '&' -> BinopToken And, i + 1
   | '|' -> BinopToken Or, i + 1
+  | '+' when is '+' s (i + 1) -> BinopToken Cat, i + 2
   | '+' -> BinopToken Add, i + 1
-  | '-' when is '@' s (i + 1) -> BinopToken NI, i + 2
   | '-' -> BinopToken Sub, i + 1
   | '*' -> BinopToken Mul, i + 1
   | '@' -> BinopToken IN, i + 1
   | '=' -> BinopToken EQ, i + 1
-  | '#' -> BinopToken Cat, i + 1
   | '<' when is '>' s (i + 1) -> BinopToken NE, i + 2
   | '<' when is '=' s (i + 1) -> BinopToken LE, i + 2
   | '<' -> BinopToken LT, i + 1
@@ -614,7 +613,7 @@ let rec token s i =
     | Some j -> TextToken (String.sub s (i + 1) (j - i - 1)), j + 1
     | None -> raise (SyntaxError i)
     )
-  | '$' ->
+  | '#' ->
     let x, j = scan_word s (i + 1) in
     (match List.assoc_opt x keys with
     | Some key -> KeyToken key, j

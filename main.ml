@@ -1156,6 +1156,8 @@ let run_library (st : _ State.t) =
     ) (Layout.browser_mouse lay browser)
   );
 
+  let entries = browser.entries in  (* might have changed from un/folding *)
+
   (* Browser drag & drop *)
   let dropped = Api.Files.dropped win in
   if dropped <> [] then
