@@ -4,7 +4,7 @@ type 'a filesel_op =
 [
   | `LoadPlaylist
   | `SavePlaylist of (Data.track, 'a) Table.t
-  | `CreatePlaylist
+  | `CreatePlayViewlist of string * string * Library.views option
   | `InsertRoot
 ]
 
@@ -83,7 +83,7 @@ let foci_library (lib : _ Library.t) =
 
 let foci_filesel (fs : _ Filesel.t) =
   let f = focus_filesel in
-  [foci_edit fs.input; foci_table f fs.dirs; foci_table f fs.files]
+  [foci_table f fs.dirs; foci_table f fs.files; foci_edit fs.input]
 
 let foci st =
   (if st.layout.playlist_shown then foci_playlist st.playlist else []) @

@@ -1226,7 +1226,7 @@ let run_library (st : _ State.t) =
     (* Click on Create (New) button: create new playlist *)
     let i = Option.get (Library.selected_dir lib) in
     let dir = entries.(i) in
-    st.filesel.op <- Some `CreatePlaylist;
+    st.filesel.op <- Some (`CreatePlayViewlist (".m3u", "", None));
     st.layout.filesel_shown <- true;
     Edit.set st.filesel.input ".m3u";
     Edit.move_begin st.filesel.input;
@@ -1236,11 +1236,22 @@ let run_library (st : _ State.t) =
     Filesel.set_dir_path st.filesel path;
   );
 
-  let view_avail = create_avail && lib.search.text <> "" in
+  let view_avail = lib.search.text <> "" && lib.tracks.entries <> [||] in
   if Layout.view_button lay (if view_avail then Some false else None) then
   (
     (* Click on View button: create new viewlist *)
-    (* TODO *)
+    let i = Option.get (Library.selected_dir lib) in
+    let dir = entries.(i) in
+    let query = "\"" ^ dir.path ^ "\" @ #filepath & " ^ lib.search.text in
+    let view = Library.copy_views dir.view in
+    st.filesel.op <- Some (`CreatePlayViewlist (".m3v", query, Some view));
+    st.layout.filesel_shown <- true;
+    Edit.set st.filesel.input ".m3v";
+    Edit.move_begin st.filesel.input;
+    State.defocus_all st;
+    Filesel.focus_input st.filesel;
+    let path = if Data.is_dir dir then dir.path else File.dir dir.path in
+    Filesel.set_dir_path st.filesel path;
   );
 
   let rescan_avail = Library.selected_dir lib <> None in
@@ -1937,11 +1948,11 @@ let run_library (st : _ State.t) =
 
 let is_write_op = function
   | `LoadPlaylist | `InsertRoot -> false
-  | `SavePlaylist _ | `CreatePlaylist -> true
+  | `SavePlaylist _ | `CreatePlayViewlist _ -> true
 
 let is_dir_op = function
   | `InsertRoot -> true
-  | `LoadPlaylist | `SavePlaylist _ | `CreatePlaylist -> false
+  | `LoadPlaylist | `SavePlaylist _ | `CreatePlayViewlist _ -> false
 
 let run_filesel (st : _ State.t) =
   let fs = st.filesel in
@@ -2157,7 +2168,7 @@ let run_filesel (st : _ State.t) =
         );
         State.focus_playlist st;
 
-      | Some `CreatePlaylist ->
+      | Some (`CreatePlayViewlist (ext, s, view_opt)) ->
         let lib = st.library in
         (try
           match Library.find_dir lib File.(dir path // "") with
@@ -2166,12 +2177,17 @@ let run_filesel (st : _ State.t) =
               ("Error creating file " ^ path ^ ", path is outside library");
             Layout.browser_error_box lay;  (* flash *)
           | Some parent ->
-            let path = if M3u.is_known_ext path then path else path ^ ".m3u" in
-            File.store `Bin path "";
+            let path =
+              if String.lowercase_ascii (File.extension path) = ext
+              then path
+              else path ^ ext
+            in
+            File.store `Bin path s;
             match Library.insert_dir lib path with
             | None -> raise (Sys_error "library is out of sync")
             | Some dir ->
               Library.fold_dir lib parent false;
+              Option.iter (fun view -> dir.view <- view) view_opt;
               Option.iter (Library.select_dir lib)
                 (Array.find_index ((==) dir) lib.browser.entries)
         with Sys_error msg ->

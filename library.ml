@@ -163,6 +163,16 @@ let make_views path : views =
           else [`Artist, `Asc; `Title, `Asc; `Codec, `Asc] );
   }
 
+let copy_view (view : _ view) =
+  { view with columns = Array.copy view.columns }
+
+let copy_views (views : views) =
+  { views with
+    artists = copy_view views.artists;
+    albums = copy_view views.albums;
+    tracks = copy_view views.tracks;
+  }
+
 
 let rec complete scan path =
   let paths = Atomic.get scan.completed in
@@ -563,6 +573,10 @@ let activate_covers lib b =
 
 type scan_mode = [`Quick | `Thorough]
 
+let is_very_quick = function
+  | `VeryQuick -> true
+  | _ -> false
+
 let rescan_track' lib mode (track : track) =
   let old = {track with memo = None} in
   try
@@ -690,7 +704,11 @@ let rec rescan_dir' lib mode (origin : dir) =
           (make_views path')
     in
     if File.is_dir path then
-      scan_dir (subdir File.(path // "") false)
+      let dir = subdir File.(path // "") false in
+      if is_very_quick mode then
+        if dir.children = [||] && dir.tracks = [||] then None else Some [dir]
+      else
+        scan_dir dir
     else if Data.is_playlist_path path then
       scan_playlist (subdir path true)
     else if Data.is_viewlist_path path then
@@ -738,12 +756,12 @@ let rec rescan_dir' lib mode (origin : dir) =
 
   and scan_playlist (dir : dir) =
     dir.name <- File.remove_extension dir.name;
-    rescan_playlist lib mode dir;
+    if not (is_very_quick mode) then rescan_playlist lib mode dir;
     Some [dir]
 
   and scan_viewlist (dir : dir) =
     dir.name <- File.remove_extension dir.name;
-    rescan_viewlist lib mode dir;
+    if not (is_very_quick mode) then rescan_viewlist lib mode dir;
     Some [dir]
   in
 
@@ -757,8 +775,8 @@ let rec rescan_dir' lib mode (origin : dir) =
 
 
 and rescan_dir lib mode (dir : dir) =
-  Safe_queue.add (false, dir.path, fun () -> rescan_dir' lib mode dir)
-    lib.scan.dir_queue
+  Safe_queue.add (false, dir.path, fun () ->
+    rescan_dir' lib (mode :> [scan_mode | `VeryQuick]) dir) lib.scan.dir_queue
 
 and rescan_playlist lib mode (dir : dir) =
   Safe_queue.add (true, dir.path, fun () -> rescan_playlist' lib mode dir)
@@ -886,7 +904,7 @@ let insert_dir lib path =
   match find_dir lib File.(dir path // "") with
   | None -> None
   | Some parent ->
-    ignore (rescan_dir' lib `Quick parent);
+    ignore (rescan_dir' lib `VeryQuick parent);
     refresh_browser lib;
     Array.find_opt (fun (dir : dir) -> dir.path = path) parent.children
 
@@ -894,7 +912,7 @@ let remove_dir lib path =
   match find_dir lib File.(dir path // "") with
   | None -> false
   | Some parent ->
-    ignore (rescan_dir' lib `Quick parent);
+    ignore (rescan_dir' lib `VeryQuick parent);
     refresh_browser lib;
     not (Array.exists (fun (dir : dir) -> dir.path = path) parent.children)
 

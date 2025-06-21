@@ -47,6 +47,7 @@ type 'cache t = private
 
 val make : unit -> 'a t
 val make_views : string -> views
+val copy_views : views -> views
 
 
 (* Validation *)
