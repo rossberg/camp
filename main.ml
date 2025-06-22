@@ -1247,8 +1247,11 @@ let run_library (st : _ State.t) =
     (* Click on View button: create new viewlist *)
     let i = Option.get (Library.selected_dir lib) in
     let dir = entries.(i) in
-    let query = "\"" ^ dir.path ^ "\" @ #filepath & " ^ lib.search.text in
+    let prefix =
+      if Data.is_all dir then "" else "\"" ^ dir.path ^ "\" @ #filepath " in
+    let query = prefix ^ lib.search.text in
     let view = Library.copy_views dir.view in
+    view.search <- "";
     st.filesel.op <- Some (`CreatePlayViewlist (".m3v", query, Some view));
     st.layout.filesel_shown <- true;
     Edit.set st.filesel.input ".m3v";
@@ -1272,8 +1275,13 @@ let run_library (st : _ State.t) =
         || dir.view.artists.shown <> None && Table.has_selection lib.artists
         then `Thorough else `Quick
       in
-      if Library.has_selection lib then
+      if Table.has_selection lib.tracks then
         Library.rescan_tracks lib mode (Library.selected lib)
+      else if
+        Table.has_selection lib.artists || Table.has_selection lib.albums ||
+        dir.view.search <> ""
+      then
+        Library.rescan_tracks lib mode lib.tracks.entries
       else
         Library.rescan_dirs lib mode [|dir|]
     ) (Library.selected_dir lib)
