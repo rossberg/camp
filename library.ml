@@ -902,7 +902,9 @@ let rec fold_dir lib dir fold =
 
 let insert_dir lib path =
   match find_dir lib File.(dir path // "") with
-  | None -> None
+  | None ->
+    error lib "Cannot find directory in library";
+    None
   | Some parent ->
     ignore (rescan_dir' lib `VeryQuick parent);
     refresh_browser lib;
@@ -910,7 +912,9 @@ let insert_dir lib path =
 
 let remove_dir lib path =
   match find_dir lib File.(dir path // "") with
-  | None -> false
+  | None ->
+    error lib "Cannot find directory in library anymore";
+    false
   | Some parent ->
     ignore (rescan_dir' lib `VeryQuick parent);
     refresh_browser lib;
@@ -1243,7 +1247,9 @@ let remove_root lib path =
   let dirpath = File.(path // "") in
   let roots = lib.root.children in
   match Array.find_index (fun (root : dir) -> root.path = dirpath) roots with
-  | None -> ()
+  | None ->
+    error lib "Directory is not a root directory";
+    false
   | Some pos ->
     lib.current <- None;
     lib.root.children <-
@@ -1255,10 +1261,11 @@ let remove_root lib path =
           root.pos <- i; root
       );
     refresh_browser lib;
-    refresh_artists_albums_tracks lib
+    refresh_artists_albums_tracks lib;
+    true
 
 let remove_roots lib paths =
-  List.iter (remove_root lib) paths
+  List.for_all (remove_root lib) paths
 
 
 (* Search *)

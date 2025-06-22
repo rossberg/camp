@@ -103,7 +103,7 @@ val select_dir : 'a t -> int -> unit
 val deselect_dir : 'a t -> unit
 
 val insert_roots : 'a t -> path list -> int -> bool
-val remove_roots : 'a t -> path list -> unit
+val remove_roots : 'a t -> path list -> bool
 
 val find_dir : 'a t -> path -> dir option
 val insert_dir : 'a t -> path -> dir option

@@ -1186,7 +1186,9 @@ let run_library (st : _ State.t) =
 
   let remove_avail =
     match Library.selected_dir lib with
-    | Some i -> entries.(i).parent = Some "" || Data.is_playlist entries.(i)
+    | Some i ->
+      entries.(i).parent = Some "" ||
+      Data.is_playlist entries.(i) || Data.is_viewlist entries.(i)
     | None -> false
   in
   if Layout.remove_button lay (if remove_avail then Some false else None)
@@ -1197,22 +1199,25 @@ let run_library (st : _ State.t) =
     let i = Option.get (Library.selected_dir lib) in
     let dir = entries.(i) in
     if Data.is_dir dir then
-      Library.remove_roots lib [dir.path]
-    else if dir.tracks <> [||] then
+    (
+      if not (Library.remove_roots lib [dir.path]) then
+        Layout.browser_error_box lay  (* flash *)
+    )
+    else if Data.is_playlist dir && dir.tracks <> [||] then
     (
       Library.error lib "Playlist is not empty";
       Layout.browser_error_box lay  (* flash *)
     )
     else
     (
-      try
-        File.delete dir.path;
-        if not (Library.remove_dir lib dir.path) then
-          Layout.browser_error_box lay  (* flash *)
-        else
-          Library.refresh_artists_albums_tracks lib
-      with Sys_error _ ->
+      (try File.delete dir.path with Sys_error msg ->
+        Library.error lib ("Error deleting file " ^ dir.path ^ ", " ^ msg);
         Layout.browser_error_box lay  (* flash *)
+      );
+      if not (Library.remove_dir lib dir.path) then
+        Layout.browser_error_box lay  (* flash *)
+      else
+        Library.refresh_artists_albums_tracks lib
     )
   );
 
@@ -2153,8 +2158,8 @@ let run_filesel (st : _ State.t) =
           Control.switch st.control tracks.(0) true;
           Table.dirty st.library.tracks;
           Table.dirty st.library.browser;
-        with Sys_error _ ->
-          Library.error st.library ("Error reading file " ^ path);
+        with Sys_error msg ->
+          Library.error st.library ("Error reading file " ^ path ^ ", " ^ msg);
           Layout.browser_error_box lay;  (* flash *)
         );
         State.focus_playlist st;
@@ -2162,21 +2167,21 @@ let run_filesel (st : _ State.t) =
       | Some (`SavePlaylist tab) ->
         (try
           File.store `Bin path (Track.to_m3u tab.entries)
-        with Sys_error _ ->
-          Library.error st.library ("Error writing file " ^ path);
+        with Sys_error msg ->
+          Library.error st.library ("Error writing file " ^ path ^ ", " ^ msg);
           Layout.browser_error_box lay;  (* flash *)
         );
         State.focus_playlist st;
 
       | Some (`CreatePlayViewlist (ext, s, view_opt)) ->
         let lib = st.library in
-        (try
-          match Library.find_dir lib File.(dir path // "") with
-          | None ->
-            Library.error lib
-              ("Error creating file " ^ path ^ ", path is outside library");
-            Layout.browser_error_box lay;  (* flash *)
-          | Some parent ->
+        (match Library.find_dir lib File.(dir path // "") with
+        | None ->
+          Library.error lib
+            ("Error creating file " ^ path ^ ", path is outside library");
+          Layout.browser_error_box lay;  (* flash *)
+        | Some parent ->
+          (try
             let path =
               if String.lowercase_ascii (File.extension path) = ext
               then path
@@ -2190,9 +2195,10 @@ let run_filesel (st : _ State.t) =
               Option.iter (fun view -> dir.view <- view) view_opt;
               Option.iter (Library.select_dir lib)
                 (Array.find_index ((==) dir) lib.browser.entries)
-        with Sys_error msg ->
-          Library.error lib ("Error creating file " ^ path ^ ", " ^ msg);
-          Layout.browser_error_box lay;  (* flash *)
+          with Sys_error msg ->
+            Library.error lib ("Error creating file " ^ path ^ ", " ^ msg);
+            Layout.browser_error_box lay;  (* flash *)
+          );
         );
         State.focus_playlist st;
 
