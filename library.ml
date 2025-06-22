@@ -755,12 +755,12 @@ let rec rescan_dir' lib mode (origin : dir) =
       Some [dir]
 
   and scan_playlist (dir : dir) =
-    dir.name <- File.remove_extension dir.name;
+    if is_playlist_path dir.name then dir.name <- File.remove_extension dir.name;
     if not (is_very_quick mode) then rescan_playlist lib mode dir;
     Some [dir]
 
   and scan_viewlist (dir : dir) =
-    dir.name <- File.remove_extension dir.name;
+    if is_viewlist_path dir.name then dir.name <- File.remove_extension dir.name;
     if not (is_very_quick mode) then rescan_viewlist lib mode dir;
     Some [dir]
   in
@@ -866,9 +866,9 @@ let select_dir lib i =
   (
     set_dir_opt lib (Some dir);
     Table.select lib.browser i i;
-    if Data.is_playlist_path dir.path then
+    if Data.is_playlist dir then
       rescan_playlist lib `Thorough dir
-    else if Data.is_viewlist_path dir.path then
+    else if Data.is_viewlist dir then
       rescan_viewlist lib `Thorough dir
   )
 
