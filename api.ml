@@ -107,7 +107,8 @@ struct
     max_size := !current_size;
 
     Raylib.(set_config_flags
-      ConfigFlags.[Window_undecorated; Window_always_run; (*Window_transparent;*) Vsync_hint]);
+      ConfigFlags.[Window_undecorated; Window_always_run;
+        (*Window_transparent;*) Vsync_hint; Msaa_4x_hint]);
     Raylib.init_window w h s;
     Raylib.set_window_position x y;
     update ()
@@ -237,7 +238,10 @@ struct
     Raylib.image_from_image img
       (Raylib.Rectangle.create (float x) (float y) (float w) (float h))
 
-  let prepare () img = Raylib.load_texture_from_image img
+  let prepare () raw =
+    let img = Raylib.load_texture_from_image raw in
+    Raylib.set_texture_filter img Raylib.TextureFilter.Bilinear;
+    img
 
   let load () path = prepare () (load_raw path)
   let load_from_memory () mime data =
