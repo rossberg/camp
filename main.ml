@@ -568,9 +568,9 @@ let drop_on_browser (st : _ State.t) tracks =
           (* Since the dir might not be selected, and updating views is
            * asynchronous, write to file directly *)
           (try
-            let s = Track.to_m3u tracks in
-            let s' = File.load `Bin dir.path in
-            File.store `Bin dir.path (s' ^ s)
+            let s = File.load `Bin dir.path in
+            let s' = Track.to_m3u (Array.append (Track.of_m3u s) tracks) in
+            File.store `Bin dir.path s'
           with exn ->
             Storage.log_exn "file" exn ("modifying playlist " ^ dir.path)
           );
