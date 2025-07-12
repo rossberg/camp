@@ -150,6 +150,7 @@ let keys =
     "codec", `Codec; "channels", `Channels; "depth", `Depth;
     "samplerate", `SampleRate; "bitrate", `BitRate;
     "cover", `Cover;
+    "pos", `Pos;
   ]
 
 
@@ -413,19 +414,15 @@ let exec q p dir =
   let album_map = ref AlbumMap.empty in
   let artist_map = ref ArtistMap.empty in
   iter_dir (fun track ->
-    let b1 = not (M3u.is_separator track.path) in
     let t1 = Unix.gettimeofday () in
-    let b2 = check q.expr track in
+    let b = check q.expr track in
     let t2 = Unix.gettimeofday () in
     t_check := !t_check +. t2 -. t1;
-    if b1 && b2 then
-(*
-    if not (M3u.is_separator track.path) && check q.expr track then
-*)
+    if b then
     (
       let to_artists, to_albums, to_tracks = p track in
       if to_tracks then Dynarray.add_last tracks track;
-      if to_albums || to_artists then
+      if (to_albums || to_artists) && not (M3u.is_separator track.path) then
       (
         let album_key = album_key track in
         let album = new_album_of_track track in
