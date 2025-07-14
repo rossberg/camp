@@ -266,8 +266,10 @@ let string_of_date_time t =
     (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
     tm.tm_hour tm.tm_min tm.tm_sec
 
-
+(*
 let name_separator = String.make 80 '-'
+*)
+let name_separator = String.concat "" (List.init 80 (Fun.const "·"))
 
 let fields_of_name name =
   let len = String.length name in
