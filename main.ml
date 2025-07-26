@@ -2317,7 +2317,10 @@ and run' (st : _ State.t) =
   Ui.finish lay.ui (Layout.margin lay) (minw, minh) (maxw, maxh);
 
   if Api.Window.is_hidden win then  (* after startup *)
-    Api.Window.reveal win
+    Api.Window.reveal win;
+
+  (* Save state regularly every second *)
+  State.save_after st 1.0
 
 
 (* Startup *)

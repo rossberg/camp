@@ -1,3 +1,5 @@
+open Audio_file
+
 (* Program State *)
 
 type 'a filesel_op =
@@ -16,6 +18,7 @@ type 'cache t =
   playlist : 'cache Playlist.t;
   library : 'cache Library.t;
   filesel : ('cache filesel_op, 'cache) Filesel.t;
+  mutable saved : File.time;
 }
 
 
@@ -29,6 +32,7 @@ let make ui audio =
     playlist = Playlist.make ();
     library = Library.make ();
     filesel = Filesel.make ();
+    saved = Unix.gettimeofday ();
   }
 
 
@@ -277,11 +281,19 @@ and dump st errors =
 
 (* Persistence pt 2 *)
 
+let save_after st tdelta =
+  let now = Unix.gettimeofday () in
+  if st.saved < now -. tdelta then
+  (
+    Storage.save_string state_file (fun () -> Text.print (print_state st));
+    st.saved <- now;
+  )
+
 let save st =
   Library.save_db st.library;
   Library.save_browser st.library;
   Playlist.save_playlist st.playlist;
-  Storage.save_string state_file (fun () -> Text.print (print_state st))
+  save_after st 0.0
 
 let load st =
   Random.self_init ();
@@ -296,6 +308,7 @@ let load st =
     with Text.Syntax_error _ | Text.Type_error as exn ->
       Storage.log_exn "parse" exn "while loading state"
   );
+  st.saved <- Unix.gettimeofday ();
 
   focus_playlist st;
   if st.control.current = None && Playlist.length st.playlist > 0 then
