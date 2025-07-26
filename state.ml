@@ -112,13 +112,20 @@ let side_enum = ["left", `Left; "right", `Right]
 let print_layout lay =
   let open Layout in
   let open Text.Print in
-  let x, y = Api.Window.pos (Ui.window lay.ui) in
+  let win = Ui.window lay.ui in
+  let x, y = Api.Window.pos win in
+  let w, h = Api.Window.size win in
+  let sw, sh = Api.Window.max_size win in
+  let lx, ly = Api.Window.min_pos win in
+  let rx, ry = lx + sw, ly + sh in
   let x =
     if lay.library_shown || not lay.filesel_shown then x
     else x + lay.library_width
   in
+  let dx = if x = lx || x + w < rx then lx else rx in
+  let dy = if y = ly || y + h < ry then ly else ry in
   record (fun lay -> [
-    "win_pos", pair int int (x, y);
+    "win_pos", pair int int (x - dx, y - dy);
     "color_palette", nat (Ui.get_palette lay.ui);
     "text_size", nat lay.text;
     "play_open", bool lay.playlist_shown;
@@ -139,11 +146,17 @@ let parse_layout lay pos =  (* assumes playlist and library already loaded *)
   let open Text.Parse in
   let win = Ui.window lay.ui in
   let ww, wh = Layout.(control_min_w, control_min_h) in
-  let sx, sy = Api.Window.min_pos win in
   let sw, sh = Api.Window.max_size win in
+  let lx, ly = Api.Window.min_pos win in
+  let rx, ry = lx + sw, ly + sh in
   record (fun r ->
-    apply (r $? "win_pos") (pair (num sx (sx + sw + 20)) (num sy (sy + sh - 20)))
-      (fun p -> pos := p);
+    apply (r $? "win_pos")
+      (pair (num (lx - rx) (rx - lx + 20)) (num (ly - ry) (ry - ly - 20)))
+      (fun (x, y) ->
+        let dx = if x >= 0 then lx else rx in
+        let dy = if y >= 0 then ly else ry in
+        pos := x + dx, y + dy
+      );
     apply (r $? "color_palette") (num 0 (Ui.num_palette lay.ui - 1))
       (fun i -> Ui.set_palette lay.ui i);
     apply (r $? "text") (num 6 64)
