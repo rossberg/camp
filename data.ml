@@ -578,6 +578,13 @@ let rec insert_sorting primary attr i n = function
 let remove_sorting attr = insert_sorting `None attr (-1) max_int
 
 
+(* Iteration *)
+
+let rec iter_dir f (dir : _ dir) =
+  f dir;
+  Array.iter (iter_dir f) dir.children
+
+
 (* Persistence *)
 
 module Print =
@@ -717,17 +724,17 @@ struct
       memo = None;
     })
 
-  let rec dir view =
+  let rec dir make_view =
     record (fun r -> {
       path = string (r $ "path");
       parent = option string (r $ "parent");
       nest = int (r $ "nest");
       name = string (r $ "name");
       pos = int (r $ "pos");
-      children = array (dir view) (r $ "children");
+      children = array (dir make_view) (r $ "children");
       tracks = array track (r $ "tracks");
       error = string (r $ "error");
-      view;
+      view = make_view ();
     })
 end
 
@@ -875,7 +882,7 @@ struct
       {path; file; format; meta; album = None; pos = -1; status; memo = None}
     )
 
-  let rec dir view =
+  let rec dir make_view =
     record (fun n buf ->
       if n <> 8 then error buf;
       let path = string buf in
@@ -883,9 +890,10 @@ struct
       let nest = Option.value (option nat buf) ~default: (-1) in
       let name = string buf in
       let pos = Option.value (option nat buf) ~default: (-1) in
-      let children = array (dir view) buf in
+      let children = array (dir make_view) buf in
       let tracks = array track buf in
       let error = string buf in
+      let view = make_view () in
       {path; parent; nest; name; pos; children; tracks; error; view}
     )
 end

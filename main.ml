@@ -1340,7 +1340,7 @@ let run_library (st : _ State.t) =
     view.artists.shown <- if artists' then Some `Table else None;
     if nothing_shown view then
       view.tracks.shown <- Some `Table;  (* switch to tracks *)
-    Library.update_dir lib dir;
+    Library.save_dir lib dir;
   );
 
   let albums = have_dir && view.albums.shown <> None in
@@ -1355,7 +1355,7 @@ let run_library (st : _ State.t) =
     view.albums.shown <- cycle_shown view.albums.shown;
     if nothing_shown view then
       view.albums.shown <- Some `Table;
-    Library.update_dir lib dir;
+    Library.save_dir lib dir;
   );
 
   let tracks = have_dir && view.tracks.shown <> None in
@@ -1370,7 +1370,7 @@ let run_library (st : _ State.t) =
     view.tracks.shown <- cycle_shown view.tracks.shown;
     if nothing_shown view then
       view.tracks.shown <- Some `Table;
-    Library.update_dir lib dir;
+    Library.save_dir lib dir;
   );
 
   let show_artists =
@@ -1413,7 +1413,7 @@ let run_library (st : _ State.t) =
     );
     if lib.search.text <> search then
     (
-      (* Entered Space or Return: update search in dir *)
+      (* Changed search text: update search in dir *)
       Library.set_search lib lib.search.text;
     )
   );
@@ -1501,14 +1501,14 @@ let run_library (st : _ State.t) =
       in
       view.artists.sorting <-
         Data.insert_sorting `Artist attr k 4 view.artists.sorting;
-      Library.update_dir lib dir;
+      Library.save_dir lib dir;
       Library.reorder_artists lib;
 
     | `Arrange ->
       (* Column resizing: update column widths *)
       Array.mapi_inplace (fun i (a, _) ->
         a, fst cols.(i)) view.artists.columns;
-      if have_dir then Library.update_dir lib dir;
+      if have_dir then Library.save_dir lib dir;
 
     | `Click (Some _i) when Api.Mouse.is_doubleclick `Left ->
       (* Double-click on track: clear playlist and send tracks to it *)
@@ -1634,13 +1634,13 @@ let run_library (st : _ State.t) =
       in
       view.albums.sorting <-
         Data.insert_sorting `None attr k 4 view.albums.sorting;
-      Library.update_dir lib dir;
+      Library.save_dir lib dir;
       Library.reorder_albums lib;
 
     | `Arrange ->
       (* Column resizing: update column widths *)
       Array.mapi_inplace (fun i (a, _) -> a, fst cols.(i)) view.albums.columns;
-      if have_dir then Library.update_dir lib dir;
+      if have_dir then Library.save_dir lib dir;
 
     | `Click (Some _i) when Api.Mouse.is_doubleclick `Left ->
       (* Double-click on track: clear playlist and send tracks to it *)
@@ -1787,13 +1787,13 @@ let run_library (st : _ State.t) =
         || Library.current_is_viewlist lib then `Pos else `FilePath in
       view.tracks.sorting <-
         Data.insert_sorting primary attr k 4 view.tracks.sorting;
-      Library.update_dir lib dir;
+      Library.save_dir lib dir;
       Library.reorder_tracks lib;
 
     | `Arrange ->
       (* Column resizing: update column widths *)
       Array.mapi_inplace (fun i (a, _) -> a, fst cols.(i)) view.tracks.columns;
-      if have_dir then Library.update_dir lib dir;
+      if have_dir then Library.save_dir lib dir;
 
     | `Click (Some i) when Api.Mouse.is_doubleclick `Left ->
       (* Double-click on track: clear playlist and send tracks to it *)

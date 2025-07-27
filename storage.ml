@@ -23,7 +23,10 @@ let data_dir =
 let path filename =
   File.(data_dir // filename)
 
-let _ = if not (File.exists data_dir) then File.create_dir data_dir
+let make_dir path =
+  if not (File.exists path) then File.create_dir path
+
+let _ = make_dir data_dir
 
 
 (* Temporary Files *)
@@ -77,6 +80,16 @@ let log_exn cause exn msg =
   log (cause ^ " error " ^ Printexc.to_string exn ^ msg' ^ "\n" ^
     Printexc.get_backtrace ())
 
+let log_time op f =
+  if not !App.debug_perf then f () else
+  (
+    let t1 = Unix.gettimeofday () in
+    let x = f () in
+    let t2 = Unix.gettimeofday () in
+    Printf.printf "    [%s] %.3f ms\n%!" op (t2 -. t1);
+    x
+  )
+
 
 (* Loading & Saving *)
 
@@ -129,3 +142,7 @@ let save_string_append filename f =
   save_append filename (fun oc -> Out_channel.output_string oc (f ()))
 
 let _ = save_string_append_fwd := save_string_append
+
+let delete filename =
+  let path = path filename in
+  if File.exists path then File.delete path

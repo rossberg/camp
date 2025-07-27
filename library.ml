@@ -81,6 +81,7 @@ let check msg b = if b then [] else [msg]
 let ok lib =
   Table.ok "browser" lib.browser @
   Table.ok "tracks" lib.tracks @
+  check "root unfolded" (not lib.root.view.folded) @
   check "browser nonempty" (Table.length lib.browser > 0) @
   check "artists pos unset" (lib.artists.pos = None || lib.artists.pos = Some 0) @
   check "albums pos unset" (lib.albums.pos = None || lib.albums.pos = Some 0) @
@@ -352,6 +353,8 @@ let has_track lib (track : track) =
 
 let library_name = "library.bin"
 let browser_name = "browser.conf"
+let browser_dir = "browser"
+let view_ext = ".conf"
 
 let save_db lib =
   if Atomic.exchange lib.scan.changed false then
@@ -363,7 +366,7 @@ let save_db lib =
 
 let load_db lib =
   Storage.load_string library_name (fun s ->
-    lib.root <- Bin.decode (Data.Decode.dir (make_views "")) s
+    lib.root <- Bin.decode (Data.Decode.dir (fun () -> make_views "")) s
   )
 
 let _ = save_db_fwd.it <- save_db
@@ -444,10 +447,13 @@ struct
       "tracks", view track_attr x.tracks;
     ])
 
-  let dir (x : dir) =
+  let dir (x : dir) = views x.view
+
+  let browse (x : dir) =
     let rec tree (dir : dir) =
-      (dir.path, dir.view) :: List.concat_map tree (Array.to_list dir.children)
-    in map views (tree x)
+      (dir.path, dir.view.folded) ::
+      List.concat_map tree (Array.to_list dir.children)
+    in map bool (tree x)
 end
 
 module Parse =
@@ -496,23 +502,55 @@ struct
       tracks = view track_attr (r $ "tracks");
     })
 
-  let dir u =
-    let map = map views u in
+  let dir u (dir : dir) = dir.view <- views u
+
+  let browse u =
+    let map = Map.of_list (map bool u) in
     let rec tree (dir : dir) =
-      Option.iter (fun v -> dir.view <- v) (List.assoc_opt dir.path map);
+      Option.iter (fun b -> dir.view.folded <- b) (Map.find_opt dir.path map);
       Array.iter tree dir.children
     in tree
 end
 
+let sep_re = Str.(regexp (quote File.sep))
+let colon_re = Str.regexp ":"
+let percent_re = Str.regexp "%"
+
+let dir_name dir =
+  Storage.make_dir (Storage.path browser_dir);
+  let file =
+    if dir.path = "" then "%2f" else
+    let file = Str.global_replace percent_re "%%" dir.path in
+    let file' = Str.global_replace colon_re "%3a" file in
+    Str.global_replace sep_re "%2f" file'
+  in File.(browser_dir // file ^ view_ext)
+
+let save_dir _lib dir =
+  Storage.save_string (dir_name dir) (fun () ->
+    Text.print (Print.dir dir)
+  )
+
+let load_dir _lib dir =
+  Storage.load_string_opt (dir_name dir) (fun s ->
+    try
+      Parse.dir (Text.parse s) dir
+    with Text.Syntax_error _ | Text.Type_error as exn ->
+      Storage.log_exn "parse" exn ("while loading view state for " ^ dir.path)
+  )
+
+let delete_dir _lib dir =
+  Storage.delete (dir_name dir)
+
+
 let save_browser lib =
   Storage.save_string browser_name (fun () ->
-    Text.print (Print.dir lib.root)
+    Text.print (Print.browse lib.root)
   )
 
 let load_browser lib =
   Storage.load_string_opt browser_name (fun s ->
     try
-      Parse.dir (Text.parse s) lib.root
+      Parse.browse (Text.parse s) lib.root
     with Text.Syntax_error _ | Text.Type_error as exn ->
       Storage.log_exn "parse" exn "while loading browser state"
   )
@@ -834,22 +872,20 @@ let update_view_query lib (dir : dir) =
     | Error msg -> error lib (msg ^ " in search query"); Some Query.empty_query
 
 
-let update_dir lib _dir =
-  save_browser lib
-
 let set_dir_opt lib dir_opt =
   Option.iter (fun (dir : dir) ->
     (* In case some input has been made but not yet sent *)
     if lib.search.text <> dir.view.search then
     (
       dir.view.search <- lib.search.text;
-      update_dir lib dir;
+      save_dir lib dir;
     )
   ) lib.current;
   Table.deselect_all lib.browser;
   Table.clear_undo lib.tracks;
   lib.current <- dir_opt;
   Option.iter (fun (dir : dir) ->
+    load_dir lib dir;
     Edit.set lib.search dir.view.search;
     if dir.view.query = None then update_view_query lib dir;
   ) lib.current
@@ -889,11 +925,15 @@ let rec fold_dir lib dir fold =
   if fold <> dir.view.folded then
   (
     dir.view.folded <- fold;
+    save_dir lib dir;
+    save_browser lib;
     refresh_browser lib;
     if not fold && lib.current <> None then
     (
-      Option.iter (fun parent -> fold_dir lib (Option.get (find_dir lib parent)) fold)
-        dir.parent;
+      Option.iter (fun parent ->
+        if parent <> "" then
+          fold_dir lib (Option.get (find_dir lib parent)) false
+      ) dir.parent;
       (* If current dir was previously folded away, then reselect it. *)
       Option.iter (fun i -> Table.select lib.browser i i)
         (Array.find_index (fun dir -> lib.current = Some dir) lib.browser.entries)
@@ -1020,17 +1060,13 @@ let filter lib with_artists with_albums with_tracks =
 
 let sort attr_string sorting entries =
   if sorting <> [] then
-  (
-    let t_start = Unix.gettimeofday () in
+  Storage.log_time "sort" (fun () ->
     let entries' =
       Array.map (fun entry -> Data.key_entry attr_string sorting entry, entry)
         entries
     in
     Array.stable_sort compare entries';
     Array.iteri (fun i (_, entry) -> entries.(i) <- entry) entries';
-    let t_finish = Unix.gettimeofday () in
-    if !App.debug_perf then
-      Printf.printf "    [sort] %.3f s\n%!" (t_finish -. t_start);
   )
 
 let refresh_view lib (tab : _ Table.t) attr_string sorting key f =
@@ -1251,6 +1287,7 @@ let remove_root lib path =
     error lib "Directory is not a root directory";
     false
   | Some pos ->
+    Data.iter_dir (delete_dir lib) roots.(pos);
     lib.current <- None;
     lib.root.children <-
       Array.init (Array.length roots - 1) (fun i ->
@@ -1276,7 +1313,7 @@ let set_search lib search =
     (
       dir.view.search <- search;
       update_view_query lib dir;
-      update_dir lib dir;
+      save_dir lib dir;
       refresh_artists_albums_tracks lib;
     )
   ) lib.current

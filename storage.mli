@@ -8,6 +8,7 @@ type path = string
 val path : file -> path
 
 val home_dir : path
+val make_dir : path -> unit
 
 (* Temporary Files *)
 
@@ -19,6 +20,7 @@ val clear_temp : unit -> unit
 
 val log : string -> unit
 val log_exn : string -> exn -> string -> unit
+val log_time : string -> (unit -> 'a) -> 'a
 val log_clear : unit -> unit
 
 (* Loading & Saving *)
@@ -32,3 +34,5 @@ val load_string : file -> (string -> unit) -> unit
 val load_string_opt : file -> (string -> unit) -> unit
 val save_string : file -> (unit -> string) -> unit
 val save_string_append : file -> (unit -> string) -> unit
+
+val delete : file -> unit
