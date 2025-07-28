@@ -1694,7 +1694,7 @@ let find_pos ui x h font s =
     if w > x then i else find (i + n)
   in find 0
 
-let edit_text ui area s scroll selection =
+let edit_text ui area s scroll selection focus =
   let (x, y, w, h), status = element ui area no_modkey in
   let len = String.length s in
   let font = font ui h in
@@ -1743,7 +1743,11 @@ let edit_text ui area s scroll selection =
     in
 
     Draw.clip ui.win x y w h;
-    if l = r then
+    if not focus then
+    (
+      Draw.text ui.win (x - scroll') y h c font s;
+    )
+    else if l = r then
     (
       Draw.text ui.win (x - scroll') y h c font s;
       Draw.fill ui.win (x - scroll' + wl) y 1 h c;
@@ -1756,6 +1760,8 @@ let edit_text ui area s scroll selection =
       Draw.text ui.win (x - scroll' + wl + wm) y h c font sr;
     );
     Draw.unclip ui.win;
+
+    if not focus then s, scroll', selection', Uchar.of_int 0 else
 
     let ch = Key.char () in
     if ch >= Uchar.of_int 32 then
@@ -1861,8 +1867,8 @@ let edit_text ui area s scroll selection =
 
 
 let rich_edit_text ui area (edit : Edit.t) =
-  let sel = if edit.focus then edit.sel_range else None in
-  let s', scroll', sel', ch = edit_text ui area edit.text edit.scroll sel in
+  let s', scroll', sel', ch =
+    edit_text ui area edit.text edit.scroll edit.sel_range edit.focus in
   if edit.focus then focus ui area;
   if s' <> edit.text then Edit.set edit s';
   Edit.scroll edit scroll';

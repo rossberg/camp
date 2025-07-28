@@ -82,6 +82,9 @@ let clear_undo ed =
 
 (* Editing *)
 
+let move_begin ed = ed.sel_range <- Some (0, 0)
+let move_end ed = let i = String.length ed.text in ed.sel_range <- Some (i, i)
+
 let shift x i n = if x < i then x else max i (x + n)
 
 let set' ed s i n =
@@ -96,7 +99,7 @@ let set' ed s i n =
 
 let set ed s =
   set' ed s 0 0;
-  ed.sel_range <- Some (String.length s, String.length s)
+  move_end ed
 
 let insert ed i s =
   set' ed String.(sub ed.text 0 i ^ s ^ sub ed.text i (length s - i))
@@ -108,7 +111,3 @@ let remove ed i n =
 
 let clear ed =
   set' ed "" 0 0
-
-
-let move_begin ed = ed.sel_range <- Some (0, 0)
-let move_end ed = ed.sel_range <- Some (String.length ed.text, String.length ed.text)

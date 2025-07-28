@@ -528,7 +528,8 @@ let dir_name dir =
 let save_dir _lib dir =
   Storage.save_string (dir_name dir) (fun () ->
     Text.print (Print.dir dir)
-  )
+  );
+  if is_viewlist dir then File.store `Bin dir.path dir.view.search
 
 let load_dir _lib dir =
   Storage.load_string_opt (dir_name dir) (fun s ->
@@ -536,7 +537,8 @@ let load_dir _lib dir =
       Parse.dir (Text.parse s) dir
     with Text.Syntax_error _ | Text.Type_error as exn ->
       Storage.log_exn "parse" exn ("while loading view state for " ^ dir.path)
-  )
+  );
+  if is_viewlist dir then dir.view.search <- File.load `Bin dir.path
 
 let delete_dir _lib dir =
   Storage.delete (dir_name dir)
@@ -887,6 +889,7 @@ let set_dir_opt lib dir_opt =
   Option.iter (fun (dir : dir) ->
     load_dir lib dir;
     Edit.set lib.search dir.view.search;
+    Edit.scroll lib.search 0;  (* reset *)
     if dir.view.query = None then update_view_query lib dir;
   ) lib.current
 
