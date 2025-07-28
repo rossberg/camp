@@ -1700,6 +1700,7 @@ let edit_text ui area s scroll selection focus =
   let font = font ui h in
   let c = text_color ui in
 
+  let focus' = focus || status = `Pressed in
   let selection' =
     if status <> `Pressed then selection else
     let mx, _ = Mouse.pos ui.win in
@@ -1743,7 +1744,7 @@ let edit_text ui area s scroll selection focus =
     in
 
     Draw.clip ui.win x y w h;
-    if not focus then
+    if not focus' then
     (
       Draw.text ui.win (x - scroll') y h c font s;
     )
@@ -1761,7 +1762,7 @@ let edit_text ui area s scroll selection focus =
     );
     Draw.unclip ui.win;
 
-    if not focus then s, scroll', selection', Uchar.of_int 0 else
+    if not focus' then s, scroll', None, Uchar.of_int 0 else
 
     let ch = Key.char () in
     if ch >= Uchar.of_int 32 then
