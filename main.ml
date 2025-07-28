@@ -1248,7 +1248,9 @@ let run_library (st : _ State.t) =
     let i = Option.get (Library.selected_dir lib) in
     let dir = entries.(i) in
     let prefix =
-      if Data.is_all dir then "" else "\"" ^ dir.path ^ "\" @ #filepath " in
+      if Data.is_all dir || Data.is_viewlist dir then ""
+      else "\"" ^ dir.path ^ "\" @ #filepath "
+    in
     let query = prefix ^ lib.search.text in
     let view = Library.copy_views dir.view in
     view.search <- "";
