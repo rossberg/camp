@@ -1048,15 +1048,16 @@ let filter_album lib  =
     albums = Set.empty ||
     Set.mem (Data.track_attr_string track `AlbumTitle) albums
 
-let filter lib with_artists with_albums with_tracks =
+let filter lib with_artists with_albums with_tracks with_seps =
   let filter_artist = filter_artist lib in
   let filter_album = filter_album lib in
   fun (track : track) ->
+    let is_sep = is_separator track in
     let has_artist = filter_artist track in
     let has_album = filter_album track in
-    with_artists,
-    with_albums && has_artist,
-    with_tracks && has_artist && has_album
+    with_artists && not is_sep,
+    with_albums && has_artist && not is_sep,
+    with_tracks && has_artist && has_album && (not is_sep || with_seps)
 
 let sort attr_string sorting entries =
   if sorting <> [] then
@@ -1079,7 +1080,7 @@ let refresh_view lib (tab : _ Table.t) attr_string sorting key f =
       else
         Option.value dir.view.query ~default: Query.full_query
     in
-    let entries = f dir query in
+    let entries = f dir query (is_playlist dir) in
     sort attr_string (sorting dir.view) entries;
     Mutex.protect tab.mutex (fun () ->
       let selection = Table.save_selection tab in
@@ -1098,36 +1099,37 @@ let refresh_artists_view lib f =
 
 let refresh_tracks_sync lib =
   refresh_tracks_view lib
-    (fun dir query ->
-      let _, _, tracks = Query.exec query (filter lib false false true) dir in
+    (fun dir query with_seps ->
+      let _, _, tracks =
+        Query.exec query (filter lib false false true with_seps) dir in
       tracks
     )
 
 let refresh_albums_tracks_sync lib =
   refresh_tracks_view lib
-    (fun dir query ->
+    (fun dir query with_seps ->
       let _, albums, tracks =
-        Query.exec query (filter lib false true true) dir in
-      refresh_albums_view lib (fun _dir _query -> albums);
+        Query.exec query (filter lib false true true with_seps) dir in
+      refresh_albums_view lib (fun _dir _query _with_seps -> albums);
       tracks
     )
 
 let refresh_artists_albums_sync lib =
   refresh_albums_view lib
-    (fun dir query ->
+    (fun dir query with_seps ->
       let artists, albums, _ =
-        Query.exec query (filter lib true true false) dir in
-      refresh_artists_view lib (fun _dir _query -> artists);
+        Query.exec query (filter lib true true false with_seps) dir in
+      refresh_artists_view lib (fun _dir _query _with_seps -> artists);
       albums
     )
 
 let refresh_artists_albums_tracks_sync lib =
   refresh_tracks_view lib
-    (fun dir query ->
+    (fun dir query with_seps ->
       let artists, albums, tracks =
-        Query.exec query (filter lib true true true) dir in
-      refresh_artists_view lib (fun _dir _query -> artists);
-      refresh_albums_view lib (fun _dir _query -> albums);
+        Query.exec query (filter lib true true true with_seps) dir in
+      refresh_artists_view lib (fun _dir _query _with_seps -> artists);
+      refresh_albums_view lib (fun _dir _query _with_seps -> albums);
       tracks
     )
 

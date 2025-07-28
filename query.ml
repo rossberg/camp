@@ -422,7 +422,7 @@ let exec q p dir =
     (
       let to_artists, to_albums, to_tracks = p track in
       if to_tracks then Dynarray.add_last tracks track;
-      if (to_albums || to_artists) && not (M3u.is_separator track.path) then
+      if to_albums || to_artists then
       (
         let album_key = album_key track in
         let album = new_album_of_track track in
