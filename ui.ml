@@ -1213,7 +1213,7 @@ let rich_table ui area gw ch sw sh mr cols header_opt (tab : _ Table.t) pp_row =
             let s = Bytes.sub_string b 0 (Bytes.set_utf_8_uchar b 0 ch) in
             let col =
               match header_opt with
-              | Some (_, (col, _)::_) -> col
+              | Some (_, (col, _)::_) -> col  (* primary sort key *)
               | _ -> 0
             in
             let rec find i =

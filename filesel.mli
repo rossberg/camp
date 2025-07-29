@@ -95,4 +95,4 @@ val current_sel_is_dir : ('a, 'b) t -> bool
 
 val columns : ('a, 'b) t -> (int * [> `Left | `Right]) array
 val row : file -> string array
-val headings : string array
+val heading : string array * (int * [`Asc | `Desc]) list

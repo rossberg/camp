@@ -2057,7 +2057,7 @@ let run_filesel (st : _ State.t) =
   in
 
   let ok =
-    match Layout.files_table lay cols (Some (Filesel.headings, [])) files pp_row with
+    match Layout.files_table lay cols (Some Filesel.heading) files pp_row with
     | `None | `Scroll | `Move _ | `Drag _ | `Drop -> false
 
     | `Click (Some i) when Api.Mouse.is_doubleclick `Left ->

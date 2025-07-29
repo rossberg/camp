@@ -291,7 +291,7 @@ let columns fs =
   let w = fs.columns in
   [|w.(0), `Left; w.(1), `Left; w.(2), `Right; w.(3), `Right|]
 
-let headings = [|""; "File Name"; "File Size"; "File Date"|]
+let heading = [|""; "File Name"; "File Size"; "File Date"|], [1, `Asc]
 
 let string_of_mode is_dir = if is_dir then "►" else "   "
 let string_of_size size = Data.fmt "%3.2f MB" (float size /. 2.0 ** 20.0)
