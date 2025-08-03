@@ -1276,6 +1276,7 @@ let insert_roots lib paths pos =
           root.pos <- i;
           root
       );
+    Atomic.set lib.scan.changed true;
     Array.iter (fun (dir : dir) -> rescan_dir lib `Thorough dir) roots';
     refresh_browser lib;
     refresh_artists_albums_tracks lib;
@@ -1283,6 +1284,26 @@ let insert_roots lib paths pos =
   with Failure msg ->
     error lib msg;
     false
+
+let move_root lib pos pos' =
+  if pos <> pos' then
+  (
+    let roots = lib.root.children in
+    let lo, hi = min pos pos', max pos pos' in
+    lib.root.children <-  (* atomic update! *)
+      Array.init (Array.length roots) (fun i ->
+        if i < lo || i > hi then
+          roots.(i)
+        else if i = pos' then
+          roots.(pos)
+        else if pos < pos' then
+          roots.(i + 1)
+        else
+          roots.(i - 1)
+      );
+    Atomic.set lib.scan.changed true;
+    refresh_browser lib
+  )
 
 let remove_root lib path =
   let dirpath = File.(path // "") in
@@ -1302,6 +1323,7 @@ let remove_root lib path =
           let root = roots.(i + 1) in
           root.pos <- i; root
       );
+    Atomic.set lib.scan.changed true;
     refresh_browser lib;
     refresh_artists_albums_tracks lib;
     true

@@ -595,9 +595,9 @@ let set_drop_cursor (st : _ State.t) =
       Library.current_is_shown_playlist lib &&
         library_mouse lay lib.tracks <> None ||
       match Layout.browser_mouse lay lib.browser with
+      | None -> false
       | Some i ->
         i < Table.length lib.browser && Data.is_playlist lib.browser.entries.(i)
-      | None -> false
     )
   in
   Api.Mouse.set_cursor (Ui.window lay.ui)
@@ -1016,6 +1016,12 @@ let busy_artists = Table.make 0
 let busy_albums = Table.make 0
 let busy_tracks = Table.make 0
 
+let find_root_pos (entries : _ Data.dir array) pos =
+  let rec loop i j =
+    if i = pos then j else
+    loop (i + 1) (if entries.(i).nest = 0 then j + 1 else j)
+  in loop 0 0
+
 
 let run_library (st : _ State.t) =
   let pl = st.playlist in
@@ -1138,6 +1144,15 @@ let run_library (st : _ State.t) =
     (
       State.focus_library browser st;
       if lib.tracks.entries <> [||] then set_drop_cursor st;
+
+      (* Check for root move *)
+      Option.iter (fun _ ->
+        Option.iter (fun j ->
+          let dir = browser.entries.(j) in
+          if Data.is_root dir then
+            Api.Mouse.set_cursor (Ui.window lay.ui) `Point;
+        ) (Library.selected_dir lib)
+      ) (Layout.browser_mouse lay browser)
     )
 
   | `Drop ->
@@ -1152,6 +1167,18 @@ let run_library (st : _ State.t) =
       (
         (* Drag & drop on other browser entry *)
         drop_on_browser st tracks;
+
+        (* Check originating directory for being a root *)
+        Option.iter (fun j ->
+          let dir = browser.entries.(j) in
+          if Data.is_root dir then
+          (
+            (* Move position of root directory *)
+            let pos = find_root_pos entries j in
+            let pos' = find_root_pos entries i in
+            Library.move_root lib pos (if pos' > pos then pos' - 1 else pos');
+          )
+        ) (Library.selected_dir lib)
       )
     ) (Layout.browser_mouse lay browser)
   );
@@ -1162,12 +1189,8 @@ let run_library (st : _ State.t) =
   let dropped = Api.Files.dropped win in
   if dropped <> [] then
   (
-    Option.iter (fun pos ->
-      let rec find_root_pos i j =
-        if i = pos then j else
-        find_root_pos (i + 1) (if entries.(i).nest = 0 then j + 1 else j)
-      in
-      if not (Library.insert_roots lib dropped (find_root_pos 0 0)) then
+    Option.iter (fun i ->
+      if not (Library.insert_roots lib dropped (find_root_pos entries i)) then
         Layout.browser_error_box lay;  (* flash *)
     ) (Layout.browser_mouse lay browser)
   );
