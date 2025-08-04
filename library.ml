@@ -661,6 +661,7 @@ let rescan_track' lib mode (track : track) =
     old.file.age <- time;
     let changed = track <> old in
     if not changed then track.memo <- memo;
+    if changed then Atomic.set lib.scan.changed true;
     changed
   with exn ->
     Storage.log_exn "file" exn ("scanning track " ^ track.path);
