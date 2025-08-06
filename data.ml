@@ -107,7 +107,6 @@ type 'view dir =
   parent : path option;
   nest : int;
   mutable name : string;
-  mutable pos : int;
   mutable children : 'view dir array;
   mutable tracks : track array;
   mutable error : string;  (* for view lists *)
@@ -164,13 +163,12 @@ let date_of_year y =
 
 (* Constructors *)
 
-let make_dir path parent nest pos view : 'a dir =
+let make_dir path parent nest view : 'a dir =
   {
     path;
     parent;
     name = if path = "" then "" else File.name path;
     nest;
-    pos;
     children = [||];
     tracks = [||];
     error = "";
@@ -516,9 +514,7 @@ let compare_utf_8 s1 s2 = UCol.compare ~prec: `Primary s1 s2
 let compare_length s1 s2 = compare (String.length s1) (String.length s2)
 
 let compare_dir (dir1 : _ dir) (dir2 : _ dir) =
-  match compare dir1.pos dir2.pos with
-  | 0 -> compare_utf_8 dir1.name dir2.name
-  | i -> i
+  compare_utf_8 dir1.name dir2.name
 
 
 let contains_utf_8 s1 s2 =
@@ -653,7 +649,6 @@ struct
       "parent", option string x.parent;
       "nest", int x.nest;
       "name", string x.name;
-      "pos", int x.pos;
       "children", array (dir ()) x.children;
       "tracks", array track (if is_dir x then x.tracks else [||]);
       "error", string x.error;
@@ -730,7 +725,6 @@ struct
       parent = option string (r $ "parent");
       nest = int (r $ "nest");
       name = string (r $ "name");
-      pos = int (r $ "pos");
       children = array (dir make_view) (r $ "children");
       tracks = array track (r $ "tracks");
       error = string (r $ "error");
@@ -804,7 +798,6 @@ struct
       option string x.parent;
       option nat (if x.nest = -1 then None else Some x.nest);
       string x.name;
-      option nat (if x.pos = -1 then None else Some x.pos);
       array (dir ()) x.children;
       array track (if is_dir x then x.tracks else [||]);
       string x.error;
@@ -884,16 +877,15 @@ struct
 
   let rec dir make_view =
     record (fun n buf ->
-      if n <> 8 then error buf;
+      if n <> 7 then error buf;
       let path = string buf in
       let parent = option string buf in
       let nest = Option.value (option nat buf) ~default: (-1) in
       let name = string buf in
-      let pos = Option.value (option nat buf) ~default: (-1) in
       let children = array (dir make_view) buf in
       let tracks = array track buf in
       let error = string buf in
       let view = make_view () in
-      {path; parent; nest; name; pos; children; tracks; error; view}
+      {path; parent; nest; name; children; tracks; error; view}
     )
 end
