@@ -348,6 +348,7 @@ let browser_y g = search_y g + text_h g + margin g
 let browser_area g = (bp, margin g, browser_y g, - divider_w g, - bottom_h g)
 let browser_table g = Ui.browser g.ui (browser_area g) (text_h g) (scrollbar_w g) 0 g.reflection
 let browser_mouse g = Ui.rich_table_mouse g.ui (browser_area g) (gutter_w g) (text_h g) (scrollbar_w g) 0 false
+let browser_drag g = Ui.rich_table_drag g.ui (browser_area g) (gutter_w g) (text_h g) (scrollbar_w g) 0 false
 let browser_error_box g = Ui.box g.ui (browser_area g) (Ui.error_color g.ui)
 
 let del_key g = Ui.key g.ui ([`Command], `Delete) true

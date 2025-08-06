@@ -576,7 +576,24 @@ let drop_on_library (st : _ State.t) tracks =
     drop st tracks library_mouse (module View)
   )
 
-let drag_on_browser (st : _ State.t) = ignore st
+let drag_on_browser (st : _ State.t) =
+  let lay = st.layout in
+  let lib = st.library in
+  let browser = lib.browser in
+  if st.layout.library_shown then
+  (
+    Option.iter (fun i ->
+      if i < Array.length browser.entries then
+      (
+        let dir = browser.entries.(i) in
+        if Data.is_playlist dir then
+        (
+          (* Drag over playlist browser entry: highlight target entry *)
+          Ui.delay lay.ui (fun () -> Layout.browser_drag lay `Into browser)
+        )
+      )
+    ) (Layout.browser_mouse lay browser)
+  )
 
 let drop_on_browser (st : _ State.t) tracks =
   let lay = st.layout in
@@ -590,7 +607,7 @@ let drop_on_browser (st : _ State.t) tracks =
         let dir = browser.entries.(i) in
         if Data.is_playlist dir then
         (
-          (* Drag & drop onto playlist browser entry: send tracks there *)
+          (* Drop onto playlist browser entry: send tracks there *)
           (* Since the dir might not be selected, and updating views is
            * asynchronous, write to file directly *)
           (try
@@ -954,7 +971,15 @@ let run_playlist (st : _ State.t) =
     if Api.Key.are_modifiers_down [] then
     (
       State.focus_playlist st;
-      if Playlist.num_selected pl > 0 then set_drop_cursor st;
+      if Playlist.num_selected pl > 0 then
+      (
+        set_drop_cursor st;
+        match way with
+        | `Start | `Inside | `Inward -> ()
+        | `Outward | `Outside ->
+          drag_on_library st;
+          drag_on_browser st;
+      );
 
       (* Invariant:
        * - on Start: no undo or redo added yet
@@ -994,15 +1019,6 @@ let run_playlist (st : _ State.t) =
           Playlist.save_playlist pl;
         | `Outside -> ()
       );
-
-      if Playlist.num_selected pl > 0 then
-      (
-        match way with
-        | `Start | `Inside | `Inward -> ()
-        | `Outward | `Outside ->
-          drag_on_library st;
-          drag_on_browser st;
-      )
     )
 
   | `Drop ->
@@ -1185,12 +1201,22 @@ let run_library (st : _ State.t) =
       );
 
       (* Check for root move *)
-      Option.iter (fun _ ->
-        Option.iter (fun j ->
-          let dir = browser.entries.(j) in
-          if Data.is_root dir then
-            Api.Mouse.set_cursor (Ui.window lay.ui) `Point;
-        ) (Library.selected_dir lib)
+      Option.iter (fun i ->
+        if Library.selected_dir lib <> Some i then
+        (
+          (* Drag over other browser entry *)
+          drag_on_browser st;
+
+          Option.iter (fun j ->
+            let dir = browser.entries.(j) in
+            if Data.is_root dir
+            && (i = Table.length browser || Data.is_root browser.entries.(i)) then
+            (
+              Api.Mouse.set_cursor (Ui.window lay.ui) `Point;
+              Layout.browser_drag lay `Before browser;
+            )
+          ) (Library.selected_dir lib)
+        )
       ) (Layout.browser_mouse lay browser)
     )
 
@@ -1204,13 +1230,14 @@ let run_library (st : _ State.t) =
     Option.iter (fun i ->
       if Library.selected_dir lib <> Some i then
       (
-        (* Drag & drop on other browser entry *)
+        (* Drop on other browser entry *)
         drop_on_browser st tracks;
 
         (* Check originating directory for being a root *)
         Option.iter (fun j ->
           let dir = browser.entries.(j) in
-          if Data.is_root dir then
+          if Data.is_root dir
+          && (i = Table.length browser || Data.is_root browser.entries.(i)) then
           (
             (* Move position of root directory *)
             let pos = find_root_pos entries j in
@@ -1898,7 +1925,15 @@ let run_library (st : _ State.t) =
       if Api.Key.are_modifiers_down [] then
       (
         State.focus_library tab st;
-        if Library.num_selected lib > 0 then set_drop_cursor st;
+        if Library.num_selected lib > 0 then
+        (
+          set_drop_cursor st;
+          match way with
+          | `Start | `Inside | `Inward -> ()
+          | `Outward | `Outside ->
+            drag_on_playlist st;
+            drag_on_browser st;
+        );
 
         if Data.is_playlist dir then
         (
@@ -1940,15 +1975,6 @@ let run_library (st : _ State.t) =
               | `Outside -> ()
             )
           );
-
-          if Library.num_selected lib > 0 then
-          (
-            match way with
-            | `Start | `Inside | `Inward -> ()
-            | `Outward | `Outside ->
-              drag_on_playlist st;
-              drag_on_browser st;
-          )
         )
       )
 
