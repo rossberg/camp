@@ -1193,11 +1193,10 @@ let run_library (st : _ State.t) =
         drag_on_playlist st;
       );
 
-      (* Check for sibling move *)
+      (* Intra-browser drag *)
       Option.iter (fun i ->
         if Library.selected_dir lib <> Some i then
         (
-          (* Drag over other browser entry *)
           Option.iter (fun j ->
             let dir = browser.entries.(j) in
             if
@@ -1205,6 +1204,7 @@ let run_library (st : _ State.t) =
               browser.entries.(i).parent = dir.parent
             then
             (
+              (* Drag over sibling: reorder entry *)
               Api.Mouse.set_cursor (Ui.window lay.ui) `Point;
               Layout.browser_drag lay `Before browser;
             )
@@ -1219,16 +1219,16 @@ let run_library (st : _ State.t) =
     )
 
   | `Drop ->
-    (* Drag & drop originating from browser *)
+    (* Drop originating from browser *)
 
-    (* Drag & drop onto playlist: send directory contents to playlist *)
+    (* Drop onto playlist: send directory contents to playlist *)
     let tracks = lib.tracks.entries in
     drop_on_playlist st tracks;
 
+    (* Intra-browser drop *)
     Option.iter (fun i ->
       if Library.selected_dir lib <> Some i then
       (
-        (* Check originating directory for being a sibling *)
         Option.iter (fun j ->
           let dir = browser.entries.(j) in
           if
@@ -1236,14 +1236,16 @@ let run_library (st : _ State.t) =
             browser.entries.(i).parent = dir.parent
           then
           (
-            (* Move position of child directory *)
+            (* Drop on sibling: reorder entry *)
+            let parent = Option.get (Library.find_parent lib dir) in
             let pos = Library.find_parent_pos lib dir in
             let pos' =
               if i = Table.length browser
               then Array.length lib.root.children
               else Library.find_parent_pos lib entries.(i)
             in
-            Library.move_dir lib dir pos (if pos' > pos then pos' - 1 else pos');
+            Library.move_dir lib parent pos
+              (if pos' > pos then pos' - 1 else pos');
           )
           else
           (
@@ -1265,7 +1267,7 @@ let run_library (st : _ State.t) =
       let pos =
         if i = Array.length entries
         then Array.length lib.root.children
-        else Library.find_parent_pos entries.(i)
+        else Library.find_parent_pos lib entries.(i)
       in
       if not (Library.insert_roots lib dropped pos) then
         Layout.browser_error_box lay;  (* flash *)

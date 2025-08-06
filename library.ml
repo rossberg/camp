@@ -331,7 +331,7 @@ let find_parent lib (dir : _ Data.dir) =
   match dir.parent with
   | None -> None
   | Some "" -> Some lib.root
-  | Some path -> find_dir lib dir path
+  | Some path -> find_dir lib path
 
 let find_parent_pos lib (dir : _ Data.dir) =
   let parent = Option.get (find_parent lib dir) in
@@ -797,12 +797,33 @@ let rec rescan_dir' lib mode (origin : dir) =
       );
       let children = Array.of_list dirs in
       Array.stable_sort Data.compare_dir children;
-      if
-        Array.length children <> Array.length dir.children ||
-        Array.map (fun dir -> dir.path) children <>
-        Array.map (fun dir -> dir.path) dir.children;
-      then
-        Atomic.set lib.scan.changed true;
+      (* Post-process to preserve possible custom order among old dirs. *)
+      let new_dirs =
+        Array.fold_left (fun (i, map) (dir : dir) ->
+          i + 1, Map.add dir.path i map
+        ) (0, Map.empty) children |> snd |> ref
+      in
+      let i = ref 0 in
+      let j = ref 0 in
+      let changed = ref (Array.length children <> Array.length dir.children) in
+      while !i < Array.length dir.children do
+        let dir = dir.children.(!i) in
+        match Map.find_opt dir.path !new_dirs with
+        | None -> changed := true; incr i  (* removed dir *)
+        | Some k when k = !j -> incr i; incr j  (* unchanged dir *)
+        | Some k when Map.mem children.(!j).path old_dirs ->
+          (* Manually reordered dir; pull forward *)
+          assert (k > !j);
+          let pull = children.(k) in
+          for p = k - 1 downto !j do
+            children.(p + 1) <- children.(p);
+            new_dirs := Map.add children.(p).path (p + 1) !new_dirs
+          done;
+          children.(!j) <- pull;
+          incr i; incr j
+        | Some _ -> changed := true; incr j  (* added dir *)
+      done;
+      if !changed then Atomic.set lib.scan.changed true;
       dir.children <- children;
       rescan_dir_tracks lib mode dir;
       Some [dir]
@@ -979,7 +1000,6 @@ let remove_dir lib path =
 let move_dir lib dir pos pos' =
   if pos <> pos' then
   (
-Printf.printf "[move_dir %s %d->%d]\n%!" dir.path pos pos';
     let children = dir.children in
     assert (pos < Array.length children);
     assert (pos' < Array.length children);
