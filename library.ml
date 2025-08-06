@@ -242,7 +242,7 @@ let rec saver lib () =
   saver lib ()
 
 let make () =
-  let root = Data.make_dir "" None (-1) 0 (make_views "") in
+  let root = Data.make_dir "" None (-1) (make_views "") in
   root.name <- "All";
   root.view.folded <- false;
   root.view.artists.shown <- Some `Table;
@@ -753,7 +753,7 @@ let rec rescan_dir' lib mode (origin : dir) =
       | Some dir -> dir
       | None ->
         if change_if_new then Atomic.set lib.scan.changed true;
-        Data.make_dir path' (Some parent_path) (parent.nest + 1) 0
+        Data.make_dir path' (Some parent_path) (parent.nest + 1)
           (make_views path')
     in
     if File.is_dir path then
@@ -1273,7 +1273,7 @@ let reorder_tracks lib =
 
 (* Roots *)
 
-let make_root lib path pos =
+let make_root lib path =
   if not (File.exists path) then
     failwith (path ^ " does not exist")
   else if not (File.is_dir path) then
@@ -1290,7 +1290,7 @@ let make_root lib path pos =
     with
     | Some dir ->
       failwith (dirpath ^ " overlaps with " ^ dir.name ^ " (" ^ dir.path ^ ")")
-    | None -> Data.make_dir dirpath (Some "") 0 pos (make_views dirpath)
+    | None -> Data.make_dir dirpath (Some "") 0 (make_views dirpath)
   )
 
 let insert_roots lib paths pos =
@@ -1298,7 +1298,7 @@ let insert_roots lib paths pos =
   lib.error <- "";
   try
     let roots = lib.root.children in
-    let roots' = Array.mapi (fun i path -> make_root lib path (pos + i)) paths in
+    let roots' = Array.map (make_root lib) paths in
     let len = Array.length roots in
     let len' = Array.length roots' in
     lib.root.children <-
@@ -1308,9 +1308,7 @@ let insert_roots lib paths pos =
         else if i < pos + len' then
           roots'.(i - pos)
         else
-          let root = roots.(i - len') in
-          root.pos <- i;
-          root
+          roots.(i - len')
       );
     Atomic.set lib.scan.changed true;
     Array.iter (fun (dir : dir) -> rescan_dir lib `Thorough dir) roots';
@@ -1336,8 +1334,7 @@ let remove_root lib path =
         if i < pos then
           roots.(i)
         else
-          let root = roots.(i + 1) in
-          root.pos <- i; root
+          roots.(i + 1)
       );
     Atomic.set lib.scan.changed true;
     refresh_browser lib;

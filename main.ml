@@ -1415,7 +1415,7 @@ let run_library (st : _ State.t) =
   let have_dir = lib.current <> None in
   let default =
     if Array.length entries > 0 then entries.(0) else
-    Data.make_dir "" None 0 0 (Library.make_views "")
+    Data.make_dir "" None 0 (Library.make_views "")
   in
   let dir = Option.value lib.current ~default in
   let view = dir.view in
