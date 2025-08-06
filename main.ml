@@ -1022,7 +1022,8 @@ let run_playlist (st : _ State.t) =
     )
 
   | `Drop ->
-    if not (Ui.mouse_inside lay.ui (Layout.playlist_area lay)) then
+    if Api.Key.are_modifiers_down []
+    && not (Ui.mouse_inside lay.ui (Layout.playlist_area lay)) then
     (
       (* Dropping outside playlist: drop aux redo for new state *)
       Table.drop_redo pl.table;
@@ -1220,41 +1221,43 @@ let run_library (st : _ State.t) =
 
   | `Drop ->
     (* Drop originating from browser *)
+    if Api.Key.are_modifiers_down [] then
+    (
+      (* Drop onto playlist: send directory contents to playlist *)
+      let tracks = lib.tracks.entries in
+      drop_on_playlist st tracks;
 
-    (* Drop onto playlist: send directory contents to playlist *)
-    let tracks = lib.tracks.entries in
-    drop_on_playlist st tracks;
-
-    (* Intra-browser drop *)
-    Option.iter (fun i ->
-      if Library.selected_dir lib <> Some i then
-      (
-        Option.iter (fun j ->
-          let dir = browser.entries.(j) in
-          if
-            i = Table.length browser && Data.is_root dir ||
-            browser.entries.(i).parent = dir.parent
-          then
-          (
-            (* Drop on sibling: reorder entry *)
-            let parent = Option.get (Library.find_parent lib dir) in
-            let pos = Library.find_parent_pos lib dir in
-            let pos' =
-              if i = Table.length browser
-              then Array.length lib.root.children
-              else Library.find_parent_pos lib entries.(i)
-            in
-            Library.move_dir lib parent pos
-              (if pos' > pos then pos' - 1 else pos');
-          )
-          else
-          (
-            (* Drop on other browser entry *)
-            drop_on_browser st tracks;
-          )
-        ) (Library.selected_dir lib)
-      )
-    ) (Layout.browser_mouse lay browser)
+      (* Intra-browser drop *)
+      Option.iter (fun i ->
+        if Library.selected_dir lib <> Some i then
+        (
+          Option.iter (fun j ->
+            let dir = browser.entries.(j) in
+            if
+              i = Table.length browser && Data.is_root dir ||
+              browser.entries.(i).parent = dir.parent
+            then
+            (
+              (* Drop on sibling: reorder entry *)
+              let parent = Option.get (Library.find_parent lib dir) in
+              let pos = Library.find_parent_pos lib dir in
+              let pos' =
+                if i = Table.length browser
+                then Array.length lib.root.children
+                else Library.find_parent_pos lib entries.(i)
+              in
+              Library.move_dir lib parent pos
+                (if pos' > pos then pos' - 1 else pos');
+            )
+            else
+            (
+              (* Drop on other browser entry *)
+              drop_on_browser st tracks;
+            )
+          ) (Library.selected_dir lib)
+        )
+      ) (Layout.browser_mouse lay browser)
+    )
   );
 
   let entries = browser.entries in  (* might have changed from un/folding *)
@@ -1653,7 +1656,8 @@ let run_library (st : _ State.t) =
       );
 
     | `Drop ->
-      if not (Ui.mouse_inside lay.ui (artists_area lay)) then
+      if Api.Key.are_modifiers_down []
+      && not (Ui.mouse_inside lay.ui (artists_area lay)) then
       (
         (* Drag & drop originating from artists view *)
 
@@ -1783,7 +1787,8 @@ let run_library (st : _ State.t) =
       );
 
     | `Drop ->
-      if not (Ui.mouse_inside lay.ui (albums_area lay)) then
+      if Api.Key.are_modifiers_down []
+      && not (Ui.mouse_inside lay.ui (albums_area lay)) then
       (
         (* Drag & drop originating from albums view *)
 
@@ -1992,7 +1997,8 @@ let run_library (st : _ State.t) =
       )
 
     | `Drop ->
-      if not (Ui.mouse_inside lay.ui (tracks_area lay)) then
+      if Api.Key.are_modifiers_down []
+      && not (Ui.mouse_inside lay.ui (tracks_area lay)) then
       (
         (* Drag & drop originating from tracks *)
 
