@@ -19,6 +19,7 @@ type t =
   mutable mouse_owned : bool;       (* whether mouse was owned by an element *)
   mutable drag_origin : point;      (* starting position of mouse drag *)
   mutable drag_extra : drag;        (* associated data for drag operation *)
+  mutable delayed : (unit -> unit) list;
   img_background : image_load;
   img_button : image_load;
   img_nocover : image_load;
@@ -38,6 +39,7 @@ let make win =
     mouse_owned = false;
     drag_origin = no_drag;
     drag_extra = No_drag;
+    delayed = [];
     img_background = ref (`Unloaded "bg.jpg");
     img_button = ref (`Unloaded "but.jpg");
     img_nocover = ref (`Unloaded "nocover.jpg");
@@ -219,6 +221,9 @@ let start ui =
 
 
 let finish ui margin (minw, minh) (maxw, maxh) =
+  List.iter (fun f -> f ()) (List.rev ui.delayed);
+  ui.delayed <- [];
+
   if ui.mouse_owned then ui.mouse_owned <- false else
   (
     let (wx, wy) as pos = Window.pos ui.win in
@@ -287,6 +292,10 @@ let finish ui margin (minw, minh) (maxw, maxh) =
   );
 
   Draw.finish ui.win
+
+
+let delay ui f =
+  ui.delayed <- f :: ui.delayed
 
 
 (* Input elements *)
@@ -361,7 +370,6 @@ let drag_status ui r (stepx, stepy) =
     let moved' = Mouse.is_drag `Left in
     let inside' = Api.inside m r in
     ui.drag_extra <- Drag {pos; moved = moved'; inside = inside'};
-    if not moved' then `None else
     let way =
       if not moved then `Start else
       match inside, inside' with
@@ -473,19 +481,25 @@ let lcd ui r d =
     )
 
 
-let focus ui area =
-  let x, y, w, h = dim ui area in
-  let c = text_color ui in
+let focus' ui x y w h c style =
   let c1 = `Trans (c, 0x60 (* 0x40 *)) in
   let c2 = `Trans (c, 0x00) in
   let b = 8 (* 6 *) in
   Draw.gradient ui.win x y w b c1 `Vertical c2;
-  Draw.gradient ui.win x (y + h - b) w b c2 `Vertical c1;
-  Draw.gradient ui.win x y b h c1 `Horizontal c2;
-  Draw.gradient ui.win (x + w - b) y b h c2 `Horizontal c1
+  if style = `Into then
+  (
+    Draw.gradient ui.win x (y + h - b) w b c2 `Vertical c1;
+    Draw.gradient ui.win x y b h c1 `Horizontal c2;
+    Draw.gradient ui.win (x + w - b) y b h c2 `Horizontal c1
 (*
   Draw.fill ui.win x y w h (`Trans (c, 0x20))
 *)
+  )
+
+
+let focus ui area =
+  let x, y, w, h = dim ui area in
+  focus' ui x y w h (text_color ui) `Into
 
 let mouse_reflection ui area r =
   let x, y, w, h = dim ui area in
@@ -879,6 +893,7 @@ let header ui area gw cols (titles, sorting) hscroll =
   | `None | `Take | `Drop -> `None
   | `Click -> find_heading mx
   | `Drag ((dx, _), _) ->
+    if dx = 0 then `None else
     match find_gutter (mx - dx) with
     | None -> `None
     | Some i ->
@@ -908,6 +923,14 @@ let rich_table_mouse ui area gw ch sw sh has_heading (tab : _ Table.t) =
     Some (min (Table.length tab) ((my - y) / ch + tab.vscroll))
   else
     None
+
+let rich_table_drag ui area gw ch sw sh has_heading style (tab : _ Table.t) =
+  match rich_table_mouse ui area gw ch sw sh has_heading tab with
+  | None -> ()
+  | Some i ->
+    let area' = rich_table_inner ui area gw ch sw sh has_heading in
+    let x, y, w, _ = dim ui area' in
+    focus' ui x (y + i * ch) w ch `White style
 
 let adjust_cache tab w h =
   Option.iter (fun buf ->

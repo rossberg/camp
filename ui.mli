@@ -62,6 +62,7 @@ type inversion = [`Regular | `Inverted]
 
 val start : t -> unit
 val finish : t -> int -> size -> size -> unit
+val delay : t -> (unit -> unit) -> unit
 
 val label : t -> area -> align -> string -> unit
 val indicator : t -> color -> area -> bool -> unit
@@ -126,6 +127,8 @@ val rich_table :
 val rich_table_inner : t -> area -> int -> int  -> int -> int -> bool -> area
 val rich_table_mouse : t -> area -> int -> int  -> int -> int -> bool ->
   ('a, cached) Table.t -> int option
+val rich_table_drag : t -> area -> int -> int  -> int -> int -> bool ->
+  [`Before | `Into] -> ('a, cached) Table.t -> unit
 
 val browser :
   t ->

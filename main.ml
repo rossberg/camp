@@ -517,6 +517,30 @@ module Playlist = struct include Playlist let focus _ = State.focus_playlist end
 module Library = struct include Library let focus = State.focus_library end
 
 
+let drag (st : _ State.t) table_drag (module View : TracksView) =
+  let lay = st.layout in
+  let tab = View.table View.it in
+  (* Drag over table: highlight target entry *)
+  Ui.delay lay.ui (fun () -> table_drag lay tab)
+
+let drag_on_playlist (st : _ State.t) =
+  if st.layout.playlist_shown then
+  (
+    let module View = struct let it = st.playlist include Playlist end in
+    drag st Layout.playlist_drag (module View)
+  )
+
+let library_drag (lay : Layout.t) =
+  if lay.lower_shown then Layout.lower_drag lay else
+  if lay.right_shown then Layout.right_drag lay else Layout.left_drag lay
+
+let drag_on_library (st : _ State.t) =
+  if st.layout.library_shown && Library.current_is_shown_playlist st.library then
+  (
+    let module View = struct let it = st.library include Library end in
+    drag st library_drag (module View)
+  )
+
 let drop (st : _ State.t) tracks table_mouse (module View : TracksView) =
   if tracks <> [||] then
   (
@@ -524,7 +548,7 @@ let drop (st : _ State.t) tracks table_mouse (module View : TracksView) =
     let view = View.it in
     let tab = View.table view in
     Option.iter (fun pos ->
-      (* Drag & drop onto table: send tracks there *)
+      (* Drop onto table: send tracks there *)
       View.insert view pos tracks;
       State.defocus_all st;
       View.focus tab st;
@@ -538,7 +562,7 @@ let drop_on_playlist (st : _ State.t) tracks =
   if st.layout.playlist_shown then
   (
     let module View = struct let it = st.playlist include Playlist end in
-    drop st tracks Layout.playlist_mouse (module View);
+    drop st tracks Layout.playlist_mouse (module View)
   )
 
 let library_mouse (lay : Layout.t) =
@@ -551,6 +575,8 @@ let drop_on_library (st : _ State.t) tracks =
     let module View = struct let it = st.library include Library end in
     drop st tracks library_mouse (module View)
   )
+
+let drag_on_browser (st : _ State.t) = ignore st
 
 let drop_on_browser (st : _ State.t) tracks =
   let lay = st.layout in
@@ -967,6 +993,15 @@ let run_playlist (st : _ State.t) =
           Playlist.undo pl;
           Playlist.save_playlist pl;
         | `Outside -> ()
+      );
+
+      if Playlist.num_selected pl > 0 then
+      (
+        match way with
+        | `Start | `Inside | `Inward -> ()
+        | `Outward | `Outside ->
+          drag_on_library st;
+          drag_on_browser st;
       )
     )
 
@@ -1143,7 +1178,11 @@ let run_library (st : _ State.t) =
     if Api.Key.are_modifiers_down [] then
     (
       State.focus_library browser st;
-      if lib.tracks.entries <> [||] then set_drop_cursor st;
+      if lib.tracks.entries <> [||] then
+      (
+        set_drop_cursor st;
+        drag_on_playlist st;
+      );
 
       (* Check for root move *)
       Option.iter (fun _ ->
@@ -1566,7 +1605,11 @@ let run_library (st : _ State.t) =
       (
         State.focus_library tab st;
         if Table.num_selected lib.artists > 0 && lib.tracks.entries <> [||] then
+        (
           set_drop_cursor st;
+          drag_on_playlist st;
+          drag_on_browser st;
+        )
       );
 
     | `Drop ->
@@ -1692,7 +1735,11 @@ let run_library (st : _ State.t) =
       (
         State.focus_library tab st;
         if Table.num_selected lib.albums > 0 && lib.tracks.entries <> [||] then
+        (
           set_drop_cursor st;
+          drag_on_playlist st;
+          drag_on_browser st;
+        )
       );
 
     | `Drop ->
@@ -1892,6 +1939,15 @@ let run_library (st : _ State.t) =
                 Library.save_playlist lib;
               | `Outside -> ()
             )
+          );
+
+          if Library.num_selected lib > 0 then
+          (
+            match way with
+            | `Start | `Inside | `Inward -> ()
+            | `Outward | `Outside ->
+              drag_on_playlist st;
+              drag_on_browser st;
           )
         )
       )
