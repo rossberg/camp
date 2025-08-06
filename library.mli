@@ -104,13 +104,16 @@ val deselect_dir : 'a t -> unit
 
 val insert_roots : 'a t -> path list -> int -> bool
 val remove_roots : 'a t -> path list -> bool
-val move_root : 'a t -> int -> int -> unit
 
 val find_dir : 'a t -> path -> dir option
 val insert_dir : 'a t -> path -> dir option
 val remove_dir : 'a t -> path -> bool
+val move_dir : 'a t -> dir -> int -> int -> unit
 val save_dir : 'a t -> dir -> unit
 val fold_dir : 'a t -> dir -> bool -> unit
+
+val find_parent : 'a t -> dir -> dir option
+val find_parent_pos : 'a t -> dir -> int
 
 val current_is_playlist : 'a t -> bool
 val current_is_viewlist : 'a t -> bool

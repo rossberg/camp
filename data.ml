@@ -107,7 +107,6 @@ type 'view dir =
   parent : path option;
   nest : int;
   mutable name : string;
-  mutable pos : int;
   mutable children : 'view dir array;
   mutable tracks : track array;
   mutable error : string;  (* for view lists *)
@@ -164,13 +163,12 @@ let date_of_year y =
 
 (* Constructors *)
 
-let make_dir path parent nest pos view : 'a dir =
+let make_dir path parent nest view : 'a dir =
   {
     path;
     parent;
     name = if path = "" then "" else File.name path;
     nest;
-    pos;
     children = [||];
     tracks = [||];
     error = "";

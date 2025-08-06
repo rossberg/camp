@@ -1067,13 +1067,6 @@ let busy_artists = Table.make 0
 let busy_albums = Table.make 0
 let busy_tracks = Table.make 0
 
-let find_root_pos (entries : _ Data.dir array) pos =
-  let rec loop i j =
-    if i = pos then j else
-    loop (i + 1) (if entries.(i).nest = 0 then j + 1 else j)
-  in loop 0 0
-
-
 let run_library (st : _ State.t) =
   let pl = st.playlist in
   let lib = st.library in
@@ -1200,20 +1193,25 @@ let run_library (st : _ State.t) =
         drag_on_playlist st;
       );
 
-      (* Check for root move *)
+      (* Check for sibling move *)
       Option.iter (fun i ->
         if Library.selected_dir lib <> Some i then
         (
           (* Drag over other browser entry *)
-          drag_on_browser st;
-
           Option.iter (fun j ->
             let dir = browser.entries.(j) in
-            if Data.is_root dir
-            && (i = Table.length browser || Data.is_root browser.entries.(i)) then
+            if
+              i = Table.length browser && Data.is_root dir ||
+              browser.entries.(i).parent = dir.parent
+            then
             (
               Api.Mouse.set_cursor (Ui.window lay.ui) `Point;
               Layout.browser_drag lay `Before browser;
+            )
+            else
+            (
+              (* Drag over other browser entry *)
+              drag_on_browser st;
             )
           ) (Library.selected_dir lib)
         )
@@ -1230,19 +1228,27 @@ let run_library (st : _ State.t) =
     Option.iter (fun i ->
       if Library.selected_dir lib <> Some i then
       (
-        (* Drop on other browser entry *)
-        drop_on_browser st tracks;
-
-        (* Check originating directory for being a root *)
+        (* Check originating directory for being a sibling *)
         Option.iter (fun j ->
           let dir = browser.entries.(j) in
-          if Data.is_root dir
-          && (i = Table.length browser || Data.is_root browser.entries.(i)) then
+          if
+            i = Table.length browser && Data.is_root dir ||
+            browser.entries.(i).parent = dir.parent
+          then
           (
-            (* Move position of root directory *)
-            let pos = find_root_pos entries j in
-            let pos' = find_root_pos entries i in
-            Library.move_root lib pos (if pos' > pos then pos' - 1 else pos');
+            (* Move position of child directory *)
+            let pos = Library.find_parent_pos lib dir in
+            let pos' =
+              if i = Table.length browser
+              then Array.length lib.root.children
+              else Library.find_parent_pos lib entries.(i)
+            in
+            Library.move_dir lib dir pos (if pos' > pos then pos' - 1 else pos');
+          )
+          else
+          (
+            (* Drop on other browser entry *)
+            drop_on_browser st tracks;
           )
         ) (Library.selected_dir lib)
       )
@@ -1256,7 +1262,12 @@ let run_library (st : _ State.t) =
   if dropped <> [] then
   (
     Option.iter (fun i ->
-      if not (Library.insert_roots lib dropped (find_root_pos entries i)) then
+      let pos =
+        if i = Array.length entries
+        then Array.length lib.root.children
+        else Library.find_parent_pos entries.(i)
+      in
+      if not (Library.insert_roots lib dropped pos) then
         Layout.browser_error_box lay;  (* flash *)
     ) (Layout.browser_mouse lay browser)
   );

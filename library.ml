@@ -327,6 +327,18 @@ and find_dir'' path (dir : dir) =
   else
     None
 
+let find_parent lib (dir : _ Data.dir) =
+  match dir.parent with
+  | None -> None
+  | Some "" -> Some lib.root
+  | Some path -> find_dir lib dir path
+
+let find_parent_pos lib (dir : _ Data.dir) =
+  let parent = Option.get (find_parent lib dir) in
+  let siblings = parent.children in
+  let rec loop i = if siblings.(i) == dir then i else loop (i + 1) in
+  loop 0
+
 let rec find_track lib path = find_track' path lib.root
 and find_track' path (dir : dir) =
   Array.find_map (find_track'' path) dir.children
@@ -964,6 +976,29 @@ let remove_dir lib path =
     refresh_browser lib;
     not (Array.exists (fun (dir : dir) -> dir.path = path) parent.children)
 
+let move_dir lib dir pos pos' =
+  if pos <> pos' then
+  (
+Printf.printf "[move_dir %s %d->%d]\n%!" dir.path pos pos';
+    let children = dir.children in
+    assert (pos < Array.length children);
+    assert (pos' < Array.length children);
+    let lo, hi = min pos pos', max pos pos' in
+    dir.children <-  (* atomic update! *)
+      Array.init (Array.length children) (fun i ->
+        if i < lo || i > hi then
+          children.(i)
+        else if i = pos' then
+          children.(pos)
+        else if pos < pos' then
+          children.(i + 1)
+        else
+          children.(i - 1)
+      );
+    Atomic.set lib.scan.changed true;
+    refresh_browser lib
+  )
+
 
 let current_is_playlist lib =
   match lib.current with
@@ -1285,26 +1320,6 @@ let insert_roots lib paths pos =
   with Failure msg ->
     error lib msg;
     false
-
-let move_root lib pos pos' =
-  if pos <> pos' then
-  (
-    let roots = lib.root.children in
-    let lo, hi = min pos pos', max pos pos' in
-    lib.root.children <-  (* atomic update! *)
-      Array.init (Array.length roots) (fun i ->
-        if i < lo || i > hi then
-          roots.(i)
-        else if i = pos' then
-          roots.(pos)
-        else if pos < pos' then
-          roots.(i + 1)
-        else
-          roots.(i - 1)
-      );
-    Atomic.set lib.scan.changed true;
-    refresh_browser lib
-  )
 
 let remove_root lib path =
   let dirpath = File.(path // "") in
