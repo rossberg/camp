@@ -485,16 +485,19 @@ let focus' ui x y w h c style =
   let c1 = `Trans (c, 0x60 (* 0x40 *)) in
   let c2 = `Trans (c, 0x00) in
   let b = 8 (* 6 *) in
-  Draw.gradient ui.win x y w b c1 `Vertical c2;
-  if style = `Into then
-  (
-    Draw.gradient ui.win x (y + h - b) w b c2 `Vertical c1;
+  match style with
+  | `Before ->
+    Draw.gradient ui.win x y w b c1 `Vertical c2;
+  | `Into ->
+    Draw.gradient ui.win x y w b c1 `Vertical c2;
+    Draw.gradient ui.win x (y + h - b) w b c2 `Vertical c1
+(*
     Draw.gradient ui.win x y b h c1 `Horizontal c2;
     Draw.gradient ui.win (x + w - b) y b h c2 `Horizontal c1
-(*
-  Draw.fill ui.win x y w h (`Trans (c, 0x20))
 *)
-  )
+(*
+    Draw.fill ui.win x y w h (`Trans (c, 0x20))
+*)
 
 
 let focus ui area =
