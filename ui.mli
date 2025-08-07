@@ -46,7 +46,7 @@ val font : t -> int -> Api.font
 
 val nocover : t -> Api.image
 
-(* Input elements *)
+(* Input *)
 
 type way = [`Start | `Inside | `Outside | `Outward | `Inward]
 
@@ -55,7 +55,7 @@ val mouse : t -> area -> side -> bool
 val drag : t -> area -> size -> [`Drag of size * way | `Take | `Drop | `Click | `None]
 val wheel : t -> area -> float * float
 
-(* UI elements *)
+(* Widgets *)
 
 type align = [`Left | `Center | `Right]
 type inversion = [`Regular | `Inverted]
@@ -99,79 +99,85 @@ val table : t -> area -> int -> int -> column array -> row array -> int ->
 val header : t -> area -> int -> column array -> heading -> int ->
   [`Click of int | `Resize of int array | `Reorder of int array | `None]
 
+(* Rich widgets *)
+
 type cached
+
+type rich_table =
+  { gutter_w : int;
+    row_h : int;
+    scroll_w : int ;
+    scroll_h : int;
+    refl_r : int;
+    has_heading : bool
+  }
+
+type table_action =
+  [ `Click of int option
+  | `Select
+  | `Scroll
+  | `Move of int
+  | `Drag of int * way
+  | `Drop
+  | `None
+  ]
+
+type rich_table_action =
+  [ table_action
+  | `Sort of int
+  | `Resize of int array   (* new sizes *)
+  | `Reorder of int array  (* permutation *)
+  ]
 
 val rich_table :
   t -> 
   area ->
-  int ->  (* gutter width *)
-  int ->  (* row height *)
-  int ->  (* vertical scroll bar width *)
-  int ->  (* horizontal scroll bar height (can be 0) *)
-  int ->  (* mouse reflection radius *)
+  rich_table ->
   column array ->                    (* column layout *)
-  heading option ->                  (* headers *)
+  heading option ->                  (* headers (None if has_heading = false) *)
   ('a, cached) Table.t ->            (* data *)
   (int -> color * cell array) ->     (* row generator *)
-    [ `Click of int option
-    | `Select
-    | `Scroll
-    | `Sort of int
-    | `Resize of int array   (* new sizes *)
-    | `Reorder of int array  (* permutation *)
-    | `Move of int
-    | `Drag of int * way
-    | `Drop
-    | `None
-    ]
+    rich_table_action
 
-val rich_table_inner : t -> area -> int -> int  -> int -> int -> bool -> area
-val rich_table_mouse : t -> area -> int -> int  -> int -> int -> bool ->
-  ('a, cached) Table.t -> int option
-val rich_table_drag : t -> area -> int -> int  -> int -> int -> bool ->
+val rich_table_inner : t -> area -> rich_table -> area
+val rich_table_mouse : t -> area -> rich_table -> ('a, cached) Table.t ->
+  int option
+val rich_table_drag : t -> area -> rich_table ->
   [`Before | `Into] -> ('a, cached) Table.t -> unit
+
+type browser_action =
+  [ table_action
+  | `Fold of int
+  ]
 
 val browser :
   t ->
   area ->
-  int ->  (* row height *)
-  int ->  (* vertical scroll bar width *)
-  int ->  (* horizontal scroll bar height (can be 0) *)
-  int ->  (* mouse reflection radius *)
+  rich_table ->  (* gutter_w unused *)
   ('a, cached) Table.t ->                         (* data *)
   (int -> int * bool option * color * string) ->  (* entry generator *)
-    [ `Click of int option
-    | `Select
-    | `Scroll
-    | `Move of int
-    | `Fold of int
-    | `Drag of int * way
-    | `Drop
-    | `None
-    ]
+    browser_action
 
-val grid : t -> area -> int -> int -> int ->
+val grid :
+  t -> area -> int -> int -> int ->
   (image * color * inversion * string) option array array -> (int * int) option
+
+type grid_table =
+  { gutter_w : int;
+    img_h : int;
+    text_h : int;
+    scroll_w : int ;
+    refl_r : int;
+    has_heading : bool
+  }
+
+type grid_table_action = rich_table_action
 
 val grid_table :
   t ->
   area ->
-  int ->    (* gutter width *)
-  int ->    (* image width/height *)
-  int ->    (* text height *)
-  int ->    (* vertical scroll bar width *)
-  int ->    (* mouse reflection radius *)
-  heading option ->
+  grid_table ->
+  heading option ->  (* None if has_heading = false*)
   ('a, cached) Table.t ->
   (int -> Api.image * string) ->
-    [ `Click of int option
-    | `Select
-    | `Scroll
-    | `Sort of int
-    | `Resize of int array
-    | `Reorder of int array
-    | `Move of int
-    | `Drag of int * way
-    | `Drop
-    | `None
-    ]
+    grid_table_action

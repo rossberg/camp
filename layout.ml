@@ -69,6 +69,25 @@ let indicator_w _g = 7
 let bottom_h g = g.text + g.margin
 let footer_y g = - g.text - (bottom_h g - g.text)/2
 
+let rich_table g sh has_heading : Ui.rich_table =
+  { gutter_w = gutter_w g;
+    row_h = text_h g;
+    scroll_w = scrollbar_w g;
+    scroll_h = sh * scrollbar_w g;
+    refl_r = g.reflection;
+    has_heading
+  }
+
+let grid_table g img_h has_heading : Ui.grid_table =
+  { gutter_w = gutter_w g;
+    img_h;
+    text_h = text_h g;
+    scroll_w = scrollbar_w g;
+    refl_r = g.reflection;
+    has_heading
+  }
+
+
 
 let control_min_w = 360
 let control_min_h = 160
@@ -240,9 +259,9 @@ let playlist_pane g = Ui.pane g.ui pp (playlist_x g, control_h g, control_w g, -
 
 (* Playlist *)
 let playlist_area g = (pp, margin g, margin g, - margin g, - 1)
-let playlist_table g = Ui.rich_table g.ui (playlist_area g) (gutter_w g) (text_h g) (scrollbar_w g) 0 g.reflection
-let playlist_mouse g = Ui.rich_table_mouse g.ui (playlist_area g) (gutter_w g) (text_h g) (scrollbar_w g) 0 false
-let playlist_drag g = Ui.rich_table_drag g.ui (playlist_area g) (gutter_w g) (text_h g) (scrollbar_w g) 0 false `Before
+let playlist_table g = Ui.rich_table g.ui (playlist_area g) (rich_table g 0 false)
+let playlist_mouse g = Ui.rich_table_mouse g.ui (playlist_area g) (rich_table g 0 false)
+let playlist_drag g = Ui.rich_table_drag g.ui (playlist_area g) (rich_table g 0 false) `Before
 
 (* Total text field *)
 let total_w g = - margin g - scrollbar_w g
@@ -346,9 +365,9 @@ let search_text g = Ui.rich_edit_text g.ui (bp, search_x g + 2, search_y g, - di
 (* Browser *)
 let browser_y g = search_y g + text_h g + margin g
 let browser_area g = (bp, margin g, browser_y g, - divider_w g, - bottom_h g)
-let browser_table g = Ui.browser g.ui (browser_area g) (text_h g) (scrollbar_w g) 0 g.reflection
-let browser_mouse g = Ui.rich_table_mouse g.ui (browser_area g) (gutter_w g) (text_h g) (scrollbar_w g) 0 false
-let browser_drag g = Ui.rich_table_drag g.ui (browser_area g) (gutter_w g) (text_h g) (scrollbar_w g) 0 false
+let browser_table g = Ui.browser g.ui (browser_area g) (rich_table g 0 false)
+let browser_mouse g = Ui.rich_table_mouse g.ui (browser_area g) (rich_table g 0 false)
+let browser_drag g = Ui.rich_table_drag g.ui (browser_area g) (rich_table g 0 false)
 let browser_error_box g = Ui.box g.ui (browser_area g) (Ui.error_color g.ui)
 
 let del_key g = Ui.key g.ui ([`Command], `Delete) true
@@ -377,10 +396,10 @@ let lp = bp + 1
 let left_pane g = Ui.pane g.ui lp (left_x g, 0, left_w g, upper_h g)
 
 let left_area g = (lp, 0, margin g, -1, -1)
-let left_table g = Ui.rich_table g.ui (left_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) g.reflection
-let left_grid g iw = Ui.grid_table g.ui (left_area g) (gutter_w g) iw (text_h g) (scrollbar_w g) g.reflection
-let left_mouse g = Ui.rich_table_mouse g.ui (left_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
-let left_drag g = Ui.rich_table_drag g.ui (left_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true `Before
+let left_table g = Ui.rich_table g.ui (left_area g) (rich_table g 1 true)
+let left_grid g iw = Ui.grid_table g.ui (left_area g) (grid_table g iw true)
+let left_mouse g = Ui.rich_table_mouse g.ui (left_area g) (rich_table g 1 true)
+let left_drag g = Ui.rich_table_drag g.ui (left_area g) (rich_table g 1 true) `Before
 let left_spin g = Ui.text g.ui (lp, 4, margin g + text_h g + 4, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
 
 let left_view = left_pane, left_area, left_table, left_grid, left_spin
@@ -392,10 +411,10 @@ let right_pane g = Ui.pane g.ui rp (left_x g + g.left_width, 0, right_w g, upper
 let right_divider g = Ui.divider g.ui (rp, 0, 0, divider_w g, -1) `Horizontal
 
 let right_area g = (rp, divider_w g, margin g, -1, -1)
-let right_table g = Ui.rich_table g.ui (right_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) g.reflection
-let right_grid g iw = Ui.grid_table g.ui (right_area g) (gutter_w g) iw (text_h g) (scrollbar_w g) g.reflection
-let right_mouse g = Ui.rich_table_mouse g.ui (right_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
-let right_drag g = Ui.rich_table_drag g.ui (right_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true `Before
+let right_table g = Ui.rich_table g.ui (right_area g) (rich_table g 1 true)
+let right_grid g iw = Ui.grid_table g.ui (right_area g) (grid_table g iw true)
+let right_mouse g = Ui.rich_table_mouse g.ui (right_area g) (rich_table g 1 true)
+let right_drag g = Ui.rich_table_drag g.ui (right_area g) (rich_table g 1 true) `Before
 let right_spin g = Ui.text g.ui (rp, divider_w g + 4, margin g + text_h g + 4, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
 
 let right_view = right_pane, right_area, right_table, right_grid, right_spin
@@ -407,10 +426,10 @@ let lower_pane g = Ui.pane g.ui lp (left_x g, g.upper_height, library_w g - g.br
 let lower_divider g = Ui.divider g.ui (lp, 0, 0, -1, divider_w g) `Vertical
 
 let lower_area g = (lp, 0, divider_w g, -1, -1)
-let lower_table g = Ui.rich_table g.ui (lower_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) g.reflection
-let lower_grid g iw = Ui.grid_table g.ui (lower_area g) (gutter_w g) iw (text_h g) (scrollbar_w g) g.reflection
-let lower_mouse g = Ui.rich_table_mouse g.ui (lower_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
-let lower_drag g = Ui.rich_table_drag g.ui (lower_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true `Before
+let lower_table g = Ui.rich_table g.ui (lower_area g) (rich_table g 1 true)
+let lower_grid g iw = Ui.grid_table g.ui (lower_area g) (grid_table g iw true)
+let lower_mouse g = Ui.rich_table_mouse g.ui (lower_area g) (rich_table g 1 true)
+let lower_drag g = Ui.rich_table_drag g.ui (lower_area g) (rich_table g 1 true) `Before
 let lower_spin g = Ui.text g.ui (lp, 4, divider_w g + text_h g + 4, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
 
 let lower_view = lower_pane, lower_area, lower_table, lower_grid, lower_spin
@@ -440,8 +459,8 @@ let directories_divider g = Ui.divider g.ui (dp, - divider_w g, margin g, divide
 
 (* Directories Browser *)
 let directories_area g = (dp, margin g, margin g, - divider_w g, - bottom_h g)
-let directories_table g = Ui.browser g.ui (directories_area g) (text_h g) (scrollbar_w g) (scrollbar_w g) g.reflection
-let directories_mouse g = Ui.rich_table_mouse g.ui (directories_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) false
+let directories_table g = Ui.browser g.ui (directories_area g) (rich_table g 1 false)
+let directories_mouse g = Ui.rich_table_mouse g.ui (directories_area g) (rich_table g 1 false)
 
 (* Buttons *)
 let select_w g = (g.directories_width - margin g - divider_w g) / 2
@@ -462,8 +481,8 @@ let files_pane g = Ui.pane g.ui fp (library_x g + g.directories_width, 0, librar
 
 (* Table *)
 let files_area g = (fp, 0, margin g, -1, -bottom_h g)
-let files_table g = Ui.rich_table g.ui (files_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) g.reflection
-let files_mouse g = Ui.rich_table_mouse g.ui (files_area g) (gutter_w g) (text_h g) (scrollbar_w g) (scrollbar_w g) true
+let files_table g = Ui.rich_table g.ui (files_area g) (rich_table g 1 true)
+let files_mouse g = Ui.rich_table_mouse g.ui (files_area g) (rich_table g 1 true)
 
 (* Input field *)
 let file_label_w _g = 20

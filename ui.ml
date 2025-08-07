@@ -985,29 +985,58 @@ let header ui area gw cols (titles, sorting) hscroll =
 
 type cached = buffer
 
-let rich_table_inner _ui area _gw ch sw sh has_heading =
-  let (p, ax, ay, aw, ah) = area in
-  let ty = if not has_heading then ay else ay + ch + 2 in
-  let th =
-    ah - (if ah < 0 then 0 else ty - ay) - (if sh = 0 then 0 else sh + 1) in
-  (p, ax, ty, aw - sw - 1, th)
+type rich_table =
+  { gutter_w : int;
+    row_h : int;
+    scroll_w : int ;
+    scroll_h : int;
+    refl_r : int;
+    has_heading : bool
+  }
 
-let rich_table_mouse ui area gw ch sw sh has_heading (tab : _ Table.t) =
-  let area' = rich_table_inner ui area gw ch sw sh has_heading in
+type table_action =
+  [ `Click of int option
+  | `Select
+  | `Scroll
+  | `Move of int
+  | `Drag of int * way
+  | `Drop
+  | `None
+  ]
+
+type rich_table_action =
+  [ table_action
+  | `Sort of int
+  | `Resize of int array   (* new sizes *)
+  | `Reorder of int array  (* permutation *)
+  ]
+
+let rich_table_inner _ui area geo =
+  let p, ax, ay, aw, ah = area in
+  let ty = if not geo.has_heading then ay else ay + geo.row_h + 2 in
+  let th =
+    ah -
+    (if ah < 0 then 0 else ty - ay) -
+    (if geo.scroll_h = 0 then 0 else geo.scroll_h + 1)
+  in
+  (p, ax, ty, aw - geo.scroll_w - 1, th)
+
+let rich_table_mouse ui area geo tab =
+  let area' = rich_table_inner ui area geo in
   let (_, y, _, _) as r = dim ui area' in
   let (_, my) as m = Mouse.pos ui.win in
   if inside m r then
-    Some (min (Table.length tab) ((my - y) / ch + tab.vscroll))
+    Some (min (Table.length tab) ((my - y) / geo.row_h + tab.vscroll))
   else
     None
 
-let rich_table_drag ui area gw ch sw sh has_heading style (tab : _ Table.t) =
-  match rich_table_mouse ui area gw ch sw sh has_heading tab with
+let rich_table_drag ui area geo style tab =
+  match rich_table_mouse ui area geo tab with
   | None -> ()
   | Some i ->
-    let area' = rich_table_inner ui area gw ch sw sh has_heading in
+    let area' = rich_table_inner ui area geo in
     let x, y, w, _ = dim ui area' in
-    focus' ui x (y + i * ch) w ch `White style
+    focus' ui x (y + i * geo.row_h) w geo.row_h `White style
 
 let adjust_cache tab w h =
   Option.iter (fun buf ->
@@ -1024,16 +1053,17 @@ let adjust_cache tab w h =
     Table.cache tab buf;
     buf
 
-let rich_table ui area gw ch sw sh mr cols header_opt (tab : _ Table.t) pp_row =
-  let (p, ax, ay, aw, ah) = area in
-  let ty = if header_opt = None then ay else ay + ch + 2 in
-  let th = ah - (if ah < 0 then 0 else ty - ay) - (if sh = 0 then 0 else sh + 1) in
-  let header_area = (p, ax, ay, aw - sw - 1, ch) in
-  let table_area = (p, ax, ty, aw - sw - 1, th) in
+let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_row =
+  assert (geo.has_heading = Option.is_some header_opt);
+  let p, ax, ay, aw, ah = area in
+  let rh = geo.row_h in
+  let _, _, ty, tw, th = rich_table_inner ui area geo in
+  let header_area = (p, ax, ay, tw, rh) in
+  let table_area = (p, ax, ty, tw, th) in
   let vscroll_area = 
-    (p, (if aw < 0 then aw - sw - 1 else ax + aw + 1), ay, sw, ah) in
+    (p, (if aw < 0 then tw else ax + aw + 1), ay, geo.scroll_w, ah) in
   let hscroll_area =
-    (p, ax, (if ah < 0 then ah - sh else ty + th + 1), aw - sw - 1, sh) in
+    (p, ax, (if ah < 0 then ah - geo.scroll_h else ty + th + 1), tw, geo.scroll_h) in
   let (x, y, w, h) as r = dim ui table_area in
 
   let shift = Key.are_modifiers_down [`Shift] in
@@ -1041,7 +1071,7 @@ let rich_table ui area gw ch sw sh mr cols header_opt (tab : _ Table.t) pp_row =
 
   Mutex.protect tab.mutex (fun () ->
     let len = Table.length tab in
-    let page = max 1 (int_of_float (Float.floor (float h /. float ch))) in
+    let page = max 1 (int_of_float (Float.floor (float h /. float rh))) in
     (* Correct scrolling position for possible resize *)
     Table.adjust_vscroll tab tab.vscroll page;
 
@@ -1058,7 +1088,7 @@ let rich_table ui area gw ch sw sh mr cols header_opt (tab : _ Table.t) pp_row =
         )
       in
       Draw.buffered ui.win buf;
-      table' ui (-1, 0, 0, w, h) gw ch cols rows tab.hscroll;
+      table' ui (-1, 0, 0, w, h) geo.gutter_w rh cols rows tab.hscroll;
       Draw.unbuffered ui.win;
       Table.clean tab;
     );
@@ -1069,7 +1099,7 @@ let rich_table ui area gw ch sw sh mr cols header_opt (tab : _ Table.t) pp_row =
       (* Mirrors logic in table *)
       if status = `Pressed || status = `Released then
         let _, my = Mouse.pos ui.win in
-        Some ((my - y) / ch)
+        Some ((my - y) / rh)
       else
          None
     in
@@ -1082,7 +1112,7 @@ let rich_table ui area gw ch sw sh mr cols header_opt (tab : _ Table.t) pp_row =
         let limit = min len (tab.vscroll + page) in
         if not (shift || command) then
         (
-          match drag_status ui r (max_int, ch) with
+          match drag_status ui r (max_int, rh) with
           | `None -> `None
 
           | `Take ->
@@ -1166,7 +1196,7 @@ let rich_table ui area gw ch sw sh mr cols header_opt (tab : _ Table.t) pp_row =
       match header_opt with
       | None -> result
       | Some heading ->
-        match header ui header_area gw cols heading tab.hscroll with
+        match header ui header_area geo.gutter_w cols heading tab.hscroll with
         | `Click i -> Table.dirty tab; `Sort i
         | `Resize ws -> Table.dirty tab; `Resize ws
         | `Reorder perm -> Table.dirty tab; `Reorder perm
@@ -1177,8 +1207,8 @@ let rich_table ui area gw ch sw sh mr cols header_opt (tab : _ Table.t) pp_row =
     let wdx, wdy = wheel_status ui r in
     let wdx, wdy = if Float.abs wdx > Float.abs wdy then wdx, 0.0 else 0.0, wdy in
     let vwheel = not shift && len > page || wdy = 0.0 in
-    let h' = page * ch in
-    let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * ch)) in
+    let h' = page * rh in
+    let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * rh)) in
     let pos = if len = 0 then 0.0 else float tab.vscroll /. float len in
     let coeff = max 1.0 (float page /. 4.0) /. float (len - page) in
     let wheel = if vwheel then coeff *. wdy else 0.0 in
@@ -1194,8 +1224,8 @@ let rich_table ui area gw ch sw sh mr cols header_opt (tab : _ Table.t) pp_row =
 
     (* Horizontal scrollbar *)
     let result =
-      if sh = 0 then result else
-      let vw = Array.fold_left (fun w (cw, _) -> w + cw + gw) 0 cols in
+      if geo.scroll_h = 0 then result else
+      let vw = Array.fold_left (fun w (cw, _) -> w + cw + geo.gutter_w) 0 cols in
       let vw' = max vw (tab.hscroll + w) in
       let ext = if vw' = 0 then 1.0 else min 1.0 (float w /. float vw') in
       let pos = if vw' = 0 then 0.0 else float tab.hscroll /. float vw' in
@@ -1211,7 +1241,7 @@ let rich_table ui area gw ch sw sh mr cols header_opt (tab : _ Table.t) pp_row =
 
     (* Focus and mouse reflection *)
     if tab.focus && len > 0 then focus ui table_area;
-    mouse_reflection ui area mr;
+    mouse_reflection ui area geo.refl_r;
 
     (* Keys *)
     let result =
@@ -1338,7 +1368,7 @@ let rich_table ui area gw ch sw sh mr cols header_opt (tab : _ Table.t) pp_row =
     in
 
     let result =
-      if result <> `None || not tab.focus || sh = 0 then result else
+      if result <> `None || not tab.focus || geo.scroll_h = 0 then result else
       (
         let step = if shift then 10 else 50 in
         let dh =
@@ -1407,14 +1437,28 @@ let grid ui area gw iw ch matrix =
     None
 
 
-let grid_table ui area gw iw ch sw mr header_opt (tab : _ Table.t) pp_cell =
+type grid_table =
+  { gutter_w : int;
+    img_h : int;
+    text_h : int;
+    scroll_w : int ;
+    refl_r : int;
+    has_heading : bool
+  }
+
+type grid_table_action = rich_table_action
+
+let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
+  assert (geo.has_heading = Option.is_some header_opt);
   let (p, ax, ay, aw, ah) = area in
-  let ty = if header_opt = None then ay else ay + ch + 2 in
+  let ch = geo.text_h in
+  let ty = if not geo.has_heading then ay else ay + ch + 2 in
+  let tw = aw - geo.scroll_w - 1 in
   let th = ah - (if ah < 0 then 0 else ty - ay) in
-  let header_area = (p, ax, ay, aw - sw - 1, ch) in
-  let table_area = (p, ax, ty, aw - sw - 1, th) in
+  let header_area = (p, ax, ay, tw, ch) in
+  let table_area = (p, ax, ty, tw, th) in
   let vscroll_area = 
-    (p, (if aw < 0 then aw - sw - 1 else ax + aw + 1), ay, sw, ah) in
+    (p, (if aw < 0 then tw else ax + aw + 1), ay, geo.scroll_w, ah) in
   let (x, y, w, h) as r = dim ui table_area in
 
   let shift = Key.are_modifiers_down [`Shift] in
@@ -1422,9 +1466,11 @@ let grid_table ui area gw iw ch sw mr header_opt (tab : _ Table.t) pp_cell =
 
   Mutex.protect tab.mutex (fun () ->
     let len = Array.length tab.entries in
-    let line = max 1 Float.(to_int (floor (float w /. float (iw + gw)))) in
+    let iw = geo.gutter_w + geo.img_h in
+    let ih = iw + ch in
+    let line = max 1 Float.(to_int (floor (float w /. float iw))) in
     let page =
-      max 1 Float.(to_int (floor (float h /. float (iw + gw + ch))) * line) in
+      max 1 Float.(to_int (floor (float h /. float ih)) * line) in
     (* Correct scrolling position for possible resize *)
     Table.adjust_vscroll tab tab.vscroll page;
 
@@ -1445,7 +1491,7 @@ let grid_table ui area gw iw ch sw mr header_opt (tab : _ Table.t) pp_cell =
         )
       in
       Draw.buffered ui.win buf;
-      grid' ui (-1, 0, 0, w, h) gw iw ch matrix;
+      grid' ui (-1, 0, 0, w, h) geo.gutter_w geo.img_h geo.text_h matrix;
       Draw.unbuffered ui.win;
       Table.clean tab;
     );
@@ -1456,7 +1502,7 @@ let grid_table ui area gw iw ch sw mr header_opt (tab : _ Table.t) pp_cell =
       (* Mirrors logic in grid *)
       if status = `Pressed || status = `Released then
         let mx, my = Mouse.pos ui.win in
-        Some ((mx - x) / (iw + gw), (my - y) / (iw + ch + gw))
+        Some ((mx - x) / iw, (my - y) / ih)
       else
         None
     in
@@ -1554,7 +1600,7 @@ let grid_table ui area gw iw ch sw mr header_opt (tab : _ Table.t) pp_cell =
       | None -> result
       | Some heading ->
         let cols = Array.map (Fun.const (40, `Left)) (fst heading) in
-        match header ui header_area gw cols heading tab.hscroll with
+        match header ui header_area geo.gutter_w cols heading tab.hscroll with
         | `Click i -> `Sort i
         | `Resize ws -> `Resize ws
         | `Reorder perm -> `Reorder perm
@@ -1577,7 +1623,7 @@ let grid_table ui area gw iw ch sw mr header_opt (tab : _ Table.t) pp_cell =
     in
 
     (* Mouse reflection *)
-    mouse_reflection ui area mr;
+    mouse_reflection ui area geo.refl_r;
 
     (* Keys *)
     let result =
@@ -1701,11 +1747,16 @@ let grid_table ui area gw iw ch sw mr header_opt (tab : _ Table.t) pp_cell =
 
 (* Browser *)
 
+type browser_action =
+  [ table_action
+  | `Fold of int
+  ]
+
 let symbol_empty = " ○"
 let symbol_folded = "►" (* "▸" *)
 let symbol_unfolded = "▼" (* "▾" *)
 
-let browser ui area rh sw sh mr (tab : _ Table.t) pp_entry =
+let browser ui area geo (tab : _ Table.t) pp_entry =
   let cols = [|-1, `Left|] in
   let pp_pre nest folded =
     let sym =
@@ -1721,7 +1772,7 @@ let browser ui area rh sw sh mr (tab : _ Table.t) pp_entry =
   in
 
   let selected = tab.selected in
-  (match rich_table ui area 0 rh sw sh mr cols None tab pp_row with
+  (match rich_table ui area geo cols None tab pp_row with
   | `None -> `None
   | `Scroll -> `Scroll
   | `Move i -> `Move i
@@ -1743,7 +1794,7 @@ let browser ui area rh sw sh mr (tab : _ Table.t) pp_entry =
     let mx, _ = Mouse.pos ui.win in
     let x, _, _, _ = dim ui area in
     let nest, folded, _, _ = pp_entry i in
-    let tw = Draw.text_width ui.win rh (font ui rh) (pp_pre nest folded) in
+    let tw = Draw.text_width ui.win geo.row_h (font ui geo.row_h) (pp_pre nest folded) in
     if mx + tab.hscroll < x + tw
     && Mouse.(is_down `Left || is_released `Left) then
     (
