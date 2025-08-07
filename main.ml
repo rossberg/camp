@@ -942,7 +942,7 @@ let run_playlist (st : _ State.t) =
 
   (match Layout.playlist_table lay cols None tab pp_row with
   | `None | `Scroll -> ()
-  | `Sort _ | `Arrange -> assert false
+  | `Sort _ | `Resize _ | `Reorder _ -> assert false
 
   | `Select ->
     State.focus_playlist st;
@@ -1611,10 +1611,14 @@ let run_library (st : _ State.t) =
       Library.save_dir lib dir;
       Library.reorder_artists lib;
 
-    | `Arrange ->
+    | `Resize ws ->
       (* Column resizing: update column widths *)
-      Array.mapi_inplace (fun i (a, _) ->
-        a, fst cols.(i)) view.artists.columns;
+      Array.mapi_inplace (fun i (a, _) -> a, ws.(i)) view.artists.columns;
+      if have_dir then Library.save_dir lib dir;
+
+    | `Reorder perm ->
+      (* Column reordering: update columns *)
+      Data.permute perm view.artists.columns;
       if have_dir then Library.save_dir lib dir;
 
     | `Click (Some _i) when Api.Mouse.is_doubleclick `Left ->
@@ -1749,9 +1753,14 @@ let run_library (st : _ State.t) =
       Library.save_dir lib dir;
       Library.reorder_albums lib;
 
-    | `Arrange ->
+    | `Resize ws ->
       (* Column resizing: update column widths *)
-      Array.mapi_inplace (fun i (a, _) -> a, fst cols.(i)) view.albums.columns;
+      Array.mapi_inplace (fun i (a, _) -> a, ws.(i)) view.albums.columns;
+      if have_dir then Library.save_dir lib dir;
+
+    | `Reorder perm ->
+      (* Column reordering: update columns *)
+      Data.permute perm view.albums.columns;
       if have_dir then Library.save_dir lib dir;
 
     | `Click (Some _i) when Api.Mouse.is_doubleclick `Left ->
@@ -1907,9 +1916,14 @@ let run_library (st : _ State.t) =
       Library.save_dir lib dir;
       Library.reorder_tracks lib;
 
-    | `Arrange ->
+    | `Resize ws ->
       (* Column resizing: update column widths *)
-      Array.mapi_inplace (fun i (a, _) -> a, fst cols.(i)) view.tracks.columns;
+      Array.mapi_inplace (fun i (a, _) -> a, ws.(i)) view.tracks.columns;
+      if have_dir then Library.save_dir lib dir;
+
+    | `Reorder perm ->
+      (* Column reordering: update columns *)
+      Data.permute perm view.tracks.columns;
       if have_dir then Library.save_dir lib dir;
 
     | `Click (Some i) when Api.Mouse.is_doubleclick `Left ->
@@ -2205,9 +2219,13 @@ let run_filesel (st : _ State.t) =
       Filesel.reorder_files fs i;
       false
 
-    | `Arrange ->
+    | `Resize ws ->
       (* Column resizing: update column widths *)
-      Array.mapi_inplace (fun i _ -> fst cols.(i)) fs.columns;
+      Array.blit ws 0 fs.columns 0 (Array.length ws);
+      false
+
+    | `Reorder _ ->
+      (* Column reordering: ignore *)
       false
 
     | `Click None ->

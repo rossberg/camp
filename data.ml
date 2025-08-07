@@ -240,6 +240,11 @@ let make_separator () : track =
   track
 
 
+let permute perm a =
+  let a' = Array.copy a in
+  Array.mapi_inplace (fun i _ -> a'.(perm.(i))) a
+
+
 (* String Conversion *)
 
 let fmt = Printf.sprintf

@@ -839,8 +839,11 @@ let table ui area gw ch cols rows hscroll =
 let symbols_asc = [|"▲" (* "▴" *); "▲'" (* "△", "▵", "▵" *); "▲''"; "▲'''"|]
 let symbols_desc = [|"▼" (* "▾" *); "▼'" (* "▽", "▾", "▿" *); "▼''"; "▼'''"|]
 
+type drag += Header_resize of {mouse_x : int; col : int}
+type drag += Header_reorder of {mouse_x : int; col : int}
+
 let header ui area gw cols (titles, sorting) hscroll =
-  let (x, y, w, h) as r, status = element ui area no_modkey in
+  let (x, y, w, h), status = element ui area no_modkey in
   let texts = Array.map (fun s -> `Text s) titles in
   ignore (table ui area gw h cols [|text_color ui, `Inverted, texts|] hscroll);
 
@@ -870,14 +873,14 @@ let header ui area gw cols (titles, sorting) hscroll =
   Draw.unclip ui.win;
 
   let gutter_tolerance = 5 in
-  let rec find_gutter' mx i cx =
-    if i = Array.length cols then None else
+  let rec find_gutter' cols mx i cx =
+    if i = Array.length cols then `None else
     let cx' = cx + fst cols.(i) in
-    if abs (cx' + gw/2 - mx) < gutter_tolerance then Some i else
-    if cx' + gw/2 < mx then find_gutter' mx (i + 1) (cx' + gw) else
-    None
+    if abs (cx' + gw/2 - mx) < gutter_tolerance then `Gutter i else
+    if cx' + gw/2 < mx then find_gutter' cols mx (i + 1) (cx' + gw) else
+    `Header i
   in
-  let find_gutter mx = find_gutter' mx 0 (x + mw - hscroll) in
+  let find_gutter cols mx = find_gutter' cols mx 0 (x + mw - hscroll) in
 
   let rec find_heading' mx i cx =
     if i = Array.length cols then `None else
@@ -889,22 +892,93 @@ let header ui area gw cols (titles, sorting) hscroll =
   let find_heading mx = find_heading' mx 0 (x + mw - hscroll) in
 
   let mx, _ = Mouse.pos ui.win in
-  if status <> `Untouched && find_gutter mx <> None then
-    Mouse.set_cursor ui.win (`Resize `E_W);
+  match ui.drag_extra with
+  | No_drag ->
+    (match find_gutter cols mx with
+    | `None when status = `Released -> find_heading mx
+    | `None -> `None
+    | `Gutter col ->
+      Mouse.set_cursor ui.win (`Resize `E_W);
+      if status = `Pressed then
+        ui.drag_extra <- Header_resize {mouse_x = mx; col};
+      `None
+    | `Header col ->
+      if status = `Pressed then
+      (
+        Mouse.set_cursor ui.win `Point;
+        ui.drag_extra <- Header_reorder {mouse_x = mx; col};
+      );
+      `None
+    )
 
+  | Header_resize {mouse_x; col = i} when status = `Pressed ->
+    Mouse.set_cursor ui.win (`Resize `E_W);
+    let dx = mx - mouse_x in
+    if dx = 0 then `None else
+    let ws = Array.map fst cols in
+    ws.(i) <- max 0 (ws.(i) + dx);
+    if i + 1 < Array.length cols && Key.is_modifier_down `Shift then
+      ws.(i + 1) <- max 0 (ws.(i + 1) - dx);
+    ui.drag_extra <- Header_resize {mouse_x = mx; col = i};
+    `Resize ws
+
+  | Header_reorder {mouse_x; col = i} when status = `Pressed ->
+    Mouse.set_cursor ui.win `Point;
+    let dx = mx - mouse_x in
+    if dx = 0 then `None else
+    (match find_gutter cols mx with
+    | `None | `Gutter _ -> `None
+    | `Header j ->
+      if i = j then `None else
+      let perm =
+        Array.init (Array.length cols) (fun k ->
+          if k = j then i else
+          if k >= min i j && k <= max i j then k + j - i else
+          k
+        )
+      in
+      let cols' = Array.mapi (fun i _ -> cols.(perm.(i))) cols in
+      (* Ignore change if new position is not stable. *)
+      match find_gutter cols' mx with
+      | `Header k when k = j ->
+        ui.drag_extra <- Header_reorder {mouse_x = mx; col = j};
+        `Reorder perm
+      | _ -> `None
+    )
+
+  | _ -> `None
+
+(*
   match drag_status ui r (1, max_int) with
   | `None | `Take | `Drop -> `None
   | `Click -> find_heading mx
   | `Drag ((dx, _), _) ->
     if dx = 0 then `None else
     match find_gutter (mx - dx) with
-    | None -> `None
-    | Some i ->
+    | `None -> `None
+    | `Gutter i ->
       let add_fst d (x, y) = (max 0 (x + d), y) in
       cols.(i) <- add_fst dx cols.(i);
       if i + 1 < Array.length cols && Key.is_modifier_down `Shift then
         cols.(i + 1) <- add_fst (-dx) cols.(i + 1);
-      `Arrange
+      `Resize
+    | `Header i ->
+      match find_gutter mx with
+      | `None | `Gutter _ -> `None
+      | `Header j ->
+        if i = j then `None else
+        let save_cols = Array.copy cols in
+        let col = cols.(i) in
+        if i < j then
+          Array.blit cols (i + 1) cols i (j - i)
+        else
+          Array.blit cols j cols (j + 1) (i - j);
+        cols.(j) <- col;
+        (* Undo change if new position is not unambiguous. *)
+        match find_gutter mx with
+        | `Header k when k = j -> `Reorder
+        | _ -> Array.blit save_cols 0 cols 0 (Array.length cols); `None
+*)
 
 
 (* Rich Tables *)
@@ -1094,7 +1168,8 @@ let rich_table ui area gw ch sw sh mr cols header_opt (tab : _ Table.t) pp_row =
       | Some heading ->
         match header ui header_area gw cols heading tab.hscroll with
         | `Click i -> Table.dirty tab; `Sort i
-        | `Arrange -> Table.dirty tab; `Arrange
+        | `Resize ws -> Table.dirty tab; `Resize ws
+        | `Reorder perm -> Table.dirty tab; `Reorder perm
         | `None -> result
     in
 
@@ -1481,7 +1556,8 @@ let grid_table ui area gw iw ch sw mr header_opt (tab : _ Table.t) pp_cell =
         let cols = Array.map (Fun.const (40, `Left)) (fst heading) in
         match header ui header_area gw cols heading tab.hscroll with
         | `Click i -> `Sort i
-        | `Arrange -> `Arrange
+        | `Resize ws -> `Resize ws
+        | `Reorder perm -> `Reorder perm
         | `None -> result
     in
 
@@ -1651,7 +1727,7 @@ let browser ui area rh sw sh mr (tab : _ Table.t) pp_entry =
   | `Move i -> `Move i
   | `Drag (i, way) -> `Drag (i, way)
   | `Drop -> `Drop
-  | `Sort _ | `Arrange -> assert false
+  | `Sort _ | `Resize _ | `Reorder _ -> assert false
 
   | `Select ->
     (* TODO: allow multiple selections *)

@@ -97,7 +97,7 @@ type heading = string array * sorting
 val table : t -> area -> int -> int -> column array -> row array -> int ->
   int option
 val header : t -> area -> int -> column array -> heading -> int ->
-  [`Click of int | `Arrange | `None]
+  [`Click of int | `Resize of int array | `Reorder of int array | `None]
 
 type cached
 
@@ -117,7 +117,8 @@ val rich_table :
     | `Select
     | `Scroll
     | `Sort of int
-    | `Arrange
+    | `Resize of int array   (* new sizes *)
+    | `Reorder of int array  (* permutation *)
     | `Move of int
     | `Drag of int * way
     | `Drop
@@ -167,7 +168,8 @@ val grid_table :
     | `Select
     | `Scroll
     | `Sort of int
-    | `Arrange
+    | `Resize of int array
+    | `Reorder of int array
     | `Move of int
     | `Drag of int * way
     | `Drop
