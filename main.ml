@@ -1723,7 +1723,7 @@ let run_library (st : _ State.t) =
         Data.album_attr_string album `AlbumArtist ^ " - " ^
         Data.album_attr_string album `AlbumTitle ^ " (" ^
         Data.album_attr_string album `Year ^ ")"
-      in img, txt
+      in img, Ui.text_color lay.ui, txt
     in
 
     let sorting = convert_sorting view.albums.columns view.albums.sorting in
@@ -1844,25 +1844,26 @@ let run_library (st : _ State.t) =
     && Api.Draw.frame win mod refresh_delay = 5 then
       Table.dirty tab;  (* to capture cover updates *)
 
+    let track_color (track : Data.track) =
+      if (track.status = `Undet || track.status = `Predet)
+      && Library.rescan_busy lib = None then
+        Track.update track;
+      match track.status with
+      | _ when track.path = current_path -> `White
+      | `Absent -> Ui.error_color lay.ui
+      | `Invalid -> Ui.warn_color lay.ui
+      | `Undet -> Ui.semilit_color (Ui.text_color lay.ui)
+      | `Predet | `Det ->
+        if track.pos = -1 || Data.is_separator track || Library.has_track lib track then
+          Ui.text_color lay.ui
+        else
+          Ui.warn_color lay.ui
+    in
+
     let entries = tab.entries in  (* may update concurrently *)
     let pp_row i =
       let track = entries.(i) in
-      let c =
-        if (track.status = `Undet || track.status = `Predet)
-        && Library.rescan_busy lib = None then
-          Track.update track;
-        match track.status with
-        | _ when track.path = current_path -> `White
-        | `Absent -> Ui.error_color lay.ui
-        | `Invalid -> Ui.warn_color lay.ui
-        | `Undet -> Ui.semilit_color (Ui.text_color lay.ui)
-        | `Predet | `Det ->
-          if track.pos = -1 || Data.is_separator track || Library.has_track lib track then
-            Ui.text_color lay.ui
-          else
-            Ui.warn_color lay.ui
-      in
-      c,
+      track_color track,
       Array.map (fun (attr, _) ->
         if attr <> `Cover then
           `Text (Data.track_attr_string track attr)
@@ -1885,7 +1886,7 @@ let run_library (st : _ State.t) =
         let title = Data.track_attr_string track `Title in
         let year = Data.track_attr_string track `Year in
         artist ^ " - " ^ title ^ (if year = "" then "" else " (" ^ year ^ ")")
-      in img, txt
+      in img, track_color track, txt
     in
 
     let sorting = convert_sorting view.tracks.columns view.tracks.sorting in

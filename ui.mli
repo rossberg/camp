@@ -179,5 +179,5 @@ val grid_table :
   grid_table ->
   heading option ->  (* None if has_heading = false*)
   ('a, cached) Table.t ->
-  (int -> Api.image * string) ->
+  (int -> Api.image * color * string) ->
     grid_table_action

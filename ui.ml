@@ -1478,13 +1478,12 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
     let buf = adjust_cache tab w h in
     if tab.dirty then
     (
-      let c = text_color ui in
       let matrix =
         Array.init page (fun j ->
           Array.init line (fun i ->
             let k = tab.vscroll + j * line + i in
             if k >= len then None else
-            let img, txt = pp_cell k in
+            let img, c, txt = pp_cell k in
             let inv = if Table.is_selected tab k then `Inverted else `Regular in
             Some (img, c, inv, txt)
           )
@@ -1515,7 +1514,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
         let on_bg = i >= line || k >= min len (tab.vscroll + page) in
         if not (shift || command) then
         (
-          match drag_status ui r (max_int, ch) with
+          match drag_status ui r (iw, ih) with
           | `None -> `None
 
           | `Take ->
@@ -1547,7 +1546,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
               `Click (Some i)
             )
 
-          | `Drag ((_, dy), way) -> `Drag (dy, way)
+          | `Drag ((dx, dy), way) -> `Drag (dx + dy * line, way)
 
           | `Drop -> `Drop
         )
@@ -1622,7 +1621,8 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
       )
     in
 
-    (* Mouse reflection *)
+    (* Focus and mouse reflection *)
+    if tab.focus && len > 0 then focus ui table_area;
     mouse_reflection ui area geo.refl_r;
 
     (* Keys *)
@@ -1726,7 +1726,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
             let s = Bytes.sub_string b 0 (Bytes.set_utf_8_uchar b 0 ch) in
             let rec find i =
               if i = Table.length tab then i else
-              let _, txt = pp_cell i in  (* TODO: only pp relevant column *)
+              let _, _, txt = pp_cell i in  (* TODO: only pp relevant column *)
               if Data.compare_utf_8 s txt <= 0 then i else find (i + 1)
             in
             let i = find 0 in
