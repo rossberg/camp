@@ -844,7 +844,7 @@ let symbols_asc = [|"▲" (* "▴" *); "▲'" (* "△", "▵", "▵" *); "▲''"
 let symbols_desc = [|"▼" (* "▾" *); "▼'" (* "▽", "▾", "▿" *); "▼''"; "▼'''"|]
 
 type drag += Header_resize of {mouse_x : int; col : int}
-type drag += Header_reorder of {mouse_x : int; col : int}
+type drag += Header_reorder of {mouse_x : int; col : int; moved : bool}
 
 let header ui area gw cols (titles, sorting) hscroll =
   let (x, y, w, h), status = element ui area no_modkey in
@@ -915,8 +915,7 @@ let header ui area gw cols (titles, sorting) hscroll =
         `Menu col
       else if status = `Pressed then
       (
-        Mouse.set_cursor ui.win `Point;
-        ui.drag_extra <- Header_reorder {mouse_x = mx; col};
+        ui.drag_extra <- Header_reorder {mouse_x = mx; col; moved = false};
         `None
       )
       else `None
@@ -933,10 +932,11 @@ let header ui area gw cols (titles, sorting) hscroll =
     ui.drag_extra <- Header_resize {mouse_x = mx; col = i};
     `Resize ws
 
-  | Header_reorder {mouse_x; col = i} when status = `Pressed ->
-    Mouse.set_cursor ui.win `Point;
+  | Header_reorder {mouse_x; col = i; moved} when status = `Pressed ->
+    if moved then Mouse.set_cursor ui.win `Point;
     let dx = mx - mouse_x in
     if dx = 0 then `None else
+    let _ = ui.drag_extra <- Header_reorder {mouse_x; col = i; moved = true} in
     (match find_gutter cols mx with
     | `None | `Gutter _ -> `None
     | `Header j ->
@@ -952,10 +952,13 @@ let header ui area gw cols (titles, sorting) hscroll =
       (* Ignore change if new position is not stable. *)
       match find_gutter cols' mx with
       | `Header k when k = j ->
-        ui.drag_extra <- Header_reorder {mouse_x = mx; col = j};
+        ui.drag_extra <- Header_reorder {mouse_x = mx; col = j; moved = true};
         `Reorder perm
       | _ -> `None
     )
+
+  | Header_reorder {col = i; moved = false; _} when status = `Released ->
+    `Click i
 
   | _ -> `None
 

@@ -973,7 +973,7 @@ let run_playlist (st : _ State.t) =
       State.focus_playlist st;
       if Playlist.num_selected pl > 0 then
       (
-        set_drop_cursor st;
+        if way <> `Start then set_drop_cursor st;
         match way with
         | `Start | `Inside | `Inward -> ()
         | `Outward | `Outside ->
@@ -1187,14 +1187,14 @@ let run_library (st : _ State.t) =
     Library.refresh_artists_albums_tracks lib;
     State.focus_library browser st;
 
-  | `Drag _ ->
+  | `Drag (_, way) ->
     (* Drag: adjust cursor *)
     if Api.Key.are_modifiers_down [] then
     (
       State.focus_library browser st;
       if lib.tracks.entries <> [||] then
       (
-        set_drop_cursor st;
+        if way <> `Start then set_drop_cursor st;
         drag_on_playlist st;
       );
 
@@ -1654,14 +1654,14 @@ let run_library (st : _ State.t) =
       if not (Table.IntSet.equal tab.selected old_selected) then
         Library.refresh_albums_tracks lib;
 
-    | `Drag _ ->
+    | `Drag (_, way) ->
       (* Drag: adjust cursor *)
       if Api.Key.are_modifiers_down [] then
       (
         State.focus_library tab st;
         if Table.num_selected lib.artists > 0 && lib.tracks.entries <> [||] then
         (
-          set_drop_cursor st;
+          if way <> `Start then set_drop_cursor st;
           drag_on_playlist st;
           drag_on_browser st;
         )
@@ -1798,14 +1798,14 @@ let run_library (st : _ State.t) =
       if not (Table.IntSet.equal tab.selected old_selected) then
         Library.refresh_tracks lib;
 
-    | `Drag _ ->
+    | `Drag (_, way) ->
       (* Drag: adjust cursor *)
       if Api.Key.are_modifiers_down [] then
       (
         State.focus_library tab st;
         if Table.num_selected lib.albums > 0 && lib.tracks.entries <> [||] then
         (
-          set_drop_cursor st;
+          if way <> `Start then set_drop_cursor st;
           drag_on_playlist st;
           drag_on_browser st;
         )
@@ -1984,7 +1984,7 @@ let run_library (st : _ State.t) =
         State.focus_library tab st;
         if Library.num_selected lib > 0 then
         (
-          set_drop_cursor st;
+          if way <> `Start then set_drop_cursor st;
           match way with
           | `Start | `Inside | `Inward -> ()
           | `Outward | `Outside ->
