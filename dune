@@ -5,7 +5,7 @@
     safe_queue
     edit table
     data track query text bin storage
-    control playlist library filesel config
+    control playlist library filesel menu config
     api ui layout
     state app main
   )

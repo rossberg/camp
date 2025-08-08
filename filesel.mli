@@ -1,4 +1,4 @@
-(* Playlist *)
+(* File Selector *)
 
 type path = Data.path
 type time = Data.time

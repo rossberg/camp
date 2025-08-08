@@ -19,6 +19,7 @@ type t =
   mutable library_width : int;
   mutable library_side : Api.side;
   mutable filesel_shown : bool;
+  mutable menu_shown : bool;
   mutable browser_width : int;
   mutable directories_width : int;
   mutable left_width : int;
@@ -45,6 +46,7 @@ let make ui =
     library_width = 600;
     library_side = `Left;
     filesel_shown = false;
+    menu_shown = false;
     browser_width = 100;
     directories_width = 120;
     left_width = 200;
@@ -88,7 +90,6 @@ let grid_table g img_h has_heading : Ui.grid_table =
   }
 
 
-
 let control_min_w = 360
 let control_min_h = 160
 let control_w _g = control_min_w
@@ -97,6 +98,11 @@ let control_h _g = control_min_h
 let playlist_x g = if (g.library_shown || g.filesel_shown) && g.library_side = `Left then g.library_width else 0
 let library_x g = if g.library_side = `Left then 0 else control_w g - margin g
 let library_w g = g.library_width
+
+
+(* Menu *)
+
+let menu g x y = Ui.menu g.ui x y g.gutter g.gutter g.text
 
 
 (* Control Pane *)

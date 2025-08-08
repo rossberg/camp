@@ -10,6 +10,8 @@ type 'a filesel_op =
   | `InsertRoot
 ]
 
+type menu_op = [`Todo]
+
 type 'cache t =
 {
   config : Config.t;
@@ -18,6 +20,7 @@ type 'cache t =
   playlist : 'cache Playlist.t;
   library : 'cache Library.t;
   filesel : ('cache filesel_op, 'cache) Filesel.t;
+  menu : menu_op Menu.t;
   mutable saved : File.time;
 }
 
@@ -32,6 +35,7 @@ let make ui audio =
     playlist = Playlist.make ();
     library = Library.make ();
     filesel = Filesel.make ();
+    menu = Menu.make ();
     saved = Unix.gettimeofday ();
   }
 
@@ -265,6 +269,7 @@ let rec ok st =
     Playlist.ok st.playlist @
     Library.ok st.library @
     Filesel.ok st.filesel @
+    Menu.ok st.menu @
     check "at most one focus" (List.length (focus st) <= 1) @
     check "playlist empty when no current track"
       (st.control.current <> None || st.playlist.table.entries = [||]) @
@@ -273,6 +278,8 @@ let rec ok st =
         Table.has_selection st.library.tracks)) @
     check "file selection with op"
       (st.layout.filesel_shown = (st.filesel.op <> None)) @
+    check "menu with op"
+      (st.layout.menu_shown = (st.menu.op <> None)) @
     []
   with
   | errors when errors <> [] ->

@@ -70,7 +70,7 @@ let run_control (st : _ State.t) =
   let playing = Api.Audio.is_playing ctl.audio in
   let paused = not playing && elapsed > 0.0 in
   let stopped = not playing && not paused in
-  let focus = pl.table.focus || not (lay.library_shown || lay.filesel_shown) in
+  let focus = pl.table.focus || not (lay.library_shown || lay.filesel_shown || lay.menu_shown) in
 
   (* LCD *)
   Layout.info_box lay;
@@ -942,7 +942,7 @@ let run_playlist (st : _ State.t) =
 
   (match Layout.playlist_table lay cols None tab pp_row with
   | `None | `Scroll -> ()
-  | `Sort _ | `Resize _ | `Reorder _ -> assert false
+  | `Sort _ | `Resize _ | `Reorder _ | `HeadMenu _ -> assert false
 
   | `Select ->
     State.focus_playlist st;
@@ -1032,6 +1032,10 @@ let run_playlist (st : _ State.t) =
       drop_on_library st tracks;
       drop_on_browser st tracks;
     );
+
+  | `Menu _ ->
+    (* Right-click on playlist: ignore *)
+    ()
   );
 
   (* Playlist drag & drop *)
@@ -1258,6 +1262,10 @@ let run_library (st : _ State.t) =
         )
       ) (Layout.browser_mouse lay browser)
     )
+
+  | `Menu _ ->
+    (* Right-click on browser: ignore *)
+    ()
   );
 
   let entries = browser.entries in  (* might have changed from un/folding *)
@@ -1670,6 +1678,14 @@ let run_library (st : _ State.t) =
         drop_on_playlist st tracks;
         drop_on_browser st tracks;
       )
+
+    | `Menu _ ->
+      (* Right-click on content: ignore *)
+      ()
+
+    | `HeadMenu _ ->
+      (* Right-click on header: ignore *)
+      ()
     );
 
     if busy then
@@ -1806,6 +1822,14 @@ let run_library (st : _ State.t) =
         drop_on_playlist st tracks;
         drop_on_browser st tracks;
       )
+
+    | `Menu _ ->
+      (* Right-click on content: ignore *)
+      ()
+
+    | `HeadMenu _ ->
+      (* Right-click on header: ignore *)
+      ()
     );
 
     if busy then
@@ -2026,6 +2050,14 @@ let run_library (st : _ State.t) =
         drop_on_playlist st tracks;
         drop_on_browser st tracks;
       )
+
+    | `Menu _ ->
+      (* Right-click on content: ignore *)
+      ()
+
+    | `HeadMenu _ ->
+      (* Right-click on header: ignore *)
+      ()
     );
 
     if busy then
@@ -2177,6 +2209,10 @@ let run_filesel (st : _ State.t) =
     State.focus_filesel dirs st;
     if Table.num_selected dirs = 0 then
       Filesel.select_dir fs dir;  (* override *)
+
+  | `Menu _ ->
+    (* Right-click on dir: ignore *)
+    ()
   );
 
 
@@ -2232,6 +2268,14 @@ let run_filesel (st : _ State.t) =
     | `Click None ->
       (* Click into empty space: focus *)
       State.focus_filesel files st;
+      false
+
+    | `Menu _ ->
+      (* Right-click on dir: ignore *)
+      false
+
+    | `HeadMenu _ ->
+      (* Right-click on header: ignore *)
       false
   in
 

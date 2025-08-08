@@ -97,7 +97,7 @@ type heading = string array * sorting
 val table : t -> area -> int -> int -> column array -> row array -> int ->
   int option
 val header : t -> area -> int -> column array -> heading -> int ->
-  [`Click of int | `Resize of int array | `Reorder of int array | `None]
+  [`Click of int | `Resize of int array | `Reorder of int array | `Menu of int | `None]
 
 (* Rich widgets *)
 
@@ -119,6 +119,7 @@ type table_action =
   | `Move of int
   | `Drag of int * way
   | `Drop
+  | `Menu of int option
   | `None
   ]
 
@@ -127,6 +128,7 @@ type rich_table_action =
   | `Sort of int
   | `Resize of int array   (* new sizes *)
   | `Reorder of int array  (* permutation *)
+  | `HeadMenu of int
   ]
 
 val rich_table :
@@ -181,3 +183,6 @@ val grid_table :
   ('a, cached) Table.t ->
   (int -> Api.image * color * string) ->
     grid_table_action
+
+val menu : t -> int -> int -> int -> int -> int -> (color * string * string) array ->
+  [`None | `Close | `Click of int]

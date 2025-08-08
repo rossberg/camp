@@ -180,6 +180,26 @@ let get_img ui rimg =
 
 let nocover ui = get_img ui ui.img_nocover
 
+let background ui x y w h =
+  let bg = get_img ui ui.img_background in
+  let iw, ih = Image.size bg in
+  for i = 0 to (w + iw - 1)/iw - 1 do
+    let x = if w < iw then - (iw - w)/2 else i*iw in
+    for j = 0 to (h + ih - 1)/ih - 1 do
+      let y = if h < ih then - (ih - h)/2 else j*ih in
+      Draw.image ui.win x y 1.0 bg
+    done
+  done;
+
+  Draw.fill ui.win (x + 1) y (x + 1) (y + h - 2) (`Gray 0x40);
+  Draw.fill ui.win x y (x + w) y (`Gray 0x70);
+  Draw.fill ui.win (x + 1) (y + h - 2) (x + w - 1) (y + 2) (`Gray 0x10);
+
+  let mx, my = Mouse.pos ui.win in
+  let r = 50 in
+  Draw.gradient_circ ui.win (mx - r) (my - r) (2 * r) (2 * r)
+    (`Trans (`White, 0x20)) (`Trans (`White, 0x00))
+
 
 (* Window Background *)
 
@@ -189,24 +209,8 @@ type drag += Resize of {overshoot : size}
 let start ui =
   Draw.start ui.win (`Trans (`Black, 0x40));
 
-  let bg = get_img ui ui.img_background in
   let ww, wh = Window.size ui.win in
-  let iw, ih = Image.size bg in
-  for i = 0 to (ww + iw - 1)/iw - 1 do
-    let x = if ww < iw then - (iw - ww)/2 else i*iw in
-    for j = 0 to (wh + ih - 1)/ih - 1 do
-      let y = if wh < ih then - (ih - wh)/2 else j*ih in
-      Draw.image ui.win x y 1.0 bg
-    done
-  done;
-
-  Draw.line ui.win 1 0 1 (wh - 2) (`Gray 0x40);
-  Draw.line ui.win 0 0 ww 0 (`Gray 0x70);
-  Draw.fill ui.win 1 (wh - 2) (ww - 1) 2 (`Gray 0x10);
-
-  let x, y = Mouse.pos ui.win in
-  let r = 50 in
-  Draw.gradient_circ ui.win (x - r) (y - r) (2 * r) (2 * r) (`Trans (`White, 0x20)) (`Trans (`White, 0x00));
+  background ui 0 0 ww wh;
 
   Mouse.set_cursor ui.win `Default;
   if Mouse.is_down `Left then
@@ -883,11 +887,11 @@ let header ui area gw cols (titles, sorting) hscroll =
   let find_gutter cols mx = find_gutter' cols mx 0 (x + mw - hscroll) in
 
   let rec find_heading' mx i cx =
-    if i = Array.length cols then `None else
+    if i = Array.length cols then None else
     let cx' = cx + fst cols.(i) in
-    if mx >= cx && mx < cx' then `Click i else
+    if mx >= cx && mx < cx' then Some i else
     if mx >= cx' then find_heading' mx (i + 1) (cx' + gw) else
-    `None
+    None
   in
   let find_heading mx = find_heading' mx 0 (x + mw - hscroll) in
 
@@ -895,7 +899,11 @@ let header ui area gw cols (titles, sorting) hscroll =
   match ui.drag_extra with
   | No_drag ->
     (match find_gutter cols mx with
-    | `None when status = `Released -> find_heading mx
+    | `None when status = `Released ->
+      (match find_heading mx with
+      | None -> `None
+      | Some i -> `Click i
+      )
     | `None -> `None
     | `Gutter col ->
       Mouse.set_cursor ui.win (`Resize `E_W);
@@ -903,12 +911,15 @@ let header ui area gw cols (titles, sorting) hscroll =
         ui.drag_extra <- Header_resize {mouse_x = mx; col};
       `None
     | `Header col ->
-      if status = `Pressed then
+      if Mouse.is_pressed `Right then
+        `Menu col
+      else if status = `Pressed then
       (
         Mouse.set_cursor ui.win `Point;
         ui.drag_extra <- Header_reorder {mouse_x = mx; col};
-      );
-      `None
+        `None
+      )
+      else `None
     )
 
   | Header_resize {mouse_x; col = i} when status = `Pressed ->
@@ -1001,6 +1012,7 @@ type table_action =
   | `Move of int
   | `Drag of int * way
   | `Drop
+  | `Menu of int option
   | `None
   ]
 
@@ -1009,6 +1021,7 @@ type rich_table_action =
   | `Sort of int
   | `Resize of int array   (* new sizes *)
   | `Reorder of int array  (* permutation *)
+  | `HeadMenu of int
   ]
 
 let rich_table_inner _ui area geo =
@@ -1072,6 +1085,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
   Mutex.protect tab.mutex (fun () ->
     let len = Table.length tab in
     let page = max 1 (int_of_float (Float.floor (float h /. float rh))) in
+    let limit = min len (tab.vscroll + page) in
     (* Correct scrolling position for possible resize *)
     Table.adjust_vscroll tab tab.vscroll page;
 
@@ -1094,101 +1108,101 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
     );
     Draw.buffer ui.win x y buf;
 
+    let mx, my = Mouse.pos ui.win in
+    let i = tab.vscroll + (my - y) / rh in
     let _, status = element ui table_area no_modkey in
-    let status' =
-      (* Mirrors logic in table *)
-      if status = `Pressed || status = `Released then
-        let _, my = Mouse.pos ui.win in
-        Some ((my - y) / rh)
-      else
-         None
-    in
+    (* Mirrors logic in table *)
+    let left_mouse_used = (status = `Pressed || status = `Released) in
 
     let result =
-      match status' with
-      | None -> `None
-      | Some i ->
-        let i = tab.vscroll + i in
-        let limit = min len (tab.vscroll + page) in
-        if not (shift || command) then
-        (
-          match drag_status ui r (max_int, rh) with
-          | `None -> `None
+      if Mouse.is_pressed `Right then
+      (
+        if inside (mx, my) r then
+          `Menu (if i >= limit then None else Some i)
+        else
+          `None
+      )
+      else if not left_mouse_used then
+        `None
+      else if not (shift || command) then
+      (
+        match drag_status ui r (max_int, rh) with
+        | `None -> `None
 
-          | `Take ->
-            (* Click *)
-            if i >= limit then
-            (
-              (* Click on empty space *)
-              Table.deselect_all tab;
-              `Click None
-            )
-            else
-            (
-              (* Click on entry *)
-              if not (Table.is_selected tab i) then
-                Table.deselect_all tab;
-              if not (Mouse.is_doubleclick `Left) then
-                Table.select tab i i;
-              `Click (Some i)
-            )
-
-          | `Click ->
-            (* Click-release: deselect all except for clicked entry *)
+        | `Take ->
+          (* Click *)
+          if i >= limit then
+          (
+            (* Click on empty space *)
             Table.deselect_all tab;
-            if i >= limit then
-              `Click None
-            else
-            (
+            `Click None
+          )
+          else
+          (
+            (* Click on entry *)
+            if not (Table.is_selected tab i) then
+              Table.deselect_all tab;
+            if not (Mouse.is_doubleclick `Left) then
               Table.select tab i i;
-              `Click (Some i)
-            )
+            `Click (Some i)
+          )
 
-          | `Drag ((_, dy), way) -> `Drag (dy, way)
-
-          | `Drop -> `Drop
-        )
-        else if command && Mouse.is_pressed `Left then
-        (
-          (* Cmd-click on entry: toggle selection of clicked entry *)
+        | `Click ->
+          (* Click-release: deselect all except for clicked entry *)
+          Table.deselect_all tab;
           if i >= limit then
             `Click None
           else
           (
-            if Table.is_selected tab i then
-              Table.deselect tab i i
-            else
-              Table.select tab i i;
-            `Click (Some i);
+            Table.select tab i i;
+            `Click (Some i)
           )
-        )
-        else if shift && Mouse.is_down `Left then
+
+        | `Drag ((_, dy), way) -> `Drag (dy, way)
+
+        | `Drop -> `Drop
+      )
+      else if command && Mouse.is_pressed `Left then
+      (
+        (* Cmd-click on entry: toggle selection of clicked entry *)
+        if i >= limit then
+          `Click None
+        else
         (
-          (* Shift-click/drag on playlist: adjust selection range *)
-          let default = if i < len then (i, i) else (0, 0) in
-          let pos1, pos2 = Option.value tab.sel_range ~default in
-          let i' = max 0 (min i (len - 1)) in
-          let old_selection = tab.selected in
-          if tab.sel_range = None || Table.is_selected tab pos1 then
-          (
-            (* Entry was already selected: deselect old range, select new range *)
-            Table.deselect tab pos2 i';
-            Table.select tab pos1 i'
-          )
+          if Table.is_selected tab i then
+            Table.deselect tab i i
           else
-          (
-            (* Track was not selected: select old range, deselect new range *)
-            Table.select tab pos2 i';
-            Table.deselect tab pos1 i'
-          );
-          if Mouse.is_pressed `Left then
-            `Click (if i < len then Some i else None)
-          else if Table.IntSet.equal tab.selected old_selection then
-            `None
-          else
-            `Select
+            Table.select tab i i;
+          `Click (Some i);
         )
-        else `None
+      )
+      else if shift && Mouse.is_down `Left then
+      (
+        (* Shift-click/drag on playlist: adjust selection range *)
+        let default = if i < len then (i, i) else (0, 0) in
+        let pos1, pos2 = Option.value tab.sel_range ~default in
+        let i' = max 0 (min i (len - 1)) in
+        let old_selection = tab.selected in
+        if tab.sel_range = None || Table.is_selected tab pos1 then
+        (
+          (* Entry was already selected: deselect old range, select new range *)
+          Table.deselect tab pos2 i';
+          Table.select tab pos1 i'
+        )
+        else
+        (
+          (* Track was not selected: select old range, deselect new range *)
+          Table.select tab pos2 i';
+          Table.deselect tab pos1 i'
+        );
+        if Mouse.is_pressed `Left then
+          `Click (if i < len then Some i else None)
+        else if Table.IntSet.equal tab.selected old_selection then
+          `None
+        else
+          `Select
+      )
+      else `None
     in
 
     (* Header *)
@@ -1200,6 +1214,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
         | `Click i -> Table.dirty tab; `Sort i
         | `Resize ws -> Table.dirty tab; `Resize ws
         | `Reorder perm -> Table.dirty tab; `Reorder perm
+        | `Menu i -> `HeadMenu i
         | `None -> result
     in
 
@@ -1496,101 +1511,104 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
     );
     Draw.buffer ui.win x y buf;
     
+    let mx, my = Mouse.pos ui.win in
+    let i, j = (mx - x) / iw, (my - y) / ih in
+    let k = tab.vscroll + j * line + i in
+    let on_bg = i >= line || k >= min len (tab.vscroll + page) in
+
     let _, status = element ui table_area no_modkey in
-    let status' =
-      (* Mirrors logic in grid *)
-      if status = `Pressed || status = `Released then
-        let mx, my = Mouse.pos ui.win in
-        Some ((mx - x) / iw, (my - y) / ih)
-      else
-        None
-    in
+    (* Mirrors logic in grid *)
+    let left_mouse_used = (status = `Pressed || status = `Released) in
 
     let result =
-      match status' with
-      | None -> `None
-      | Some (i, j) ->
-        let k = tab.vscroll + j * line + i in
-        let on_bg = i >= line || k >= min len (tab.vscroll + page) in
-        if not (shift || command) then
-        (
-          match drag_status ui r (iw, ih) with
-          | `None -> `None
+      if Mouse.is_pressed `Right then
+      (
+        if inside (mx, my) r then
+          `Menu (if on_bg then None else Some k)
+        else
+          `None
+      )
+      else if not left_mouse_used then
+        `None
+      else if not (shift || command) then
+      (
+        match drag_status ui r (iw, ih) with
+        | `None -> `None
 
-          | `Take ->
-            (* Click *)
-            if on_bg then
-            (
-              (* Click on empty space *)
-              Table.deselect_all tab;
-              `Click None
-            )
-            else
-            (
-              (* Click on entry *)
-              if not (Table.is_selected tab k) then
-                Table.deselect_all tab;
-              if not (Mouse.is_doubleclick `Left) then
-                Table.select tab k k;
-              `Click (Some k)
-            )
-
-          | `Click ->
-            (* Click-release: deselect all except for clicked entry *)
+        | `Take ->
+          (* Click *)
+          if on_bg then
+          (
+            (* Click on empty space *)
             Table.deselect_all tab;
-            if on_bg then
-              `Click None
-            else
-            (
+            `Click None
+          )
+          else
+          (
+            (* Click on entry *)
+            if not (Table.is_selected tab k) then
+              Table.deselect_all tab;
+            if not (Mouse.is_doubleclick `Left) then
               Table.select tab k k;
-              `Click (Some i)
-            )
+            `Click (Some k)
+          )
 
-          | `Drag ((dx, dy), way) -> `Drag (dx + dy * line, way)
-
-          | `Drop -> `Drop
-        )
-        else if command && Mouse.is_pressed `Left then
-        (
-          (* Cmd-click on entry: toggle selection of clicked entry *)
+        | `Click ->
+          (* Click-release: deselect all except for clicked entry *)
+          Table.deselect_all tab;
           if on_bg then
             `Click None
           else
           (
-            if Table.is_selected tab k then
-              Table.deselect tab k k
-            else
-              Table.select tab k k;
-            `Click (Some k);
+            Table.select tab k k;
+            `Click (Some i)
           )
-        )
-        else if shift && Mouse.is_down `Left then
+
+        | `Drag ((dx, dy), way) -> `Drag (dx + dy * line, way)
+
+        | `Drop -> `Drop
+      )
+      else if command && Mouse.is_pressed `Left then
+      (
+        (* Cmd-click on entry: toggle selection of clicked entry *)
+        if on_bg then
+          `Click None
+        else
         (
-          (* Shift-click/drag on playlist: adjust selection range *)
-          let default = if k < len then (k, k) else (0, 0) in
-          let pos1, pos2 = Option.value tab.sel_range ~default in
-          let k' = max 0 (min k (len - 1)) in
-          let old_selection = tab.selected in
-          if tab.sel_range = None || Table.is_selected tab pos1 then
-          (
-            (* Entry was already selected: deselect old range, select new range *)
-            Table.deselect tab pos2 k';
-            Table.select tab pos1 k'
-          )
+          if Table.is_selected tab k then
+            Table.deselect tab k k
           else
-          (
-            (* Track was not selected: select old range, deselect new range *)
-            Table.select tab pos2 k';
-            Table.deselect tab pos1 k'
-          );
-          if Mouse.is_pressed `Left then
-            `Click (if k < len then Some k else None)
-          else if Table.IntSet.equal tab.selected old_selection then
-            `None
-          else
-            `Select
+            Table.select tab k k;
+          `Click (Some k);
         )
-        else `None
+      )
+      else if shift && Mouse.is_down `Left then
+      (
+        (* Shift-click/drag on playlist: adjust selection range *)
+        let default = if k < len then (k, k) else (0, 0) in
+        let pos1, pos2 = Option.value tab.sel_range ~default in
+        let k' = max 0 (min k (len - 1)) in
+        let old_selection = tab.selected in
+        if tab.sel_range = None || Table.is_selected tab pos1 then
+        (
+          (* Entry was already selected: deselect old range, select new range *)
+          Table.deselect tab pos2 k';
+          Table.select tab pos1 k'
+        )
+        else
+        (
+          (* Track was not selected: select old range, deselect new range *)
+          Table.select tab pos2 k';
+          Table.deselect tab pos1 k'
+        );
+        if Mouse.is_pressed `Left then
+          `Click (if k < len then Some k else None)
+        else if Table.IntSet.equal tab.selected old_selection then
+          `None
+        else
+          `Select
+      )
+      else `None
     in
 
     (* Header *)
@@ -1603,6 +1621,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
         | `Click i -> `Sort i
         | `Resize ws -> `Resize ws
         | `Reorder perm -> `Reorder perm
+        | `Menu i -> `HeadMenu i
         | `None -> result
     in
 
@@ -1778,7 +1797,8 @@ let browser ui area geo (tab : _ Table.t) pp_entry =
   | `Move i -> `Move i
   | `Drag (i, way) -> `Drag (i, way)
   | `Drop -> `Drop
-  | `Sort _ | `Resize _ | `Reorder _ -> assert false
+  | `Menu i -> `Menu i
+  | `Sort _ | `Resize _ | `Reorder _ | `HeadMenu _ -> assert false
 
   | `Select ->
     (* TODO: allow multiple selections *)
@@ -1816,7 +1836,45 @@ let browser ui area geo (tab : _ Table.t) pp_entry =
   )
 
 
-(* Edit Text *)
+(* Pop-up Menu *)
+
+let menu ui x y bw gw ch items =
+  let font = font ui ch in
+  let lw, rw =
+    Array.fold_left (fun (l, r) (_, txt1, txt2) ->
+      max l (Draw.text_width ui.win ch font txt1),
+      max r (Draw.text_width ui.win ch font txt2)
+    ) (0, 0) items
+  in
+  let ww, wh = Window.size ui.win in
+  let w = lw + gw + rw in
+  let h = ch * Array.length items in
+  let x = max 0 (min x (ww - w - 2 * bw)) in
+  let y = max 0 (min y (wh - h - 2 * bw)) in
+
+  background ui x y (ww + 2 * bw) (wh + 2 * bw);
+
+  ui.mouse_owned <- true;
+  let mx, my = Mouse.pos ui.win in
+  let i = if mx < x || mx > x + w then -1 else (my - y)/ch in
+
+  let area = (-1, x + rw, y + rw, w, h) in
+  let cols = [|lw, `Left; rw, `Right|] in 
+  let rows =
+    Array.mapi (fun j (c, s1, s2) ->
+      c, (if i = j then `Inverted else `Regular), [|`Text s1; `Text s2|]
+    ) items
+  in
+  match table ui area gw ch cols rows 0 with
+  | Some i -> `Click i
+  | None ->
+    if
+      mouse_status ui (x, y, w, h) `Left = `Released ||
+      mouse_status ui (x, y, w, h) `Right = `Released
+    then `Close else `None
+
+
+(* Edit widget *)
 
 let find_next_char s i =
   i + Uchar.utf_decode_length (String.get_utf_8_uchar s i)

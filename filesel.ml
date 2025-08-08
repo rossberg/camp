@@ -1,4 +1,4 @@
-(* Playlist *)
+(* File Selector *)
 
 open Audio_file
 
