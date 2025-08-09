@@ -348,8 +348,9 @@ let mouse_status ui r = function
       `Hovered
 
 
-type way = [`Start | `Origin | `Inside | `Outside | `Outward | `Inward]
-type drag += Drag of {pos : point; start : bool; moved : bool; inside : bool}
+type motion = [`Unmoved | `Moving | `Moved]
+type way = [`Inside | `Outside | `Outward | `Inward]
+type drag += Drag of {pos : point; moved : bool; inside : bool}
 
 let drag_status ui r (stepx, stepy) =
   if not (inside ui.drag_origin r) then
@@ -364,26 +365,30 @@ let drag_status ui r (stepx, stepy) =
   ui.mouse_owned <- true;
   match ui.drag_extra with
   | No_drag ->
-    ui.drag_extra <- Drag {pos = m; start = true; moved = false; inside = true};
+    ui.drag_extra <- Drag {pos = m; moved = false; inside = true};
     `Take
-  | Drag {pos; start; moved; inside} ->
+  | Drag {pos; moved; inside} ->
     let dx, dy = sub m pos in
     let dx' = if stepx = 0 then dx else dx / stepx in
     let dy' = if stepy = 0 then dy else dy / stepy in
     let pos = mx - dx mod max 1 stepx, my - dy mod max 1 stepy in
     let moved' = Mouse.is_drag `Left in
     let inside' = Api.inside m r in
-    ui.drag_extra <- Drag {pos; start = false; moved = moved'; inside = inside'};
+    ui.drag_extra <- Drag {pos; moved = moved'; inside = inside'};
     let way =
-      if start then `Start else
-      if not moved then `Origin else
       match inside, inside' with
       | true, true -> `Inside
       | true, false -> `Outward
       | false, true -> `Inward
       | false, false -> `Outside
     in
-    `Drag ((dx', dy'), way)
+    let motion =
+      match moved, moved' with
+      | true, _ -> `Moved
+      | false, true -> `Moving
+      | false, false -> `Unmoved
+    in
+    `Drag ((dx', dy'), way, motion)
   | _ -> assert false
 
 let wheel_status ui r =
@@ -1014,7 +1019,7 @@ type table_action =
   | `Select
   | `Scroll
   | `Move of int
-  | `Drag of int * way
+  | `Drag of int * way * motion
   | `Drop
   | `Menu of int option
   | `None
@@ -1166,7 +1171,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
             `Click (Some i)
           )
 
-        | `Drag ((_, dy), way) -> `Drag (dy, way)
+        | `Drag ((_, dy), way, motion) -> `Drag (dy, way, motion)
 
         | `Drop -> `Drop
       )
@@ -1572,7 +1577,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
             `Click (Some i)
           )
 
-        | `Drag ((dx, dy), way) -> `Drag (dx + dy * line, way)
+        | `Drag ((dx, dy), way, motion) -> `Drag (dx + dy * line, way, motion)
 
         | `Drop -> `Drop
       )
@@ -1803,7 +1808,7 @@ let browser ui area geo (tab : _ Table.t) pp_entry =
   | `None -> `None
   | `Scroll -> `Scroll
   | `Move i -> `Move i
-  | `Drag (i, way) -> `Drag (i, way)
+  | `Drag (i, way, motion) -> `Drag (i, way, motion)
   | `Drop -> `Drop
   | `Menu i -> `Menu i
   | `Sort _ | `Resize _ | `Reorder _ | `HeadMenu _ -> assert false

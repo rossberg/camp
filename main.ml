@@ -972,16 +972,16 @@ let run_playlist (st : _ State.t) =
     (* Cmd-cursor movement: move selection *)
     Playlist.move_selected pl delta;
 
-  | `Drag (delta, way) ->
+  | `Drag (delta, way, motion) ->
     (* Drag: move selection if inside *)
     if Api.Key.are_modifiers_down [] then
     (
       State.focus_playlist st;
       if Playlist.num_selected pl > 0 then
       (
-        if way <> `Start && way <> `Origin then set_drop_cursor st;
+        if motion <> `Unmoved then set_drop_cursor st;
         match way with
-        | `Start | `Origin | `Inside | `Inward -> ()
+        | `Inside | `Inward -> ()
         | `Outward | `Outside ->
           drag_on_tracks st;
           drag_on_browser st;
@@ -992,10 +992,13 @@ let run_playlist (st : _ State.t) =
        * - when Inside: one undo for returning to original state on undo stack
        * - when Outside: one redo for creating new state on redo stack
        *)
-      (match way with
-      | `Start ->
+      if motion = `Moving then
+      (
         (* Start of drag & drop: remember original configuration *)
         Table.push_undo pl.table;
+      );
+
+      (match way with
       | `Outward ->
         (* Leaving area: snap back to original state *)
         Playlist.undo pl;
@@ -1003,14 +1006,14 @@ let run_playlist (st : _ State.t) =
       | `Inward ->
         (* Reentering area: restore updated state *)
         Playlist.redo pl
-      | `Origin | `Inside | `Outside -> ()
+      | `Inside | `Outside -> ()
       );
 
       (* Positional movement *)
       if delta <> 0 && Playlist.num_selected pl > 0 then
       (
         match way with
-        | `Start | `Origin | `Inside | `Inward ->
+        | `Inside | `Inward ->
           Playlist.move_selected pl delta;
           (* Erase intermediate new state *)
           Table.drop_undo pl.table;
@@ -1029,15 +1032,22 @@ let run_playlist (st : _ State.t) =
     )
 
   | `Drop ->
-    if Api.Key.are_modifiers_down []
-    && not (Ui.mouse_inside lay.ui (Layout.playlist_area lay)) then
+    if Api.Key.are_modifiers_down [] then
     (
-      (* Dropping outside playlist: drop aux redo for new state *)
-      Table.drop_redo pl.table;
+      if Ui.mouse_inside lay.ui (Layout.playlist_area lay) then
+      (
+        (* Dropping inside playlist: drop aux undo if no change *)
+        Table.clean_undo pl.table
+      )
+      else
+      (
+        (* Dropping outside playlist: drop aux redo for new state *)
+        Table.drop_redo pl.table;
 
-      let tracks = Playlist.selected pl in
-      drop_on_tracks st tracks;
-      drop_on_browser st tracks;
+        let tracks = Playlist.selected pl in
+        drop_on_tracks st tracks;
+        drop_on_browser st tracks;
+      )
     );
 
   | `Menu _ ->
@@ -1194,14 +1204,14 @@ let run_library (st : _ State.t) =
     Library.refresh_artists_albums_tracks lib;
     State.focus_library browser st;
 
-  | `Drag (_, way) ->
+  | `Drag (_, _, motion) ->
     (* Drag: adjust cursor *)
     if Api.Key.are_modifiers_down [] then
     (
       State.focus_library browser st;
       if lib.tracks.entries <> [||] then
       (
-        if way <> `Start && way <> `Origin then set_drop_cursor st;
+        if motion <> `Unmoved then set_drop_cursor st;
         drag_on_playlist st;
       );
 
@@ -1661,14 +1671,14 @@ let run_library (st : _ State.t) =
       if not (Table.IntSet.equal tab.selected old_selected) then
         Library.refresh_albums_tracks lib;
 
-    | `Drag (_, way) ->
+    | `Drag (_, _, motion) ->
       (* Drag: adjust cursor *)
       if Api.Key.are_modifiers_down [] then
       (
         State.focus_library tab st;
         if Table.num_selected lib.artists > 0 && lib.tracks.entries <> [||] then
         (
-          if way <> `Start && way <> `Origin then set_drop_cursor st;
+          if motion <> `Unmoved then set_drop_cursor st;
           drag_on_playlist st;
           drag_on_browser st;
         )
@@ -1805,14 +1815,14 @@ let run_library (st : _ State.t) =
       if not (Table.IntSet.equal tab.selected old_selected) then
         Library.refresh_tracks lib;
 
-    | `Drag (_, way) ->
+    | `Drag (_, _, motion) ->
       (* Drag: adjust cursor *)
       if Api.Key.are_modifiers_down [] then
       (
         State.focus_library tab st;
         if Table.num_selected lib.albums > 0 && lib.tracks.entries <> [||] then
         (
-          if way <> `Start && way <> `Origin then set_drop_cursor st;
+          if motion <> `Unmoved then set_drop_cursor st;
           drag_on_playlist st;
           drag_on_browser st;
         )
@@ -1984,16 +1994,16 @@ let run_library (st : _ State.t) =
       if Data.is_playlist dir then
         Library.move_selected lib delta;
 
-    | `Drag (delta, way) ->
+    | `Drag (delta, way, motion) ->
       (* Drag: move selection if inside *)
       if Api.Key.are_modifiers_down [] then
       (
         State.focus_library tab st;
         if Library.num_selected lib > 0 then
         (
-          if way <> `Start && way <> `Origin then set_drop_cursor st;
+          if motion <> `Unmoved then set_drop_cursor st;
           (match way with
-          | `Start | `Origin | `Inside | `Inward -> ()
+          | `Inside | `Inward -> ()
           | `Outward | `Outside ->
             drag_on_playlist st;
             drag_on_browser st;
@@ -2002,10 +2012,12 @@ let run_library (st : _ State.t) =
           if Library.current_is_plain_playlist lib then
           (
             (* Invariant as for playlist view *)
-            (match way with
-            | `Start ->
+            if motion = `Moving then
+            (
               (* Start of drag & drop: remember original configuration *)
               Table.push_undo lib.tracks;
+            );
+            (match way with
             | `Outward ->
               (* Leaving area: snap back to original state *)
               Library.undo lib;
@@ -2013,14 +2025,14 @@ let run_library (st : _ State.t) =
             | `Inward ->
               (* Reentering area: restore updated state *)
               Library.redo lib
-            | `Origin | `Inside | `Outside -> ()
+            | `Inside | `Outside -> ()
             );
 
             (* Positional movement *)
             if delta <> 0 then
             (
               match way with
-              | `Start | `Origin | `Inside | `Inward ->
+              | `Inside | `Inward ->
                 Library.move_selected lib delta;
                 (* Erase intermediate new state *)
                 Table.drop_undo lib.tracks;
@@ -2041,19 +2053,26 @@ let run_library (st : _ State.t) =
       )
 
     | `Drop ->
-      if Api.Key.are_modifiers_down []
-      && not (Ui.mouse_inside lay.ui (tracks_area lay)) then
+      if Api.Key.are_modifiers_down [] then
       (
-        (* Drag & drop originating from tracks *)
+        if Ui.mouse_inside lay.ui (tracks_area lay) then
+        (
+          (* Dropping inside tracks: drop aux undo if no change *)
+          Table.clean_undo lib.tracks
+        )
+        else
+        (
+          (* Drag & drop originating from tracks *)
 
-        (* Dropping outside tracks: drop aux redo for new state *)
-        if Data.is_playlist dir then
-          Table.drop_redo lib.tracks;
+          (* Dropping outside tracks: drop aux redo for new state *)
+          if Data.is_playlist dir then
+            Table.drop_redo lib.tracks;
 
-        (* Drag & drop onto playlist or browser: send tracks to playlist *)
-        let tracks = Library.selected lib in
-        drop_on_playlist st tracks;
-        drop_on_browser st tracks;
+          (* Drag & drop onto playlist or browser: send tracks to playlist *)
+          let tracks = Library.selected lib in
+          drop_on_playlist st tracks;
+          drop_on_browser st tracks;
+        )
       )
 
     | `Menu _ ->

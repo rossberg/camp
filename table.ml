@@ -261,6 +261,14 @@ let pop_redo tab = pop_unredo tab tab.redos tab.undos
 let drop_undo tab = tab.undos := List.tl !(tab.undos)
 let drop_redo tab = tab.redos := List.tl !(tab.redos)
 
+let clean_undo tab =
+  match !(tab.undos) with
+  | [] -> ()
+  | undo::_ ->
+    if Array.length undo.undo_entries = Array.length tab.entries
+    && Array.for_all2 (==) undo.undo_entries tab.entries then
+      drop_undo tab
+
 let clear_undo tab =
   tab.undos := [];
   tab.redos := []

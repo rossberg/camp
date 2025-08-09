@@ -48,11 +48,12 @@ val nocover : t -> Api.image
 
 (* Input *)
 
-type way = [`Start | `Origin | `Inside | `Outside | `Outward | `Inward]
+type motion = [`Unmoved | `Moving | `Moved]
+type way = [`Inside | `Outside | `Outward | `Inward]
 
 val key : t -> modifier list * key -> bool -> bool
 val mouse : t -> area -> side -> bool
-val drag : t -> area -> size -> [`None | `Click | `Take | `Drag of size * way | `Drop]
+val drag : t -> area -> size -> [`None | `Click | `Take | `Drag of size * way * motion | `Drop]
 val wheel : t -> area -> float * float
 
 (* Widgets *)
@@ -117,7 +118,7 @@ type table_action =
   | `Select
   | `Scroll
   | `Move of int
-  | `Drag of int * way
+  | `Drag of int * way * motion
   | `Drop
   | `Menu of int option
   | `None

@@ -96,4 +96,5 @@ val pop_redo : ('a, 'b) t -> unit
 val drop_undo : ('a, 'b) t -> unit
 val drop_redo : ('a, 'b) t -> unit
 
+val clean_undo : ('a, 'b) t -> unit
 val clear_undo : ('a, 'b) t -> unit
