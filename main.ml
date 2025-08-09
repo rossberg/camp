@@ -530,15 +530,15 @@ let drag_on_playlist (st : _ State.t) =
     drag st Layout.playlist_drag (module View)
   )
 
-let library_drag (lay : Layout.t) =
+let tracks_drag (lay : Layout.t) =
   if lay.lower_shown then Layout.lower_drag lay else
   if lay.right_shown then Layout.right_drag lay else Layout.left_drag lay
 
-let drag_on_library (st : _ State.t) =
+let drag_on_tracks (st : _ State.t) =
   if st.layout.library_shown && Library.current_is_shown_playlist st.library then
   (
     let module View = struct let it = st.library include Library end in
-    drag st library_drag (module View)
+    drag st tracks_drag (module View)
   )
 
 let drop (st : _ State.t) tracks table_mouse (module View : TracksView) =
@@ -565,15 +565,15 @@ let drop_on_playlist (st : _ State.t) tracks =
     drop st tracks Layout.playlist_mouse (module View)
   )
 
-let library_mouse (lay : Layout.t) =
+let tracks_mouse (lay : Layout.t) =
   if lay.lower_shown then Layout.lower_mouse lay else
   if lay.right_shown then Layout.right_mouse lay else Layout.left_mouse lay
 
-let drop_on_library (st : _ State.t) tracks =
+let drop_on_tracks (st : _ State.t) tracks =
   if st.layout.library_shown && Library.current_is_shown_playlist st.library then
   (
     let module View = struct let it = st.library include Library end in
-    drop st tracks library_mouse (module View)
+    drop st tracks tracks_mouse (module View)
   )
 
 let drag_on_browser (st : _ State.t) =
@@ -633,10 +633,16 @@ let set_drop_cursor (st : _ State.t) =
   let pl = st.playlist in
   let lib = st.library in
   let droppable =
-    lay.playlist_shown && Layout.playlist_mouse lay pl.table <> None ||
+    lay.playlist_shown &&
+      (* over playlist *)
+      Layout.playlist_mouse lay pl.table <> None
+    ||
     lay.library_shown && (
-      Library.current_is_shown_playlist lib &&
-        library_mouse lay lib.tracks <> None ||
+      (* over plain library playlist view? *)
+      Library.current_is_plain_playlist lib &&
+        tracks_mouse lay lib.tracks <> None
+      ||
+      (* over browser entry that is a playlist? *)
       match Layout.browser_mouse lay lib.browser with
       | None -> false
       | Some i ->
@@ -977,7 +983,7 @@ let run_playlist (st : _ State.t) =
         match way with
         | `Start | `Inside | `Inward -> ()
         | `Outward | `Outside ->
-          drag_on_library st;
+          drag_on_tracks st;
           drag_on_browser st;
       );
 
@@ -1000,6 +1006,7 @@ let run_playlist (st : _ State.t) =
       | `Inside | `Outside -> ()
       );
 
+      (* Positional movement *)
       if delta <> 0 && Playlist.num_selected pl > 0 then
       (
         match way with
@@ -1017,7 +1024,7 @@ let run_playlist (st : _ State.t) =
           (* Undo new state, recovering original *)
           Playlist.undo pl;
           Playlist.save_playlist pl;
-        | `Outside -> ()
+        | `Outside -> ()  (* ignore *)
       );
     )
 
@@ -1029,7 +1036,7 @@ let run_playlist (st : _ State.t) =
       Table.drop_redo pl.table;
 
       let tracks = Playlist.selected pl in
-      drop_on_library st tracks;
+      drop_on_tracks st tracks;
       drop_on_browser st tracks;
     );
 
@@ -1985,34 +1992,32 @@ let run_library (st : _ State.t) =
         if Library.num_selected lib > 0 then
         (
           if way <> `Start then set_drop_cursor st;
-          match way with
+          (match way with
           | `Start | `Inside | `Inward -> ()
           | `Outward | `Outside ->
             drag_on_playlist st;
             drag_on_browser st;
-        );
-
-        if Data.is_playlist dir then
-        (
-          (* Invariant as for playlist view *)
-          (match way with
-          | `Start ->
-            (* Start of drag & drop: remember original configuration *)
-            Table.push_undo lib.tracks;
-          | `Outward ->
-            (* Leaving area: snap back to original state *)
-            Library.undo lib;
-            Library.save_playlist lib;
-          | `Inward ->
-            (* Reentering area: restore updated state *)
-            Library.redo lib
-          | `Inside | `Outside -> ()
           );
 
-          if delta <> 0 && Library.num_selected lib > 0 && sorting <> [] then
+          if Library.current_is_plain_playlist lib then
           (
-            let prim_attr, order = List.hd view.tracks.sorting in
-            if prim_attr = `Pos && order = `Asc then
+            (* Invariant as for playlist view *)
+            (match way with
+            | `Start ->
+              (* Start of drag & drop: remember original configuration *)
+              Table.push_undo lib.tracks;
+            | `Outward ->
+              (* Leaving area: snap back to original state *)
+              Library.undo lib;
+              Library.save_playlist lib;
+            | `Inward ->
+              (* Reentering area: restore updated state *)
+              Library.redo lib
+            | `Inside | `Outside -> ()
+            );
+
+            (* Positional movement *)
+            if delta <> 0 then
             (
               match way with
               | `Start | `Inside | `Inward ->
@@ -2029,9 +2034,9 @@ let run_library (st : _ State.t) =
                 (* Undo new state, recovering original *)
                 Library.undo lib;
                 Library.save_playlist lib;
-              | `Outside -> ()
-            )
-          );
+              | `Outside -> ()  (* ignore *)
+            );
+          )
         )
       )
 
@@ -2068,7 +2073,7 @@ let run_library (st : _ State.t) =
     if dropped <> [] then
     (
       (* Files drop: insert paths at pointed position *)
-      drop_on_library st (expand_paths lib dropped);
+      drop_on_tracks st (expand_paths lib dropped);
     );
 
     (* Divider *)

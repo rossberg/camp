@@ -1040,6 +1040,15 @@ let current_is_shown_viewlist lib =
   | None -> false
   | Some dir -> dir.view.tracks.shown <> None && Data.is_viewlist dir
 
+let current_is_plain_playlist lib =
+  match lib.current with
+  | None -> false
+  | Some dir ->
+    dir.view.tracks.shown <> None && Data.is_playlist dir &&
+    dir.view.search = "" &&
+    dir.view.tracks.sorting <> [] && List.hd dir.view.tracks.sorting = (`Pos, `Asc)
+
+
 
 (* Views *)
 

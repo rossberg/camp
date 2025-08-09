@@ -119,6 +119,7 @@ val current_is_playlist : 'a t -> bool
 val current_is_viewlist : 'a t -> bool
 val current_is_shown_playlist : 'a t -> bool
 val current_is_shown_viewlist : 'a t -> bool
+val current_is_plain_playlist : 'a t -> bool
 
 val has_track : 'a t -> track -> bool
 
