@@ -965,7 +965,7 @@ let run_playlist (st : _ State.t) =
 
   | `Click _ ->
     (* Single-click: grab focus *)
-    State.focus_playlist st;
+    if Api.Mouse.is_pressed `Left then State.focus_playlist st;
     Playlist.refresh_total_selected pl;
 
   | `Move delta ->
@@ -1162,8 +1162,7 @@ let run_library (st : _ State.t) =
   | `Click (Some i) ->
     (* Click on dir name: switch view *)
     (* TODO: allow multiple selections *)
-    if Api.Mouse.is_pressed `Left then
-      State.focus_library browser st;
+    if Api.Mouse.is_pressed `Left then State.focus_library browser st;
     if Library.selected_dir lib <> dir then
     (
       Library.select_dir lib i;  (* do bureaucracy *)
@@ -1202,13 +1201,13 @@ let run_library (st : _ State.t) =
     Library.deselect_dir lib;
     Library.deselect_all lib;
     Library.refresh_artists_albums_tracks lib;
-    State.focus_library browser st;
+    if Api.Mouse.is_pressed `Left then State.focus_library browser st;
 
   | `Drag (_, _, motion) ->
     (* Drag: adjust cursor *)
     if Api.Key.are_modifiers_down [] then
     (
-      State.focus_library browser st;
+      (* State.focus_library browser st; *)  (* don't steal after double-click! *)
       if lib.tracks.entries <> [||] then
       (
         if motion <> `Unmoved then set_drop_cursor st;
@@ -1667,7 +1666,7 @@ let run_library (st : _ State.t) =
 
     | `Click _ ->
       (* Single-click: grab focus, update filter *)
-      State.focus_library tab st;
+      if Api.Mouse.is_pressed `Left then State.focus_library tab st;
       if not (Table.IntSet.equal tab.selected old_selected) then
         Library.refresh_albums_tracks lib;
 
@@ -1675,7 +1674,7 @@ let run_library (st : _ State.t) =
       (* Drag: adjust cursor *)
       if Api.Key.are_modifiers_down [] then
       (
-        State.focus_library tab st;
+        (* State.focus_library tab st; *)  (* don't steal after double-click! *)
         if Table.num_selected lib.artists > 0 && lib.tracks.entries <> [||] then
         (
           if motion <> `Unmoved then set_drop_cursor st;
@@ -1811,7 +1810,7 @@ let run_library (st : _ State.t) =
 
     | `Click _ ->
       (* Single-click: grab focus, update filter *)
-      State.focus_library tab st;
+      if Api.Mouse.is_pressed `Left then State.focus_library tab st;
       if not (Table.IntSet.equal tab.selected old_selected) then
         Library.refresh_tracks lib;
 
@@ -1819,7 +1818,7 @@ let run_library (st : _ State.t) =
       (* Drag: adjust cursor *)
       if Api.Key.are_modifiers_down [] then
       (
-        State.focus_library tab st;
+        (* State.focus_library tab st; *)  (* don't steal after double-click! *)
         if Table.num_selected lib.albums > 0 && lib.tracks.entries <> [||] then
         (
           if motion <> `Unmoved then set_drop_cursor st;
@@ -1987,7 +1986,7 @@ let run_library (st : _ State.t) =
 
     | `Click _ ->
       (* Single-click: grab focus *)
-      State.focus_library tab st;
+      if Api.Mouse.is_pressed `Left then State.focus_library tab st;
 
     | `Move delta ->
       (* Cmd-cursor movement: move selection *)
@@ -1998,7 +1997,7 @@ let run_library (st : _ State.t) =
       (* Drag: move selection if inside *)
       if Api.Key.are_modifiers_down [] then
       (
-        State.focus_library tab st;
+        (* State.focus_library tab st; *)  (* don't steal after double-click! *)
         if Library.num_selected lib > 0 then
         (
           if motion <> `Unmoved then set_drop_cursor st;
