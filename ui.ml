@@ -348,8 +348,8 @@ let mouse_status ui r = function
       `Hovered
 
 
-type way = [`Start | `Inside | `Outside | `Outward | `Inward]
-type drag += Drag of {pos : point; moved : bool; inside : bool}
+type way = [`Start | `Origin | `Inside | `Outside | `Outward | `Inward]
+type drag += Drag of {pos : point; start : bool; moved : bool; inside : bool}
 
 let drag_status ui r (stepx, stepy) =
   if not (inside ui.drag_origin r) then
@@ -364,18 +364,19 @@ let drag_status ui r (stepx, stepy) =
   ui.mouse_owned <- true;
   match ui.drag_extra with
   | No_drag ->
-    ui.drag_extra <- Drag {pos = m; moved = false; inside = true};
+    ui.drag_extra <- Drag {pos = m; start = true; moved = false; inside = true};
     `Take
-  | Drag {pos; moved; inside} ->
+  | Drag {pos; start; moved; inside} ->
     let dx, dy = sub m pos in
     let dx' = if stepx = 0 then dx else dx / stepx in
     let dy' = if stepy = 0 then dy else dy / stepy in
     let pos = mx - dx mod max 1 stepx, my - dy mod max 1 stepy in
     let moved' = Mouse.is_drag `Left in
     let inside' = Api.inside m r in
-    ui.drag_extra <- Drag {pos; moved = moved'; inside = inside'};
+    ui.drag_extra <- Drag {pos; start = false; moved = moved'; inside = inside'};
     let way =
-      if not moved then `Start else
+      if start then `Start else
+      if not moved then `Origin else
       match inside, inside' with
       | true, true -> `Inside
       | true, false -> `Outward
@@ -1154,9 +1155,13 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
           (* Click-release: deselect all except for clicked entry *)
           Table.deselect_all tab;
           if i >= limit then
+          (
+            (* Click on empty space *)
             `Click None
+          )
           else
           (
+            (* Click on entry *)
             Table.select tab i i;
             `Click (Some i)
           )

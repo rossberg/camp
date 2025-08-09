@@ -958,7 +958,7 @@ let run_playlist (st : _ State.t) =
     (* Double-click on track: switch to track *)
     Table.set_pos tab (Some i);
     Control.switch st.control tab.entries.(i) true;
-    Table.dirty st.library.tracks;
+    Table.dirty st.library.tracks;  (* redraw for current track *)
     Table.dirty st.library.browser;
     if pl.shuffle <> None then
       Playlist.shuffle_next pl i;
@@ -979,9 +979,9 @@ let run_playlist (st : _ State.t) =
       State.focus_playlist st;
       if Playlist.num_selected pl > 0 then
       (
-        if way <> `Start then set_drop_cursor st;
+        if way <> `Start && way <> `Origin then set_drop_cursor st;
         match way with
-        | `Start | `Inside | `Inward -> ()
+        | `Start | `Origin | `Inside | `Inward -> ()
         | `Outward | `Outside ->
           drag_on_tracks st;
           drag_on_browser st;
@@ -1003,14 +1003,14 @@ let run_playlist (st : _ State.t) =
       | `Inward ->
         (* Reentering area: restore updated state *)
         Playlist.redo pl
-      | `Inside | `Outside -> ()
+      | `Origin | `Inside | `Outside -> ()
       );
 
       (* Positional movement *)
       if delta <> 0 && Playlist.num_selected pl > 0 then
       (
         match way with
-        | `Start | `Inside | `Inward ->
+        | `Start | `Origin | `Inside | `Inward ->
           Playlist.move_selected pl delta;
           (* Erase intermediate new state *)
           Table.drop_undo pl.table;
@@ -1182,7 +1182,7 @@ let run_library (st : _ State.t) =
         State.focus_playlist st;
         Control.eject st.control;
         Control.switch st.control tracks.(0) true;
-        Table.dirty st.library.tracks;
+        Table.dirty st.library.tracks;  (* redraw for current track *)
         Table.dirty st.library.browser;
       )
     )
@@ -1201,7 +1201,7 @@ let run_library (st : _ State.t) =
       State.focus_library browser st;
       if lib.tracks.entries <> [||] then
       (
-        if way <> `Start then set_drop_cursor st;
+        if way <> `Start && way <> `Origin then set_drop_cursor st;
         drag_on_playlist st;
       );
 
@@ -1651,7 +1651,7 @@ let run_library (st : _ State.t) =
         State.focus_playlist st;
         Control.eject st.control;
         Control.switch st.control tracks.(0) true;
-        Table.dirty st.library.tracks;
+        Table.dirty st.library.tracks;  (* redraw for current track *)
         Table.dirty st.library.browser;
       )
 
@@ -1668,7 +1668,7 @@ let run_library (st : _ State.t) =
         State.focus_library tab st;
         if Table.num_selected lib.artists > 0 && lib.tracks.entries <> [||] then
         (
-          if way <> `Start then set_drop_cursor st;
+          if way <> `Start && way <> `Origin then set_drop_cursor st;
           drag_on_playlist st;
           drag_on_browser st;
         )
@@ -1795,7 +1795,7 @@ let run_library (st : _ State.t) =
         State.focus_playlist st;
         Control.eject st.control;
         Control.switch st.control tracks.(0) true;
-        Table.dirty st.library.tracks;
+        Table.dirty st.library.tracks;  (* redraw for current track *)
         Table.dirty st.library.browser;
       )
 
@@ -1812,7 +1812,7 @@ let run_library (st : _ State.t) =
         State.focus_library tab st;
         if Table.num_selected lib.albums > 0 && lib.tracks.entries <> [||] then
         (
-          if way <> `Start then set_drop_cursor st;
+          if way <> `Start && way <> `Origin then set_drop_cursor st;
           drag_on_playlist st;
           drag_on_browser st;
         )
@@ -1971,7 +1971,7 @@ let run_library (st : _ State.t) =
         State.focus_playlist st;
         Control.eject st.control;
         Control.switch st.control (Playlist.current pl) true;
-        Table.dirty st.library.tracks;
+        Table.dirty st.library.tracks;  (* redraw for current track *)
         Table.dirty st.library.browser;
       )
 
@@ -1991,9 +1991,9 @@ let run_library (st : _ State.t) =
         State.focus_library tab st;
         if Library.num_selected lib > 0 then
         (
-          if way <> `Start then set_drop_cursor st;
+          if way <> `Start && way <> `Origin then set_drop_cursor st;
           (match way with
-          | `Start | `Inside | `Inward -> ()
+          | `Start | `Origin | `Inside | `Inward -> ()
           | `Outward | `Outside ->
             drag_on_playlist st;
             drag_on_browser st;
@@ -2013,14 +2013,14 @@ let run_library (st : _ State.t) =
             | `Inward ->
               (* Reentering area: restore updated state *)
               Library.redo lib
-            | `Inside | `Outside -> ()
+            | `Origin | `Inside | `Outside -> ()
             );
 
             (* Positional movement *)
             if delta <> 0 then
             (
               match way with
-              | `Start | `Inside | `Inward ->
+              | `Start | `Origin | `Inside | `Inward ->
                 Library.move_selected lib delta;
                 (* Erase intermediate new state *)
                 Table.drop_undo lib.tracks;

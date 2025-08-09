@@ -48,7 +48,7 @@ val nocover : t -> Api.image
 
 (* Input *)
 
-type way = [`Start | `Inside | `Outside | `Outward | `Inward]
+type way = [`Start | `Origin | `Inside | `Outside | `Outward | `Inward]
 
 val key : t -> modifier list * key -> bool -> bool
 val mouse : t -> area -> side -> bool
