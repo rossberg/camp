@@ -10,7 +10,12 @@ type 'a filesel_op =
   | `InsertRoot
 ]
 
-type menu_op = [`Todo]
+type menu_op =
+[
+  | `ArtistColumns of Library.dir * int * Data.artist_attr list * Data.artist_attr list
+  | `AlbumColumns of Library.dir * int * Data.album_attr list * Data.album_attr list
+  | `TrackColumns of Library.dir * int * Data.track_attr list * Data.track_attr list
+]
 
 type 'cache t =
 {

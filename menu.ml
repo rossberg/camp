@@ -2,8 +2,9 @@
 
 type 'op t =
 {
+  mutable pos : int * int;
   mutable op : 'op option;
-  mutable items : (string * string) array;
+  mutable items : (string * string) option array;
 }
 
 
@@ -11,6 +12,7 @@ type 'op t =
 
 let make () =
   {
+    pos = 0, 0;
     op = None;
     items = [||];
   }

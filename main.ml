@@ -47,6 +47,78 @@ let exec prog args =
   ignore (Sys.command cmd')
 
 
+(* Menus *)
+
+let menu (st : _ State.t) items op =
+  st.layout.menu_shown <- true;
+  st.menu.pos <- Api.Mouse.pos (Ui.window st.layout.ui);
+  st.menu.op <- Some op;
+  st.menu.items <- items
+
+let header_menu (st : _ State.t) dir i current_attrs unused_attrs f =
+  if current_attrs <> [] || unused_attrs <> [] then
+  (
+    let removes = current_attrs |>
+      List.map (fun a -> Some ("Remove " ^ Library.attr_name a, ""), a)
+      |> List.sort compare in
+    let adds = unused_attrs |>
+      List.map (fun a -> Some ("Add " ^ Library.attr_name a, ""), a)
+      |> List.sort compare in
+    let sep = if removes = [] || adds = [] then [] else [None] in
+    let items = List.map fst removes @ sep @ List.map fst adds in
+    menu st (Array.of_list items)
+      (f (dir, i, List.map snd removes, List.map snd adds))
+  )
+
+let header_op (_st : _ State.t) k (view : _ Library.view) i removes adds =
+  let n = if removes = [] then -1 (* no sep! *) else List.length removes in
+  let attrs = Array.to_list view.columns in
+  let attrs' =
+    match compare k n with
+    | -1 ->  (* remove entry *)
+      let attr = List.nth removes k in
+      view.sorting <- List.filter (fun (a, _) -> a <> attr) view.sorting;
+      List.filter (fun (a, _) -> a <> attr) attrs
+    | +1 ->  (* add entry *)
+      let attr = List.nth adds (k - n - 1) in
+      let i' = min (i + 1) (List.length attrs) in
+      List.take i' attrs @ [attr, 40] @ List.drop i' attrs
+    | _ ->  (* separator *)
+      attrs
+  in
+  view.columns <- Array.of_list attrs'
+
+let run_menu (st : _ State.t) =
+  let lay = st.layout in
+  let menu = st.menu in
+
+  let x, y = menu.pos in
+  let c = Ui.text_color lay.ui in
+  let items =
+    Array.map (function
+      | None -> (Ui.semilit_color c, Data.name_separator, "", false)
+      | Some (s1, s2) -> (c, s1, s2, true)
+    ) menu.items
+  in
+
+  match Ui.menu lay.ui x y (lay.margin / 2) lay.gutter lay.text items with
+  | `None -> ()
+  | `Close ->
+    st.layout.menu_shown <- false;
+    st.menu.op <- None
+  | `Click k ->
+    (match Option.get st.menu.op with
+    | `ArtistColumns (dir, i, removes, adds) ->
+      header_op st k dir.view.artists i removes adds
+    | `AlbumColumns (dir, i, removes, adds) ->
+      header_op st k dir.view.albums i removes adds
+    | `TrackColumns (dir, i, removes, adds) ->
+      header_op st k dir.view.tracks i removes adds
+    );
+    st.layout.menu_shown <- false;
+    st.menu.op <- None
+
+
 (* Control Section *)
 
 let run_control (st : _ State.t) =
@@ -1699,9 +1771,16 @@ let run_library (st : _ State.t) =
       (* Right-click on content: ignore *)
       ()
 
-    | `HeadMenu _ ->
-      (* Right-click on header: ignore *)
-      ()
+    | `HeadMenu i_opt ->
+      (* Right-click on header: header menu *)
+      let used_attrs = Array.to_list (Array.map fst view.artists.columns) in
+      let unused_attrs = Data.diff_attrs Data.artist_attrs used_attrs in
+      let i, current_attrs =
+        match i_opt with
+        | None -> Array.length view.artists.columns, []
+        | Some i -> i, [fst view.artists.columns.(i)]
+      in
+      header_menu st dir i current_attrs unused_attrs (fun x -> `ArtistColumns x)
     );
 
     if busy then
@@ -1843,9 +1922,16 @@ let run_library (st : _ State.t) =
       (* Right-click on content: ignore *)
       ()
 
-    | `HeadMenu _ ->
-      (* Right-click on header: ignore *)
-      ()
+    | `HeadMenu i_opt ->
+      (* Right-click on header: header menu *)
+      let used_attrs = Array.to_list (Array.map fst view.albums.columns) in
+      let unused_attrs = Data.diff_attrs Data.album_attrs used_attrs in
+      let i, current_attrs =
+        match i_opt with
+        | None -> Array.length view.albums.columns, []
+        | Some i -> i, [fst view.albums.columns.(i)]
+      in
+      header_menu st dir i current_attrs unused_attrs (fun x -> `AlbumColumns x)
     );
 
     if busy then
@@ -2078,9 +2164,16 @@ let run_library (st : _ State.t) =
       (* Right-click on content: ignore *)
       ()
 
-    | `HeadMenu _ ->
-      (* Right-click on header: ignore *)
-      ()
+    | `HeadMenu i_opt ->
+      (* Right-click on header: header menu *)
+      let used_attrs = Array.to_list (Array.map fst view.tracks.columns) in
+      let unused_attrs = Data.diff_attrs Data.track_attrs used_attrs in
+      let i, current_attrs =
+        match i_opt with
+        | None -> Array.length view.tracks.columns, []
+        | Some i -> i, [fst view.tracks.columns.(i)]
+      in
+      header_menu st dir i current_attrs unused_attrs (fun x -> `TrackColumns x)
     );
 
     if busy then
@@ -2468,6 +2561,7 @@ and run' (st : _ State.t) =
   let library_shown = lay.library_shown in
   let filesel_shown = lay.filesel_shown in
   let overlay_shown = library_shown || filesel_shown in
+  let menu_shown = lay.menu_shown in
   let library_side = lay.library_side in
   let library_width = lay.library_width in
 
@@ -2484,6 +2578,7 @@ and run' (st : _ State.t) =
     if filesel_shown then run_filesel st
     else if library_shown then run_library st;
     if playlist_shown || overlay_shown then run_edit st;
+    if menu_shown then run_menu st;
   );
   run_toggle_panes st;
 

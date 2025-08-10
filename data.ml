@@ -40,6 +40,29 @@ type 'attr columns = ('attr * int) array
 type display = [`Table | `Grid]
 
 
+let file_attrs =
+  [ `FilePath; `FileDir; `FileName; `FileExt; `FileSize; `FileTime ]
+let format_attrs =
+  [ `Length; `Codec; `Channels; `Depth; `SampleRate; `BitRate; `Rate ]
+let meta_attrs =
+  [ `Artist; `Title; `Track; `Tracks; `Disc; `Discs; `DiscTrack; `Cover;
+    `AlbumArtist; `AlbumTitle; `Date; `Year; `Country; `Label; `Rating ]
+
+let artist_attrs = [ `Artist; `Albums; `Tracks ]
+let album_attrs = file_attrs @ format_attrs @ meta_attrs
+let track_attrs = file_attrs @ format_attrs @ meta_attrs @ [ `Pos ]
+
+(* Can't use a set since the key cannot be polymorphic. *)
+module AttrMap = Map.Make (struct type t = any_attr let compare = compare end)
+
+let diff _ x y = if x <> None && y = None then x else None
+let diff_attrs all_attrs used_attrs =
+  let all_attrs' = List.map (fun a -> (a :> any_attr), a) all_attrs in
+  let used_attrs' = List.map (fun a -> (a :> any_attr), a) used_attrs in
+  List.map snd
+    AttrMap.(to_list (merge diff (of_list all_attrs') (of_list used_attrs')))
+
+
 (* Data *)
 
 type file =

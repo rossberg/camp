@@ -183,22 +183,28 @@ let nocover ui = get_img ui ui.img_nocover
 let background ui x y w h =
   let bg = get_img ui ui.img_background in
   let iw, ih = Image.size bg in
+
+  Draw.clip ui.win x y w h;
+
   for i = 0 to (w + iw - 1)/iw - 1 do
-    let x = if w < iw then - (iw - w)/2 else i*iw in
+    let dx = if w < iw then - (iw - w)/2 else i*iw in
     for j = 0 to (h + ih - 1)/ih - 1 do
-      let y = if h < ih then - (ih - h)/2 else j*ih in
-      Draw.image ui.win x y 1.0 bg
+      let dy = if h < ih then - (ih - h)/2 else j*ih in
+      Draw.image ui.win (x + dx) (y + dy) 1.0 bg
     done
   done;
 
-  Draw.fill ui.win (x + 1) y (x + 1) (y + h - 2) (`Gray 0x40);
-  Draw.fill ui.win x y (x + w) y (`Gray 0x70);
-  Draw.fill ui.win (x + 1) (y + h - 2) (x + w - 1) (y + 2) (`Gray 0x10);
+  Draw.line ui.win (x + 1) y (x + 1) (y + h - 2) (`Gray 0x40);
+  Draw.line ui.win x y (x + w) y (`Gray 0x70);
+  Draw.fill ui.win (x + 1) (y + h - 2) (w - 1) 2 (`Gray 0x10);
+  Draw.line ui.win (x + w - 1) y (x + w - 1) (y + h - 2) (`Gray 0x10);
 
   let mx, my = Mouse.pos ui.win in
   let r = 50 in
   Draw.gradient_circ ui.win (mx - r) (my - r) (2 * r) (2 * r)
-    (`Trans (`White, 0x20)) (`Trans (`White, 0x00))
+    (`Trans (`White, 0x20)) (`Trans (`White, 0x00));
+
+  Draw.unclip ui.win
 
 
 (* Window Background *)
@@ -853,7 +859,7 @@ type drag += Header_resize of {mouse_x : int; col : int}
 type drag += Header_reorder of {mouse_x : int; col : int; moved : bool}
 
 let header ui area gw cols (titles, sorting) hscroll =
-  let (x, y, w, h), status = element ui area no_modkey in
+  let (x, y, w, h) as r, status = element ui area no_modkey in
   let texts = Array.map (fun s -> `Text s) titles in
   ignore (table ui area gw h cols [|text_color ui, `Inverted, texts|] hscroll);
 
@@ -901,16 +907,21 @@ let header ui area gw cols (titles, sorting) hscroll =
   in
   let find_heading mx = find_heading' mx 0 (x + mw - hscroll) in
 
-  let mx, _ = Mouse.pos ui.win in
+  let mx, my = Mouse.pos ui.win in
   match ui.drag_extra with
   | No_drag ->
+    if not (inside (mx, my) r) then `None else
     (match find_gutter cols mx with
     | `None when status = `Released ->
       (match find_heading mx with
       | None -> `None
       | Some i -> `Click i
       )
-    | `None -> `None
+    | `None ->
+      if Mouse.is_pressed `Right then
+        `Menu None
+      else
+        `None
     | `Gutter col ->
       Mouse.set_cursor ui.win (`Resize `E_W);
       if status = `Pressed then
@@ -918,7 +929,7 @@ let header ui area gw cols (titles, sorting) hscroll =
       `None
     | `Header col ->
       if Mouse.is_pressed `Right then
-        `Menu col
+        `Menu (Some col)
       else if status = `Pressed then
       (
         ui.drag_extra <- Header_reorder {mouse_x = mx; col; moved = false};
@@ -1030,7 +1041,7 @@ type rich_table_action =
   | `Sort of int
   | `Resize of int array   (* new sizes *)
   | `Reorder of int array  (* permutation *)
-  | `HeadMenu of int
+  | `HeadMenu of int option
   ]
 
 let rich_table_inner _ui area geo =
@@ -1854,9 +1865,10 @@ let browser ui area geo (tab : _ Table.t) pp_entry =
 let menu ui x y bw gw ch items =
   let font = font ui ch in
   let lw, rw =
-    Array.fold_left (fun (l, r) (_, txt1, txt2) ->
-      max l (Draw.text_width ui.win ch font txt1),
-      max r (Draw.text_width ui.win ch font txt2)
+    Array.fold_left (fun (l, r) (_, txt1, txt2, full) ->
+      if not full then l, r else
+      max l (Draw.text_width ui.win ch font txt1 + 1),
+      max r (Draw.text_width ui.win ch font txt2 + 1)
     ) (0, 0) items
   in
   let ww, wh = Window.size ui.win in
@@ -1865,26 +1877,24 @@ let menu ui x y bw gw ch items =
   let x = max 0 (min x (ww - w - 2 * bw)) in
   let y = max 0 (min y (wh - h - 2 * bw)) in
 
-  background ui x y (ww + 2 * bw) (wh + 2 * bw);
+  background ui x y (w + 2 * bw) (h + 2 * bw);
 
   ui.mouse_owned <- true;
   let mx, my = Mouse.pos ui.win in
-  let i = if mx < x || mx > x + w then -1 else (my - y)/ch in
+  let i =
+    if inside (mx, my) (x + bw, y + bw, w, h) then (my - y - bw)/ch else -1 in
 
-  let area = (-1, x + rw, y + rw, w, h) in
+  let area = (-1, x + bw, y + bw, w, h) in
   let cols = [|lw, `Left; rw, `Right|] in 
   let rows =
-    Array.mapi (fun j (c, s1, s2) ->
-      c, (if i = j then `Inverted else `Regular), [|`Text s1; `Text s2|]
+    Array.mapi (fun j (c, txt1, txt2, _) ->
+      c, (if i = j then `Inverted else `Regular), [|`Text txt1; `Text txt2|]
     ) items
   in
   match table ui area gw ch cols rows 0 with
   | Some i -> `Click i
   | None ->
-    if
-      mouse_status ui (x, y, w, h) `Left = `Released ||
-      mouse_status ui (x, y, w, h) `Right = `Released
-    then `Close else `None
+    if mouse_status ui (x, y, w, h) `Left = `Released then `Close else `None
 
 
 (* Edit widget *)
