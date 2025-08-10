@@ -116,6 +116,7 @@ let run_menu (st : _ State.t) =
     menu.op <- None
   | `Click k ->
     (match Option.get st.menu.op with
+    | `BrowserOp fs -> fs.(k) ()
     | `ArtistColumns (dir, i, removes, adds) ->
       header_op st k dir.view.artists i removes adds
     | `AlbumColumns (dir, i, removes, adds) ->
@@ -1360,8 +1361,23 @@ let run_library (st : _ State.t) =
       ) (Layout.browser_mouse lay browser)
     )
 
-  | `Menu _ ->
-    (* Right-click on browser: ignore *)
+  | `Menu (Some i) ->
+    (* Right-click on browser entry: context menu *)
+    let dir = entries.(i) in
+    let c = Ui.text_color lay.ui in
+    let ops =
+      [|
+        Some (c, (if dir.view.folded then "Unfold" else "Fold"), ""),
+          (fun () -> Library.fold_dir lib dir (not dir.view.folded));
+        Some (c, "Rescan Quick", ""),
+          (fun () -> Library.rescan_dirs lib `Quick [|dir|]);
+        Some (c, "Rescan Thorough", ""),
+          (fun () -> Library.rescan_dirs lib `Thorough [|dir|]);
+      |]
+    in menu st (Array.map fst ops) (`BrowserOp (Array.map snd ops))
+
+  | `Menu None ->
+    (* Right-click on empty space in browser: ignore *)
     ()
   );
 
@@ -2169,9 +2185,24 @@ let run_library (st : _ State.t) =
         )
       )
 
-    | `Menu _ ->
-      (* Right-click on content: ignore *)
-      ()
+    | `Menu i_opt ->
+      (* Right-click on content: context menu *)
+      let track = match i_opt with None -> [||] | Some i -> [|entries.(i)|] in
+      let selected = Library.selected lib in
+      let c = Ui.text_color lay.ui in
+      let ops =
+        [ track, (Some (c, "Rescan Track", ""),
+            (fun () -> Library.rescan_tracks lib `Thorough track));
+          selected, (Some (c, "Rescan Selection", ""),
+            (fun () -> Library.rescan_tracks lib `Thorough selected));
+          entries, (Some (c, "Rescan All", ""),
+            (fun () -> Library.rescan_tracks lib `Thorough entries));
+        ]
+        |> List.filter (fun (tracks, _) -> tracks <> [||])
+        |> Array.of_list |> Array.map snd
+      in
+      if ops <> [||] then
+        menu st (Array.map fst ops) (`BrowserOp (Array.map snd ops))
 
     | `HeadMenu i_opt ->
       (* Right-click on header: header menu *)
