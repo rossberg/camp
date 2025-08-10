@@ -57,15 +57,21 @@ let menu (st : _ State.t) items op =
   Ui.modal st.layout.ui
 
 let header_menu (st : _ State.t) dir i current_attrs unused_attrs f =
-  if current_attrs <> [] || unused_attrs <> [] then
+  let c = Ui.text_color st.layout.ui in
+  if current_attrs = [] && unused_attrs = [] then
+  (
+    let items = [Some (Ui.semilit_color c, "(Nothing to add)", "")] in
+    menu st (Array.of_list items) (f (dir, i, [], []))
+  )
+  else
   (
     let removes = current_attrs |>
-      List.map (fun a -> Some ("Remove " ^ Library.attr_name a, ""), a)
+      List.map (fun a -> Some (c, "Remove " ^ Library.attr_name a, ""), a)
       |> List.sort compare in
     let adds = unused_attrs |>
-      List.map (fun a -> Some ("Add " ^ Library.attr_name a, ""), a)
+      List.map (fun a -> Some (c, "Add " ^ Library.attr_name a, ""), a)
       |> List.sort compare in
-    let sep = if removes = [] || adds = [] then [] else [None] in
+    let sep = if removes = [] || adds = [] then [] else [] in
     let items = List.map fst removes @ sep @ List.map fst adds in
     menu st (Array.of_list items)
       (f (dir, i, List.map snd removes, List.map snd adds))
@@ -80,7 +86,7 @@ let header_op (_st : _ State.t) k (view : _ Library.view) i removes adds =
       let attr = List.nth removes k in
       view.sorting <- List.filter (fun (a, _) -> a <> attr) view.sorting;
       List.filter (fun (a, _) -> a <> attr) attrs
-    | +1 ->  (* add entry *)
+    | +1 when adds <> [] ->  (* add entry *)
       let attr = List.nth adds (k - n - 1) in
       let i' = min (i + 1) (List.length attrs) in
       List.take i' attrs @ [attr, 40] @ List.drop i' attrs
@@ -94,11 +100,11 @@ let run_menu (st : _ State.t) =
   let menu = st.menu in
 
   let x, y = menu.pos in
-  let c = Ui.text_color lay.ui in
+  let c_sep = Ui.semilit_color (Ui.text_color lay.ui) in
   let items =
     Array.map (function
-      | None -> (Ui.semilit_color c, Data.name_separator, "", false)
-      | Some (s1, s2) -> (c, s1, s2, true)
+      | None -> (c_sep, Data.name_separator, "", false)
+      | Some (c, s1, s2) -> (c, s1, s2, true)
     ) menu.items
   in
 

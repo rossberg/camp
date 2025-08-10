@@ -4,7 +4,7 @@ type 'op t =
 {
   mutable pos : int * int;
   mutable op : 'op option;
-  mutable items : (string * string) option array;
+  mutable items : (Api.color * string * string) option array;
 }
 
 
