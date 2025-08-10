@@ -1563,19 +1563,20 @@ let move_selected lib d =
   )
 
 
-let undo lib =
-  let order = normalize_playlist lib in
-  Table.pop_undo lib.tracks;
-  Array.iteri (fun i (track : track) -> track.pos <- i) lib.tracks.entries;
-  restore_playlist lib order;
-  save_playlist lib
+(* Undo *)
 
-let redo lib =
-  let order = normalize_playlist lib in
-  Table.pop_redo lib.tracks;
-  Array.iteri (fun i (track : track) -> track.pos <- i) lib.tracks.entries;
-  restore_playlist lib order;
-  save_playlist lib
+let unredo lib f list =
+  if !list <> [] then
+  (
+    let order = normalize_playlist lib in
+    f lib.tracks;
+    Array.iteri (fun i (track : track) -> track.pos <- i) lib.tracks.entries;
+    restore_playlist lib order;
+    save_playlist lib
+  )
+
+let undo lib = unredo lib Table.pop_undo lib.tracks.undos
+let redo lib = unredo lib Table.pop_redo lib.tracks.redos
 
 
 (* Persistence *)

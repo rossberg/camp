@@ -103,9 +103,3 @@ val move_selected : 'a t -> int -> unit
 
 val undo : 'a t -> unit
 val redo : 'a t -> unit
-
-
-(* Undo *)
-
-val pop_undo : 'a t -> unit
-val pop_redo : 'a t -> unit

@@ -180,7 +180,7 @@ let shuffle_next pl i =
 
 (* Undo *)
 
-let pop_unredo pl f list =
+let unredo pl f list =
   if !list <> [] then
   (
     let shuffled = pl.shuffle <> None in
@@ -190,8 +190,8 @@ let pop_unredo pl f list =
     refresh_total pl;
   )
 
-let pop_undo pl = pop_unredo pl Table.pop_undo pl.table.undos
-let pop_redo pl = pop_unredo pl Table.pop_redo pl.table.redos
+let undo pl = unredo pl Table.pop_undo pl.table.undos
+let redo pl = unredo pl Table.pop_redo pl.table.redos
 
 let save_undo tabr () =
   let tab = Option.get !tabr in
@@ -376,10 +376,6 @@ let move_selected pl d =
     ) pl.shuffle;
     save_playlist pl;
   )
-
-
-let undo pl = Table.pop_undo pl.table
-let redo pl = Table.pop_redo pl.table
 
 
 (* Persistence *)
