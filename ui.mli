@@ -10,6 +10,9 @@ type t
 val make : window -> t
 val window : t -> window
 
+val modal : t -> unit
+val nonmodal : t -> unit
+
 (* Panes *)
 
 type pane = int

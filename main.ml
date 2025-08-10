@@ -53,7 +53,8 @@ let menu (st : _ State.t) items op =
   st.layout.menu_shown <- true;
   st.menu.pos <- Api.Mouse.pos (Ui.window st.layout.ui);
   st.menu.op <- Some op;
-  st.menu.items <- items
+  st.menu.items <- items;
+  Ui.modal st.layout.ui
 
 let header_menu (st : _ State.t) dir i current_attrs unused_attrs f =
   if current_attrs <> [] || unused_attrs <> [] then
@@ -104,8 +105,9 @@ let run_menu (st : _ State.t) =
   match Ui.menu lay.ui x y (lay.margin / 2) lay.gutter lay.text items with
   | `None -> ()
   | `Close ->
-    st.layout.menu_shown <- false;
-    st.menu.op <- None
+    Ui.nonmodal lay.ui;
+    lay.menu_shown <- false;
+    menu.op <- None
   | `Click k ->
     (match Option.get st.menu.op with
     | `ArtistColumns (dir, i, removes, adds) ->
@@ -115,8 +117,9 @@ let run_menu (st : _ State.t) =
     | `TrackColumns (dir, i, removes, adds) ->
       header_op st k dir.view.tracks i removes adds
     );
-    st.layout.menu_shown <- false;
-    st.menu.op <- None
+    Ui.nonmodal lay.ui;
+    lay.menu_shown <- false;
+    menu.op <- None
 
 
 (* Control Section *)

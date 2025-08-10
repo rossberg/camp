@@ -16,10 +16,11 @@ type t =
   win : window;
   mutable palette : int;
   mutable panes : rect array;
+  mutable modal : bool;             (* whether a pop-up menu is shown *)
   mutable mouse_owned : bool;       (* whether mouse was owned by an element *)
   mutable drag_origin : point;      (* starting position of mouse drag *)
   mutable drag_extra : drag;        (* associated data for drag operation *)
-  mutable delayed : (unit -> unit) list;
+  mutable delayed : (unit -> unit) list;   (* draw at end of frame *)
   img_background : image_load;
   img_button : image_load;
   img_nocover : image_load;
@@ -36,6 +37,7 @@ let make win =
   { win;
     palette = 0;
     panes = Array.make 10 (0, 0, 0, 0);
+    modal = false;
     mouse_owned = false;
     drag_origin = no_drag;
     drag_extra = No_drag;
@@ -47,6 +49,9 @@ let make win =
   }
 
 let window ui = ui.win
+
+let modal ui = ui.modal <- true
+let nonmodal ui = ui.modal <- false
 
 
 (* Panes *)
@@ -140,11 +145,11 @@ let hover_color ui = palettes.(ui.palette).hover
 let active_color _ui = `RGB 0x40ff40
 let inactive_color _ui = `Gray 0xc0
 
-let modal c = function
+let mode c = function
   | true -> c
   | false -> unlit_color c
 
-let fill ui b = modal (text_color ui) b
+let fill ui b = mode (text_color ui) b
 
 let border ui = function
   | `Hovered -> hover_color ui
@@ -234,7 +239,15 @@ let finish ui margin (minw, minh) (maxw, maxh) =
   List.iter (fun f -> f ()) (List.rev ui.delayed);
   ui.delayed <- [];
 
-  if ui.mouse_owned then ui.mouse_owned <- false else
+  if ui.modal then
+  (
+    if Mouse.is_released `Left then ui.modal <- false
+  )
+  else if ui.mouse_owned then
+  (
+     ui.mouse_owned <- false
+  )
+  else
   (
     let (wx, wy) as pos = Window.pos ui.win in
     let (ww, wh) as size = Window.size ui.win in
@@ -312,7 +325,8 @@ let delay ui f =
 
 let no_modkey = ([], `None)
 
-let key_status' _ui key =
+let key_status' ui key =
+  if ui.modal then `Untouched else
   (* Mouse click or drag masks keys *)
   if Mouse.is_down `Left then
     `Untouched
@@ -324,13 +338,14 @@ let key_status' _ui key =
     `Untouched
 
 let key_status ui (modifiers, key) focus =
-  if not (focus && Key.are_modifiers_down modifiers) then
+  if ui.modal || not (focus && Key.are_modifiers_down modifiers) then
     `Untouched
   else
     key_status' ui key
 
 let mouse_status ui r = function
   | `Left ->
+    if ui.modal then `Untouched else
     let side = `Left in
     if ui.drag_origin = no_drag && inside (Mouse.pos ui.win) r then
       (ui.mouse_owned <- true; `Hovered)
@@ -343,6 +358,7 @@ let mouse_status ui r = function
     else
       `Untouched  (* is this reachable? *)
   | `Right ->
+    if ui.modal then `Untouched else
     let side = `Right in
     if not (inside (Mouse.pos ui.win) r) then
       `Untouched
@@ -359,7 +375,7 @@ type way = [`Inside | `Outside | `Outward | `Inward]
 type drag += Drag of {pos : point; moved : bool; inside : bool}
 
 let drag_status ui r (stepx, stepy) =
-  if not (inside ui.drag_origin r) then
+  if ui.modal || not (inside ui.drag_origin r) then
     `None
   else if Mouse.is_released `Left then
     if Mouse.is_drag `Left then
@@ -398,7 +414,10 @@ let drag_status ui r (stepx, stepy) =
   | _ -> assert false
 
 let wheel_status ui r =
-  if inside (Mouse.pos ui.win) r then Mouse.wheel ui.win else (0.0, 0.0)
+  if not ui.modal && inside (Mouse.pos ui.win) r then
+    Mouse.wheel ui.win
+  else
+    (0.0, 0.0)
 
 let key ui modkey focus = (key_status ui modkey focus = `Released)
 let mouse ui r side = (mouse_status ui (dim ui r) side = `Released)
@@ -547,7 +566,7 @@ let box ui r c =
 
 let color_text ui r align c inv active s =
   let (x, y, w, h), _status = element ui r no_modkey in
-  let fg = modal c active in
+  let fg = mode c active in
   let bg = `Black in
   let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
   Draw.fill ui.win x y w (h - 1) bg;  (* assume text has no descender *)
@@ -918,7 +937,7 @@ let header ui area gw cols (titles, sorting) hscroll =
       | Some i -> `Click i
       )
     | `None ->
-      if Mouse.is_pressed `Right then
+      if not ui.modal && Mouse.is_pressed `Right then
         `Menu None
       else
         `None
@@ -928,7 +947,7 @@ let header ui area gw cols (titles, sorting) hscroll =
         ui.drag_extra <- Header_resize {mouse_x = mx; col};
       `None
     | `Header col ->
-      if Mouse.is_pressed `Right then
+      if not ui.modal && Mouse.is_pressed `Right then
         `Menu (Some col)
       else if status = `Pressed then
       (
@@ -1135,7 +1154,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
     let left_mouse_used = (status = `Pressed || status = `Released) in
 
     let result =
-      if Mouse.is_pressed `Right then
+      if not ui.modal && Mouse.is_pressed `Right then
       (
         if inside (mx, my) r then
           `Menu (if i >= limit then None else Some i)
@@ -1186,7 +1205,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
 
         | `Drop -> `Drop
       )
-      else if command && Mouse.is_pressed `Left then
+      else if command && not ui.modal && Mouse.is_pressed `Left then
       (
         (* Cmd-click on entry: toggle selection of clicked entry *)
         if i >= limit then
@@ -1200,7 +1219,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
           `Click (Some i);
         )
       )
-      else if shift && Mouse.is_down `Left then
+      else if shift && not ui.modal && Mouse.is_down `Left then
       (
         (* Shift-click/drag on playlist: adjust selection range *)
         let default = if i < len then (i, i) else (0, 0) in
@@ -1219,7 +1238,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
           Table.select tab pos2 i';
           Table.deselect tab pos1 i'
         );
-        if Mouse.is_pressed `Left then
+        if not ui.modal && Mouse.is_pressed `Left then
           `Click (if i < len then Some i else None)
         else if Table.IntSet.equal tab.selected old_selection then
           `None
@@ -1545,7 +1564,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
     let left_mouse_used = (status = `Pressed || status = `Released) in
 
     let result =
-      if Mouse.is_pressed `Right then
+      if not ui.modal && Mouse.is_pressed `Right then
       (
         if inside (mx, my) r then
           `Menu (if on_bg then None else Some k)
@@ -1592,7 +1611,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
 
         | `Drop -> `Drop
       )
-      else if command && Mouse.is_pressed `Left then
+      else if command && not ui.modal && Mouse.is_pressed `Left then
       (
         (* Cmd-click on entry: toggle selection of clicked entry *)
         if on_bg then
@@ -1606,7 +1625,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
           `Click (Some k);
         )
       )
-      else if shift && Mouse.is_down `Left then
+      else if shift && not ui.modal && Mouse.is_down `Left then
       (
         (* Shift-click/drag on playlist: adjust selection range *)
         let default = if k < len then (k, k) else (0, 0) in
@@ -1625,7 +1644,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
           Table.select tab pos2 k';
           Table.deselect tab pos1 k'
         );
-        if Mouse.is_pressed `Left then
+        if not ui.modal && Mouse.is_pressed `Left then
           `Click (if k < len then Some k else None)
         else if Table.IntSet.equal tab.selected old_selection then
           `None
@@ -1840,7 +1859,7 @@ let browser ui area geo (tab : _ Table.t) pp_entry =
     let nest, folded, _, _ = pp_entry i in
     let tw = Draw.text_width ui.win geo.row_h (font ui geo.row_h) (pp_pre nest folded) in
     if mx + tab.hscroll < x + tw
-    && Mouse.(is_down `Left || is_released `Left) then
+    && not ui.modal && Mouse.(is_down `Left || is_released `Left) then
     (
       (* CLick on triangle *)
       Table.reset_selected tab selected;  (* override selection change*)
@@ -1863,6 +1882,8 @@ let browser ui area geo (tab : _ Table.t) pp_entry =
 (* Pop-up Menu *)
 
 let menu ui x y bw gw ch items =
+  assert ui.modal;
+
   let font = font ui ch in
   let lw, rw =
     Array.fold_left (fun (l, r) (_, txt1, txt2, full) ->
@@ -1879,7 +1900,6 @@ let menu ui x y bw gw ch items =
 
   background ui x y (w + 2 * bw) (h + 2 * bw);
 
-  ui.mouse_owned <- true;
   let mx, my = Mouse.pos ui.win in
   let i =
     if inside (mx, my) (x + bw, y + bw, w, h) then (my - y - bw)/ch else -1 in
@@ -1891,10 +1911,14 @@ let menu ui x y bw gw ch items =
       c, (if i = j then `Inverted else `Regular), [|`Text txt1; `Text txt2|]
     ) items
   in
+
+  ui.mouse_owned <- true;
+  ui.modal <- false;
+  let released = Mouse.is_released `Left in
   match table ui area gw ch cols rows 0 with
-  | Some i -> `Click i
-  | None ->
-    if mouse_status ui (x, y, w, h) `Left = `Released then `Close else `None
+  | Some i when released -> `Click i
+  | None when released -> `Close
+  | _ -> ui.modal <- true; `None
 
 
 (* Edit widget *)
