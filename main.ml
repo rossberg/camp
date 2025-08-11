@@ -714,8 +714,8 @@ let set_drop_cursor (st : _ State.t) =
       Layout.playlist_mouse lay pl.table <> None
     ||
     lay.library_shown && (
-      (* over plain library playlist view? *)
-      Library.current_is_plain_playlist lib &&
+      (* over library playlist view? *)
+      Library.current_is_playlist lib &&
         tracks_mouse (current_is_grid st) lay lib.tracks <> None
       ||
       (* over browser entry that is a playlist? *)
@@ -2380,7 +2380,7 @@ let run_library (st : _ State.t) =
     | `Menu i_opt ->
       State.focus_library tab st;
       (* Right-click on tracks content: context menu *)
-      if Library.current_is_plain_playlist lib then
+      if Library.current_is_playlist lib then
       (
         let module View = struct let it = st.library include Library end in
         let module Other = struct let it = st.playlist include Playlist end in

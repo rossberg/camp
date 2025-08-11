@@ -456,11 +456,6 @@ let reverse_selected tab =
       js.(ks.(i)) <- ks.(j);
       js.(ks.(j)) <- ks.(i);
     done;
-    tab.sel_range <-
-      Option.map (fun (i ,j) ->
-        (if i = len then len else js.(i)),
-        (if j = len then len else js.(j))
-      ) tab.sel_range;
     js
   )
 
