@@ -1921,7 +1921,7 @@ let menu ui x y bw gw ch items =
 
   ui.mouse_owned <- true;
   ui.modal <- false;
-  let released = Mouse.is_released `Left in
+  let released = Mouse.is_released `Left || Mouse.is_pressed `Right in
   let enabled i = match items.(i) with `Entry (_, _, _, b) -> b | _ -> false in
   match table ui area gw ch cols rows 0 with
   | Some i when released && enabled i -> `Click i
