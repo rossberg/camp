@@ -550,22 +550,22 @@ sig
   val it : Ui.cached t
   val focus : (track, Ui.cached) Table.t -> Ui.cached State.t -> unit
 
-(*  val length : Ui.cached t -> int*)
+  val length : Ui.cached t -> int
   val tracks : Ui.cached t -> track array
   val table : Ui.cached t -> (track, Ui.cached) Table.t
 
   val num_selected : Ui.cached t -> int
   val first_selected : Ui.cached t -> int option
   val selected : Ui.cached t -> track array
-(*  val select_all : Ui.cached t -> unit*)
+  val select_all : Ui.cached t -> unit
   val deselect_all : Ui.cached t -> unit
-(*  val select_invert : Ui.cached t -> unit*)
+  val select_invert : Ui.cached t -> unit
 (*  val select : Ui.cached t -> int -> int -> unit*)
 (*  val deselect : Ui.cached t -> int -> int -> unit*)
 
   val insert : Ui.cached t -> int -> track array -> unit
 (*  val replace_all : Ui.cached t -> track array -> unit*)
-(*  val remove_all : Ui.cached t -> unit*)
+  val remove_all : Ui.cached t -> unit
   val remove_selected : Ui.cached t -> unit
   val remove_unselected : Ui.cached t -> unit
   val remove_invalid : Ui.cached t -> unit
@@ -714,6 +714,41 @@ let set_drop_cursor (st : _ State.t) =
     (if droppable then `Point else `Blocked)
 
 
+let tag (st : _ State.t) tracks additive =
+  let paths = Array.map (fun (track : Data.track) -> track.path) tracks in
+  Domain.spawn (fun () ->
+    let paths' =
+      List.filter (fun p -> not (M3u.is_separator p)) (Array.to_list paths) in
+    if st.config.exec_tag_max_len = 0 && not additive then
+      exec st.config.exec_tag paths'
+    else
+    (
+      (* Work around Windows command line limits *)
+      let args = ref paths' in
+      let rec pick len max =
+        match !args with
+        | [] -> []
+        | arg1::args' ->
+          let len' = len + String.length arg1 + 5 in
+          if len <> 0 && len' > max then [] else
+          (
+            args := args';
+            arg1 :: pick len' max
+          )
+      in
+      (* Mp3tag immediately resorts the tracks by current column, unless added
+       * with /add. However, /add only works with individual tracks and exec's,
+       * which is very slow, so only use that when (a) we have less then a
+       * certain number of tracks, or (b) when the command line gets too long
+       * for a single call anyways. *)
+      let max =
+        if List.length paths' < 20 then 1 else st.config.exec_tag_max_len in
+      if not additive then exec st.config.exec_tag (pick 0 max);
+      List.iter (fun arg -> exec st.config.exec_tag ["/add"; arg]) !args;
+    )
+  ) |> ignore
+
+
 (* Edit Pane *)
 
 let run_edit (st : _ State.t) =
@@ -782,13 +817,13 @@ let run_edit (st : _ State.t) =
     View.remove_unselected view;
   );
 
-  let pl_clean_avail = pl_edit && snd pl.total > 0 in
-  let lib_clean_avail = lib_edit (* TODO: && snd pl.total > 0 *) in
-  let clean_avail = pl_clean_avail || lib_clean_avail in
-  if Layout.clean_button lay (if clean_avail then Some false else None)
-  || clean_avail && Layout.clean_button_alt lay then
+  let pl_wipe_avail = pl_edit && snd pl.total > 0 in
+  let lib_wipe_avail = lib_edit (* TODO: && snd pl.total > 0 *) in
+  let wipe_avail = pl_wipe_avail || lib_wipe_avail in
+  if Layout.wipe_button lay (if wipe_avail then Some false else None)
+  || wipe_avail && Layout.wipe_button_alt lay then
   (
-    (* Click on Clean button: remove invalid tracks from playlist *)
+    (* Click on Wipe button: remove invalid tracks from playlist *)
     View.remove_invalid view;
   );
 
@@ -838,30 +873,29 @@ let run_edit (st : _ State.t) =
     Api.Clipboard.write win s;
   );
 
-  let pl_paste_avail = pl_edit in
-  let lib_paste_avail = lib_edit in
+  let clipboard = Api.Clipboard.read win in
+  let pl_paste_avail = pl_edit && clipboard <> None in
+  let lib_paste_avail = lib_edit && clipboard <> None in
   let paste_avail = pl_paste_avail || lib_paste_avail in
   if paste_avail && Layout.paste_key lay then
   (
     (* Press of Paste key: insert tracks from clipboard *)
-    match Api.Clipboard.read win with
-    | None -> ()
-    | Some s ->
-      let tracks = Track.of_m3u s in
-      let found_proper =
-        Array.exists (fun (track : Data.track) ->
-          Data.is_track_path track.path
-        ) tracks
-      in
-      if found_proper && tracks <> [||] then
-      (
-        let pos = Option.value (View.first_selected view) ~default: 0 in
-        View.insert view pos tracks;
-        Other.deselect_all other;
-        Control.switch_if_empty st.control (Playlist.current_opt pl);
-        Table.dirty st.library.tracks;
-        Table.dirty st.library.browser;
-      )
+    let s = Option.get clipboard in
+    let tracks = Track.of_m3u s in
+    let found_proper =
+      Array.exists (fun (track : Data.track) ->
+        Data.is_track_path track.path
+      ) tracks
+    in
+    if found_proper && tracks <> [||] then
+    (
+      let pos = Option.value (View.first_selected view) ~default: 0 in
+      View.insert view pos tracks;
+      Other.deselect_all other;
+      Control.switch_if_empty st.control (Playlist.current_opt pl);
+      Table.dirty st.library.tracks;
+      Table.dirty st.library.browser;
+    )
   );
 
   (* Tag button *)
@@ -877,40 +911,9 @@ let run_edit (st : _ State.t) =
     (* Click on Tag button: execute tagging program *)
     let tracks =
       View.(if num_selected view > 0 then selected view else tracks view) in
-    let paths = Array.map (fun (track : Data.track) -> track.path) tracks in
     (* Command-click: add tracks to tagger if it's already open *)
     let additive = Api.Key.is_modifier_down `Command in
-    Domain.spawn (fun () ->
-      let paths' =
-        List.filter (fun p -> not (M3u.is_separator p)) (Array.to_list paths) in
-      if st.config.exec_tag_max_len = 0 && not additive then
-        exec st.config.exec_tag paths'
-      else
-      (
-        (* Work around Windows command line limits *)
-        let args = ref paths' in
-        let rec pick len max =
-          match !args with
-          | [] -> []
-          | arg1::args' ->
-            let len' = len + String.length arg1 + 5 in
-            if len <> 0 && len' > max then [] else
-            (
-              args := args';
-              arg1 :: pick len' max
-            )
-        in
-        (* Mp3tag immediately resorts the tracks by current column, unless added
-         * with /add. However, /add only works with individual tracks and exec's,
-         * which is very slow, so only use that when (a) we have less then a
-         * certain number of tracks, or (b) when the command line gets too long
-         * for a single call anyways. *)
-        let max =
-          if List.length paths' < 20 then 1 else st.config.exec_tag_max_len in
-        if not additive then exec st.config.exec_tag (pick 0 max);
-        List.iter (fun arg -> exec st.config.exec_tag ["/add"; arg]) !args;
-      )
-    ) |> ignore;
+    tag st tracks additive;
   );
 
   (* Save button *)
@@ -973,6 +976,101 @@ let run_edit (st : _ State.t) =
   (* Focus buttons *)
   if Layout.focus_next_key lay then State.focus_next st;
   if Layout.focus_prev_key lay then State.focus_prev st
+
+
+let edit_menu (st : _ State.t) (module View : TracksView) (module Other : TracksView) pos_opt =
+  let lay = st.layout in
+  let win = Ui.window lay.ui in
+  let pl = st.playlist in
+  let view = View.it in
+  let other = Other.it in
+
+  let pos = Option.value pos_opt ~default: (View.length view) in
+  let c = Ui.text_color lay.ui in
+  let cmd = Api.Key.is_modifier_down `Command in
+  let all, tracks, quant =
+    if View.num_selected view > 0
+    then false, View.selected view, ""
+    else true, View.tracks view, " All"
+  in
+  let ops =
+    [|
+      `Entry (c, "Insert Separator", "", true),
+        (fun () ->
+          View.insert view pos [|Data.make_separator ()|];
+          Other.deselect_all other;
+        );
+      `Separator, ignore;
+      `Entry (c, "Tag" ^ quant, "", tracks <> [||]),
+        (fun () -> tag st tracks cmd);
+      `Entry (c, "Rescan" ^ quant, "", tracks <> [||]),
+        (fun () -> Library.rescan_tracks st.library `Thorough tracks);
+      `Entry (c, "Remove" ^ quant, "", tracks <> [||]),
+        (fun () -> View.(if all then remove_all else remove_selected) view);
+      `Entry (c, "Wipe", "", true (* TODO: snd View.total view > 0 *)),
+        (fun () -> View.remove_invalid view);
+      `Separator, ignore;
+      `Entry (c, "Cut", "", not all && tracks <> [||]),
+        (fun () ->
+          let s = Track.to_m3u (View.selected view) in
+          View.remove_selected view;
+          Api.Clipboard.write win s;
+        );
+      `Entry (c, "Copy", "", not all && tracks <> [||]),
+        (fun () ->
+          let s = Track.to_m3u (View.selected view) in
+          View.remove_selected view;
+          Api.Clipboard.write win s;
+        );
+      `Entry (c, "Paste", "", Api.Clipboard.read win <> None),
+        (fun () ->
+          match Api.Clipboard.read win with
+          | None -> ()
+          | Some s ->
+            let tracks = Track.of_m3u s in
+            let found_proper =
+              Array.exists (fun (track : Data.track) ->
+                Data.is_track_path track.path
+              ) tracks
+            in
+            if found_proper && tracks <> [||] then
+            (
+              View.insert view pos tracks;
+              Other.deselect_all other;
+              Table.dirty st.library.tracks;
+              Table.dirty st.library.browser;
+            )
+        );
+      `Entry (c, "Crop", "", not all && tracks <> [||]),
+        (fun () ->
+          let s = Track.to_m3u (View.selected view) in
+          Api.Clipboard.write win s;
+        );
+      `Separator, ignore;
+      `Entry (c, "Select All", "", View.(num_selected view < length view)),
+        (fun () -> View.select_all view; Other.deselect_all other);
+      `Entry (c, "Select None", "", View.(num_selected view > 0)),
+        (fun () -> View.deselect_all view);
+      `Entry (c, "Invert Selection", "", View.(num_selected view > 0)),
+        (fun () -> View.select_invert view);
+      `Separator, ignore;
+      `Entry (c, "Undo", "", !((View.table view).undos) <> []),
+        (fun () ->
+          View.undo view;
+          Control.switch_if_empty st.control (Playlist.current_opt pl);
+          Table.dirty st.library.tracks;
+          Table.dirty st.library.browser;
+        );
+      `Entry (c, "Redo", "", !((View.table view).redos) <> []),
+        (fun () ->
+          View.redo view;
+          Control.switch_if_empty st.control (Playlist.current_opt pl);
+          Table.dirty st.library.tracks;
+          Table.dirty st.library.browser;
+        );
+    |]
+  in
+  menu st (Array.map fst ops) (fun k -> snd ops.(k) ())
 
 
 (* Playlist Pane *)
@@ -1134,9 +1232,11 @@ let run_playlist (st : _ State.t) =
       )
     );
 
-  | `Menu _ ->
-    (* Right-click on playlist: ignore *)
-    ()
+  | `Menu i_opt ->
+    (* Right-click on content: context menu *)
+    let module View = struct let it = st.playlist include Playlist end in
+    let module Other = struct let it = st.library include Library end in
+    edit_menu st (module View) (module Other) i_opt
   );
 
   (* Playlist drag & drop *)
@@ -1829,8 +1929,27 @@ let run_library (st : _ State.t) =
       )
 
     | `Menu _ ->
-      (* Right-click on content: ignore *)
-      ()
+      (* Right-click on content: context menu *)
+      let c = Ui.text_color lay.ui in
+      let cmd = Api.Key.is_modifier_down `Command in
+      let tracks = lib.tracks.entries in
+      let quant = if Table.has_selection tab then "" else " All" in
+      let ops =
+        [|
+          `Entry (c, "Tag" ^ quant, "", tracks <> [||]),
+            (fun () -> tag st tracks cmd);
+          `Entry (c, "Rescan" ^ quant, "", tracks <> [||]),
+            (fun () -> Library.rescan_tracks lib `Thorough tracks);
+          `Separator, ignore;
+          `Entry (c, "Select All", "",  Table.(num_selected tab < length tab)),
+            (fun () -> Table.select_all tab; Library.refresh_albums_tracks lib);
+          `Entry (c, "Select None", "", Table.(num_selected tab > 0)),
+            (fun () -> Table.deselect_all tab; Library.refresh_albums_tracks lib);
+          `Entry (c, "Invert Selection", "", Table.(num_selected tab > 0)),
+            (fun () -> Table.select_invert tab; Library.refresh_albums_tracks lib);
+        |]
+      in
+      menu st (Array.map fst ops) (fun k -> snd ops.(k) ())
 
     | `HeadMenu i_opt ->
       (* Right-click on header: header menu *)
@@ -1980,8 +2099,27 @@ let run_library (st : _ State.t) =
       )
 
     | `Menu _ ->
-      (* Right-click on content: ignore *)
-      ()
+      (* Right-click on content: context menu *)
+      let c = Ui.text_color lay.ui in
+      let cmd = Api.Key.is_modifier_down `Command in
+      let tracks = lib.tracks.entries in
+      let quant = if Table.has_selection tab then "" else " All" in
+      let ops =
+        [|
+          `Entry (c, "Tag" ^ quant, "", tracks <> [||]),
+            (fun () -> tag st tracks cmd);
+          `Entry (c, "Rescan" ^ quant, "", tracks <> [||]),
+            (fun () -> Library.rescan_tracks lib `Thorough tracks);
+          `Separator, ignore;
+          `Entry (c, "Select All", "", Table.(num_selected tab < length tab)),
+            (fun () -> Table.select_all tab; Library.refresh_tracks lib);
+          `Entry (c, "Select None", "", Table.(num_selected tab > 0)),
+            (fun () -> Table.deselect_all tab; Library.refresh_tracks lib);
+          `Entry (c, "Invert Selection", "", Table.(num_selected tab > 0)),
+            (fun () -> Table.select_invert tab; Library.refresh_tracks lib);
+        |]
+      in
+      menu st (Array.map fst ops) (fun k -> snd ops.(k) ())
 
     | `HeadMenu i_opt ->
       (* Right-click on header: header menu *)
@@ -2211,7 +2349,7 @@ let run_library (st : _ State.t) =
           (* Drag & drop originating from tracks *)
 
           (* Dropping outside tracks: drop aux redo for new state *)
-          if Data.is_playlist dir then
+          if Library.current_is_plain_playlist lib then
             Table.drop_redo lib.tracks;
 
           (* Drag & drop onto playlist or browser: send tracks to playlist *)
@@ -2223,20 +2361,38 @@ let run_library (st : _ State.t) =
 
     | `Menu i_opt ->
       (* Right-click on content: context menu *)
-      let track = match i_opt with None -> [||] | Some i -> [|entries.(i)|] in
-      let selected = Library.selected lib in
-      let c = Ui.text_color lay.ui in
-      let ops =
-        [|
-          track, (`Entry (c, "Rescan Track", "", track <> [||]),
-            (fun () -> Library.rescan_tracks lib `Thorough track));
-          selected, (`Entry (c, "Rescan Selection", "", selected <> [||]),
-            (fun () -> Library.rescan_tracks lib `Thorough selected));
-          entries, (`Entry (c, "Rescan All", "", entries <> [||]),
-            (fun () -> Library.rescan_tracks lib `Thorough entries));
-        |] |> Array.map snd
-      in
-      menu st (Array.map fst ops) (fun k -> snd ops.(k) ())
+      if Library.current_is_plain_playlist lib then
+      (
+        let module View = struct let it = st.library include Library end in
+        let module Other = struct let it = st.playlist include Playlist end in
+        edit_menu st (module View) (module Other) i_opt
+      )
+      else
+      (
+        let c = Ui.text_color lay.ui in
+        let cmd = Api.Key.is_modifier_down `Command in
+        let tracks, quant =
+          if Library.has_selection lib
+          then Library.selected lib, ""
+          else entries, " All"
+        in
+        let ops =
+          [|
+            `Entry (c, "Tag" ^ quant, "", tracks <> [||]),
+              (fun () -> tag st tracks cmd);
+            `Entry (c, "Rescan" ^ quant, "", tracks <> [||]),
+              (fun () -> Library.rescan_tracks lib `Thorough tracks);
+            `Separator, ignore;
+            `Entry (c, "Select All", "", Library.(num_selected lib < length lib)),
+              (fun () -> Library.select_all lib);
+            `Entry (c, "Select None", "", Library.(num_selected lib > 0)),
+              (fun () -> Library.deselect_all lib);
+            `Entry (c, "Invert Selection", "", Library.(num_selected lib > 0)),
+              (fun () -> Library.select_invert lib);
+          |]
+        in
+        menu st (Array.map fst ops) (fun k -> snd ops.(k) ())
+      )
 
     | `HeadMenu i_opt ->
       (* Right-click on header: header menu *)
