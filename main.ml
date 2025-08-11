@@ -56,12 +56,11 @@ let menu (st : _ State.t) items op =
   st.menu.items <- items;
   Ui.modal st.layout.ui
 
-let header_menu (st : _ State.t) dir i current_attrs unused_attrs f =
+let header_menu (st : _ State.t) (view : _ Library.view) i current_attrs unused_attrs =
   let c = Ui.text_color st.layout.ui in
   if current_attrs = [] && unused_attrs = [] then
   (
-    let items = [Some (Ui.semilit_color c, "(Nothing to add)", "")] in
-    menu st (Array.of_list items) (f (dir, i, [], []))
+    menu st [|Some (Ui.semilit_color c, "(Nothing to add)", "")|] ignore
   )
   else
   (
@@ -71,29 +70,27 @@ let header_menu (st : _ State.t) dir i current_attrs unused_attrs f =
     let adds = unused_attrs |>
       List.map (fun a -> Some (c, "Add " ^ Library.attr_name a, ""), a)
       |> List.sort compare in
-    let sep = if removes = [] || adds = [] then [] else [] in
-    let items = List.map fst removes @ sep @ List.map fst adds in
-    menu st (Array.of_list items)
-      (f (dir, i, List.map snd removes, List.map snd adds))
+    let sep = if removes = [] || adds = [] then [] else [None] in
+    let items = Array.of_list List.(map fst removes @ sep @ map fst adds) in
+    menu st items (fun k ->
+      let n = if removes = [] then -1 (* no sep! *) else List.length removes in
+      let attrs = Array.to_list view.columns in
+      let attrs' =
+        match compare k n with
+        | -1 ->  (* remove entry *)
+          let _, attr = List.nth removes k in
+          view.sorting <- List.filter (fun (a, _) -> a <> attr) view.sorting;
+          List.filter (fun (a, _) -> a <> attr) attrs
+        | +1 when adds <> [] ->  (* add entry *)
+          let _, attr = List.nth adds (k - n - 1) in
+          let i' = min (i + 1) (List.length attrs) in
+          List.take i' attrs @ [attr, 40] @ List.drop i' attrs
+        | _ ->  (* separator *)
+          attrs
+      in
+      view.columns <- Array.of_list attrs'
+    )
   )
-
-let header_op (_st : _ State.t) k (view : _ Library.view) i removes adds =
-  let n = if removes = [] then -1 (* no sep! *) else List.length removes in
-  let attrs = Array.to_list view.columns in
-  let attrs' =
-    match compare k n with
-    | -1 ->  (* remove entry *)
-      let attr = List.nth removes k in
-      view.sorting <- List.filter (fun (a, _) -> a <> attr) view.sorting;
-      List.filter (fun (a, _) -> a <> attr) attrs
-    | +1 when adds <> [] ->  (* add entry *)
-      let attr = List.nth adds (k - n - 1) in
-      let i' = min (i + 1) (List.length attrs) in
-      List.take i' attrs @ [attr, 40] @ List.drop i' attrs
-    | _ ->  (* separator *)
-      attrs
-  in
-  view.columns <- Array.of_list attrs'
 
 let run_menu (st : _ State.t) =
   let lay = st.layout in
@@ -115,15 +112,7 @@ let run_menu (st : _ State.t) =
     lay.menu_shown <- false;
     menu.op <- None
   | `Click k ->
-    (match Option.get st.menu.op with
-    | `BrowserOp fs -> fs.(k) ()
-    | `ArtistColumns (dir, i, removes, adds) ->
-      header_op st k dir.view.artists i removes adds
-    | `AlbumColumns (dir, i, removes, adds) ->
-      header_op st k dir.view.albums i removes adds
-    | `TrackColumns (dir, i, removes, adds) ->
-      header_op st k dir.view.tracks i removes adds
-    );
+    Option.get st.menu.op k;
     Ui.nonmodal lay.ui;
     lay.menu_shown <- false;
     menu.op <- None
@@ -1374,7 +1363,7 @@ let run_library (st : _ State.t) =
         Some (c, "Rescan Thorough", ""),
           (fun () -> Library.rescan_dirs lib `Thorough [|dir|]);
       |]
-    in menu st (Array.map fst ops) (`BrowserOp (Array.map snd ops))
+    in menu st (Array.map fst ops) (fun k -> snd ops.(k) ())
 
   | `Menu None ->
     (* Right-click on empty space in browser: ignore *)
@@ -1805,7 +1794,7 @@ let run_library (st : _ State.t) =
         | None -> Array.length view.artists.columns, []
         | Some i -> i, [fst view.artists.columns.(i)]
       in
-      header_menu st dir i current_attrs unused_attrs (fun x -> `ArtistColumns x)
+      header_menu st dir.view.artists i current_attrs unused_attrs
     );
 
     if busy then
@@ -1956,7 +1945,7 @@ let run_library (st : _ State.t) =
         | None -> Array.length view.albums.columns, []
         | Some i -> i, [fst view.albums.columns.(i)]
       in
-      header_menu st dir i current_attrs unused_attrs (fun x -> `AlbumColumns x)
+      header_menu st dir.view.albums i current_attrs unused_attrs
     );
 
     if busy then
@@ -2202,7 +2191,7 @@ let run_library (st : _ State.t) =
         |> Array.of_list |> Array.map snd
       in
       if ops <> [||] then
-        menu st (Array.map fst ops) (`BrowserOp (Array.map snd ops))
+        menu st (Array.map fst ops) (fun k -> snd ops.(k) ())
 
     | `HeadMenu i_opt ->
       (* Right-click on header: header menu *)
@@ -2213,7 +2202,7 @@ let run_library (st : _ State.t) =
         | None -> Array.length view.tracks.columns, []
         | Some i -> i, [fst view.tracks.columns.(i)]
       in
-      header_menu st dir i current_attrs unused_attrs (fun x -> `TrackColumns x)
+      header_menu st dir.view.tracks i current_attrs unused_attrs
     );
 
     if busy then
