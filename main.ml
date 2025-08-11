@@ -935,8 +935,17 @@ let run_edit (st : _ State.t) =
   if Layout.save_button lay (if save_avail then Some false else None) then
   (
     (* Click on Save button: save playlist *)
-    let tab = if pl_save_avail then st.playlist.table else st.library.tracks in
-    st.filesel.op <- Some (`SavePlaylist tab);
+    st.filesel.op <- Some (`Write, `File, fun path ->
+      (try
+        let tab =
+          if pl_save_avail then st.playlist.table else st.library.tracks in
+        File.store `Bin path (Track.to_m3u tab.entries)
+      with Sys_error msg ->
+        Library.error st.library ("Error writing file " ^ path ^ ", " ^ msg);
+        Layout.browser_error_box lay;  (* flash *)
+      );
+      State.focus_playlist st;
+    );
     st.layout.filesel_shown <- true;
     Edit.set st.filesel.input ".m3u";
     Edit.move_begin st.filesel.input;
@@ -949,7 +958,21 @@ let run_edit (st : _ State.t) =
   if Layout.load_button lay (if load_avail then Some false else None) then
   (
     (* Click on Load button: load playlist *)
-    st.filesel.op <- Some `LoadPlaylist;
+    st.filesel.op <- Some (`Read, `File, fun path ->
+      (try
+        let tracks = Track.of_m3u (File.load `Bin path) in
+        Playlist.replace_all st.playlist tracks;
+        State.focus_playlist st;
+        Control.eject st.control;
+        Control.switch st.control tracks.(0) true;
+        Table.dirty st.library.tracks;
+        Table.dirty st.library.browser;
+      with Sys_error msg ->
+        Library.error st.library ("Error reading file " ^ path ^ ", " ^ msg);
+        Layout.browser_error_box lay;  (* flash *)
+      );
+      State.focus_playlist st;
+    );
     st.layout.filesel_shown <- true;
     Edit.set st.filesel.input ".m3u";
     Edit.move_begin st.filesel.input;
@@ -1392,7 +1415,12 @@ let run_library (st : _ State.t) =
   if Layout.insert_button lay (if insert_avail then Some false else None) then
   (
     (* Click on Insert (Add) button: add directory or playlist *)
-    st.filesel.op <- Some `InsertRoot;
+    st.filesel.op <- Some (`Read, `Dir, fun path ->
+      let roots = st.library.root.children in
+      if not (Library.insert_roots st.library [path] (Array.length roots)) then
+        Layout.browser_error_box lay;  (* flash *)
+      State.focus_library st.library.browser st;
+    );
     st.layout.filesel_shown <- true;
     Edit.set st.filesel.input "";
     State.defocus_all st;
@@ -1441,12 +1469,41 @@ let run_library (st : _ State.t) =
     | Some i -> entries.(i).parent <> None
     | None -> false
   in
+  let create ext s view_opt path =
+    (match Library.find_dir lib File.(dir path // "") with
+    | None ->
+      Library.error lib
+        ("Error creating file " ^ path ^ ", path is outside library");
+      Layout.browser_error_box lay;  (* flash *)
+    | Some parent ->
+      (try
+        let path =
+          if String.lowercase_ascii (File.extension path) = ext
+          then path
+          else path ^ ext
+        in
+        File.store `Bin path s;
+        match Library.insert_dir lib path with
+        | None -> raise (Sys_error "library is out of sync")
+        | Some dir ->
+          Library.fold_dir lib parent false;
+          Option.iter (fun view -> dir.view <- view) view_opt;
+          Option.iter (Library.select_dir lib)
+            (Array.find_index ((==) dir) lib.browser.entries)
+      with Sys_error msg ->
+        Library.error lib ("Error creating file " ^ path ^ ", " ^ msg);
+        Layout.browser_error_box lay;  (* flash *)
+      );
+    );
+    State.focus_playlist st;
+  in
+
   if Layout.create_button lay (if create_avail then Some false else None) then
   (
     (* Click on Create (New) button: create new playlist *)
     let i = Option.get (Library.selected_dir lib) in
     let dir = entries.(i) in
-    st.filesel.op <- Some (`CreatePlayViewlist (".m3u", "", None));
+    st.filesel.op <- Some (`Write, `File, create ".m3u" "" None);
     st.layout.filesel_shown <- true;
     Edit.set st.filesel.input ".m3u";
     Edit.move_begin st.filesel.input;
@@ -1469,7 +1526,7 @@ let run_library (st : _ State.t) =
     let query = prefix ^ lib.search.text in
     let view = Library.copy_views dir.view in
     view.search <- "";
-    st.filesel.op <- Some (`CreatePlayViewlist (".m3v", query, Some view));
+    st.filesel.op <- Some (`Write, `File, create ".m3v" query (Some view));
     st.layout.filesel_shown <- true;
     Edit.set st.filesel.input ".m3v";
     Edit.move_begin st.filesel.input;
@@ -2277,18 +2334,10 @@ let run_library (st : _ State.t) =
 
 (* File Selection *)
 
-let is_write_op = function
-  | `LoadPlaylist | `InsertRoot -> false
-  | `SavePlaylist _ | `CreatePlayViewlist _ -> true
-
-let is_dir_op = function
-  | `InsertRoot -> true
-  | `LoadPlaylist | `SavePlaylist _ | `CreatePlayViewlist _ -> false
-
 let run_filesel (st : _ State.t) =
   let fs = st.filesel in
   let lay = st.layout in
-  let op = Option.get fs.op in
+  let rw, ty, f = Option.get fs.op in
 
   (* Update after possible window resize *)
   lay.directories_width <-
@@ -2391,7 +2440,7 @@ let run_filesel (st : _ State.t) =
       State.focus_filesel files st;
       Option.iter (fun i ->
         let file = files.entries.(i) in
-        if not file.is_dir || is_dir_op op then
+        if not file.is_dir || ty = `Dir then
           Edit.set fs.input file.name
       ) (Filesel.selected_file fs);
       false
@@ -2446,13 +2495,13 @@ let run_filesel (st : _ State.t) =
 
   (* Buttons *)
 
-  let is_write = is_write_op op in
+  let is_write = (rw = `Write) in
   let is_valid = fs.input.text <> "" && fs.input.text.[0] <> '.' in
   let dir_avail =
     fs.dirs.focus || fs.files.focus && Filesel.current_sel_is_dir fs in
   let file_avail = not dir_avail && Filesel.current_file_exists fs in
   let dir_file_avail =
-    is_dir_op op && fs.files.focus && Filesel.current_sel_is_dir fs in
+    ty = `Dir && fs.files.focus && Filesel.current_sel_is_dir fs in
   let overwrite_avail = file_avail && is_write in
   let ok_avail = dir_file_avail ||
     not (dir_avail || overwrite_avail) && (file_avail || is_write && is_valid)
@@ -2487,69 +2536,7 @@ let run_filesel (st : _ State.t) =
     else
     (
       (* Return, double-click, or OK button on regular file *)
-      let path = Option.get (Filesel.current_file_path fs) in
-      (match fs.op with
-      | None -> assert false
-
-      | Some `LoadPlaylist ->
-        (try
-          let tracks = Track.of_m3u (File.load `Bin path) in
-          Playlist.replace_all st.playlist tracks;
-          State.focus_playlist st;
-          Control.eject st.control;
-          Control.switch st.control tracks.(0) true;
-          Table.dirty st.library.tracks;
-          Table.dirty st.library.browser;
-        with Sys_error msg ->
-          Library.error st.library ("Error reading file " ^ path ^ ", " ^ msg);
-          Layout.browser_error_box lay;  (* flash *)
-        );
-        State.focus_playlist st;
-
-      | Some (`SavePlaylist tab) ->
-        (try
-          File.store `Bin path (Track.to_m3u tab.entries)
-        with Sys_error msg ->
-          Library.error st.library ("Error writing file " ^ path ^ ", " ^ msg);
-          Layout.browser_error_box lay;  (* flash *)
-        );
-        State.focus_playlist st;
-
-      | Some (`CreatePlayViewlist (ext, s, view_opt)) ->
-        let lib = st.library in
-        (match Library.find_dir lib File.(dir path // "") with
-        | None ->
-          Library.error lib
-            ("Error creating file " ^ path ^ ", path is outside library");
-          Layout.browser_error_box lay;  (* flash *)
-        | Some parent ->
-          (try
-            let path =
-              if String.lowercase_ascii (File.extension path) = ext
-              then path
-              else path ^ ext
-            in
-            File.store `Bin path s;
-            match Library.insert_dir lib path with
-            | None -> raise (Sys_error "library is out of sync")
-            | Some dir ->
-              Library.fold_dir lib parent false;
-              Option.iter (fun view -> dir.view <- view) view_opt;
-              Option.iter (Library.select_dir lib)
-                (Array.find_index ((==) dir) lib.browser.entries)
-          with Sys_error msg ->
-            Library.error lib ("Error creating file " ^ path ^ ", " ^ msg);
-            Layout.browser_error_box lay;  (* flash *)
-          );
-        );
-        State.focus_playlist st;
-
-      | Some `InsertRoot ->
-        let roots = st.library.root.children in
-        if not (Library.insert_roots st.library [path] (Array.length roots)) then
-          Layout.browser_error_box lay;  (* flash *)
-        State.focus_library st.library.browser st;
-      );
+      f (Option.get (Filesel.current_file_path fs));
       Filesel.reset fs;
       lay.filesel_shown <- false;
     )

@@ -2,13 +2,7 @@ open Audio_file
 
 (* Program State *)
 
-type 'a filesel_op =
-[
-  | `LoadPlaylist
-  | `SavePlaylist of (Data.track, 'a) Table.t
-  | `CreatePlayViewlist of string * string * Library.views option
-  | `InsertRoot
-]
+type fileop = [`Write | `Read] * [`File | `Dir] * (File.path -> unit)
 
 type 'cache t =
 {
@@ -17,7 +11,7 @@ type 'cache t =
   control : Control.t;
   playlist : 'cache Playlist.t;
   library : 'cache Library.t;
-  filesel : ('cache filesel_op, 'cache) Filesel.t;
+  filesel : (fileop, 'cache) Filesel.t;
   menu : (int -> unit) Menu.t;
   mutable saved : File.time;
 }
