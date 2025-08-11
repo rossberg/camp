@@ -1557,9 +1557,8 @@ let move_selected lib d =
   if Table.num_selected lib.tracks > 0 then
   (
     let order = normalize_playlist lib in
-    let js = Table.move_selected lib.tracks d in
-    Array.iter (fun (track : track) -> track.pos <- js.(track.pos))
-      lib.tracks.entries;
+    let _js = Table.move_selected lib.tracks d in
+    Array.iteri (fun i (track : track) -> track.pos <- i) lib.tracks.entries;
     restore_playlist lib order;
     save_playlist lib;
   )
@@ -1569,9 +1568,8 @@ let reverse_selected lib =
   if Table.num_selected lib.tracks > 1 then
   (
     let order = normalize_playlist lib in
-    let js = Table.reverse_selected lib.tracks in
-    Array.iter (fun (track : track) -> track.pos <- js.(track.pos))
-      lib.tracks.entries;
+    let _js = Table.reverse_selected lib.tracks in
+    Array.iteri (fun i (track : track) -> track.pos <- i) lib.tracks.entries;
     restore_playlist lib order;
     save_playlist lib;
   )
@@ -1583,8 +1581,7 @@ let reverse_all lib =
   (
     let order = normalize_playlist lib in
     Table.reverse_all lib.tracks;
-    Array.iter (fun (track : track) -> track.pos <- len - track.pos - 1)
-      lib.tracks.entries;
+    Array.iteri (fun i (track : track) -> track.pos <- i) lib.tracks.entries;
     restore_playlist lib order;
     save_playlist lib;
   )
