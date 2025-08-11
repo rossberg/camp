@@ -100,6 +100,84 @@ let library_x g = if g.library_side = `Left then 0 else control_w g - margin g
 let library_w g = g.library_width
 
 
+(* Keys *)
+
+let nokey = ([], `None)
+let plain ch = ([], `Char ch)
+let cmd ch = ([`Command], `Char ch)
+let altcmd ch = ([`Alt; `Command], `Char ch)
+let shiftcmd ch = ([`Shift; `Command], `Char ch)
+
+let key_bwd = plain 'Z'
+let key_play = plain 'X'
+let key_pause = plain 'C'
+let key_stop = plain 'V'
+let key_fwd = plain 'B'
+let key_eject = plain 'N'
+let key_startstop = plain ' '
+
+let key_loop = plain 'L'
+let key_repeat = plain 'R'
+let key_shuffle = plain 'S'
+
+let key_mute = plain '0'
+let key_volup = plain '+'
+let key_voldn = plain '-'
+
+let key_next = ([], `Tab)
+let key_prev = ([`Shift], `Tab)
+let key_del = ([], `Delete)
+let key_del2 = ([], `Backspace)
+let key_sep = ([], `Insert)
+let key_rw = ([], `Arrow `Left)
+let key_ff = ([], `Arrow `Right)
+
+let key_ok = ([], `Return)
+let key_overwrite = ([`Alt], `Return)
+let key_cancel = ([], `Escape)
+
+let key_all = cmd 'A'
+let key_rev = cmd 'B'
+let key_copy = cmd 'C'
+let key_find = cmd 'F'
+let key_invert = cmd 'I'
+let key_crop = cmd 'K'
+let key_lib = cmd 'L'
+let key_side = altcmd 'L'
+let key_none = cmd 'N'
+let key_load = cmd 'O'
+let key_pl = cmd 'P'
+let key_quit = cmd 'Q'
+let key_min = altcmd 'Q'
+let key_rescan = cmd 'R'
+let key_rescan2 = altcmd 'R'
+let key_save = cmd 'S'
+let key_tag = cmd 'T'
+let key_fps = cmd 'U'
+let key_paste = cmd 'V'
+let key_wipe = cmd 'W'
+let key_cut = cmd 'X'
+let key_cover = cmd 'Y'
+let key_libcover = altcmd 'Y'
+let key_undo = cmd 'Z'
+let key_redo = shiftcmd 'Z'
+let key_fontup = cmd '+'
+let key_fontdn = cmd '-'
+let key_gridup = altcmd '+'
+let key_griddn = altcmd '-'
+
+let key_artists = nokey
+let key_albums = nokey
+let key_tracks = nokey
+
+let key_folddir = nokey
+let key_adddir = nokey
+let key_deldir = nokey
+let key_newdir = nokey
+let key_viewdir = nokey
+let key_scandir = nokey
+
+
 (* Menu *)
 
 let menu g x y = Ui.menu g.ui x y g.gutter g.gutter g.text
@@ -118,25 +196,26 @@ let shown_indicator_x g = shown_x g + (shown_w - indicator_w g)/2 + 1
 
 let power_h = 22
 let power_y g = margin g
-let power_button g = Ui.button g.ui (cp, shown_x g, power_y g, shown_w, power_h) ([`Command], `Char 'Q') true
+let power_button g = Ui.button g.ui (cp, shown_x g, power_y g, shown_w, power_h) key_quit true
 let power_label g = Ui.label g.ui (cp, shown_x g, power_y g + power_h + 1, shown_w, label_h g) `Center "POWER"
 let minimize_button g = Ui.mouse g.ui (cp, shown_x g, power_y g, shown_w, power_h) `Right
+let minimize_key g = Ui.key g.ui key_min true
 
 let shown_indicator y g = Ui.indicator g.ui `Green (cp, shown_indicator_x g, y - indicator_w g - 1, indicator_w g, indicator_w g)
-let shown_button y ch g = Ui.button g.ui (cp, shown_x g, y, shown_w, shown_h) ([`Command], `Char ch) true
+let shown_button y key g = Ui.button g.ui (cp, shown_x g, y, shown_w, shown_h) key true
 let shown_label y txt g = Ui.label g.ui (cp, shown_x g, y + shown_h + 1, shown_w, label_h g) `Center txt
 
 let play_y = 56
 let playlist_indicator = shown_indicator play_y
-let playlist_button = shown_button play_y 'P'
+let playlist_button = shown_button play_y key_pl
 let playlist_label = shown_label play_y "PLAYLIST"
 
 let lib_y = 93
 let library_indicator = shown_indicator lib_y
-let library_button = shown_button lib_y 'L'
+let library_button = shown_button lib_y key_lib
 let library_label = shown_label lib_y "LIBRARY"
 let library_mouse g = Ui.mouse g.ui (cp, shown_x g, lib_y, shown_w, shown_h) `Right
-let library_key g = Ui.key g.ui ([`Alt], `Char 'L') true
+let library_key g = Ui.key g.ui key_side true
 
 (* Display box *)
 let info_w _g = -55
@@ -165,9 +244,9 @@ let mute_text g = Ui.color_text g.ui (cp, mute_x g, mute_y g, mute_w, 8) `Center
 let mute_button g = Ui.mouse g.ui (mute_area g) `Left
 let mute_drag g = Ui.drag g.ui (mute_area g)
 
-let mute_key g = Ui.key g.ui ([], `Char '0')
-let volup_key g = Ui.key g.ui ([], `Char '+')
-let voldown_key g = Ui.key g.ui ([], `Char '-')
+let mute_key g = Ui.key g.ui key_mute
+let volup_key g = Ui.key g.ui key_volup
+let voldown_key g = Ui.key g.ui key_voldn
 
 (* Time *)
 let lcd_space = 3
@@ -190,7 +269,7 @@ let cover_y g = margin g + info_margin g
 let cover_w = 80
 let cover_h = 40
 let cover_area g = (cp, cover_x g, cover_y g, cover_w, cover_h)
-let cover_key g = Ui.key g.ui ([`Command], `Char 'Y') true
+let cover_key g = Ui.key g.ui key_cover true
 
 (* Info *)
 let seek_h _g = 14
@@ -211,23 +290,25 @@ let color_button_fwd = color_button `Left
 let color_button_bwd = color_button `Right
 
 let fps_text g = Ui.text g.ui (cp, cover_x g + cover_w + 20, margin g + info_margin g, 40, 12) `Left
-let fps_key g = Ui.key g.ui ([`Command], `Char 'U') true
+let fps_key g = Ui.key g.ui key_fps true
 
 (* Control buttons *)
 let ctl_w = 40
 let ctl_h = 30
-let control_button i sym ch g = Ui.labeled_button g.ui (cp, margin g + i * ctl_w, - 8 - ctl_h, ctl_w, ctl_h) ~protrude: false 10 (Ui.active_color g.ui) sym ([], `Char ch)
+let control_button i sym key g =
+  Ui.labeled_button g.ui (cp, margin g + i * ctl_w, - 8 - ctl_h, ctl_w, ctl_h)
+    ~protrude: false 10 (Ui.active_color g.ui) sym key
 
-let bwd_button = control_button 0 "<<" 'Z'
-let play_button = control_button 1 ">" 'X'
-let pause_button = control_button 2 "||" 'C'
-let stop_button = control_button 3 "[]" 'V'
-let fwd_button = control_button 4 ">>" 'B'
-let eject_button = control_button 5 "^" 'N'
+let bwd_button = control_button 0 "<<" key_bwd
+let play_button = control_button 1 ">" key_play
+let pause_button = control_button 2 "||" key_pause
+let stop_button = control_button 3 "[]" key_stop
+let fwd_button = control_button 4 ">>" key_fwd
+let eject_button = control_button 5 "^" key_eject
 
-let start_stop_key g = Ui.key g.ui ([], `Char ' ')
-let rw_key g = Ui.key g.ui ([], `Arrow `Left)
-let ff_key g = Ui.key g.ui ([], `Arrow `Right)
+let start_stop_key g = Ui.key g.ui key_startstop
+let rw_key g = Ui.key g.ui key_rw
+let ff_key g = Ui.key g.ui key_ff
 
 (* Play mode buttons *)
 let mode_w = 25
@@ -240,21 +321,21 @@ let mode_indicator_x g x = function
   | `Right -> x + mode_w - indicator_w g - 4
 
 let mode_indicator i al g = Ui.indicator g.ui `Green (cp, mode_indicator_x g (mode_x g i) al, mode_y g - indicator_w g - 1, indicator_w g, indicator_w g)
-let mode_button i ch g = Ui.button g.ui (cp, mode_x g i, mode_y g, mode_w, mode_h) ([`Command], `Char ch) true
+let mode_button i key g = Ui.button g.ui (cp, mode_x g i, mode_y g, mode_w, mode_h) key true
 let mode_label i label g = Ui.label g.ui (cp, mode_x g i, mode_y g + mode_h + 1, mode_w, label_h g) `Center label
 
 let shuffle_indicator = mode_indicator 2 `Center
-let shuffle_button = mode_button 2 'T'
+let shuffle_button = mode_button 2 key_shuffle
 let shuffle_label = mode_label 2 "SHUFFLE"
 
 let repeat_indicator1 = mode_indicator 1 `Left
 let repeat_indicator2 = mode_indicator 1 `Right
-let repeat_button = mode_button 1 'R'
+let repeat_button = mode_button 1 key_repeat
 let repeat_label = mode_label 1 "REPEAT"
 
 let loop_indicator1 = mode_indicator 0 `Left
 let loop_indicator2 = mode_indicator 0 `Right
-let loop_button = mode_button 0 'J'
+let loop_button = mode_button 0 key_loop
 let loop_label = mode_label 0 "LOOP"
 
 
@@ -276,11 +357,11 @@ let total_y g = g.playlist_height + footer_y g  (* Hack: this is outside the pan
 let playlist_total_box g = Ui.box g.ui (pp, total_x g, total_y g, total_w g, text_h g) `Black
 let playlist_total_text g = Ui.text g.ui (pp, total_x g, total_y g, total_w g - (gutter_w g + 1)/2, text_h g) `Right
 
-let enlarge_key g = Ui.key g.ui ([`Command], `Char '+') true
-let reduce_key g = Ui.key g.ui ([`Command], `Char '-') true
+let enlarge_key g = Ui.key g.ui key_fontup true
+let reduce_key g = Ui.key g.ui key_fontdn true
 
-let enlarge_grid_key g = Ui.key g.ui ([`Command; `Shift], `Char '+') true
-let reduce_grid_key g = Ui.key g.ui ([`Command; `Shift], `Char '-') true
+let enlarge_grid_key g = Ui.key g.ui key_gridup true
+let reduce_grid_key g = Ui.key g.ui key_griddn true
 
 
 (* Edit Pane *)
@@ -293,25 +374,23 @@ let edit_w = 25
 let edit_h = 20
 let edit_button i j label key g = Ui.labeled_button g.ui (ep, margin g + i*5 + j*edit_w, - edit_h, edit_w, edit_h) (button_label_h g) (Ui.inactive_color g.ui) label key true
 
-let tag_button = edit_button 0 0 "TAG" ([`Command], `Char 'T')
-let sep_button = edit_button 1 1 "SEP" ([], `Insert)
-let del_button = edit_button 2 2 "DEL" ([], `Delete)
-let crop_button = edit_button 2 3 "CROP" ([`Shift], `Delete)
-let wipe_button = edit_button 2 4 "WIPE" ([`Command], `Delete)
-let del_button_alt g = Ui.key g.ui ([], `Backspace) true
-let crop_button_alt g = Ui.key g.ui ([`Shift], `Backspace) true
-let wipe_button_alt g = Ui.key g.ui ([`Command], `Backspace) true
-let undo_button = edit_button 3 5 "UNDO" ([`Command], `Char 'Z')
-let redo_button = edit_button 3 6 "REDO" ([`Shift; `Command], `Char 'Z')
-let save_button = edit_button 4 7 "SAVE" ([`Command], `Char 'S')
-let load_button = edit_button 4 8 "LOAD" ([`Command], `Char 'O')
+let tag_button = edit_button 0 0 "TAG" key_tag
+let sep_button = edit_button 1 1 "SEP" key_sep
+let del_button = edit_button 2 2 "DEL" key_del
+let crop_button = edit_button 2 3 "CROP" key_crop
+let wipe_button = edit_button 2 4 "WIPE" key_wipe
+let del_button_alt g = Ui.key g.ui key_del2 true
+let undo_button = edit_button 3 5 "UNDO" key_undo
+let redo_button = edit_button 3 6 "REDO" key_redo
+let save_button = edit_button 4 7 "SAVE" key_save
+let load_button = edit_button 4 8 "LOAD" key_load
 
-let cut_key g = Ui.key g.ui ([`Command], `Char 'X') true
-let copy_key g = Ui.key g.ui ([`Command], `Char 'C') true
-let paste_key g = Ui.key g.ui ([`Command], `Char 'V') true
+let cut_key g = Ui.key g.ui key_cut true
+let copy_key g = Ui.key g.ui key_copy true
+let paste_key g = Ui.key g.ui key_paste true
 
-let focus_next_key g = Ui.key g.ui ([], `Tab) true
-let focus_prev_key g = Ui.key g.ui ([`Shift], `Tab) true
+let focus_next_key g = Ui.key g.ui key_next true
+let focus_prev_key g = Ui.key g.ui key_prev true
 
 
 (* Browser Pane *)
@@ -341,21 +420,21 @@ let view_indicator_x g x = function
   | `Right -> x + view_w - indicator_w g - 4
 
 let view_indicator i al g = Ui.indicator g.ui `Green (bp, view_indicator_x g (view_x g i) al, view_y g - indicator_w g - 1, indicator_w g, indicator_w g)
-let view_button i g = Ui.button g.ui (bp, view_x g i, view_y g, view_w, view_h) ([], `None) false
+let view_button i key g = Ui.button g.ui (bp, view_x g i, view_y g, view_w, view_h) key false
 let view_label i label g = Ui.label g.ui (bp, view_x g i - 4, view_y g + view_h + 1, view_w + 8, label_h g) `Center label
 
 let artists_indicator = view_indicator 2 `Center
-let artists_button = view_button 2
+let artists_button = view_button 2 key_artists
 let artists_label = view_label 2 "ARTISTS"
 
 let albums_indicator1 = view_indicator 1 `Left
 let albums_indicator2 = view_indicator 1 `Right
-let albums_button = view_button 1
+let albums_button = view_button 1 key_albums
 let albums_label = view_label 1 "ALBUMS"
 
 let tracks_indicator1 = view_indicator 0 `Left
 let tracks_indicator2 = view_indicator 0 `Right
-let tracks_button = view_button 0
+let tracks_button = view_button 0 key_tracks
 let tracks_label = view_label 0 "TRACKS"
 
 (* Search *)
@@ -364,7 +443,7 @@ let search_x g = margin g + search_label_w g + 3
 let search_y g = 2 * margin g + indicator_w g + view_h + label_h g
 let search_label g = Ui.label g.ui (bp, margin g, search_y g + (text_h g - label_h g + 1)/2, search_label_w g, label_h g) `Left "SEARCH"
 let search_button g = Ui.mouse g.ui (bp, margin g, search_y g, search_label_w g, text_h g) `Left
-let search_key g = Ui.key g.ui ([`Command], `Char 'F') true
+let search_key g = Ui.key g.ui key_find true
 let search_box g = Ui.box g.ui (bp, search_x g, search_y g, - divider_w g, text_h g) `Black
 let search_text g = Ui.rich_edit_text g.ui (bp, search_x g + 2, search_y g, - divider_w g - 2, text_h g)
 
@@ -376,17 +455,17 @@ let browser_mouse g = Ui.rich_table_mouse g.ui (browser_area g) (rich_table g 0 
 let browser_drag g = Ui.rich_table_drag g.ui (browser_area g) (rich_table g 0 false)
 let browser_error_box g = Ui.box g.ui (browser_area g) (Ui.error_color g.ui)
 
-let del_key g = Ui.key g.ui ([`Command], `Delete) true
-let backspace_key g = Ui.key g.ui ([`Command], `Backspace) true
+let del_key g = Ui.key g.ui key_del true
+let backspace_key g = Ui.key g.ui key_del2 true
 
 (* Buttons *)
 let ledit_button i j label key g = Ui.labeled_button g.ui (bp, margin g + i*5 + j*edit_w, - edit_h, edit_w, edit_h) (button_label_h g) (Ui.inactive_color g.ui) label key true
 
-let insert_button = ledit_button 0 0 "ADD" ([], `None)
-let remove_button = ledit_button 0 1 "DEL" ([], `None)
-let create_button = ledit_button 0 2 "NEW" ([], `None)
-let view_button = ledit_button 0 3 "VIEW" ([], `None)
-let rescan_button = ledit_button 1 4 "SCAN" ([], `None)
+let insert_button = ledit_button 0 0 "ADD" key_adddir
+let remove_button = ledit_button 0 1 "DEL" key_deldir
+let create_button = ledit_button 0 2 "NEW" key_newdir
+let view_button = ledit_button 0 3 "VIEW" key_viewdir
+let rescan_button = ledit_button 1 4 "SCAN" key_scandir
 
 
 (* View Panes *)
@@ -441,7 +520,7 @@ let lower_spin g = Ui.text g.ui (lp, 4, divider_w g + text_h g + 4, -scrollbar_w
 let lower_view = lower_pane, lower_area, lower_table, lower_grid, lower_spin
 
 (* Keys *)
-let lib_cover_key g = Ui.key g.ui ([`Command; `Shift], `Char 'Y') true
+let lib_cover_key g = Ui.key g.ui key_libcover true
 
 
 (* Message Pane *)
@@ -473,11 +552,11 @@ let select_w g = (g.directories_width - margin g - divider_w g) / 2
 let select_h = edit_h
 let select_button i c label key g = Ui.labeled_button g.ui (dp, margin g + i * select_w g, - select_h, select_w g, select_h) (button_label_h g + 2) (c g.ui) label key true
 
-let ok_button = select_button 0 Ui.active_color "OK" ([], `Return)
-let overwrite_button = select_button 0 Ui.error_color "OVERWRITE" ([], `None)
-let cancel_button = select_button 1 Ui.inactive_color "CANCEL" ([], `Escape)
+let ok_button = select_button 0 Ui.active_color "OK" key_ok
+let overwrite_button = select_button 0 Ui.error_color "OVERWRITE" key_overwrite
+let cancel_button = select_button 1 Ui.inactive_color "CANCEL" key_cancel
 
-let return_key g = Ui.key g.ui ([], `Return) true
+let return_key g = Ui.key g.ui key_ok true
 
 
 (* Files Pane *)

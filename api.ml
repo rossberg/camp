@@ -579,22 +579,55 @@ struct
     Raylib.(is_key_pressed (key k) || is_key_pressed_repeat (key k))
 
   let shift = [`Shift `Left; `Shift `Right]
-  let control = [`Command `Left; `Command `Right]
   let alt = [`Alt `Left; `Alt `Right]
+  let control = [`Command `Left; `Command `Right]
 
   let some_down = List.exists is_down
   let is_modifier_down = function
     | `Shift -> some_down shift
-    | `Command -> some_down control
     | `Alt -> some_down alt
+    | `Command -> some_down control
 
-  let all_modifiers = [|`Shift ; `Command ; `Alt|]
+  let all_modifiers = [|`Shift ; `Alt ; `Command|]
   let are_modifiers_down modifiers =
     Array.for_all (fun key ->
       is_modifier_down key = List.mem key modifiers
     ) all_modifiers
 
   let char () = Raylib.get_char_pressed ()
+
+  let key_name = function
+    | `None -> ""
+    | `Char ' ' -> "Space"
+    | `Char c -> String.make 1 c
+    | `Arrow `Left -> "Left"
+    | `Arrow `Right -> "Right"
+    | `Arrow `Up -> "Up"
+    | `Arrow `Down -> "Down"
+    | `Page `Up -> "Page-up"
+    | `Page `Down -> "Page-down"
+    | `End `Up -> "Home"
+    | `End `Down -> "End"
+    | `Return -> "Return"
+    | `Enter -> "Enter"
+    | `Tab -> "Tab"
+    | `Escape -> "Esc"
+    | `Backspace -> "Back"
+    | `Delete -> "Del"
+    | `Insert -> "Ins"
+    | `F n -> "F" ^ string_of_int n
+    | `Shift `Left -> "Left-Shift"
+    | `Shift `Right -> "Right-Shift"
+    | `Command `Left -> if is_mac then "Left-Cmd" else "Left-Ctrl"
+    | `Command `Right -> if is_mac then "Right-Cmd" else "Right-Ctrl"
+    | `Alt `Left -> if is_mac then "Left-Opt" else "Left-Alt"
+    | `Alt `Right -> if is_mac then "Right-Opt" else "Right-Alt"
+    | `Caps -> "Caps-lock"
+
+  let modifier_name = function
+    | `Shift -> "Shift"
+    | `Alt -> if is_mac then "Opt" else "Alt"
+    | `Command -> if is_mac then "Cmd" else "Ctrl"
 end
 
 

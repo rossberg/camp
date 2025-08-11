@@ -215,6 +215,9 @@ sig
   val are_modifiers_down : modifier list -> bool
 
   val char : unit -> Uchar.t
+
+  val key_name : key -> string
+  val modifier_name : modifier -> string
 end
 
 

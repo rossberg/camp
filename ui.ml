@@ -1878,7 +1878,8 @@ let browser ui area geo (tab : _ Table.t) pp_entry =
 
 (* Pop-up Menu *)
 
-type menu_entry = [`Separator | `Entry of color * string * string * bool]
+type menu_entry =
+  [`Separator | `Entry of color * string * (modifier list * key) * bool]
 
 let menu_separator = String.concat "" (List.init 80 (Fun.const "·"))
 
@@ -1886,16 +1887,26 @@ let menu ui x y bw gw ch items =
   assert ui.modal;
 
   let font = font ui ch in
-  let lw, rw =
-    Array.fold_left (fun (l, r) -> function
-      | `Separator -> l, r
-      | `Entry (_, txt1, txt2, _) ->
-        max l (Draw.text_width ui.win ch font txt1 + 1),
-        max r (Draw.text_width ui.win ch font txt2 + 1)
-    ) (0, 0) items
+  let keys =
+    Array.map (function
+      | `Separator -> ""
+      | `Entry (_, _, (mods, key), _) ->
+        String.concat "+" Api.Key.(List.map modifier_name mods @ [key_name key])
+    ) items
+  in
+  let lw =
+    Array.fold_left (fun w -> function
+      | `Separator -> w
+      | `Entry (_, s, _, _) -> max w (Draw.text_width ui.win ch font s + 1)
+    ) 0 items
+  and rw =
+    Array.fold_left (fun w s ->
+      max w (Draw.text_width ui.win ch font s + 1)
+    ) 0 keys
   in
   let ww, wh = Window.size ui.win in
-  let w = lw + gw + rw in
+  let mw = (gw + 1)/2 in  (* inner width padding *)
+  let w = lw + gw + rw + 2 * mw in
   let h = ch * Array.length items in
   let x = max 0 (min x (ww - w - 2 * bw)) in
   let y = max 0 (min y (wh - h - 2 * bw)) in
@@ -1912,10 +1923,10 @@ let menu ui x y bw gw ch items =
   let rows =
     Array.mapi (fun j -> function
       | `Separator -> c_sep, `Regular, [|`Text menu_separator; `Text ""|]
-      | `Entry (c, txt1, txt2, enabled) ->
+      | `Entry (c, txt, _, enabled) ->
         let c' = if enabled then c else semilit_color c in
         let inv = if enabled && i = j then `Inverted else `Regular in
-        c', inv, [|`Text txt1; `Text txt2|]
+        c', inv, [|`Text txt; `Text keys.(j)|]
     ) items
   in
 
@@ -1926,7 +1937,14 @@ let menu ui x y bw gw ch items =
   match table ui area gw ch cols rows 0 with
   | Some i when released && enabled i -> `Click i
   | None when released -> `Close
-  | _ -> ui.modal <- true; `None
+  | _ ->
+    let key_pressed = function
+      | `Entry (_, _, modkey, _) -> key ui modkey true
+      | `Separator -> false
+    in
+    match Array.find_index key_pressed items with
+    | Some i -> `Click i
+    | None -> ui.modal <- true; `None
 
 
 (* Edit widget *)

@@ -58,15 +58,17 @@ let header_menu (st : _ State.t) (view : _ Library.view) i current_attrs unused_
   let c = Ui.text_color st.layout.ui in
   if current_attrs = [] && unused_attrs = [] then
   (
-    menu st [|`Entry (c, "(Nothing to add)", "", false)|] ignore
+    menu st [|`Entry (c, "(Nothing to add)", Layout.nokey, false)|] ignore
   )
   else
   (
     let removes = current_attrs |>
-      List.map (fun a -> `Entry (c, "Remove " ^ Library.attr_name a, "", true), a)
+      List.map (fun a ->
+        `Entry (c, "Remove " ^ Library.attr_name a, Layout.nokey, true), a)
       |> List.sort compare in
     let adds = unused_attrs |>
-      List.map (fun a -> `Entry (c, "Add " ^ Library.attr_name a, "", true), a)
+      List.map (fun a ->
+        `Entry (c, "Add " ^ Library.attr_name a, Layout.nokey, true), a)
       |> List.sort compare in
     let sep = if removes = [] || adds = [] then [] else [`Separator] in
     let items = Array.of_list List.(map fst removes @ sep @ map fst adds) in
@@ -498,7 +500,7 @@ let run_toggle_panes (st : _ State.t) =
   if not (library_shown' || lay.filesel_shown) then State.focus_playlist st;
 
   (* Minimize button *)
-  if Layout.minimize_button lay then
+  if Layout.minimize_button lay || Layout.minimize_key lay then
   (
     (* Right-click on power button: minimize window *)
     Api.Window.minimize win
@@ -812,8 +814,7 @@ let run_edit (st : _ State.t) =
   let pl_crop_avail = pl_edit && pl_sel < pl_len in
   let lib_crop_avail = lib_edit && lib_sel < lib_len in
   let crop_avail = pl_crop_avail || lib_crop_avail in
-  if Layout.crop_button lay (if crop_avail then Some false else None)
-  || crop_avail && Layout.crop_button_alt lay then
+  if Layout.crop_button lay (if crop_avail then Some false else None) then
   (
     (* Click on Crop button: remove unselected tracks from playlist *)
     View.remove_unselected view;
@@ -822,8 +823,7 @@ let run_edit (st : _ State.t) =
   let pl_wipe_avail = pl_edit && snd pl.total > 0 in
   let lib_wipe_avail = lib_edit (* TODO: && snd pl.total > 0 *) in
   let wipe_avail = pl_wipe_avail || lib_wipe_avail in
-  if Layout.wipe_button lay (if wipe_avail then Some false else None)
-  || wipe_avail && Layout.wipe_button_alt lay then
+  if Layout.wipe_button lay (if wipe_avail then Some false else None) then
   (
     (* Click on Wipe button: remove invalid tracks from playlist *)
     View.remove_invalid view;
@@ -988,8 +988,8 @@ let edit_menu (st : _ State.t) (module View : TracksView) (module Other : Tracks
   let other = Other.it in
 
   let pos = Option.value pos_opt ~default: (View.length view) in
-  let c = Ui.text_color lay.ui in
   let cmd = Api.Key.is_modifier_down `Command in
+  let c = Ui.text_color lay.ui in
   let all, tracks, quant =
     if View.num_selected view > 0
     then false, View.selected view, ""
@@ -997,36 +997,36 @@ let edit_menu (st : _ State.t) (module View : TracksView) (module Other : Tracks
   in
   let ops =
     [|
-      `Entry (c, "Insert Separator", "", true),
+      `Entry (c, "Insert Separator", ([], `Insert), true),
         (fun () ->
           View.insert view pos [|Data.make_separator ()|];
           Other.deselect_all other;
         );
       `Separator, ignore;
-      `Entry (c, "Tag" ^ quant, "", tracks <> [||]),
+      `Entry (c, "Tag" ^ quant, Layout.key_tag, tracks <> [||]),
         (fun () -> tag st tracks cmd);
-      `Entry (c, "Rescan" ^ quant, "", tracks <> [||]),
+      `Entry (c, "Rescan" ^ quant, Layout.key_rescan, tracks <> [||]),
         (fun () -> Library.rescan_tracks st.library `Thorough tracks);
-      `Entry (c, "Remove" ^ quant, "", tracks <> [||]),
+      `Entry (c, "Remove" ^ quant, Layout.key_del, tracks <> [||]),
         (fun () -> View.(if all then remove_all else remove_selected) view);
-      `Entry (c, "Reverse" ^ quant, "", Array.length tracks > 1),
+      `Entry (c, "Reverse" ^ quant, Layout.key_rev, Array.length tracks > 1),
         (fun () -> View.(if all then reverse_all else reverse_selected) view);
-      `Entry (c, "Wipe", "", true (* TODO: snd View.total view > 0 *)),
+      `Entry (c, "Wipe", Layout.key_wipe, true (* TODO: snd View.total view > 0 *)),
         (fun () -> View.remove_invalid view);
       `Separator, ignore;
-      `Entry (c, "Cut", "", not all && tracks <> [||]),
+      `Entry (c, "Cut", Layout.key_cut, not all && tracks <> [||]),
         (fun () ->
           let s = Track.to_m3u (View.selected view) in
           View.remove_selected view;
           Api.Clipboard.write win s;
         );
-      `Entry (c, "Copy", "", not all && tracks <> [||]),
+      `Entry (c, "Copy", Layout.key_copy, not all && tracks <> [||]),
         (fun () ->
           let s = Track.to_m3u (View.selected view) in
           View.remove_selected view;
           Api.Clipboard.write win s;
         );
-      `Entry (c, "Paste", "", Api.Clipboard.read win <> None),
+      `Entry (c, "Paste", Layout.key_paste, Api.Clipboard.read win <> None),
         (fun () ->
           match Api.Clipboard.read win with
           | None -> ()
@@ -1045,24 +1045,24 @@ let edit_menu (st : _ State.t) (module View : TracksView) (module Other : Tracks
               Table.dirty st.library.browser;
             )
         );
-      `Entry (c, "Crop", "", not all && tracks <> [||]),
+      `Entry (c, "Crop", Layout.key_crop, not all && tracks <> [||]),
         (fun () -> View.remove_unselected view);
       `Separator, ignore;
-      `Entry (c, "Select All", "", View.(num_selected view < length view)),
+      `Entry (c, "Select All", Layout.key_all, View.(num_selected view < length view)),
         (fun () -> View.select_all view; Other.deselect_all other);
-      `Entry (c, "Select None", "", View.(num_selected view > 0)),
+      `Entry (c, "Select None", Layout.key_none, View.(num_selected view > 0)),
         (fun () -> View.deselect_all view);
-      `Entry (c, "Invert Selection", "", View.(num_selected view > 0)),
+      `Entry (c, "Invert Selection", Layout.key_invert, View.(num_selected view > 0)),
         (fun () -> View.select_invert view);
       `Separator, ignore;
-      `Entry (c, "Undo", "", !((View.table view).undos) <> []),
+      `Entry (c, "Undo", Layout.key_undo, !((View.table view).undos) <> []),
         (fun () ->
           View.undo view;
           Control.switch_if_empty st.control (Playlist.current_opt pl);
           Table.dirty st.library.tracks;
           Table.dirty st.library.browser;
         );
-      `Entry (c, "Redo", "", !((View.table view).redos) <> []),
+      `Entry (c, "Redo", Layout.key_redo, !((View.table view).redos) <> []),
         (fun () ->
           View.redo view;
           Control.switch_if_empty st.control (Playlist.current_opt pl);
@@ -1235,6 +1235,7 @@ let run_playlist (st : _ State.t) =
 
   | `Menu i_opt ->
     (* Right-click on content: context menu *)
+    State.focus_playlist st;
     let module View = struct let it = st.playlist include Playlist end in
     let module Other = struct let it = st.library include Library end in
     edit_menu st (module View) (module Other) i_opt
@@ -1466,22 +1467,23 @@ let run_library (st : _ State.t) =
 
   | `Menu (Some i) ->
     (* Right-click on browser entry: context menu *)
+    State.focus_library browser st;
     let dir = entries.(i) in
     let c = Ui.text_color lay.ui in
     let ops =
       [|
-        `Entry (c, (if dir.view.folded then "Unfold" else "Fold"), "", true),
+        `Entry (c, (if dir.view.folded then "Unfold" else "Fold"), Layout.key_folddir, true),
           (fun () -> Library.fold_dir lib dir (not dir.view.folded));
-        `Entry (c, "Rescan Quick", "", true),
+        `Entry (c, "Rescan Quick", Layout.key_rescan, true),
           (fun () -> Library.rescan_dirs lib `Quick [|dir|]);
-        `Entry (c, "Rescan Thorough", "", true),
+        `Entry (c, "Rescan Thorough", Layout.key_rescan2, true),
           (fun () -> Library.rescan_dirs lib `Thorough [|dir|]);
       |]
     in menu st (Array.map fst ops) (fun k -> snd ops.(k) ())
 
   | `Menu None ->
     (* Right-click on empty space in browser: ignore *)
-    ()
+    State.focus_library browser st;
   );
 
   let entries = browser.entries in  (* might have changed from un/folding *)
@@ -1931,22 +1933,23 @@ let run_library (st : _ State.t) =
 
     | `Menu _ ->
       (* Right-click on content: context menu *)
+      State.focus_library tab st;
       let c = Ui.text_color lay.ui in
       let cmd = Api.Key.is_modifier_down `Command in
       let tracks = lib.tracks.entries in
       let quant = if Table.has_selection tab then "" else " All" in
       let ops =
         [|
-          `Entry (c, "Tag" ^ quant, "", tracks <> [||]),
+          `Entry (c, "Tag" ^ quant, Layout.key_tag, tracks <> [||]),
             (fun () -> tag st tracks cmd);
-          `Entry (c, "Rescan" ^ quant, "", tracks <> [||]),
+          `Entry (c, "Rescan" ^ quant, Layout.key_rescan, tracks <> [||]),
             (fun () -> Library.rescan_tracks lib `Thorough tracks);
           `Separator, ignore;
-          `Entry (c, "Select All", "",  Table.(num_selected tab < length tab)),
+          `Entry (c, "Select All", Layout.key_all,  Table.(num_selected tab < length tab)),
             (fun () -> Table.select_all tab; Library.refresh_albums_tracks lib);
-          `Entry (c, "Select None", "", Table.(num_selected tab > 0)),
+          `Entry (c, "Select None", Layout.key_none, Table.(num_selected tab > 0)),
             (fun () -> Table.deselect_all tab; Library.refresh_albums_tracks lib);
-          `Entry (c, "Invert Selection", "", Table.(num_selected tab > 0)),
+          `Entry (c, "Invert Selection", Layout.key_invert, Table.(num_selected tab > 0)),
             (fun () -> Table.select_invert tab; Library.refresh_albums_tracks lib);
         |]
       in
@@ -1954,6 +1957,7 @@ let run_library (st : _ State.t) =
 
     | `HeadMenu i_opt ->
       (* Right-click on header: header menu *)
+      State.focus_library tab st;
       let used_attrs = Array.to_list (Array.map fst view.artists.columns) in
       let unused_attrs = Data.diff_attrs Data.artist_attrs used_attrs in
       let i, current_attrs =
@@ -2101,22 +2105,23 @@ let run_library (st : _ State.t) =
 
     | `Menu _ ->
       (* Right-click on content: context menu *)
+      State.focus_library tab st;
       let c = Ui.text_color lay.ui in
       let cmd = Api.Key.is_modifier_down `Command in
       let tracks = lib.tracks.entries in
       let quant = if Table.has_selection tab then "" else " All" in
       let ops =
         [|
-          `Entry (c, "Tag" ^ quant, "", tracks <> [||]),
+          `Entry (c, "Tag" ^ quant, Layout.key_tag, tracks <> [||]),
             (fun () -> tag st tracks cmd);
-          `Entry (c, "Rescan" ^ quant, "", tracks <> [||]),
+          `Entry (c, "Rescan" ^ quant, Layout.key_rescan, tracks <> [||]),
             (fun () -> Library.rescan_tracks lib `Thorough tracks);
           `Separator, ignore;
-          `Entry (c, "Select All", "", Table.(num_selected tab < length tab)),
+          `Entry (c, "Select All", Layout.key_all, Table.(num_selected tab < length tab)),
             (fun () -> Table.select_all tab; Library.refresh_tracks lib);
-          `Entry (c, "Select None", "", Table.(num_selected tab > 0)),
+          `Entry (c, "Select None", Layout.key_none, Table.(num_selected tab > 0)),
             (fun () -> Table.deselect_all tab; Library.refresh_tracks lib);
-          `Entry (c, "Invert Selection", "", Table.(num_selected tab > 0)),
+          `Entry (c, "Invert Selection", Layout.key_invert, Table.(num_selected tab > 0)),
             (fun () -> Table.select_invert tab; Library.refresh_tracks lib);
         |]
       in
@@ -2124,6 +2129,7 @@ let run_library (st : _ State.t) =
 
     | `HeadMenu i_opt ->
       (* Right-click on header: header menu *)
+      State.focus_library tab st;
       let used_attrs = Array.to_list (Array.map fst view.albums.columns) in
       let unused_attrs = Data.diff_attrs Data.album_attrs used_attrs in
       let i, current_attrs =
@@ -2361,6 +2367,7 @@ let run_library (st : _ State.t) =
       )
 
     | `Menu i_opt ->
+      State.focus_library tab st;
       (* Right-click on content: context menu *)
       if Library.current_is_plain_playlist lib then
       (
@@ -2379,16 +2386,16 @@ let run_library (st : _ State.t) =
         in
         let ops =
           [|
-            `Entry (c, "Tag" ^ quant, "", tracks <> [||]),
+            `Entry (c, "Tag" ^ quant, Layout.key_tag, tracks <> [||]),
               (fun () -> tag st tracks cmd);
-            `Entry (c, "Rescan" ^ quant, "", tracks <> [||]),
+            `Entry (c, "Rescan" ^ quant, Layout.key_rescan, tracks <> [||]),
               (fun () -> Library.rescan_tracks lib `Thorough tracks);
             `Separator, ignore;
-            `Entry (c, "Select All", "", Library.(num_selected lib < length lib)),
-              (fun () -> Library.select_all lib);
-            `Entry (c, "Select None", "", Library.(num_selected lib > 0)),
+            `Entry (c, "Select All", Layout.key_all, Library.(num_selected lib < length lib)),
+              (fun () -> Library.select_all lib; Playlist.deselect_all pl);
+            `Entry (c, "Select None", Layout.key_none, Library.(num_selected lib > 0)),
               (fun () -> Library.deselect_all lib);
-            `Entry (c, "Invert Selection", "", Library.(num_selected lib > 0)),
+            `Entry (c, "Invert Selection", Layout.key_invert, Library.(num_selected lib > 0)),
               (fun () -> Library.select_invert lib);
           |]
         in
@@ -2397,6 +2404,7 @@ let run_library (st : _ State.t) =
 
     | `HeadMenu i_opt ->
       (* Right-click on header: header menu *)
+      State.focus_library tab st;
       let used_attrs = Array.to_list (Array.map fst view.tracks.columns) in
       let unused_attrs = Data.diff_attrs Data.track_attrs used_attrs in
       let i, current_attrs =
@@ -2432,7 +2440,7 @@ let run_library (st : _ State.t) =
   (* Keys *)
 
   if
-    Ui.key lay.ui ([`Command], `Char 'C')
+    Ui.key lay.ui Layout.key_copy
       ( (lib.browser.focus || lib.artists.focus || lib.albums.focus) &&
         lib.tracks.entries <> [||] )
   then
@@ -2551,7 +2559,7 @@ let run_filesel (st : _ State.t) =
 
   | `Menu _ ->
     (* Right-click on dir: ignore *)
-    ()
+    State.focus_filesel dirs st;
   );
 
 
@@ -2611,10 +2619,12 @@ let run_filesel (st : _ State.t) =
 
     | `Menu _ ->
       (* Right-click on dir: ignore *)
+      State.focus_filesel files st;
       false
 
     | `HeadMenu _ ->
       (* Right-click on header: ignore *)
+      State.focus_filesel files st;
       false
   in
 

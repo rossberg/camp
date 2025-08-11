@@ -190,7 +190,8 @@ val grid_table :
     grid_table_action
 
 
-type menu_entry = [`Separator | `Entry of color * string * string * bool]
+type menu_entry =
+  [`Separator | `Entry of color * string * (modifier list * key) * bool]
 
 val menu : t -> int -> int -> int -> int -> int -> menu_entry array ->
   [`None | `Close | `Click of int]
