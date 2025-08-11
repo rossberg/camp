@@ -1085,7 +1085,7 @@ let rich_table_drag ui area geo style tab =
   | Some i ->
     let area' = rich_table_inner ui area geo in
     let x, y, w, _ = dim ui area' in
-    focus' ui x (y + i * geo.row_h) w geo.row_h `White style
+    focus' ui x (y + (i - tab.vscroll) * geo.row_h) w geo.row_h `White style
 
 let adjust_cache tab w h =
   Option.iter (fun buf ->

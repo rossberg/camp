@@ -1932,7 +1932,7 @@ let run_library (st : _ State.t) =
       )
 
     | `Menu _ ->
-      (* Right-click on content: context menu *)
+      (* Right-click on artists: context menu *)
       State.focus_library tab st;
       let c = Ui.text_color lay.ui in
       let cmd = Api.Key.is_modifier_down `Command in
@@ -1956,7 +1956,7 @@ let run_library (st : _ State.t) =
       menu st (Array.map fst ops) (fun k -> snd ops.(k) ())
 
     | `HeadMenu i_opt ->
-      (* Right-click on header: header menu *)
+      (* Right-click on artists header: header menu *)
       State.focus_library tab st;
       let used_attrs = Array.to_list (Array.map fst view.artists.columns) in
       let unused_attrs = Data.diff_attrs Data.artist_attrs used_attrs in
@@ -2104,7 +2104,7 @@ let run_library (st : _ State.t) =
       )
 
     | `Menu _ ->
-      (* Right-click on content: context menu *)
+      (* Right-click on albums content: context menu *)
       State.focus_library tab st;
       let c = Ui.text_color lay.ui in
       let cmd = Api.Key.is_modifier_down `Command in
@@ -2128,7 +2128,7 @@ let run_library (st : _ State.t) =
       menu st (Array.map fst ops) (fun k -> snd ops.(k) ())
 
     | `HeadMenu i_opt ->
-      (* Right-click on header: header menu *)
+      (* Right-click on albums header: header menu *)
       State.focus_library tab st;
       let used_attrs = Array.to_list (Array.map fst view.albums.columns) in
       let unused_attrs = Data.diff_attrs Data.album_attrs used_attrs in
@@ -2368,7 +2368,7 @@ let run_library (st : _ State.t) =
 
     | `Menu i_opt ->
       State.focus_library tab st;
-      (* Right-click on content: context menu *)
+      (* Right-click on tracks content: context menu *)
       if Library.current_is_plain_playlist lib then
       (
         let module View = struct let it = st.library include Library end in
@@ -2403,7 +2403,7 @@ let run_library (st : _ State.t) =
       )
 
     | `HeadMenu i_opt ->
-      (* Right-click on header: header menu *)
+      (* Right-click on tracks header: header menu *)
       State.focus_library tab st;
       let used_attrs = Array.to_list (Array.map fst view.tracks.columns) in
       let unused_attrs = Data.diff_attrs Data.track_attrs used_attrs in
