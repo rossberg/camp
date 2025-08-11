@@ -582,6 +582,11 @@ module Playlist = struct include Playlist let focus _ = State.focus_playlist end
 module Library = struct include Library let focus = State.focus_library end
 
 
+let current_is_grid (st : _ State.t) =
+  match st.library.current with
+  | None -> false
+  | Some dir -> dir.view.tracks.shown = Some `Grid
+
 let drag (st : _ State.t) table_drag (module View : TracksView) =
   let lay = st.layout in
   let tab = View.table View.it in
@@ -595,15 +600,18 @@ let drag_on_playlist (st : _ State.t) =
     drag st Layout.playlist_drag (module View)
   )
 
-let tracks_drag (lay : Layout.t) =
-  if lay.lower_shown then Layout.lower_drag lay else
-  if lay.right_shown then Layout.right_drag lay else Layout.left_drag lay
+let tracks_drag is_grid (lay : Layout.t) =
+  let drag, grid_drag =
+    if lay.lower_shown then Layout.(lower_drag, lower_grid_drag) else
+    if lay.right_shown then Layout.(right_drag, right_grid_drag) else
+    Layout.(left_drag, left_grid_drag)
+  in if is_grid then grid_drag lay lay.tracks_grid else drag lay
 
 let drag_on_tracks (st : _ State.t) =
   if st.layout.library_shown && Library.current_is_shown_playlist st.library then
   (
     let module View = struct let it = st.library include Library end in
-    drag st tracks_drag (module View)
+    drag st (tracks_drag (current_is_grid st)) (module View)
   )
 
 let drop (st : _ State.t) tracks table_mouse (module View : TracksView) =
@@ -630,15 +638,18 @@ let drop_on_playlist (st : _ State.t) tracks =
     drop st tracks Layout.playlist_mouse (module View)
   )
 
-let tracks_mouse (lay : Layout.t) =
-  if lay.lower_shown then Layout.lower_mouse lay else
-  if lay.right_shown then Layout.right_mouse lay else Layout.left_mouse lay
+let tracks_mouse is_grid (lay : Layout.t) =
+  let mouse, grid_mouse =
+    if lay.lower_shown then Layout.(lower_mouse, lower_grid_mouse) else
+    if lay.right_shown then Layout.(right_mouse, right_grid_mouse) else
+    Layout.(left_mouse, left_grid_mouse)
+  in if is_grid then grid_mouse lay lay.tracks_grid else mouse lay
 
 let drop_on_tracks (st : _ State.t) tracks =
   if st.layout.library_shown && Library.current_is_shown_playlist st.library then
   (
     let module View = struct let it = st.library include Library end in
-    drop st tracks tracks_mouse (module View)
+    drop st tracks (tracks_mouse (current_is_grid st)) (module View)
   )
 
 let drag_on_browser (st : _ State.t) =
@@ -654,7 +665,7 @@ let drag_on_browser (st : _ State.t) =
         if Data.is_playlist dir then
         (
           (* Drag over playlist browser entry: highlight target entry *)
-          Ui.delay lay.ui (fun () -> Layout.browser_drag lay `Into browser)
+          Ui.delay lay.ui (fun () -> Layout.browser_drag lay `Inside browser)
         )
       )
     ) (Layout.browser_mouse lay browser)
@@ -705,7 +716,7 @@ let set_drop_cursor (st : _ State.t) =
     lay.library_shown && (
       (* over plain library playlist view? *)
       Library.current_is_plain_playlist lib &&
-        tracks_mouse lay lib.tracks <> None
+        tracks_mouse (current_is_grid st) lay lib.tracks <> None
       ||
       (* over browser entry that is a playlist? *)
       match Layout.browser_mouse lay lib.browser with
@@ -1413,7 +1424,7 @@ let run_library (st : _ State.t) =
             (
               (* Drag over sibling: reorder entry *)
               Api.Mouse.set_cursor (Ui.window lay.ui) `Point;
-              Layout.browser_drag lay `Before browser;
+              Layout.browser_drag lay `Above browser;
             )
             else
             (

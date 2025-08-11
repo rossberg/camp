@@ -518,9 +518,11 @@ let focus' ui x y w h c style =
   let c2 = `Trans (c, 0x00) in
   let b = 8 (* 6 *) in
   match style with
-  | `Before ->
+  | `Above ->
     Draw.gradient ui.win x y w b c1 `Vertical c2;
-  | `Into ->
+  | `Left ->
+    Draw.gradient ui.win x y b h c1 `Horizontal c2;
+  | `Inside ->
     Draw.gradient ui.win x y w b c1 `Vertical c2;
     Draw.gradient ui.win x (y + h - b) w b c2 `Vertical c1
 (*
@@ -534,7 +536,7 @@ let focus' ui x y w h c style =
 
 let focus ui area =
   let x, y, w, h = dim ui area in
-  focus' ui x y w h (text_color ui) `Into
+  focus' ui x y w h (text_color ui) `Inside
 
 let mouse_reflection ui area r =
   let x, y, w, h = dim ui area in
@@ -1503,13 +1505,43 @@ type grid_table =
 
 type grid_table_action = rich_table_action
 
-let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
-  assert (geo.has_heading = Option.is_some header_opt);
-  let (p, ax, ay, aw, ah) = area in
-  let ch = geo.text_h in
-  let ty = if not geo.has_heading then ay else ay + ch + 2 in
+let grid_table_inner _ui area geo =
+  let p, ax, ay, aw, ah = area in
+  let ty = if not geo.has_heading then ay else ay + geo.text_h + 2 in
   let tw = aw - geo.scroll_w - 1 in
   let th = ah - (if ah < 0 then 0 else ty - ay) in
+  (p, ax, ty, tw, th)
+
+let grid_table_mouse ui area geo tab =
+  let area' = grid_table_inner ui area geo in
+  let (x, y, w, _) as r = dim ui area' in
+  let iw = geo.gutter_w + geo.img_h in
+  let ih = iw + geo.text_h in
+  let line = max 1 Float.(to_int (floor (float w /. float iw))) in
+  let (mx, my) as m = Mouse.pos ui.win in
+  if inside m r then
+    let i, j = (mx - x) / iw, (my - y) / ih in
+    Some (min (Table.length tab) (j * line + i + tab.vscroll))
+  else
+    None
+
+let grid_table_drag ui area geo style tab =
+  match grid_table_mouse ui area geo tab with
+  | None -> ()
+  | Some i ->
+    let area' = grid_table_inner ui area geo in
+    let x, y, w, _ = dim ui area' in
+    let iw = geo.gutter_w + geo.img_h in
+    let ih = iw + geo.text_h in
+    let line = max 1 Float.(to_int (floor (float w /. float iw))) in
+    let i' = i - tab.vscroll in
+    focus' ui (x + i' mod line * iw) (y + i' / line * ih) iw ih `White style
+
+let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
+  assert (geo.has_heading = Option.is_some header_opt);
+  let p, ax, ay, aw, ah = area in
+  let ch = geo.text_h in
+  let _, _, ty, tw, th = grid_table_inner ui area geo in
   let header_area = (p, ax, ay, tw, ch) in
   let table_area = (p, ax, ty, tw, th) in
   let vscroll_area = 

@@ -150,7 +150,7 @@ val rich_table_inner : t -> area -> rich_table -> area
 val rich_table_mouse : t -> area -> rich_table -> ('a, cached) Table.t ->
   int option
 val rich_table_drag : t -> area -> rich_table ->
-  [`Before | `Into] -> ('a, cached) Table.t -> unit
+  [`Above | `Inside] -> ('a, cached) Table.t -> unit
 
 type browser_action =
   [ table_action
@@ -188,6 +188,12 @@ val grid_table :
   ('a, cached) Table.t ->
   (int -> Api.image * color * string) ->
     grid_table_action
+
+val grid_table_inner : t -> area -> grid_table -> area
+val grid_table_mouse : t -> area -> grid_table -> ('a, cached) Table.t ->
+  int option
+val grid_table_drag : t -> area -> grid_table ->
+  [`Left | `Inside] -> ('a, cached) Table.t -> unit
 
 
 type menu_entry =

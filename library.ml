@@ -9,6 +9,8 @@ module Map = Map.Make(String)
 
 type time = float
 
+type display = [`Table | `Grid]
+
 type 'attr view =
 {
   mutable shown : display option;

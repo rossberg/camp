@@ -348,7 +348,7 @@ let playlist_pane g = Ui.pane g.ui pp (playlist_x g, control_h g, control_w g, -
 let playlist_area g = (pp, margin g, margin g, - margin g, - 1)
 let playlist_table g = Ui.rich_table g.ui (playlist_area g) (rich_table g 0 false)
 let playlist_mouse g = Ui.rich_table_mouse g.ui (playlist_area g) (rich_table g 0 false)
-let playlist_drag g = Ui.rich_table_drag g.ui (playlist_area g) (rich_table g 0 false) `Before
+let playlist_drag g = Ui.rich_table_drag g.ui (playlist_area g) (rich_table g 0 false) `Above
 
 (* Total text field *)
 let total_w g = - margin g - scrollbar_w g
@@ -484,7 +484,9 @@ let left_area g = (lp, 0, margin g, -1, -1)
 let left_table g = Ui.rich_table g.ui (left_area g) (rich_table g 1 true)
 let left_grid g iw = Ui.grid_table g.ui (left_area g) (grid_table g iw true)
 let left_mouse g = Ui.rich_table_mouse g.ui (left_area g) (rich_table g 1 true)
-let left_drag g = Ui.rich_table_drag g.ui (left_area g) (rich_table g 1 true) `Before
+let left_drag g = Ui.rich_table_drag g.ui (left_area g) (rich_table g 1 true) `Above
+let left_grid_mouse g iw = Ui.grid_table_mouse g.ui (left_area g) (grid_table g iw true)
+let left_grid_drag g iw = Ui.grid_table_drag g.ui (left_area g) (grid_table g iw true) `Left
 let left_spin g = Ui.text g.ui (lp, 4, margin g + text_h g + 4, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
 
 let left_view = left_pane, left_area, left_table, left_grid, left_spin
@@ -499,7 +501,9 @@ let right_area g = (rp, divider_w g, margin g, -1, -1)
 let right_table g = Ui.rich_table g.ui (right_area g) (rich_table g 1 true)
 let right_grid g iw = Ui.grid_table g.ui (right_area g) (grid_table g iw true)
 let right_mouse g = Ui.rich_table_mouse g.ui (right_area g) (rich_table g 1 true)
-let right_drag g = Ui.rich_table_drag g.ui (right_area g) (rich_table g 1 true) `Before
+let right_drag g = Ui.rich_table_drag g.ui (right_area g) (rich_table g 1 true) `Above
+let right_grid_mouse g iw = Ui.grid_table_mouse g.ui (right_area g) (grid_table g iw true)
+let right_grid_drag g iw = Ui.grid_table_drag g.ui (right_area g) (grid_table g iw true) `Left
 let right_spin g = Ui.text g.ui (rp, divider_w g + 4, margin g + text_h g + 4, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
 
 let right_view = right_pane, right_area, right_table, right_grid, right_spin
@@ -514,7 +518,9 @@ let lower_area g = (lp, 0, divider_w g, -1, -1)
 let lower_table g = Ui.rich_table g.ui (lower_area g) (rich_table g 1 true)
 let lower_grid g iw = Ui.grid_table g.ui (lower_area g) (grid_table g iw true)
 let lower_mouse g = Ui.rich_table_mouse g.ui (lower_area g) (rich_table g 1 true)
-let lower_drag g = Ui.rich_table_drag g.ui (lower_area g) (rich_table g 1 true) `Before
+let lower_drag g = Ui.rich_table_drag g.ui (lower_area g) (rich_table g 1 true) `Above
+let lower_grid_mouse g iw = Ui.grid_table_mouse g.ui (lower_area g) (grid_table g iw true)
+let lower_grid_drag g iw = Ui.grid_table_drag g.ui (lower_area g) (grid_table g iw true) `Left
 let lower_spin g = Ui.text g.ui (lp, 4, divider_w g + text_h g + 4, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
 
 let lower_view = lower_pane, lower_area, lower_table, lower_grid, lower_spin

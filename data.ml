@@ -37,8 +37,6 @@ type order = [`Asc | `Desc]
 type 'attr sorting = ('attr * order) list
 type 'attr columns = ('attr * int) array
 
-type display = [`Table | `Grid]
-
 
 let file_attrs =
   [ `FilePath; `FileDir; `FileName; `FileExt; `FileSize; `FileTime ]
