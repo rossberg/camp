@@ -377,6 +377,27 @@ let move_selected pl d =
     save_playlist pl;
   )
 
+let reverse_selected pl =
+  if Table.num_selected pl.table > 1 then
+  (
+    let js = Table.reverse_selected pl.table in
+    Option.iter (fun shuffle ->
+      Array.map_inplace (fun i -> js.(i)) shuffle.tracks
+    ) pl.shuffle;
+    save_playlist pl;
+  )
+
+let reverse_all pl =
+  let len = Table.length pl.table in
+  if len > 1 then
+  (
+    Table.reverse_all pl.table;
+    Option.iter (fun shuffle ->
+      Array.map_inplace (fun i -> len - i - 1) shuffle.tracks
+    ) pl.shuffle;
+    save_playlist pl;
+  )
+
 
 (* Persistence *)
 

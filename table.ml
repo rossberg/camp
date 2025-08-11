@@ -437,3 +437,49 @@ let move_selected tab d =
       done;
     js
   )
+
+
+let reverse_selected tab =
+  let len = length tab in
+  let n = num_selected tab in
+  if n <= 1 then [||] else
+  (
+    dirty tab;
+    push_undo tab;
+    let ks = Array.of_list (IntSet.to_list tab.selected) in
+    let js = Array.init len Fun.id in
+    for i = 0 to n/2 - 1 do
+      let j = n - i - 1 in
+      let temp = tab.entries.(ks.(i)) in
+      tab.entries.(ks.(i)) <- tab.entries.(ks.(j));
+      tab.entries.(ks.(j)) <- temp;
+      js.(ks.(i)) <- ks.(j);
+      js.(ks.(j)) <- ks.(i);
+    done;
+    tab.sel_range <-
+      Option.map (fun (i ,j) ->
+        (if i = len then len else js.(i)),
+        (if j = len then len else js.(j))
+      ) tab.sel_range;
+    js
+  )
+
+let reverse_all tab =
+  let len = length tab in
+  if len > 1 then
+  (
+    dirty tab;
+    push_undo tab;
+    for i = 0 to len/2 - 1 do
+      let j = len - i - 1 in
+      let temp = tab.entries.(i) in
+      tab.entries.(i) <- tab.entries.(j);
+      tab.entries.(j) <- temp;
+      match is_selected tab i, is_selected tab j with
+      | true, false -> deselect tab i i; select tab j j
+      | false, true -> select tab i i; deselect tab j j
+      | _, _ -> ()
+    done;
+    tab.sel_range <-
+      Option.map (fun (i ,j) -> len - i - 1, len - j - 1) tab.sel_range
+  )

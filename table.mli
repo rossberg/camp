@@ -85,6 +85,8 @@ val remove_all : ('a, 'b) t -> unit
 val remove_if : (int -> bool) -> ('a, 'b) t -> int -> int array
 
 val move_selected : ('a, 'b) t -> int -> int array
+val reverse_selected : ('a, 'b) t -> int array
+val reverse_all : ('a, 'b) t -> unit
 
 
 (* Undo *)

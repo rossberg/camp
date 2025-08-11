@@ -1562,6 +1562,31 @@ let move_selected lib d =
     save_playlist lib;
   )
 
+let reverse_selected lib =
+  assert (current_is_playlist lib);
+  if Table.num_selected lib.tracks > 1 then
+  (
+    let order = normalize_playlist lib in
+    let js = Table.reverse_selected lib.tracks in
+    Array.iter (fun (track : track) -> track.pos <- js.(track.pos))
+      lib.tracks.entries;
+    restore_playlist lib order;
+    save_playlist lib;
+  )
+
+let reverse_all lib =
+  assert (current_is_playlist lib);
+  let len = Table.length lib.tracks in
+  if len > 1 then
+  (
+    let order = normalize_playlist lib in
+    Table.reverse_all lib.tracks;
+    Array.iter (fun (track : track) -> track.pos <- len - track.pos - 1)
+      lib.tracks.entries;
+    restore_playlist lib order;
+    save_playlist lib;
+  )
+
 
 (* Undo *)
 

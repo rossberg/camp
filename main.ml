@@ -570,6 +570,8 @@ sig
   val remove_unselected : Ui.cached t -> unit
   val remove_invalid : Ui.cached t -> unit
 (*  val move_selected : Ui.cached t -> int -> unit*)
+  val reverse_selected : Ui.cached t -> unit
+  val reverse_all : Ui.cached t -> unit
   val undo : Ui.cached t -> unit
   val redo : Ui.cached t -> unit
 end
@@ -1007,6 +1009,8 @@ let edit_menu (st : _ State.t) (module View : TracksView) (module Other : Tracks
         (fun () -> Library.rescan_tracks st.library `Thorough tracks);
       `Entry (c, "Remove" ^ quant, "", tracks <> [||]),
         (fun () -> View.(if all then remove_all else remove_selected) view);
+      `Entry (c, "Reverse" ^ quant, "", Array.length tracks > 1),
+        (fun () -> View.(if all then reverse_all else reverse_selected) view);
       `Entry (c, "Wipe", "", true (* TODO: snd View.total view > 0 *)),
         (fun () -> View.remove_invalid view);
       `Separator, ignore;
@@ -1042,10 +1046,7 @@ let edit_menu (st : _ State.t) (module View : TracksView) (module Other : Tracks
             )
         );
       `Entry (c, "Crop", "", not all && tracks <> [||]),
-        (fun () ->
-          let s = Track.to_m3u (View.selected view) in
-          Api.Clipboard.write win s;
-        );
+        (fun () -> View.remove_unselected view);
       `Separator, ignore;
       `Entry (c, "Select All", "", View.(num_selected view < length view)),
         (fun () -> View.select_all view; Other.deselect_all other);
