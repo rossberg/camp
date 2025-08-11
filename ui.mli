@@ -12,6 +12,7 @@ val window : t -> window
 
 val modal : t -> unit
 val nonmodal : t -> unit
+val is_modal : t -> bool
 
 (* Panes *)
 
@@ -188,5 +189,8 @@ val grid_table :
   (int -> Api.image * color * string) ->
     grid_table_action
 
-val menu : t -> int -> int -> int -> int -> int -> (color * string * string * bool) array ->
+
+type menu_entry = [`Separator | `Entry of color * string * string * bool]
+
+val menu : t -> int -> int -> int -> int -> int -> menu_entry array ->
   [`None | `Close | `Click of int]

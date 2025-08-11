@@ -52,6 +52,7 @@ let window ui = ui.win
 
 let modal ui = ui.modal <- true
 let nonmodal ui = ui.modal <- false
+let is_modal ui = ui.modal
 
 
 (* Panes *)
@@ -239,11 +240,7 @@ let finish ui margin (minw, minh) (maxw, maxh) =
   List.iter (fun f -> f ()) (List.rev ui.delayed);
   ui.delayed <- [];
 
-  if ui.modal then
-  (
-    if Mouse.is_released `Left then ui.modal <- false
-  )
-  else if ui.mouse_owned then
+  if ui.mouse_owned then
   (
      ui.mouse_owned <- false
   )
@@ -1881,15 +1878,20 @@ let browser ui area geo (tab : _ Table.t) pp_entry =
 
 (* Pop-up Menu *)
 
+type menu_entry = [`Separator | `Entry of color * string * string * bool]
+
+let menu_separator = String.concat "" (List.init 80 (Fun.const "·"))
+
 let menu ui x y bw gw ch items =
   assert ui.modal;
 
   let font = font ui ch in
   let lw, rw =
-    Array.fold_left (fun (l, r) (_, txt1, txt2, full) ->
-      if not full then l, r else
-      max l (Draw.text_width ui.win ch font txt1 + 1),
-      max r (Draw.text_width ui.win ch font txt2 + 1)
+    Array.fold_left (fun (l, r) -> function
+      | `Separator -> l, r
+      | `Entry (_, txt1, txt2, _) ->
+        max l (Draw.text_width ui.win ch font txt1 + 1),
+        max r (Draw.text_width ui.win ch font txt2 + 1)
     ) (0, 0) items
   in
   let ww, wh = Window.size ui.win in
@@ -1906,17 +1908,23 @@ let menu ui x y bw gw ch items =
 
   let area = (-1, x + bw, y + bw, w, h) in
   let cols = [|lw, `Left; rw, `Right|] in 
+  let c_sep = semilit_color (text_color ui) in
   let rows =
-    Array.mapi (fun j (c, txt1, txt2, _) ->
-      c, (if i = j then `Inverted else `Regular), [|`Text txt1; `Text txt2|]
+    Array.mapi (fun j -> function
+      | `Separator -> c_sep, `Regular, [|`Text menu_separator; `Text ""|]
+      | `Entry (c, txt1, txt2, enabled) ->
+        let c' = if enabled then c else semilit_color c in
+        let inv = if enabled && i = j then `Inverted else `Regular in
+        c', inv, [|`Text txt1; `Text txt2|]
     ) items
   in
 
   ui.mouse_owned <- true;
   ui.modal <- false;
   let released = Mouse.is_released `Left in
+  let enabled i = match items.(i) with `Entry (_, _, _, b) -> b | _ -> false in
   match table ui area gw ch cols rows 0 with
-  | Some i when released -> `Click i
+  | Some i when released && enabled i -> `Click i
   | None when released -> `Close
   | _ -> ui.modal <- true; `None
 

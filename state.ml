@@ -196,6 +196,7 @@ let print_state st =
     "playlist", Playlist.print_state st.playlist;
     "library", Library.print_state st.library;
     "filesel", Filesel.print_state st.filesel;
+    "menu", Menu.print_state st.menu;
   ]) st
 
 let print_intern st =
@@ -207,6 +208,7 @@ let print_intern st =
     "playlist", Playlist.print_intern st.playlist;
     "library", Library.print_intern st.library;
     "filesel", Filesel.print_intern st.filesel;
+    "menu", Menu.print_intern st.menu;
   ]) st
 
 let to_string st = Text.print (print_intern st)
@@ -220,6 +222,7 @@ let parse_state st pos =
     apply (r $? "playlist") (Playlist.parse_state st.playlist) ignore;
     apply (r $? "library") (Library.parse_state st.library) ignore;
     apply (r $? "filesel") (Filesel.parse_state st.filesel) ignore;
+    apply (r $? "menu") (Menu.parse_state st.menu) ignore;
   )
 
 
@@ -272,6 +275,8 @@ let rec ok st =
       (st.layout.filesel_shown = (st.filesel.op <> None)) @
     check "menu with op"
       (st.layout.menu_shown = (st.menu.op <> None)) @
+    check "menu modal"
+      (st.layout.menu_shown = Ui.is_modal st.layout.ui) @
     []
   with
   | errors when errors <> [] ->

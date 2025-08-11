@@ -51,26 +51,24 @@ let exec prog args =
 
 let menu (st : _ State.t) items op =
   st.layout.menu_shown <- true;
-  st.menu.pos <- Api.Mouse.pos (Ui.window st.layout.ui);
-  st.menu.op <- Some op;
-  st.menu.items <- items;
+  Menu.set st.menu (Api.Mouse.pos (Ui.window st.layout.ui)) op items;
   Ui.modal st.layout.ui
 
 let header_menu (st : _ State.t) (view : _ Library.view) i current_attrs unused_attrs =
   let c = Ui.text_color st.layout.ui in
   if current_attrs = [] && unused_attrs = [] then
   (
-    menu st [|Some (Ui.semilit_color c, "(Nothing to add)", "")|] ignore
+    menu st [|`Entry (c, "(Nothing to add)", "", false)|] ignore
   )
   else
   (
     let removes = current_attrs |>
-      List.map (fun a -> Some (c, "Remove " ^ Library.attr_name a, ""), a)
+      List.map (fun a -> `Entry (c, "Remove " ^ Library.attr_name a, "", true), a)
       |> List.sort compare in
     let adds = unused_attrs |>
-      List.map (fun a -> Some (c, "Add " ^ Library.attr_name a, ""), a)
+      List.map (fun a -> `Entry (c, "Add " ^ Library.attr_name a, "", true), a)
       |> List.sort compare in
-    let sep = if removes = [] || adds = [] then [] else [None] in
+    let sep = if removes = [] || adds = [] then [] else [`Separator] in
     let items = Array.of_list List.(map fst removes @ sep @ map fst adds) in
     menu st items (fun k ->
       let n = if removes = [] then -1 (* no sep! *) else List.length removes in
@@ -97,25 +95,17 @@ let run_menu (st : _ State.t) =
   let menu = st.menu in
 
   let x, y = menu.pos in
-  let c_sep = Ui.semilit_color (Ui.text_color lay.ui) in
-  let items =
-    Array.map (function
-      | None -> (c_sep, Data.name_separator, "", false)
-      | Some (c, s1, s2) -> (c, s1, s2, true)
-    ) menu.items
-  in
-
-  match Ui.menu lay.ui x y (lay.margin / 2) lay.gutter lay.text items with
+  match Ui.menu lay.ui x y (lay.margin / 2) lay.gutter lay.text menu.items with
   | `None -> ()
   | `Close ->
     Ui.nonmodal lay.ui;
     lay.menu_shown <- false;
-    menu.op <- None
+    Menu.clear menu
   | `Click k ->
     Option.get st.menu.op k;
     Ui.nonmodal lay.ui;
     lay.menu_shown <- false;
-    menu.op <- None
+    Menu.clear menu
 
 
 (* Control Section *)
@@ -1379,11 +1369,11 @@ let run_library (st : _ State.t) =
     let c = Ui.text_color lay.ui in
     let ops =
       [|
-        Some (c, (if dir.view.folded then "Unfold" else "Fold"), ""),
+        `Entry (c, (if dir.view.folded then "Unfold" else "Fold"), "", true),
           (fun () -> Library.fold_dir lib dir (not dir.view.folded));
-        Some (c, "Rescan Quick", ""),
+        `Entry (c, "Rescan Quick", "", true),
           (fun () -> Library.rescan_dirs lib `Quick [|dir|]);
-        Some (c, "Rescan Thorough", ""),
+        `Entry (c, "Rescan Thorough", "", true),
           (fun () -> Library.rescan_dirs lib `Thorough [|dir|]);
       |]
     in menu st (Array.map fst ops) (fun k -> snd ops.(k) ())
@@ -2237,18 +2227,16 @@ let run_library (st : _ State.t) =
       let selected = Library.selected lib in
       let c = Ui.text_color lay.ui in
       let ops =
-        [ track, (Some (c, "Rescan Track", ""),
+        [|
+          track, (`Entry (c, "Rescan Track", "", track <> [||]),
             (fun () -> Library.rescan_tracks lib `Thorough track));
-          selected, (Some (c, "Rescan Selection", ""),
+          selected, (`Entry (c, "Rescan Selection", "", selected <> [||]),
             (fun () -> Library.rescan_tracks lib `Thorough selected));
-          entries, (Some (c, "Rescan All", ""),
+          entries, (`Entry (c, "Rescan All", "", entries <> [||]),
             (fun () -> Library.rescan_tracks lib `Thorough entries));
-        ]
-        |> List.filter (fun (tracks, _) -> tracks <> [||])
-        |> Array.of_list |> Array.map snd
+        |] |> Array.map snd
       in
-      if ops <> [||] then
-        menu st (Array.map fst ops) (fun k -> snd ops.(k) ())
+      menu st (Array.map fst ops) (fun k -> snd ops.(k) ())
 
     | `HeadMenu i_opt ->
       (* Right-click on header: header menu *)
@@ -2561,7 +2549,7 @@ let run_filesel (st : _ State.t) =
 
 let rec run (st : _ State.t) =
   State.ok st;
-  (try run' st with exn -> Storage.log_exn "internal" exn "");
+  (try run' st with exn -> Storage.log_exn "internal" exn ""; exit 0);
   run st
 
 and run' (st : _ State.t) =

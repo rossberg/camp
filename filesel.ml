@@ -359,7 +359,7 @@ let print_intern fs =
 
 let parse_state fs =
   let open Text.Parse in
-  record (fun r->
+  record (fun r ->
     apply (r $? "path") string
       (fun s -> set_dir_path fs s);
     apply (r $? "columns") (array nat)
