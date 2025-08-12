@@ -596,38 +596,40 @@ struct
 
   let char () = Raylib.get_char_pressed ()
 
+  (* Test string: "␣←→↑↓⤒↟⤓↡⇤⇱⇥⇲⏎⌤⇆↹⎋⌫⌦⎀⁁⇪⇧⌥⎇⌘" *)
+
   let key_name = function
     | `None -> ""
-    | `Char ' ' -> "Space"
+    | `Char ' ' -> "Space"  (* "␣" *)
     | `Char c -> String.make 1 c
-    | `Arrow `Left -> "Left"
-    | `Arrow `Right -> "Right"
-    | `Arrow `Up -> "Up"
-    | `Arrow `Down -> "Down"
-    | `Page `Up -> "Page-up"
-    | `Page `Down -> "Page-down"
-    | `End `Up -> "Home"
-    | `End `Down -> "End"
-    | `Return -> "Return"
-    | `Enter -> "Enter"
-    | `Tab -> "Tab"
-    | `Escape -> "Esc"
-    | `Backspace -> "Back"
-    | `Delete -> "Del"
-    | `Insert -> "Ins"
+    | `Arrow `Left -> "←"
+    | `Arrow `Right -> "→"
+    | `Arrow `Up -> "↑"
+    | `Arrow `Down -> "↓"
+    | `Page `Up -> "PgUp"  (* "⤒" *) (* "↟" *)
+    | `Page `Down -> "PgDn"  (* "⤓" *) (* "↡" *)
+    | `End `Up -> "Home"  (* "⇤" *) (* "⇱" *)
+    | `End `Down -> "End"  (* "⇥" *) (* "⇲" *)
+    | `Return -> "Return"  (* "⏎" *)
+    | `Enter -> "Enter"  (* "⌤" *)
+    | `Tab -> "Tab"  (* "⇆" *) (* "↹" *)
+    | `Escape -> "Esc"  (* "⎋" *)
+    | `Backspace -> "Back"  (* "⌫" *)
+    | `Delete -> "Del"  (* "⌦" *)
+    | `Insert -> "Ins"  (* "⎀" *) (* "⁁" *)
     | `F n -> "F" ^ string_of_int n
-    | `Shift `Left -> "Left-Shift"
-    | `Shift `Right -> "Right-Shift"
-    | `Command `Left -> if is_mac then "Left-Cmd" else "Left-Ctrl"
-    | `Command `Right -> if is_mac then "Right-Cmd" else "Right-Ctrl"
-    | `Alt `Left -> if is_mac then "Left-Opt" else "Left-Alt"
-    | `Alt `Right -> if is_mac then "Right-Opt" else "Right-Alt"
-    | `Caps -> "Caps-lock"
+    | `Shift `Left -> "LShift"  (* "L⇧" *)
+    | `Shift `Right -> "RShift"  (* "R⇧" *)
+    | `Command `Left -> if is_mac then "LCmd" (* "L⌘" *) else "LCtrl" (* "L^" *)
+    | `Command `Right -> if is_mac then "RCmd" (* "R⌘" *) else "RCtrl" (* "R^" *)
+    | `Alt `Left -> if is_mac then "LOpt" (* "L⌥" *) else "LAlt" (* "L⎇" *)
+    | `Alt `Right -> if is_mac then "ROpt" (* "R⌥" *) else "RAlt" (* "R⎇" *)
+    | `Caps -> "Caps"  (* "⇪" *)
 
   let modifier_name = function
-    | `Shift -> "Shift"
-    | `Alt -> if is_mac then "Opt" else "Alt"
-    | `Command -> if is_mac then "Cmd" else "Ctrl"
+    | `Shift -> "Shift"  (* "⇧" *)
+    | `Alt -> if is_mac then "Opt" (* "⌥" *) else "Alt" (* "⎇" *)
+    | `Command -> if is_mac then "Cmd" (* "⌘" *) else "Ctrl" (* "^" *)
 end
 
 

@@ -1211,17 +1211,7 @@ let run_playlist (st : _ State.t) =
           Playlist.move_selected pl delta;
           (* Erase intermediate new state *)
           Table.drop_undo pl.table;
-        | `Outward ->
-          (* Temporarily restore new state, modify, and immediately undo *)
-          (* Restore new state *)
-          Playlist.redo pl;
-          Playlist.move_selected pl delta;
-          (* Erase intermediate new state *)
-          Table.drop_undo pl.table;
-          (* Undo new state, recovering original *)
-          Playlist.undo pl;
-          Playlist.save_playlist pl;
-        | `Outside -> ()  (* ignore *)
+        | `Outside | `Outward -> ()  (* ignore *)
       );
     )
 
@@ -2306,7 +2296,7 @@ let run_library (st : _ State.t) =
           if motion <> `Unmoved then set_drop_cursor st;
           (match way with
           | `Inside | `Inward -> ()
-          | `Outward | `Outside ->
+          | `Outside | `Outward ->
             drag_on_playlist st;
             drag_on_browser st;
           );
@@ -2338,17 +2328,7 @@ let run_library (st : _ State.t) =
                 Library.move_selected lib delta;
                 (* Erase intermediate new state *)
                 Table.drop_undo lib.tracks;
-              | `Outward ->
-                (* Temporarily restore new state, modify, immediately undo *)
-                (* Restore new state *)
-                Library.redo lib;
-                Library.move_selected lib delta;
-                (* Erase intermediate new state *)
-                Table.drop_undo lib.tracks;
-                (* Undo new state, recovering original *)
-                Library.undo lib;
-                Library.save_playlist lib;
-              | `Outside -> ()  (* ignore *)
+              | `Outside | `Outward -> ()  (* ignore *)
             );
           )
         )
