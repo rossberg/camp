@@ -112,6 +112,42 @@ let cycle_color (st : state) d =
   Table.dirty st.library.albums;
   Table.dirty st.library.tracks
 
+let clamp_text = clamp 8 64
+
+let resize_text_avail (st : state) delta =
+  clamp_text (st.layout.text + delta) <> st.layout.text
+
+let resize_text (st : state) delta =
+  st.layout.text <- clamp_text (st.layout.text + delta)
+
+let clamp_grid = clamp 10 1000
+
+let resize_grid_avail (st : state) delta =
+  match st.library.current with
+  | None -> false
+  | Some (dir : Library.dir) ->
+    let lay = st.layout in
+    dir.view.albums.shown = Some `Grid &&
+      clamp_grid (lay.albums_grid + delta) <> lay.albums_grid ||
+    dir.view.tracks.shown = Some `Grid &&
+      clamp_grid (lay.tracks_grid + delta) <> lay.tracks_grid
+
+let resize_grid (st : state) delta =
+  Option.iter (fun (dir : Library.dir) ->
+    let inc n =
+      n + delta *
+      if n <= 20 then 2 else
+      if n <= 60 then 4 else
+      if n <= 140 then 8 else
+      if n <= 300 then 16 else 32
+    in
+    let lay = st.layout in
+    if dir.view.albums.shown = Some `Grid then
+      lay.albums_grid <- clamp_grid (inc lay.albums_grid);
+    if dir.view.tracks.shown = Some `Grid then
+      lay.tracks_grid <- clamp_grid (inc lay.tracks_grid);
+  ) st.library.current
+
 
 (* Menus *)
 
@@ -672,6 +708,15 @@ let run_toggle_panes (st : state) =
         (fun () -> toggle_cover st);
       `Entry (c, show "FPS" (not lay.playlist_shown), Layout.key_fps, true),
         (fun () -> toggle_fps st);
+      `Separator, ignore;
+      `Entry (c, "Increase Text Size", Layout.key_textup, resize_text_avail st (+1)),
+        (fun () -> resize_text st (+1));
+      `Entry (c, "Decrease Text Size", Layout.key_textdn, resize_text_avail st (-1)),
+        (fun () -> resize_text st (-1));
+      `Entry (c, "Increase Cover Size", Layout.key_gridup, resize_grid_avail st (+1)),
+        (fun () -> resize_grid st (+1));
+      `Entry (c, "Decrease Cover Size", Layout.key_griddn, resize_grid_avail st (-1)),
+        (fun () -> resize_grid st (-1));
     |]
   )
 
@@ -2614,33 +2659,6 @@ let run_library (st : state) =
     Api.Clipboard.write win s;
   );
 
-  if Layout.lib_cover_key lay then Library.activate_covers lib (not lib.cover);
-
-  let grid_delta n =
-    if n <= 20 then 2 else
-    if n <= 60 then 4 else
-    if n <= 140 then 8 else
-    if n <= 300 then 16 else 32
-  in
-  if lib.albums.focus then
-  (
-    let delta = grid_delta lay.tracks_grid in
-    let grid' = lay.albums_grid +
-      (if Layout.enlarge_grid_key lay then +delta else 0) +
-      (if Layout.reduce_grid_key lay then -delta else 0)
-    in
-    lay.albums_grid <- clamp 10 1000 grid';
-  )
-  else if lib.tracks.focus then
-  (
-    let delta = grid_delta lay.tracks_grid in
-    let grid' = lay.tracks_grid +
-      (if Layout.enlarge_grid_key lay then +delta else 0) +
-      (if Layout.reduce_grid_key lay then -delta else 0)
-    in
-    lay.tracks_grid <- clamp 10 1000 grid';
-  );
-
   (* Pane divider *)
 
   let browser_width' = Layout.browser_divider lay lay.browser_width
@@ -2917,12 +2935,21 @@ and run' (st : state) =
     if menu_shown then run_menu st;
   );
 
-  (* Adjust font size *)
-  let text' = lay.text +
-    (if Layout.enlarge_key lay then +1 else 0) +
-    (if Layout.reduce_key lay then -1 else 0)
+  (* Adjust font and grid size *)
+  let text_delta =
+    Bool.to_int (Layout.enlarge_key lay) -
+    Bool.to_int (Layout.reduce_key lay)
   in
-  lay.text <- clamp 8 64 text';
+  resize_text st text_delta;
+
+  let grid_delta =
+    Bool.to_int (Layout.enlarge_grid_key lay) -
+    Bool.to_int (Layout.reduce_grid_key lay)
+  in
+  resize_grid st grid_delta;
+
+  if Layout.lib_cover_key lay then
+    Library.activate_covers st.library (not st.library.cover);
 
   (* Adjust window size *)
   let overlay_shown' = lay.library_shown || lay.filesel_shown in

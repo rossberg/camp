@@ -160,8 +160,8 @@ let key_cover = cmd 'Y'
 let key_libcover = shiftcmd 'Y'
 let key_undo = cmd 'Z'
 let key_redo = shiftcmd 'Z'
-let key_fontup = cmd '+'
-let key_fontdn = cmd '-'
+let key_textup = cmd '+'
+let key_textdn = cmd '-'
 let key_gridup = shiftcmd '+'
 let key_griddn = shiftcmd '-'
 
@@ -365,8 +365,8 @@ let total_y g = g.playlist_height + footer_y g  (* Hack: this is outside the pan
 let playlist_total_box g = Ui.box g.ui (pp, total_x g, total_y g, total_w g, text_h g) `Black
 let playlist_total_text g = Ui.text g.ui (pp, total_x g, total_y g, total_w g - (gutter_w g + 1)/2, text_h g) `Right
 
-let enlarge_key g = Ui.key g.ui key_fontup true
-let reduce_key g = Ui.key g.ui key_fontdn true
+let enlarge_key g = Ui.key g.ui key_textup true
+let reduce_key g = Ui.key g.ui key_textdn true
 
 let enlarge_grid_key g = Ui.key g.ui key_gridup true
 let reduce_grid_key g = Ui.key g.ui key_griddn true
