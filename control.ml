@@ -68,12 +68,27 @@ let ok ctl =
     )
 
 
+(* Volume Control *)
+
+let adjust_volume ctl =
+  Api.Audio.volume ctl.audio (if ctl.mute then 0.0 else ctl.volume)
+
+let mute ctl b =
+  ctl.mute <- b;
+  adjust_volume ctl
+
+let volume ctl v =
+  ctl.volume <- max 0.0 (min 1.0 v);
+  adjust_volume ctl
+
+
 (* Track Control *)
 
 let eject ctl =
   Api.Audio.stop ctl.audio;
   ctl.current <- None;
   ctl.loop <- `None;
+  ctl.progress <- 0.0;
   if ctl.sound <> Api.Audio.silence ctl.audio then
   (
     Api.Audio.free ctl.audio ctl.sound;
@@ -98,14 +113,16 @@ let switch ctl (track : track) play =
 let seek ctl percent =
   if ctl.sound <> Api.Audio.silence ctl.audio then
   (
+    let percent' = max 0.0 (min 1.0 percent) in
     let length = Api.Audio.length ctl.audio in
-    Api.Audio.seek ctl.audio (percent *. length)
+    Api.Audio.seek ctl.audio (percent' *. length);
+    ctl.progress <- percent';
   )
 
 let switch_if_empty ctl track_opt =
   match ctl.current, track_opt with
-  | None, Some track -> switch ctl track false
-  | _, _ -> ()
+  | None, Some track -> switch ctl track false; true
+  | _, _ -> false
 
 
 (* Persistence *)

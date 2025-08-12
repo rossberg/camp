@@ -37,9 +37,15 @@ val print_intern : t -> Text.t
 val parse_state : t -> Text.t -> unit
 
 
+(* Volume Control *)
+
+val mute : t -> bool -> unit
+val volume : t -> float -> unit
+
+
 (* Track Control *)
 
 val eject : t -> unit
 val switch : t -> track -> bool (* play *) -> unit
-val switch_if_empty : t -> track option -> unit
+val switch_if_empty : t -> track option -> bool
 val seek : t -> float (* fraction *) -> unit

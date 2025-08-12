@@ -105,7 +105,6 @@ let library_w g = g.library_width
 let nokey = ([], `None)
 let plain ch = ([], `Char ch)
 let cmd ch = ([`Command], `Char ch)
-let altcmd ch = ([`Alt; `Command], `Char ch)
 let shiftcmd ch = ([`Shift; `Command], `Char ch)
 
 let key_bwd = plain 'Z'
@@ -133,7 +132,7 @@ let key_rw = ([], `Arrow `Left)
 let key_ff = ([], `Arrow `Right)
 
 let key_ok = ([], `Return)
-let key_overwrite = ([`Alt], `Return)
+let key_overwrite = ([`Shift], `Return)
 let key_cancel = ([], `Escape)
 
 let key_all = cmd 'A'
@@ -143,14 +142,14 @@ let key_find = cmd 'F'
 let key_invert = cmd 'I'
 let key_crop = cmd 'K'
 let key_lib = cmd 'L'
-let key_side = altcmd 'L'
+let key_side = shiftcmd 'L'
 let key_none = cmd 'N'
 let key_load = cmd 'O'
 let key_pl = cmd 'P'
 let key_quit = cmd 'Q'
-let key_min = altcmd 'Q'
+let key_min = shiftcmd 'Q'
 let key_rescan = cmd 'R'
-let key_rescan2 = altcmd 'R'
+let key_rescan2 = shiftcmd 'R'
 let key_save = cmd 'S'
 let key_tag = cmd 'T'
 let key_fps = cmd 'U'
@@ -158,13 +157,15 @@ let key_paste = cmd 'V'
 let key_wipe = cmd 'W'
 let key_cut = cmd 'X'
 let key_cover = cmd 'Y'
-let key_libcover = altcmd 'Y'
+let key_libcover = shiftcmd 'Y'
 let key_undo = cmd 'Z'
 let key_redo = shiftcmd 'Z'
 let key_fontup = cmd '+'
 let key_fontdn = cmd '-'
-let key_gridup = altcmd '+'
-let key_griddn = altcmd '-'
+let key_gridup = shiftcmd '+'
+let key_griddn = shiftcmd '-'
+
+let key_color = nokey
 
 let key_artists = nokey
 let key_albums = nokey
@@ -198,7 +199,7 @@ let power_h = 22
 let power_y g = margin g
 let power_button g = Ui.button g.ui (cp, shown_x g, power_y g, shown_w, power_h) key_quit true
 let power_label g = Ui.label g.ui (cp, shown_x g, power_y g + power_h + 1, shown_w, label_h g) `Center "POWER"
-let minimize_button g = Ui.mouse g.ui (cp, shown_x g, power_y g, shown_w, power_h) `Right
+let minimize_button g = Ui.mouse g.ui (cp, shown_x g, power_y g, shown_w, power_h) `Left
 let minimize_key g = Ui.key g.ui key_min true
 
 let shown_indicator y g = Ui.indicator g.ui `Green (cp, shown_indicator_x g, y - indicator_w g - 1, indicator_w g, indicator_w g)
@@ -214,8 +215,7 @@ let lib_y = 93
 let library_indicator = shown_indicator lib_y
 let library_button = shown_button lib_y key_lib
 let library_label = shown_label lib_y "LIBRARY"
-let library_mouse g = Ui.mouse g.ui (cp, shown_x g, lib_y, shown_w, shown_h) `Right
-let library_key g = Ui.key g.ui key_side true
+let library_side_key g = Ui.key g.ui key_side true
 
 (* Display box *)
 let info_w _g = -55
@@ -286,8 +286,7 @@ let seek_bar g = Ui.progress_bar g.ui (cp, margin g + info_margin g / 2, seek_y 
 (* Hidden mode buttons *)
 let color_y g = lcd_y g + lcd_h
 let color_button side g = Ui.mouse g.ui (cp, margin g, color_y g, mute_x g, ticker_y g) side
-let color_button_fwd = color_button `Left
-let color_button_bwd = color_button `Right
+let color_button = color_button `Left
 
 let fps_text g = Ui.text g.ui (cp, cover_x g + cover_w + 20, margin g + info_margin g, 40, 12) `Left
 let fps_key g = Ui.key g.ui key_fps true
@@ -295,8 +294,9 @@ let fps_key g = Ui.key g.ui key_fps true
 (* Control buttons *)
 let ctl_w = 40
 let ctl_h = 30
+let ctl_y = - 8 - ctl_h
 let control_button i sym key g =
-  Ui.labeled_button g.ui (cp, margin g + i * ctl_w, - 8 - ctl_h, ctl_w, ctl_h)
+  Ui.labeled_button g.ui (cp, margin g + i * ctl_w, ctl_y, ctl_w, ctl_h)
     ~protrude: false 10 (Ui.active_color g.ui) sym key
 
 let bwd_button = control_button 0 "<<" key_bwd
@@ -337,6 +337,14 @@ let loop_indicator1 = mode_indicator 0 `Left
 let loop_indicator2 = mode_indicator 0 `Right
 let loop_button = mode_button 0 key_loop
 let loop_label = mode_label 0 "LOOP"
+
+(* Context menus *)
+let info_button g = Ui.mouse g.ui (cp, margin g, margin g, margin g + info_w g - volume_w, info_h g - seek_h g) `Right
+let toggles_button g = Ui.mouse g.ui (cp, margin g + info_w g, margin g, - margin g, info_h g) `Right
+
+let controls_button g = Ui.mouse g.ui (cp, margin g, ctl_y, - margin g, -1) `Right
+let seek_button g = Ui.mouse g.ui (cp, margin g, seek_y g, info_w g - margin g, seek_h g) `Right
+let volume_button g = Ui.mouse g.ui (cp, volume_x g, volume_y g, volume_w, volume_h) `Right
 
 
 (* Playlist Pane *)

@@ -596,11 +596,12 @@ struct
 
   let char () = Raylib.get_char_pressed ()
 
-  (* Test string: "␣←→↑↓⤒↟⤓↡⇤⇱⇥⇲⏎⌤⇆↹⎋⌫⌦⎀⁁⇪⇧⌥⎇⌘" *)
+  (* Test string: "␣−←→↑↓⤒↟⤓↡⇤⇱⇥⇲⏎⌤⇆↹⎋⌫⌦⎀⁁⇪⇧⌥⎇⌘" *)
 
   let key_name = function
     | `None -> ""
     | `Char ' ' -> "Space"  (* "␣" *)
+    | `Char '-' -> "−"
     | `Char c -> String.make 1 c
     | `Arrow `Left -> "←"
     | `Arrow `Right -> "→"
