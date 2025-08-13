@@ -211,10 +211,10 @@ let background ui x y w h =
     done
   done;
 
-  Draw.line ui.win (x + 1) y (x + 1) (y + h - 2) (`Gray 0x40);
-  Draw.line ui.win x y (x + w) y (`Gray 0x70);
+  Draw.fill ui.win (x + 1) y 1 (h - 2) (`Gray 0x50);
+  Draw.fill ui.win x y w 1 (`Gray 0x70);
   Draw.fill ui.win (x + 1) (y + h - 2) (w - 1) 2 (`Gray 0x10);
-  Draw.line ui.win (x + w - 1) y (x + w - 1) (y + h - 2) (`Gray 0x10);
+  Draw.fill ui.win (x + w - 1) y 1 (h - 2) (`Gray 0x10);
 
   let mx, my = Mouse.pos ui.win in
   let r = 50 in
@@ -462,10 +462,6 @@ let lcd' ui r' c elem =
   let m = h / 2 in
   match elem with
   | `N ->
-(*
-    fill ui.win (x + 1) (y + 0) (w - 4) 1 c;
-    fill ui.win (x + 2) (y + 1) (w - 6) 1 c;
-*)
     fill ui.win (x + 3) (y + 0) (w - 6) 2 c;
     tri ui.win (x + 1) (y + 0) (x + 3) (y + 2) (x + 3) (y + 0) c;
     tri ui.win (x + w - 1) (y + 0) (x + w - 3) (y + 0) (x + w - 3) (y + 2) c;
@@ -478,10 +474,6 @@ let lcd' ui r' c elem =
     tri ui.win (x + 1) (y + m - 1) (x + 3) (y + m + 1) (x + 3) (y + m - 1) c;
     tri ui.win (x + w - 1) (y + m - 1) (x + w - 3) (y + m - 1) (x + w - 3) (y + m + 1) c;
   | `NW ->
-(*
-    fill ui.win (x + 0) (y + 1) 1 (m - 3) c;
-    fill ui.win (x + 1) (y + 2) 1 (m - 5) c;
-*)
     fill ui.win (x + 0) (y + 3) 2 (m - 6) c;
     tri ui.win (x + 0) (y + 1) (x + 0) (y + 3) (x + 2) (y + 3) c;
     tri ui.win (x + 0) (y + m - 1) (x + 2) (y + m - 3) (x + 0) (y + m - 3) c;
@@ -626,8 +618,8 @@ let button ui r ?(protrude=true) modkey focus active =
   Api.Draw.image_part ui.win x y w h sx sy w h img;
   if status <> `Pressed then
   (
-    Draw.line ui.win (x + 2) (y + 1) (x + 2) (y + h - 2) (`Gray 0x50);
-    if protrude then Draw.line ui.win (x + 1) (y + 1) (x + w - 2) (y + 1) (`Gray 0x50);
+    Draw.fill ui.win (x + 2) (y + 1) 1 (h - 2) (`Gray 0x50);
+    if protrude then Draw.fill ui.win (x + 1) (y + 1) (w - 3) 1 (`Gray 0x50);
   );
   Draw.rect ui.win x y w h (border ui status);
   match active with

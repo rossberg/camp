@@ -328,9 +328,6 @@ struct
 
   let frame () = !frame
 
-  let line () x y x' y' c =
-    Raylib.draw_line x y x' y' (color c)
-
   let fill () x y w h c =
     Raylib.draw_rectangle x y w h (color c)
 

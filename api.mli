@@ -132,7 +132,6 @@ sig
 
   val frame : window -> int
 
-  val line : window -> int -> int -> int -> int -> color -> unit
   val fill : window -> int -> int -> int -> int -> color -> unit
   val rect : window -> int -> int -> int -> int -> color -> unit
   val fill_circ : window -> int -> int -> int -> int -> color -> unit
