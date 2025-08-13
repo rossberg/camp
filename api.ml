@@ -276,11 +276,13 @@ end
 
 (* Drawing *)
 
-type buffer = Raylib.RenderTexture.t
+type buffer = {texture : Raylib.RenderTexture.t; scale : size}
 
 module Buffer =
 struct
   let create w h =
+    let sx, sy = point_of_vec2 (Raylib.get_window_scale_dpi ()) in
+    let w, h = w * sx, h * sy in
     let buf = Raylib.load_render_texture w h in
     (* Override texture format to not use alpha channel *)
     Raylib.unload_texture (Raylib.RenderTexture.texture buf);
@@ -292,16 +294,24 @@ struct
     (* Mirror Raylib LoadRenderTexture: *)
     Raylib.Rlgl.framebuffer_attach (Raylib.RenderTexture.id buf) id'
       0 (* = RL_ATTACHMENT_COLOR0 *) 100 (* = RL_ATTACHMENT_TEXTURE2D *) 0;
-    buf
+    {texture = buf; scale = sx, sy}
 
-  let dispose = Raylib.unload_render_texture
-  let size buf = Image.size (Raylib.RenderTexture.texture buf)
+  let dispose buf = Raylib.unload_render_texture buf.texture
+  let size buf =
+    let w, h = Image.size (Raylib.RenderTexture.texture buf.texture) in
+    w / fst buf.scale, h / snd buf.scale
 end
 
 
 module Draw =
 struct
   let frame = ref 0
+  let scale = ref (1, 1)
+
+  let sx v = v * fst !scale
+  let sy v = v * snd !scale
+  let sxy x y = sx x, sy y
+  let sxywh x y w h = sx x, sy y, sx w, sy h
 
   let start () c =
     Raylib.begin_drawing ();
@@ -320,40 +330,56 @@ struct
     Raylib.end_drawing ();  (* polls input events *)
     List.iter (fun f -> f ()) !after_frame_finish
 
-  let buffered () buf = Raylib.begin_texture_mode buf
-  let unbuffered () = Raylib.end_texture_mode ()
+  let buffered () buf =
+    Raylib.begin_texture_mode buf.texture;
+    (* Manual adjustment for High DPI scaling is needed *)
+    scale := point_of_vec2 (Raylib.get_window_scale_dpi ())
 
-  let clip () x y w h = Raylib.begin_scissor_mode x y w h
+  let unbuffered () =
+    Raylib.end_texture_mode ();
+    scale := (1, 1)
+
+  let clip () x y w h =
+    let x, y, w, h = sxywh x y w h in
+    Raylib.begin_scissor_mode x y w h
   let unclip () = Raylib.end_scissor_mode ()
 
   let frame () = !frame
 
   let fill () x y w h c =
+    let x, y, w, h = sxywh x y w h in
     Raylib.draw_rectangle x y w h (color c)
 
   let rect () x y w h c =
+    let x, y, w, h = sxywh x y w h in
     Raylib.draw_rectangle_lines x y w h (color c)
 
   let gradient () x y w h c1 o c2 =
+    let x, y, w, h = sxywh x y w h in
     (match o with
     | `Horizontal -> Raylib.draw_rectangle_gradient_h
     | `Vertical -> Raylib.draw_rectangle_gradient_v
     ) x y w h (color c1) (color c2)
 
   let fill_circ () x y w h c =
+    let x, y, w, h = sxywh x y w h in
     Raylib.draw_ellipse (x + w/2) (y + h/2) (float w /. 2.0) (float h /. 2.0) (color c)
 
   let gradient_circ () x y w h c1 c2 =
+    let x, y, w, h = sxywh x y w h in
     Raylib.draw_circle_gradient (x + w/2) (y + h/2) (float (w + h) /. 4.0) (color c1) (color c2)
 
   let circ () x y w h c =
+    let x, y, w, h = sxywh x y w h in
     Raylib.draw_ellipse_lines (x + w/2) (y + h/2) (float w /. 2.0) (float h /. 2.0) (color c)
 
   let tri () x1 y1 x2 y2 x3 y3 c =
+    let (x1, y1), (x2, y2), (x3, y3) = sxy x1 y1, sxy x2 y2, sxy x3 y3 in
     let vs = Array.map vec2_of_point [|x1, y1; x2, y2; x3, y3|] in
     Raylib.draw_triangle vs.(0) vs.(1) vs.(2) (color c)
 
   let arrow () x y w h c dir =
+    let x, y, w, h = sxywh x y w h in
     let vs = Array.map vec2_of_point
       (match dir with
       | `Up -> [|x + w/2, y; x, y + h; x + w, y + h|]
@@ -365,20 +391,24 @@ struct
     Raylib.draw_triangle vs.(0) vs.(1) vs.(2) (color c)
 
   let text () x y h c f s =
+    let x, y, _, h = sxywh x y 1 h in
     Option.iter Raylib.begin_shader_mode f.shader;
     Raylib.draw_text_ex f.font s (vec2_of_point (x, y)) (float h) 1.0 (color c);
     Option.iter (fun _ -> Raylib.end_shader_mode ()) f.shader
 
-  let text_width () h f s =
+  let text_width () h f s : int =
     fst (point_of_vec2 (Raylib.measure_text_ex f.font s (float h) 1.0))
 
   let text_spacing () _h _f = 1
 
-  let image () x y scale img =
+  let image () x y sc img =
+    let x, y = sxy x y in
+    let sc = sc *. float (fst !scale) in
     let v = vec2_of_point (x, y) in
-    Raylib.draw_texture_ex img v 0.0 scale Raylib.Color.white
+    Raylib.draw_texture_ex img v 0.0 sc Raylib.Color.white
 
   let image_part () x y w h x' y' w' h' img =
+    let x, y, w, h = sxywh x y w h in
     let r' = Raylib.Rectangle.create (float x') (float y') (float w') (float h') in
     let r = Raylib.Rectangle.create (float x) (float y) (float w) (float h) in
     let v = vec2_of_point (0, 0) in
@@ -386,10 +416,13 @@ struct
 
   let buffer () x y buf =
     let w, h = Buffer.size buf in
-    let r = Raylib.Rectangle.create 0.0 0.0 (float w) (-. float h) in
-    let v = vec2_of_point (x, y) in
-    let img = Raylib.RenderTexture.texture buf in
-    Raylib.draw_texture_rec img r v Raylib.Color.white
+    let w', h' = w * fst buf.scale, h * snd buf.scale in
+    let x, y, w, h = sxywh x y w h in
+    let r' = Raylib.Rectangle.create 0.0 0.0 (float w') (-. float h') in
+    let r = Raylib.Rectangle.create (float x) (float y) (float w) (float h) in
+    let v = vec2_of_point (0, 0) in
+    let img = Raylib.RenderTexture.texture buf.texture in
+    Raylib.draw_texture_pro img r' r v 0.0 Raylib.Color.white
 end
 
 
