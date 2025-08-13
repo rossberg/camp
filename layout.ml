@@ -446,7 +446,7 @@ let tracks_button = view_button 0 key_tracks
 let tracks_label = view_label 0 "TRACKS"
 
 (* Search *)
-let search_label_w _g = 27
+let search_label_w _g = 30
 let search_x g = margin g + search_label_w g + 3
 let search_y g = 2 * margin g + indicator_w g + view_h + label_h g
 let search_label g = Ui.label g.ui (bp, margin g, search_y g + (text_h g - label_h g + 1)/2, search_label_w g, label_h g) `Left "SEARCH"
