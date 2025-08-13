@@ -1703,6 +1703,9 @@ let run_library (st : state) =
         (fun () -> Library.rescan_dirs lib `Quick [|dir|]);
       `Entry (c, "Rescan Thorough", Layout.key_rescan2, true),
         (fun () -> Library.rescan_dirs lib `Thorough [|dir|]);
+      `Separator, ignore;
+      `Entry (c, "Find", Layout.key_find, lib.current <> None),
+        (fun () -> State.focus_edit lib.search st);
     |]
 
   | `Menu None ->
@@ -2006,6 +2009,40 @@ let run_library (st : state) =
     (
       (* Changed search text: update search in dir *)
       Library.set_search lib lib.search.text;
+    );
+
+    if Layout.search_context lay then
+    (
+      let rec nub = function
+        | [] -> []
+        | x::xs -> x :: nub (List.filter ((<>) x) xs)
+      in
+      let c = Ui.text_color lay.ui in
+      let history = Edit.history lib.search in
+      let history' = nub history in
+      menu st ([
+        `Entry (c, "Clear Search", Layout.key_clear_search, lib.search.text <> ""),
+          (fun () -> Edit.clear lib.search; Library.set_search lib "";
+            State.focus_edit lib.search st);
+        `Entry (c, "Clear Search History", Layout.key_clear_history, history <> []),
+          (fun () ->
+            Edit.clear_history lib.search;
+            Data.iter_dir (fun (dir : Library.dir) ->
+              if dir.view.search <> "" then
+              (
+                dir.view.search <- "";
+                Library.save_dir lib dir;
+              )
+            ) lib.root;
+            State.focus_edit lib.search st
+          );
+      ] @ (
+        if history = [] then [] else [`Separator, ignore]
+      ) @ List.map (fun s ->
+        `Entry (c, "Search for " ^ s, Layout.nokey, true),
+          (fun () -> Edit.set lib.search s; Library.set_search lib s;
+            State.focus_edit lib.search st)
+      ) history' |> Array.of_list)
     )
   );
 
@@ -2174,6 +2211,9 @@ let run_library (st : state) =
           (fun () -> Table.deselect_all tab; Library.refresh_albums_tracks lib);
         `Entry (c, "Invert Selection", Layout.key_invert, Table.(num_selected tab > 0)),
           (fun () -> Table.select_invert tab; Library.refresh_albums_tracks lib);
+        `Separator, ignore;
+        `Entry (c, "Find", Layout.key_find, lib.current <> None),
+          (fun () -> State.focus_edit lib.search st);
       |]
 
     | `HeadMenu i_opt ->
@@ -2343,6 +2383,9 @@ let run_library (st : state) =
           (fun () -> Table.deselect_all tab; Library.refresh_tracks lib);
         `Entry (c, "Invert Selection", Layout.key_invert, Table.(num_selected tab > 0)),
           (fun () -> Table.select_invert tab; Library.refresh_tracks lib);
+        `Separator, ignore;
+        `Entry (c, "Find", Layout.key_find, lib.current <> None),
+          (fun () -> State.focus_edit lib.search st);
       |]
 
     | `HeadMenu i_opt ->
@@ -2606,6 +2649,9 @@ let run_library (st : state) =
             (fun () -> select_none st view other);
           `Entry (c, "Invert Selection", Layout.key_invert, select_invert_avail st view),
             (fun () -> select_invert st view other);
+          `Separator, ignore;
+          `Entry (c, "Find", Layout.key_find, lib.current <> None),
+            (fun () -> State.focus_edit lib.search st);
           `Separator, ignore;
           `Entry (c, "Save", Layout.key_save, save_avail st view),
             (fun () -> save st view other);

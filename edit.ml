@@ -10,6 +10,8 @@ type undo =
 type t =
 {
   mutable text : string;
+  mutable prev : string list;
+  mutable next : string list;
   mutable focus : bool;
   mutable scroll : int;
   mutable sel_range : (int * int) option;  (* primary and secondary pos *)
@@ -24,6 +26,8 @@ type t =
 let make undo_depth =
   {
     text = "";
+    prev = [];
+    next = [];
     focus = false;
     scroll = 0;
     sel_range = None;
@@ -40,6 +44,19 @@ let defocus ed = ed.focus <- false
 
 let scroll ed i = ed.scroll <- i
 let select ed sel = ed.sel_range <- sel
+
+
+(* History *)
+
+let add_history ed =
+  match List.rev ed.next with
+  | [] -> ()
+  | s::next ->
+    let next' = (if s = "" then next else s::next) in
+    ed.prev <- next' @ (if ed.text = "" then [] else [ed.text]) @ ed.prev;
+    ed.next <- [];
+    if List.length ed.prev >= ed.undo_depth then
+      ed.prev <- List.take ed.undo_depth ed.prev
 
 
 (* Undo *)
@@ -65,6 +82,7 @@ let pop_unredo ed undos redos =
   | undo :: undos' ->
     redos := make_undo ed :: !redos;
     undos := undos';
+    add_history ed;
     ed.text <- undo.undo_text;
     ed.scroll <- undo.undo_scroll;
     ed.sel_range <- undo.undo_sel_range
@@ -97,7 +115,8 @@ let set' ed s i n =
     | None -> ()
   )
 
-let set ed s =
+let update ed s =
+  add_history ed;
   set' ed s 0 0;
   move_end ed
 
@@ -111,3 +130,41 @@ let remove ed i n =
 
 let clear ed =
   set' ed "" 0 0
+
+let set ed s =
+  if ed.next = [] then ed.next <- [""];
+  update ed s
+
+
+(* History *)
+
+let prev_history ed =
+  match ed.prev with
+  | [] -> ()
+  | s::prev' ->
+    ed.prev <- prev';
+    ed.next <- ed.text::ed.next;
+    set' ed s 0 0;
+    move_end ed
+
+let next_history ed =
+  let s =
+    match ed.next with
+    | [] -> ""
+    | s::next' -> ed.next <- next'; s
+  in
+  ed.prev <- (if ed.text = "" then ed.prev else ed.text::ed.prev);
+  set' ed s 0 0;
+  move_end ed
+
+let clear_history ed =
+  clear ed;
+  ed.prev <- [];
+  ed.next <- []
+
+let history ed =
+  let next' =
+    match List.rev ed.next with
+    | ""::next' -> next'
+    | next -> next
+  in next' @ (if ed.text = "" then [] else [ed.text]) @ ed.prev

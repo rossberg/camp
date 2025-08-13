@@ -167,6 +167,9 @@ let key_griddn = shiftcmd '-'
 
 let key_color = nokey
 
+let key_clear_search = nokey
+let key_clear_history = nokey
+
 let key_artists = nokey
 let key_albums = nokey
 let key_tracks = nokey
@@ -454,6 +457,7 @@ let search_button g = Ui.mouse g.ui (bp, margin g, search_y g, search_label_w g,
 let search_key g = Ui.key g.ui key_find true
 let search_box g = Ui.box g.ui (bp, search_x g, search_y g, - divider_w g, text_h g) `Black
 let search_text g = Ui.rich_edit_text g.ui (bp, search_x g + 2, search_y g, - divider_w g - 2, text_h g)
+let search_context g = Ui.mouse g.ui (bp, search_x g, search_y g, - divider_w g, text_h g) `Right
 
 (* Browser *)
 let browser_y g = search_y g + text_h g + margin g

@@ -5,6 +5,8 @@ type undo
 type t = private
 {
   mutable text : string;
+  mutable prev : string list;
+  mutable next : string list;
   mutable focus : bool;
   mutable scroll : int;
   mutable sel_range : (int * int) option;  (* primary and secondary pos *)
@@ -30,10 +32,11 @@ val select : t -> (int * int) option -> unit
 
 (* Editing *)
 
-val set : t -> string -> unit
+val update : t -> string -> unit
 val insert : t -> int -> string -> unit
 val remove : t -> int -> int -> unit
 val clear : t -> unit
+val set : t -> string -> unit
 
 val move_begin : t -> unit
 val move_end : t -> unit
@@ -49,3 +52,11 @@ val drop_undo : t -> unit
 val drop_redo : t -> unit
 
 val clear_undo : t -> unit
+
+
+(* History *)
+
+val prev_history : t -> unit
+val next_history : t -> unit
+val clear_history : t -> unit
+val history : t -> string list

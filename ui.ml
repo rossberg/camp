@@ -2207,7 +2207,8 @@ let rich_edit_text ui area (edit : Edit.t) =
   let s', scroll', sel', ch =
     edit_text ui area edit.text edit.scroll edit.sel_range edit.focus in
   if edit.focus then focus ui area;
-  if s' <> edit.text then Edit.set edit s';
+  if s' <> edit.text then
+    Edit.update edit s';
   Edit.scroll edit scroll';
   if sel' <> None then
   (
@@ -2223,6 +2224,14 @@ let rich_edit_text ui area (edit : Edit.t) =
         Edit.pop_undo edit
       else if Key.are_modifiers_down [`Command; `Shift] then
         Edit.pop_redo edit
+    )
+    else if Key.is_pressed_or_repeated (`Arrow `Up) then
+    (
+      Edit.prev_history edit
+    )
+    else if Key.is_pressed_or_repeated (`Arrow `Down) then
+    (
+      Edit.next_history edit
     )
   );
 

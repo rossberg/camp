@@ -451,7 +451,8 @@ struct
 
   let views =
     record (fun (x : views) -> [
-      "search", string x.search;
+      (* Don't save searches for privacy reasons. *)
+      (*"search", string x.search;*)
       (* query omitted and reconstructed from search *)
       "fold", bool x.folded;
       "div_w", nat x.divider_width;
@@ -506,7 +507,7 @@ struct
 
   let views : t -> views =
     record (fun r -> {
-      search = string (r $ "search");
+      search = ""; (*string (r $ "search");*)
       query = None;
       folded = bool (r $ "fold");
       divider_width = nat (r $ "div_w");
