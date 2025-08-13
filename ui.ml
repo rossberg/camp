@@ -1946,7 +1946,7 @@ let menu ui x y bw gw ch items =
         String.concat "+" Api.Key.(List.map modifier_name mods @ [key_name key])
     ) items
   in
-  let lw =
+  let lw = 2 * gw +
     Array.fold_left (fun w -> function
       | `Separator -> w
       | `Entry (_, s, _, _) -> max w (Draw.text_width ui.win ch font s + 1)

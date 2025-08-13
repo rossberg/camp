@@ -1303,9 +1303,9 @@ let edit_menu (st : state) view other pos_opt =
     `Entry (c, "Redo", Layout.key_redo, redo_avail st view),
       (fun () -> redo st view other);
     `Separator, ignore;
-    `Entry (c, "Load", Layout.key_load, load_avail st view),
+    `Entry (c, "Load...", Layout.key_load, load_avail st view),
       (fun () -> load st view other);
-    `Entry (c, "Save", Layout.key_save, save_avail st view),
+    `Entry (c, "Save...", Layout.key_save, save_avail st view),
       (fun () -> save st view other);
   |]
 
@@ -1704,7 +1704,7 @@ let run_library (st : state) =
       `Entry (c, "Rescan Thorough", Layout.key_rescan2, true),
         (fun () -> Library.rescan_dirs lib `Thorough [|dir|]);
       `Separator, ignore;
-      `Entry (c, "Find", Layout.key_find, lib.current <> None),
+      `Entry (c, "Search...", Layout.key_search, lib.current <> None),
         (fun () -> State.focus_edit lib.search st);
     |]
 
@@ -2212,7 +2212,7 @@ let run_library (st : state) =
         `Entry (c, "Invert Selection", Layout.key_invert, Table.(num_selected tab > 0)),
           (fun () -> Table.select_invert tab; Library.refresh_albums_tracks lib);
         `Separator, ignore;
-        `Entry (c, "Find", Layout.key_find, lib.current <> None),
+        `Entry (c, "Search...", Layout.key_search, lib.current <> None),
           (fun () -> State.focus_edit lib.search st);
       |]
 
@@ -2384,7 +2384,7 @@ let run_library (st : state) =
         `Entry (c, "Invert Selection", Layout.key_invert, Table.(num_selected tab > 0)),
           (fun () -> Table.select_invert tab; Library.refresh_tracks lib);
         `Separator, ignore;
-        `Entry (c, "Find", Layout.key_find, lib.current <> None),
+        `Entry (c, "Search...", Layout.key_search, lib.current <> None),
           (fun () -> State.focus_edit lib.search st);
       |]
 
@@ -2650,10 +2650,10 @@ let run_library (st : state) =
           `Entry (c, "Invert Selection", Layout.key_invert, select_invert_avail st view),
             (fun () -> select_invert st view other);
           `Separator, ignore;
-          `Entry (c, "Find", Layout.key_find, lib.current <> None),
+          `Entry (c, "Search...", Layout.key_search, lib.current <> None),
             (fun () -> State.focus_edit lib.search st);
           `Separator, ignore;
-          `Entry (c, "Save", Layout.key_save, save_avail st view),
+          `Entry (c, "Save...", Layout.key_save, save_avail st view),
             (fun () -> save st view other);
         |]
       )
