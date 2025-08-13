@@ -352,12 +352,9 @@ struct
   let circ () x y w h c =
     Raylib.draw_ellipse_lines (x + w/2) (y + h/2) (float w /. 2.0) (float h /. 2.0) (color c)
 
-  let tri () x y w h c corner =
-    let x', y' = x + w, y + h in
-    let vs = List.map vec2_of_point [x, y; x, y'; x', y'; x', y] in
-    let drop = match corner with `NW -> 2 | `NE -> 1 | `SW -> 3 | `SE -> 0 in
-    let vs' = Array.of_list (List.filteri (fun i _ -> i <> drop) vs) in
-    Raylib.draw_triangle vs'.(0) vs'.(1) vs'.(2) (color c)
+  let tri () x1 y1 x2 y2 x3 y3 c =
+    let vs = Array.map vec2_of_point [|x1, y1; x2, y2; x3, y3|] in
+    Raylib.draw_triangle vs.(0) vs.(1) vs.(2) (color c)
 
   let arrow () x y w h c dir =
     let vs = Array.map vec2_of_point

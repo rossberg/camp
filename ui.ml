@@ -462,26 +462,41 @@ let lcd' ui r' c elem =
   let m = h / 2 in
   match elem with
   | `N ->
+(*
     fill ui.win (x + 1) (y + 0) (w - 4) 1 c;
     fill ui.win (x + 2) (y + 1) (w - 6) 1 c;
+*)
+    fill ui.win (x + 3) (y + 0) (w - 6) 2 c;
+    tri ui.win (x + 1) (y + 0) (x + 3) (y + 2) (x + 3) (y + 0) c;
+    tri ui.win (x + w - 1) (y + 0) (x + w - 3) (y + 0) (x + w - 3) (y + 2) c;
   | `S ->
-    fill ui.win (x + 1) (y + h - 1) (w - 4) 1 c;
-    fill ui.win (x + 2) (y + h - 2) (w - 6) 1 c;
+    fill ui.win (x + 3) (y + h - 2) (w - 6) 2 c;
+    tri ui.win (x + 1) (y + h) (x + 3) (y + h) (x + 3) (y + h - 2) c;
+    tri ui.win (x + w - 1) (y + h) (x + w - 3) (y + h - 2) (x + w - 3) (y + h) c;
   | `C ->
-    fill ui.win (x + 1) (y + m - 1) (w - 4) 1 c;
-    fill ui.win (x + 2) (y + m) (w - 6) 1 c;
+    fill ui.win (x + 3) (y + m - 1) (w - 6) 2 c;
+    tri ui.win (x + 1) (y + m - 1) (x + 3) (y + m + 1) (x + 3) (y + m - 1) c;
+    tri ui.win (x + w - 1) (y + m - 1) (x + w - 3) (y + m - 1) (x + w - 3) (y + m + 1) c;
   | `NW ->
+(*
     fill ui.win (x + 0) (y + 1) 1 (m - 3) c;
     fill ui.win (x + 1) (y + 2) 1 (m - 5) c;
+*)
+    fill ui.win (x + 0) (y + 3) 2 (m - 6) c;
+    tri ui.win (x + 0) (y + 1) (x + 0) (y + 3) (x + 2) (y + 3) c;
+    tri ui.win (x + 0) (y + m - 1) (x + 2) (y + m - 3) (x + 0) (y + m - 3) c;
   | `NE ->
-    fill ui.win (x + w - 1) (y + 1) 1 (m - 3) c;
-    fill ui.win (x + w - 2) (y + 2) 1 (m - 5) c;
+    fill ui.win (x + w - 2) (y + 3) 2 (m - 6) c;
+    tri ui.win (x + w) (y + 1) (x + w - 2) (y + 3) (x + w) (y + 3) c;
+    tri ui.win (x + w) (y + m - 1) (x + w) (y + m - 3) (x + w - 2) (y + m - 3) c;
   | `SW ->
-    fill ui.win (x + 0) (y + m + 1) 1 (m - 3) c;
-    fill ui.win (x + 1) (y + m + 2) 1 (m - 5) c;
+    fill ui.win (x + 0) (y + m + 3) 2 (h - m - 6) c;
+    tri ui.win (x + 0) (y + m + 1) (x + 0) (y + m + 3) (x + 2) (y + m + 3) c;
+    tri ui.win (x + 0) (y + h - 1) (x + 2) (y + h - 3) (x + 0) (y + h - 3) c;
   | `SE ->
-    fill ui.win (x + w - 1) (y + m + 1) 1 (m - 3) c;
-    fill ui.win (x + w - 2) (y + m + 2) 1 (m - 5) c
+    fill ui.win (x + w - 2) (y + m + 3) 2 (h - m - 6) c;
+    tri ui.win (x + w) (y + m + 1) (x + w - 2) (y + m + 3) (x + w) (y + m + 3) c;
+    tri ui.win (x + w) (y + h - 1) (x + w) (y + h - 3) (x + w - 2) (y + h - 3) c;
   | `Dots ->
     fill ui.win x (y + h / 4) 2 2 c;
     fill ui.win x (y + 3 * h / 4) 2 2 c
@@ -681,7 +696,7 @@ let volume_bar ui r v =
   let (x, y, w, h), status = element ui r no_modkey in
   let h' = int_of_float ((1.0 -. v) *. float h) in
   Draw.fill ui.win (x + w - 2) y 2 h (fill ui true);
-  Draw.tri ui.win x y (w - 2) h (fill ui true) `NE;
+  Draw.tri ui.win (x + 2) y (x + w - 2) (y + h) (x + w - 2) y (fill ui true);
   Draw.fill ui.win x y w h' (`Trans (`Black, 0x100 - unlit_alpha));
   for j = 0 to h / 2 - 1 do
     Draw.fill ui.win x (y + 2*j + 1) w 1 `Black
