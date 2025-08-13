@@ -462,29 +462,29 @@ let lcd' ui r' c elem =
   let m = h / 2 in
   match elem with
   | `N ->
-    line ui.win (x + 1) (y + 0) (x + w - 3) (y + 0) c;
-    line ui.win (x + 2) (y + 1) (x + w - 4) (y + 1) c;
+    fill ui.win (x + 1) (y + 0) (w - 4) 1 c;
+    fill ui.win (x + 2) (y + 1) (w - 6) 1 c;
   | `S ->
-    line ui.win (x + 1) (y + h - 1) (x + w - 3) (y + h - 1) c;
-    line ui.win (x + 2) (y + h - 2) (x + w - 4) (y + h - 2) c;
+    fill ui.win (x + 1) (y + h - 1) (w - 4) 1 c;
+    fill ui.win (x + 2) (y + h - 2) (w - 6) 1 c;
   | `C ->
-    line ui.win (x + 1) (y + m - 1) (x + w - 3) (y + m - 1) c;
-    line ui.win (x + 2) (y + m) (x + w - 4) (y + m) c;
+    fill ui.win (x + 1) (y + m - 1) (w - 4) 1 c;
+    fill ui.win (x + 2) (y + m) (w - 6) 1 c;
   | `NW ->
-    line ui.win (x + 0) (y + 1) (x + 0) (y + m - 2) c;
-    line ui.win (x + 1) (y + 2) (x + 1) (y + m - 3) c;
+    fill ui.win (x + 0) (y + 1) 1 (m - 3) c;
+    fill ui.win (x + 1) (y + 2) 1 (m - 5) c;
   | `NE ->
-    line ui.win (x + w - 1) (y + 1) (x + w - 1) (y + m - 2) c;
-    line ui.win (x + w - 2) (y + 2) (x + w - 2) (y + m - 3) c;
+    fill ui.win (x + w - 1) (y + 1) 1 (m - 3) c;
+    fill ui.win (x + w - 2) (y + 2) 1 (m - 5) c;
   | `SW ->
-    line ui.win (x + 0) (y + m + 1) (x + 0) (y + h - 2) c;
-    line ui.win (x + 1) (y + m + 2) (x + 1) (y + h - 3) c;
+    fill ui.win (x + 0) (y + m + 1) 1 (m - 3) c;
+    fill ui.win (x + 1) (y + m + 2) 1 (m - 5) c;
   | `SE ->
-    line ui.win (x + w - 1) (y + m + 1) (x + w - 1) (y + h - 2) c;
-    line ui.win (x + w - 2) (y + m + 2) (x + w - 2) (y + h - 3) c
+    fill ui.win (x + w - 1) (y + m + 1) 1 (m - 3) c;
+    fill ui.win (x + w - 2) (y + m + 2) 1 (m - 5) c
   | `Dots ->
-    rect ui.win x (y + h / 4) 2 2 c;
-    rect ui.win x (y + 3 * h / 4) 2 2 c
+    fill ui.win x (y + h / 4) 2 2 c;
+    fill ui.win x (y + 3 * h / 4) 2 2 c
 
 let lcd ui r d =
   let c = text_color ui in
