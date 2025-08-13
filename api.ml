@@ -181,37 +181,60 @@ end
 
 (* Fonts *)
 
-type font = Raylib.Font.t (* * Raylib.Shader.t *)
+type font = {font : Raylib.Font.t; shader : Raylib.Shader.t option}
+
+(* Nasty hack to work around Raylib bindings bug
+ * https://github.com/tjammer/raylib-ocaml/issues/63 *)
+module RaylibFont =
+struct
+  open Ctypes
+  type t
+  let t : t structure typ = structure "Font"
+  let _base_size = field t "baseSize" int
+  let glyph_count = field t "glyphCount" int
+  let () = seal t
+end
 
 module Font =
 struct
-  let load () path min max size =
-    let glyphs = Ctypes.(CArray.make int (max - min)) in
-    for i = min to max - 1 do Ctypes.CArray.set glyphs (i - min) i done;
-    let font = Raylib.load_font_ex path size (Some glyphs) in
-    (*Raylib.(set_texture_filter (Font.texture font) TextureFilter.Point);*)
-    font
+  let assets = File.(dir Sys.argv.(0) // "assets")
 
-(* Can't get SDF to work. Translated from https://github.com/raysan5/raylib/blob/master/examples/text/text_font_sdf.c
-  let load () path size =
-    let font = Raylib.load_font_ex path size None in
-    Raylib.Font.set_base_size font size;
-    Raylib.Font.set_glyph_padding font 0;
-    let data = File.load `Bin path in
-    let glyphs = Raylib.load_font_data data (String.length data) size
-      Ctypes.(from_voidp int null) 0 Raylib.FontType.(to_int Sdf) in
-    Raylib.Font.set_glyphs font (Ctypes.CArray.from_ptr glyphs 95);
-    let atlas = Raylib.gen_image_font_atlas
-      (Ctypes.CArray.start (Raylib.Font.glyphs font))
-      (Ctypes.allocate (Ctypes.ptr Raylib.Rectangle.t) (Raylib.Font.recs font))
-      95 size 0 1 in
-    Raylib.Font.set_texture font (Raylib.load_texture_from_image atlas);
-    Raylib.unload_image atlas;
-    let shader = Raylib.load_shader "vertex.fs" "sdf.fs" in
-    Raylib.set_texture_filter (Raylib.Font.texture font)
-      Raylib.TextureFilter.Bilinear;
-    font, shader
-*)
+  let load () path min max size sdf =
+    if sdf then
+    (
+      (* https://github.com/raysan5/raylib/blob/master/examples/text/text_font_sdf.c *)
+      let font = Ctypes.make Raylib.Font.t in
+      Raylib.Font.set_base_size font size;
+      let data = File.load `Bin path in
+      let glyphs = Raylib.load_font_data data (String.length data) size
+        Ctypes.(from_voidp int null) max Raylib.FontType.(to_int Sdf) in
+      Raylib.Font.set_glyphs font (Ctypes.CArray.from_ptr glyphs (max - min));
+      (* Nasty hack to work around Raylib set_glyphs bug! *)
+      Ctypes.setf (Obj.magic font) RaylibFont.glyph_count (max - min);
+      assert (Ctypes.CArray.length (Raylib.Font.glyphs font) = max - min);
+
+      let recs' = Ctypes.allocate (Ctypes.ptr Raylib.Rectangle.t) (Raylib.Font.recs font) in
+      let atlas = Raylib.gen_image_font_atlas glyphs recs' max size 0 1 in
+      Raylib.Font.set_recs font Ctypes.(!@recs');
+      Raylib.Font.set_texture font (Raylib.load_texture_from_image atlas);
+      Raylib.unload_image atlas;
+
+      let c = if size <= 10 then "s" else "l" in
+      let vertex_fs = File.(assets // "vertex.fs") in
+      let sdf_fs = File.(assets // "sdf_" ^ c ^ ".fs") in
+      let shader = Raylib.load_shader vertex_fs sdf_fs in
+      Raylib.set_texture_filter (Raylib.Font.texture font)
+        Raylib.TextureFilter.Bilinear;
+      {font; shader = Some shader}
+    )
+    else
+    (
+      let glyphs = Ctypes.(CArray.make int (max - min)) in
+      for i = min to max - 1 do Ctypes.CArray.set glyphs (i - min) i done;
+      let font = Raylib.load_font_ex path size (Some glyphs) in
+      (*Raylib.(set_texture_filter (Font.texture font) TextureFilter.Bilinear);*)
+      {font; shader = None}
+    )
 end
 
 
@@ -348,15 +371,12 @@ struct
     Raylib.draw_triangle vs.(0) vs.(1) vs.(2) (color c)
 
   let text () x y h c f s =
-    Raylib.draw_text_ex f s (vec2_of_point (x, y)) (float h) 1.0 (color c)
-(*
-    Raylib.begin_shader_mode (snd f);
-    Raylib.draw_text_ex (fst f) s (vec2_of_point (x, y)) (float h) 0.0 (color c);
-    Raylib.end_shader_mode ()
-*)
+    Option.iter Raylib.begin_shader_mode f.shader;
+    Raylib.draw_text_ex f.font s (vec2_of_point (x, y)) (float h) 1.0 (color c);
+    Option.iter (fun _ -> Raylib.end_shader_mode ()) f.shader
 
   let text_width () h f s =
-    fst (point_of_vec2 (Raylib.measure_text_ex f s (float h) 1.0))
+    fst (point_of_vec2 (Raylib.measure_text_ex f.font s (float h) 1.0))
 
   let text_spacing () _h _f = 1
 

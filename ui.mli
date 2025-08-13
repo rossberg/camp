@@ -10,6 +10,9 @@ type t
 val make : window -> t
 val window : t -> window
 
+val buffered : t -> bool -> unit
+val is_buffered : t -> bool
+
 val modal : t -> unit
 val nonmodal : t -> unit
 val is_modal : t -> bool
@@ -45,6 +48,9 @@ val semilit_color : color -> color
 (* Fonts *)
 
 val font : t -> int -> Api.font
+
+val font_sdf : t -> bool -> unit
+val font_is_sdf : t -> bool
 
 (* Images *)
 

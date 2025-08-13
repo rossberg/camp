@@ -82,7 +82,7 @@ type font
 
 module Font :
 sig
-  val load : window -> path -> int -> int -> int -> font
+  val load : window -> path -> int -> int -> int -> bool -> font
 end
 
 

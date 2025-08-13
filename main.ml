@@ -112,7 +112,7 @@ let cycle_color (st : state) d =
   Table.dirty st.library.albums;
   Table.dirty st.library.tracks
 
-let clamp_text = clamp 8 64
+let clamp_text = clamp 10 64
 
 let resize_text_avail (st : state) delta =
   clamp_text (st.layout.text + delta) <> st.layout.text
@@ -120,7 +120,7 @@ let resize_text_avail (st : state) delta =
 let resize_text (st : state) delta =
   st.layout.text <- clamp_text (st.layout.text + delta)
 
-let clamp_grid = clamp 10 1000
+let clamp_grid = clamp 20 1000
 
 let resize_grid_avail (st : state) delta =
   match st.library.current with

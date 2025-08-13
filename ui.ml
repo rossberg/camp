@@ -14,6 +14,8 @@ type image_load = [`Unloaded of string | `Loaded of image] ref
 type t =
 {
   win : window;
+  mutable buffered : bool;
+  mutable font_sdf : bool;
   mutable palette : int;
   mutable panes : rect array;
   mutable modal : bool;             (* whether a pop-up menu is shown *)
@@ -35,6 +37,8 @@ let make win =
   let icon = Image.load_raw File.(assets // "icon.png") in
   Window.set_icon win icon;
   { win;
+    buffered = true;
+    font_sdf = false;
     palette = 0;
     panes = Array.make 10 (0, 0, 0, 0);
     modal = false;
@@ -49,6 +53,9 @@ let make win =
   }
 
 let window ui = ui.win
+
+let buffered ui b = ui.buffered <- b
+let is_buffered ui = ui.buffered
 
 let modal ui = ui.modal <- true
 let nonmodal ui = ui.modal <- false
@@ -162,16 +169,20 @@ let border ui = function
 
 (* Fonts *)
 
+let font_sdf ui b = ui.font_sdf <- b
+let font_is_sdf ui = ui.font_sdf
+
 let font' ui h file min max fonts =
   match fonts.(h) with
   | Some f -> f
   | None ->
-    let f = Font.load ui.win file min max h in
+    let f = Font.load ui.win file min max h ui.font_sdf in
     fonts.(h) <- Some f;
     f
 
 let font ui h =
-  font' ui h File.(assets // "tahoma.ttf") 0x0020 0x2800 ui.fonts
+  let max = if h < 10 then 0x80 else 0x2800 in
+  font' ui h File.(assets // "tahoma.ttf") 0x0020 max ui.fonts
 
 
 (* Images *)
@@ -1129,7 +1140,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
 
     (* Body *)
     let buf = adjust_cache tab w h in
-    if tab.dirty || Draw.frame ui.win mod 10 = 7 then
+    if not ui.buffered || tab.dirty || Draw.frame ui.win mod 10 = 7 then
     (
       let rows =
         Array.init (min page len) (fun i ->
@@ -1139,12 +1150,13 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
           c, inv, cols
         )
       in
-      Draw.buffered ui.win buf;
-      table' ui (-1, 0, 0, w, h) geo.gutter_w rh cols rows tab.hscroll;
-      Draw.unbuffered ui.win;
+      if ui.buffered then Draw.buffered ui.win buf;
+      let area' = if ui.buffered then (-1, 0, 0, w, h) else table_area in
+      table' ui area' geo.gutter_w rh cols rows tab.hscroll;
+      if ui.buffered then Draw.unbuffered ui.win;
       Table.clean tab;
     );
-    Draw.buffer ui.win x y buf;
+    if ui.buffered then Draw.buffer ui.win x y buf;
 
     let mx, my = Mouse.pos ui.win in
     let i = tab.vscroll + (my - y) / rh in
@@ -1563,7 +1575,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
 
     (* Body *)
     let buf = adjust_cache tab w h in
-    if tab.dirty then
+    if not ui.buffered || tab.dirty then
     (
       let matrix =
         Array.init page (fun j ->
@@ -1576,12 +1588,13 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
           )
         )
       in
-      Draw.buffered ui.win buf;
-      grid' ui (-1, 0, 0, w, h) geo.gutter_w geo.img_h geo.text_h matrix;
-      Draw.unbuffered ui.win;
+      if ui.buffered then Draw.buffered ui.win buf;
+      let area' = if ui.buffered then (-1, 0, 0, w, h) else table_area in
+      grid' ui area' geo.gutter_w geo.img_h geo.text_h matrix;
+      if ui.buffered then Draw.unbuffered ui.win;
       Table.clean tab;
     );
-    Draw.buffer ui.win x y buf;
+    if ui.buffered then Draw.buffer ui.win x y buf;
     
     let mx, my = Mouse.pos ui.win in
     let i, j = (mx - x) / iw, (my - y) / ih in

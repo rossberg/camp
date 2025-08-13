@@ -122,8 +122,10 @@ let print_layout lay =
   let dy = if y = ly || y + h < ry then ly else ry in
   record (fun lay -> [
     "win_pos", pair int int (x - dx, y - dy);
+    "buffered", bool (Ui.is_buffered lay.ui);
     "color_palette", nat (Ui.get_palette lay.ui);
     "text_size", nat lay.text;
+    "text_sdf", bool (Ui.font_is_sdf lay.ui);
     "play_open", bool lay.playlist_shown;
     "play_height", nat lay.playlist_height;
     "lib_open", bool lay.library_shown;
@@ -153,9 +155,13 @@ let parse_layout lay pos =  (* assumes playlist and library already loaded *)
         let dy = if y >= 0 then ly else ry in
         pos := x + dx, y + dy
       );
+    apply (r $? "buffered") bool
+      (fun b -> Ui.buffered lay.ui b);
+    apply (r $? "text_sdf") bool
+      (fun b -> Ui.font_sdf lay.ui b);
     apply (r $? "color_palette") (num 0 (Ui.num_palette lay.ui - 1))
       (fun i -> Ui.set_palette lay.ui i);
-    apply (r $? "text") (num 6 64)
+    apply (r $? "text_size") (num 10 64)  (* TODO: centralize bounds *)
       (fun h -> lay.text <- h);
     apply (r $? "play_open") bool
       (fun b -> lay.playlist_shown <- b);
@@ -175,9 +181,9 @@ let parse_layout lay pos =  (* assumes playlist and library already loaded *)
       (fun h -> lay.upper_height <- h);
     apply (r $? "directories_width") (num (directories_min lay) (directories_max lay))
       (fun w -> lay.directories_width <- w);
-    apply (r $? "albums_grid") (num 10 1000)
+    apply (r $? "albums_grid") (num 20 1000)  (* TODO: centralize bounds *)
       (fun w -> lay.albums_grid <- w);
-    apply (r $? "tracks_grid") (num 10 1000)
+    apply (r $? "tracks_grid") (num 20 1000)  (* TODO: centralize bounds *)
       (fun w -> lay.tracks_grid <- w);
   )
 

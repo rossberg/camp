@@ -35,7 +35,7 @@ let make ui =
     ui;
     margin = 10;
     text = 13;
-    label = 8;
+    label = 9;
     button_label = 9;
     gutter = 7;
     scrollbar = 11;
@@ -240,7 +240,7 @@ let mute_area g = (cp, mute_x g, mute_y g, mute_w, mute_h)
 let volume_bar g = Ui.volume_bar g.ui (cp, volume_x g, volume_y g, volume_w, volume_h)
 let volume_wheel g = Ui.wheel g.ui (cp, 0, 0, control_w g, control_h g)
 
-let mute_text g = Ui.color_text g.ui (cp, mute_x g, mute_y g, mute_w, 8) `Center
+let mute_text g = Ui.color_text g.ui (cp, mute_x g, mute_y g, mute_w, g.label) `Center
 let mute_button g = Ui.mouse g.ui (mute_area g) `Left
 let mute_drag g = Ui.drag g.ui (mute_area g)
 
@@ -276,7 +276,7 @@ let seek_h _g = 14
 let seek_y g = info_h g - info_margin g/2 - seek_h g
 let ticker_h _g = 16
 let ticker_y g = seek_y g - ticker_h g - 3
-let prop_h _g = 12
+let prop_h _g = (*12*) 13
 let prop_y g = ticker_y g - prop_h g - 2
 
 let prop_text g = Ui.text g.ui (cp, margin g + info_margin g, prop_y g, mute_x g, prop_h g) `Left
@@ -292,7 +292,7 @@ let fps_text g = Ui.text g.ui (cp, cover_x g + cover_w + 20, margin g + info_mar
 let fps_key g = Ui.key g.ui key_fps true
 
 (* Control buttons *)
-let ctl_w = 40
+let ctl_w = 39
 let ctl_h = 30
 let ctl_y = - 8 - ctl_h
 let control_button i sym key g =
@@ -313,7 +313,7 @@ let ff_key g = Ui.key g.ui key_ff
 (* Play mode buttons *)
 let mode_w = 25
 let mode_h = 12
-let mode_x g i = - margin g - mode_w - i * (mode_w + 8)
+let mode_x g i = - margin g - mode_w - i * (mode_w + 10)
 let mode_y _g = -30
 let mode_indicator_x g x = function
   | `Center -> x + (mode_w - indicator_w g)/2 + 1
@@ -420,7 +420,7 @@ let scan_label g = Ui.label g.ui (bp, margin g, scan_y g, scan_w, label_h g) `Ce
 
 let view_w = 25
 let view_h = 12
-let view_x g i = - margin g - view_w - i*(view_w + 8) - 2
+let view_x g i = - margin g - view_w - i*(view_w + 12) - 2
 let view_y g = margin g + indicator_w g + 1
 let view_indicator_x g x = function
   | `Center -> x + (view_w - indicator_w g)/2 + 1
@@ -593,7 +593,7 @@ let file_text g = Ui.rich_edit_text g.ui (fp, file_label_w g + 2, footer_y g, - 
 
 (* Resizing limits *)
 
-let browser_min _g = 150
+let browser_min _g = 160
 let directories_min _g = 150
 let left_min _g = 100
 let right_min _g = 100
