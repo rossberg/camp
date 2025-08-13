@@ -502,7 +502,7 @@ let string_of_token = function
 
 let is c s i = i < String.length s && s.[i] = c
 let is_letter = function
-  | '0'..'9' | 'A'..'Z' | 'a'..'z' | '_' | '.' -> true
+  | '0'..'9' | 'A'..'Z' | 'a'..'z' | '_' | '.' | '-' -> true
   | c -> c >= '\x80'
 
 let scan_word s i =
@@ -539,7 +539,7 @@ let scan_date s i =
 
 let rec scan_time s i t =
   let n, j = scan_num s i in
-  if n = "" then t, i else
+  if n = "" then Some (t, i) else
   let z = float_of_string n in
   match scan_name s j with
   | "s", k -> scan_time s k (t +. z)
@@ -547,7 +547,7 @@ let rec scan_time s i t =
   | "h", k -> scan_time s k (t +. 60.0 *. 60.0 *. z)
   | "d", k -> scan_time s k (t +. 24.0 *. 60.0 *. 60.0 *. z)
   | "y", k -> scan_time s k (t +. 365.0 *. 24.0 *. 60.0 *. 60.0 *. z)
-  | _ -> raise (SyntaxError j)
+  | _ -> None
 
 let suffix = function
   | "" -> Some 1
@@ -594,13 +594,17 @@ let rec token s i =
     (match suffix suf with
     | Some m -> IntToken (int_of_string n * m, String.sub s i (k - i)), k
     | None ->
-      let t, j = scan_time s i 0.0 in
-      let post, k = scan_word s j in
-      let s' = String.sub s (i + 1) (k - i) in
-      if post = "" then
-        TimeToken (t, s'), k
-      else
+      match scan_time s i 0.0 with
+      | None ->
+        let s', k = scan_word s i in
         TextToken s', k
+      | Some (t, j) ->
+        let post, k = scan_word s j in
+        let s' = String.sub s (i + 1) (k - i) in
+        if post = "" then
+          TimeToken (t, s'), k
+        else
+          TextToken s', k
     )
   | 'a'..'z' | 'A'..'Z' | '_' | '.' ->
     let s', j = scan_word s i in
