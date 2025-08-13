@@ -599,7 +599,7 @@ let run_control (st : state) =
 
   (* Context menu *)
 
-  if Layout.(controls_button lay || seek_button lay || volume_button lay) then
+  if Layout.(control_context lay || seek_context lay || volume_context lay) then
   (
     let c = Ui.text_color lay.ui in
     let unpause x = if x then "Unpause" else "Pause" in
@@ -684,7 +684,7 @@ let run_toggle_panes (st : state) =
   );
 
   (* Context menu *)
-  if Layout.(info_button lay || toggles_button lay) then
+  if Layout.(info_context lay || shown_context lay) then
   (
     let c = Ui.text_color lay.ui in
     let show s b = (if b then "Show " else "Hide ") ^ s in

@@ -342,12 +342,11 @@ let loop_button = mode_button 0 key_loop
 let loop_label = mode_label 0 "LOOP"
 
 (* Context menus *)
-let info_button g = Ui.mouse g.ui (cp, margin g, margin g, margin g + info_w g - volume_w, info_h g - seek_h g) `Right
-let toggles_button g = Ui.mouse g.ui (cp, margin g + info_w g, margin g, - margin g, info_h g) `Right
-
-let controls_button g = Ui.mouse g.ui (cp, margin g, ctl_y, - margin g, -1) `Right
-let seek_button g = Ui.mouse g.ui (cp, margin g, seek_y g, info_w g - margin g, seek_h g) `Right
-let volume_button g = Ui.mouse g.ui (cp, volume_x g, volume_y g, volume_w, volume_h) `Right
+let info_context g = Ui.mouse g.ui (cp, margin g, margin g, margin g + info_w g - volume_w, info_h g - seek_h g) `Right
+let seek_context g = Ui.mouse g.ui (cp, margin g, seek_y g, info_w g - margin g, seek_h g) `Right
+let volume_context g = Ui.mouse g.ui (cp, volume_x g, volume_y g, volume_w, volume_h) `Right
+let shown_context g = Ui.mouse g.ui (cp, margin g + info_w g, margin g, - margin g, info_h g) `Right
+let control_context g = Ui.mouse g.ui (cp, margin g, ctl_y, - margin g, -1) `Right
 
 
 (* Playlist Pane *)
