@@ -84,6 +84,7 @@ val reorder_files : ('a, 'b) t -> int -> unit
 
 (* Input *)
 
+val init : ('a, 'b) t -> unit
 val reset : ('a, 'b) t -> unit
 
 val current_file_path : ('a, 'b) t -> path option

@@ -564,7 +564,7 @@ let directories_mouse g = Ui.rich_table_mouse g.ui (directories_area g) (rich_ta
 (* Buttons *)
 let select_w g = (g.directories_width - margin g - divider_w g) / 2
 let select_h = edit_h
-let select_button i c label key g = Ui.labeled_button g.ui (dp, margin g + i * select_w g, - select_h, select_w g, select_h) (button_label_h g + 2) (c g.ui) label key true
+let select_button i c label key g = Ui.labeled_button g.ui (dp, margin g + i * select_w g, - select_h, select_w g, select_h) (button_label_h g) (c g.ui) label key true
 
 let ok_button = select_button 0 Ui.active_color "OK" key_ok
 let overwrite_button = select_button 0 Ui.error_color "OVERWRITE" key_overwrite

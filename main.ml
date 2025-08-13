@@ -1059,6 +1059,7 @@ let filesel (st : state) rw df ext f =
   in
   st.filesel.op <- Some (rw, df, f');
   st.layout.filesel_shown <- true;
+  Filesel.init st.filesel;
   Edit.set st.filesel.input ext;
   Edit.move_begin st.filesel.input;
   State.defocus_all st;

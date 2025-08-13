@@ -279,6 +279,10 @@ let current_sel_is_dir fs =
   | Some i -> let file = fs.files.entries.(i) in file.is_dir && file.accessible
 
 
+let init fs =
+  scan_dir fs.dirs.entries.(Option.get (Table.first_selected fs.dirs));
+  refresh_files fs
+
 let reset fs =
   fs.op <- None;
   deselect_file fs;
