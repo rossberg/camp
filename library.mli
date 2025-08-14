@@ -117,6 +117,9 @@ val fold_dir : 'a t -> dir -> bool -> unit
 val find_parent : 'a t -> dir -> dir option
 val find_parent_pos : 'a t -> dir -> int
 
+val current_is_all : 'a t -> bool
+val current_is_root : 'a t -> bool
+val current_is_dir : 'a t -> bool
 val current_is_playlist : 'a t -> bool
 val current_is_viewlist : 'a t -> bool
 val current_is_shown_playlist : 'a t -> bool

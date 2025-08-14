@@ -1023,33 +1023,32 @@ let move_dir lib dir pos pos' =
   )
 
 
-let current_is_playlist lib =
+let current_is p lib =
   match lib.current with
   | None -> false
-  | Some dir -> Data.is_playlist dir
+  | Some dir -> p dir
 
-let current_is_viewlist lib =
-  match lib.current with
-  | None -> false
-  | Some dir -> Data.is_viewlist dir
+let current_is_all lib = current_is Data.is_all lib
+let current_is_root lib = current_is Data.is_root lib
+let current_is_dir lib = current_is Data.is_dir lib
+let current_is_playlist lib = current_is Data.is_playlist lib
+let current_is_viewlist lib = current_is Data.is_viewlist lib
 
 let current_is_shown_playlist lib =
-  match lib.current with
-  | None -> false
-  | Some dir -> dir.view.tracks.shown <> None && Data.is_playlist dir
+  current_is (fun (dir : dir) ->
+    dir.view.tracks.shown <> None && Data.is_playlist dir) lib
 
 let current_is_shown_viewlist lib =
-  match lib.current with
-  | None -> false
-  | Some dir -> dir.view.tracks.shown <> None && Data.is_viewlist dir
+  current_is (fun (dir : dir) ->
+    dir.view.tracks.shown <> None && Data.is_viewlist dir) lib
 
 let current_is_plain_playlist lib =
-  match lib.current with
-  | None -> false
-  | Some dir ->
+  current_is (fun (dir : dir) ->
     dir.view.tracks.shown <> None && Data.is_playlist dir &&
     dir.view.search = "" &&
-    dir.view.tracks.sorting <> [] && List.hd dir.view.tracks.sorting = (`Pos, `Asc)
+    dir.view.tracks.sorting <> [] &&
+    List.hd dir.view.tracks.sorting = (`Pos, `Asc)
+  ) lib
 
 
 

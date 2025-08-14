@@ -1488,6 +1488,140 @@ let run_playlist (st : state) =
 
 (* Library Panes *)
 
+let rescan_all_avail (st : state) =
+  st.library.root.children <> [||]
+let rescan_all (st : state) mode =
+  Option.iter (fun i ->
+    let dir = st.library.browser.entries.(i) in
+    if Data.is_dir dir then Library.rescan_dirs st.library mode [|dir|]
+  ) (Library.selected_dir st.library)
+
+let rescan_one_avail (st : state) =
+  Library.selected_dir st.library <> None && rescan_all_avail st
+let rescan_one (st : state) mode =
+  Option.iter (fun i ->
+    let dir = st.library.browser.entries.(i) in
+    if Data.is_dir dir then Library.rescan_dirs st.library mode [|dir|]
+  ) (Library.selected_dir st.library)
+
+let insert_avail (st : state) =
+  not st.layout.filesel_shown
+let insert (st : state) =
+  st.filesel.op <- Some (`Read, `Dir, fun path ->
+    let roots = st.library.root.children in
+    if not (Library.insert_roots st.library [path] (Array.length roots)) then
+      Layout.browser_error_box st.layout;  (* flash *)
+    State.focus_library st.library.browser st;
+  );
+  st.layout.filesel_shown <- true;
+  Edit.set st.filesel.input "";
+  State.defocus_all st;
+  Filesel.focus_input st.filesel
+
+let remove_avail (st : state) =
+  Library.current_is_root st.library
+
+let remove (st : state) =
+  Option.iter (fun i ->
+    let dir = st.library.browser.entries.(i) in
+    if not (Library.remove_roots st.library [dir.path]) then
+      Layout.browser_error_box st.layout  (* flash *)
+  ) (Library.selected_dir st.library)
+
+let remove_list_avail (st : state) =
+  Library.current_is_playlist st.library ||
+  Library.current_is_viewlist st.library
+
+let remove_list (st : state) =
+  let lib = st.library in
+  Option.iter (fun i ->
+    let dir = st.library.browser.entries.(i) in
+    if Data.is_playlist dir && dir.tracks <> [||] then
+    (
+      Library.error lib "Playlist is not empty";
+      Layout.browser_error_box st.layout  (* flash *)
+    )
+    else
+    (
+      assert (Data.is_playlist dir || Data.is_viewlist dir);
+      (try File.delete dir.path with Sys_error msg ->
+        Library.error lib ("Error deleting file " ^ dir.path ^ ", " ^ msg);
+        Layout.browser_error_box st.layout  (* flash *)
+      );
+      if not (Library.remove_dir lib dir.path) then
+        Layout.browser_error_box st.layout  (* flash *)
+      else
+        Library.refresh_artists_albums_tracks lib
+    )
+  ) (Library.selected_dir lib)
+
+
+let create_list (st : state) ext s view_opt path =
+  let lib = st.library in
+  (match Library.find_dir lib File.(dir path // "") with
+  | None ->
+    Library.error lib
+      ("Error creating file " ^ path ^ ", path is outside library");
+    Layout.browser_error_box st.layout;  (* flash *)
+  | Some parent ->
+    (try
+      let path =
+        if String.lowercase_ascii (File.extension path) = ext
+        then path
+        else path ^ ext
+      in
+      File.store `Bin path s;
+      match Library.insert_dir lib path with
+      | None -> raise (Sys_error "library is out of sync")
+      | Some dir ->
+        Library.fold_dir lib parent false;
+        Option.iter (fun view -> dir.view <- view) view_opt;
+        Option.iter (Library.select_dir lib)
+          (Array.find_index ((==) dir) lib.browser.entries)
+    with Sys_error msg ->
+      Library.error lib ("Error creating file " ^ path ^ ", " ^ msg);
+      Layout.browser_error_box st.layout;  (* flash *)
+    );
+  );
+  State.focus_playlist st
+
+let create_playlist_avail (st : state) =
+  Library.current_is_dir st.library &&
+  not (Library.current_is_all st.library)
+
+let create_playlist (st : state) =
+  let dir = Option.get st.library.current in
+  st.filesel.op <- Some (`Write, `File, create_list st ".m3u" "" None);
+  st.layout.filesel_shown <- true;
+  Edit.set st.filesel.input ".m3u";
+  Edit.move_begin st.filesel.input;
+  State.defocus_all st;
+  Filesel.focus_input st.filesel;
+  let path = if Data.is_dir dir then dir.path else File.dir dir.path in
+  Filesel.set_dir_path st.filesel path
+
+let create_viewlist_avail (st : state) =
+  st.library.search.text <> "" && st.library.tracks.entries <> [||]
+
+let create_viewlist (st : state) =
+  let dir = Option.get st.library.current in
+  let prefix =
+    if Data.is_all dir || Data.is_viewlist dir then ""
+    else "\"" ^ dir.path ^ "\" @ #filepath "
+  in
+  let query = prefix ^ st.library.search.text in
+  let view = Library.copy_views dir.view in
+  view.search <- "";
+  st.filesel.op <- Some (`Write, `File, create_list st ".m3v" query (Some view));
+  st.layout.filesel_shown <- true;
+  Edit.set st.filesel.input ".m3v";
+  Edit.move_begin st.filesel.input;
+  State.defocus_all st;
+  Filesel.focus_input st.filesel;
+  let path = if Data.is_dir dir then dir.path else File.dir dir.path in
+  Filesel.set_dir_path st.filesel path
+
+
 let spin_delay = 3
 let spins = [|"|"; "/"; "-"; "\\"|]
 let spin win = spins.(Api.Draw.frame win / spin_delay mod Array.length spins)
@@ -1567,8 +1701,8 @@ let run_library (st : state) =
 
   | `Fold i ->
     (* Click on triangle: fold/unfold entry *)
-    let dir = entries.(i) in
-    Library.fold_dir lib dir (not dir.view.folded)
+    let dir = browser.entries.(i) in
+    Library.fold_dir st.library dir (not dir.view.folded)
 
   | `Click (Some i) ->
     (* Click on dir name: switch view *)
@@ -1690,26 +1824,37 @@ let run_library (st : state) =
       ) (Layout.browser_mouse lay browser)
     )
 
-  | `Menu (Some i) ->
-    (* Right-click on browser entry: context menu *)
+  | `Menu _ ->
+    (* Right-click on browser: context menu *)
     State.focus_library browser st;
-    let dir = entries.(i) in
     let c = Ui.text_color lay.ui in
+    let all, quant =
+      if lib.current = None then true, " All" else false, "" in
     menu st [|
-      `Entry (c, (if dir.view.folded then "Unfold" else "Fold"), Layout.key_folddir, true),
-        (fun () -> Library.fold_dir lib dir (not dir.view.folded));
-      `Entry (c, "Rescan Quick", Layout.key_rescan, true),
-        (fun () -> Library.rescan_dirs lib `Quick [|dir|]);
-      `Entry (c, "Rescan Thorough", Layout.key_rescan2, true),
-        (fun () -> Library.rescan_dirs lib `Thorough [|dir|]);
+      `Entry (c, "Rescan" ^ quant ^ " Quick", Layout.key_rescan,
+        if all then rescan_all_avail st else rescan_one_avail st),
+        (fun () -> (if all then rescan_all else rescan_one) st `Quick);
+      `Entry (c, "Rescan" ^ quant ^ " Thorough", Layout.key_rescan2,
+        if all then rescan_all_avail st else rescan_one_avail st),
+        (fun () -> (if all then rescan_all else rescan_one) st `Thorough);
+      `Separator, ignore;
+      `Entry (c, "Add Root...", Layout.key_adddir, insert_avail st),
+        (fun () -> insert st);
+      `Entry (c, "Remove Root", Layout.key_deldir, remove_avail st),
+        (fun () -> remove st);
+      `Separator, ignore;
+      `Entry (c, "Create Playlist...", Layout.key_newdir, create_playlist_avail st),
+        (fun () -> create_playlist st);
+      `Entry (c, "Create Viewlist...", Layout.key_viewdir, create_viewlist_avail st),
+        (fun () -> create_playlist st);
+      `Entry (c, "Remove " ^
+        (if Library.current_is_viewlist lib then "Viewlist" else "Playlist"),
+        Layout.key_deldir, remove_list_avail st),
+        (fun () -> remove_list st);
       `Separator, ignore;
       `Entry (c, "Search...", Layout.key_search, lib.current <> None),
         (fun () -> State.focus_edit lib.search st);
     |]
-
-  | `Menu None ->
-    (* Right-click on empty space in browser: ignore *)
-    State.focus_library browser st;
   );
 
   let entries = browser.entries in  (* might have changed from un/folding *)
@@ -1730,133 +1875,39 @@ let run_library (st : state) =
   );
 
   (* Buttons *)
-  let insert_avail = not lay.filesel_shown in
-  if Layout.insert_button lay (if insert_avail then Some false else None) then
+  let active_if avail = if avail st then Some false else None in
+  let active_if2 avail1 avail2 =
+    if avail1 st || avail2 st then Some false else None in
+
+  if Layout.insert_button lay (active_if insert_avail) then
   (
     (* Click on Insert (Add) button: add directory or playlist *)
-    st.filesel.op <- Some (`Read, `Dir, fun path ->
-      let roots = st.library.root.children in
-      if not (Library.insert_roots st.library [path] (Array.length roots)) then
-        Layout.browser_error_box lay;  (* flash *)
-      State.focus_library st.library.browser st;
-    );
-    st.layout.filesel_shown <- true;
-    Edit.set st.filesel.input "";
-    State.defocus_all st;
-    Filesel.focus_input st.filesel;
+    insert st
   );
 
-  let remove_avail' =
-    match Library.selected_dir lib with
-    | Some i ->
-      entries.(i).parent = Some "" ||
-      Data.is_playlist entries.(i) || Data.is_viewlist entries.(i)
-    | None -> false
-  in
-  if Layout.remove_button lay (if remove_avail' then Some false else None)
-  || remove_avail' && browser.focus &&
-    (Layout.del_key lay || Layout.backspace_key lay) then
+  if Layout.remove_button lay (active_if2 remove_avail remove_list_avail) then
   (
     (* Click on Remove (Del) button: remove directory or playlist *)
-    let i = Option.get (Library.selected_dir lib) in
-    let dir = entries.(i) in
+    let dir = Option.get (lib.current) in
     if Data.is_dir dir then
-    (
-      if not (Library.remove_roots lib [dir.path]) then
-        Layout.browser_error_box lay  (* flash *)
-    )
-    else if Data.is_playlist dir && dir.tracks <> [||] then
-    (
-      Library.error lib "Playlist is not empty";
-      Layout.browser_error_box lay  (* flash *)
-    )
-    else
-    (
-      (try File.delete dir.path with Sys_error msg ->
-        Library.error lib ("Error deleting file " ^ dir.path ^ ", " ^ msg);
-        Layout.browser_error_box lay  (* flash *)
-      );
-      if not (Library.remove_dir lib dir.path) then
-        Layout.browser_error_box lay  (* flash *)
-      else
-        Library.refresh_artists_albums_tracks lib
-    )
+      remove st
+    else if Data.is_playlist dir || Data.is_viewlist dir then
+      remove_list st
   );
 
-  let create_avail =
-    match Library.selected_dir lib with
-    | Some i -> entries.(i).parent <> None
-    | None -> false
-  in
-  let create ext s view_opt path =
-    (match Library.find_dir lib File.(dir path // "") with
-    | None ->
-      Library.error lib
-        ("Error creating file " ^ path ^ ", path is outside library");
-      Layout.browser_error_box lay;  (* flash *)
-    | Some parent ->
-      (try
-        let path =
-          if String.lowercase_ascii (File.extension path) = ext
-          then path
-          else path ^ ext
-        in
-        File.store `Bin path s;
-        match Library.insert_dir lib path with
-        | None -> raise (Sys_error "library is out of sync")
-        | Some dir ->
-          Library.fold_dir lib parent false;
-          Option.iter (fun view -> dir.view <- view) view_opt;
-          Option.iter (Library.select_dir lib)
-            (Array.find_index ((==) dir) lib.browser.entries)
-      with Sys_error msg ->
-        Library.error lib ("Error creating file " ^ path ^ ", " ^ msg);
-        Layout.browser_error_box lay;  (* flash *)
-      );
-    );
-    State.focus_playlist st;
-  in
-
-  if Layout.create_button lay (if create_avail then Some false else None) then
+  if Layout.create_button lay (active_if create_playlist_avail) then
   (
     (* Click on Create (New) button: create new playlist *)
-    let i = Option.get (Library.selected_dir lib) in
-    let dir = entries.(i) in
-    st.filesel.op <- Some (`Write, `File, create ".m3u" "" None);
-    st.layout.filesel_shown <- true;
-    Edit.set st.filesel.input ".m3u";
-    Edit.move_begin st.filesel.input;
-    State.defocus_all st;
-    Filesel.focus_input st.filesel;
-    let path = if Data.is_dir dir then dir.path else File.dir dir.path in
-    Filesel.set_dir_path st.filesel path;
+    create_playlist st
   );
 
-  let view_avail = lib.search.text <> "" && lib.tracks.entries <> [||] in
-  if Layout.view_button lay (if view_avail then Some false else None) then
+  if Layout.view_button lay (active_if create_viewlist_avail) then
   (
     (* Click on View button: create new viewlist *)
-    let i = Option.get (Library.selected_dir lib) in
-    let dir = entries.(i) in
-    let prefix =
-      if Data.is_all dir || Data.is_viewlist dir then ""
-      else "\"" ^ dir.path ^ "\" @ #filepath "
-    in
-    let query = prefix ^ lib.search.text in
-    let view = Library.copy_views dir.view in
-    view.search <- "";
-    st.filesel.op <- Some (`Write, `File, create ".m3v" query (Some view));
-    st.layout.filesel_shown <- true;
-    Edit.set st.filesel.input ".m3v";
-    Edit.move_begin st.filesel.input;
-    State.defocus_all st;
-    Filesel.focus_input st.filesel;
-    let path = if Data.is_dir dir then dir.path else File.dir dir.path in
-    Filesel.set_dir_path st.filesel path;
+    create_viewlist st
   );
 
-  let rescan_avail' = Library.selected_dir lib <> None in
-  if Layout.rescan_button lay (if rescan_avail' then Some false else None) then
+  if Layout.rescan_button lay (active_if rescan_one_avail) then
   (
     (* Click on Rescan (Scan) button: rescan directory, view, or files *)
     Option.iter (fun i ->

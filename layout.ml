@@ -465,9 +465,6 @@ let browser_mouse g = Ui.rich_table_mouse g.ui (browser_area g) (rich_table g 0 
 let browser_drag g = Ui.rich_table_drag g.ui (browser_area g) (rich_table g 0 false)
 let browser_error_box g = Ui.box g.ui (browser_area g) (Ui.error_color g.ui)
 
-let del_key g = Ui.key g.ui key_del true
-let backspace_key g = Ui.key g.ui key_del2 true
-
 (* Buttons *)
 let ledit_w = 25
 let ledit_h = 20
