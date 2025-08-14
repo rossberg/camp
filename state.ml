@@ -4,15 +4,23 @@ open Audio_file
 
 type fileop = [`Write | `Read] * [`File | `Dir] * (File.path -> unit)
 
-type 'cache t =
+type config = Config.t
+type layout = Layout.t
+type control = Control.t
+type playlist = Ui.cached Playlist.t
+type library = Ui.cached Library.t
+type filesel = (fileop, Ui.cached) Filesel.t
+type menu = (int -> unit) Menu.t
+
+type t =
 {
-  config : Config.t;
-  layout : Layout.t;
-  control : Control.t;
-  playlist : 'cache Playlist.t;
-  library : 'cache Library.t;
-  filesel : (fileop, 'cache) Filesel.t;
-  menu : (int -> unit) Menu.t;
+  config : config;
+  layout : layout;
+  control : control;
+  playlist : playlist;
+  library : library;
+  filesel : filesel;
+  menu : menu;
   mutable saved : File.time;
 }
 

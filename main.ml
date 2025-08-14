@@ -5,7 +5,7 @@ open Audio_file
 
 (* State *)
 
-type state = Ui.cached State.t
+type state = State.t
 type dir = Library.dir
 
 
@@ -148,72 +148,6 @@ let resize_grid (st : state) delta =
     if dir.view.tracks.shown = Some `Grid then
       lay.tracks_grid <- clamp_grid (inc lay.tracks_grid);
   ) st.library.current
-
-
-(* Menus *)
-
-let menu' (st : state) items op =
-  st.layout.menu_shown <- true;
-  Menu.set st.menu (Api.Mouse.pos (Ui.window st.layout.ui)) op items;
-  Ui.modal st.layout.ui
-
-let menu st ops =
-  menu' st (Array.map fst ops) (fun k -> snd ops.(k) ())
-
-let header_menu (st : state) (view : _ Library.view) i current_attrs unused_attrs =
-  let c = Ui.text_color st.layout.ui in
-  if current_attrs = [] && unused_attrs = [] then
-  (
-    menu' st [|`Entry (c, "(Nothing to add)", Layout.nokey, false)|] ignore
-  )
-  else
-  (
-    let removes = current_attrs |>
-      List.map (fun a ->
-        `Entry (c, "Remove " ^ Library.attr_name a, Layout.nokey, true), a)
-      |> List.sort compare in
-    let adds = unused_attrs |>
-      List.map (fun a ->
-        `Entry (c, "Add " ^ Library.attr_name a, Layout.nokey, true), a)
-      |> List.sort compare in
-    let sep = if removes = [] || adds = [] then [] else [`Separator] in
-    let items = Array.of_list List.(map fst removes @ sep @ map fst adds) in
-    menu' st items (fun k ->
-      let n = if removes = [] then -1 (* no sep! *) else List.length removes in
-      let attrs = Array.to_list view.columns in
-      let attrs' =
-        match compare k n with
-        | -1 ->  (* remove entry *)
-          let _, attr = List.nth removes k in
-          view.sorting <- List.filter (fun (a, _) -> a <> attr) view.sorting;
-          List.filter (fun (a, _) -> a <> attr) attrs
-        | +1 when adds <> [] ->  (* add entry *)
-          let _, attr = List.nth adds (k - n - 1) in
-          let i' = min (i + 1) (List.length attrs) in
-          List.take i' attrs @ [attr, 40] @ List.drop i' attrs
-        | _ ->  (* separator *)
-          attrs
-      in
-      view.columns <- Array.of_list attrs'
-    )
-  )
-
-let run_menu (st : state) =
-  let lay = st.layout in
-  let menu = st.menu in
-
-  let x, y = menu.pos in
-  match Ui.menu lay.ui x y (lay.margin / 2) lay.gutter lay.text menu.items with
-  | `None -> ()
-  | `Close ->
-    Ui.nonmodal lay.ui;
-    lay.menu_shown <- false;
-    Menu.clear menu
-  | `Click k ->
-    Option.get st.menu.op k;
-    Ui.nonmodal lay.ui;
-    lay.menu_shown <- false;
-    Menu.clear menu
 
 
 (* Control Section *)
@@ -608,7 +542,7 @@ let run_control (st : state) =
     let repeat s x = s ^ (match x with `None -> " One" | `One -> " All" | `All -> " Off") in
     let loop s x = s ^ (match x with `None -> " Start" | `A _ -> " End" | `AB _ -> " Off") in
     let unmute x = if x then "Unmute" else "Mute" in
-    menu st [|
+    Run_menu.command_menu st [|
       `Entry (c, "Start/Stop", Layout.key_startstop, paused || len > 0),
         (fun () -> start_stop st);
       `Entry (c, "Play", Layout.key_play, stopped && len > 0),
@@ -689,7 +623,7 @@ let run_toggle_panes (st : state) =
     let c = Ui.text_color lay.ui in
     let show s b = (if b then "Show " else "Hide ") ^ s in
     let side s d = s ^ (match d with `Left -> " Right" | `Right -> " Left") in
-    menu st [|
+    Run_menu.command_menu st [|
       `Entry (c, "Quit", Layout.key_quit, true),
         (fun () -> quit st);
       `Entry (c, "Minimize", Layout.key_min, true),
@@ -764,7 +698,7 @@ sig
   type 'cache t
 
   val it : Ui.cached t
-  val focus : (track, Ui.cached) Table.t -> Ui.cached State.t -> unit
+  val focus : (track, Ui.cached) Table.t -> State.t -> unit
 
   val length : Ui.cached t -> int
   val tracks : Ui.cached t -> track array
@@ -1265,7 +1199,7 @@ let edit_menu (st : state) view other pos_opt =
     then false, "", View.selected
     else true, " All", View.tracks
   in
-  menu st [|
+  Run_menu.command_menu st [|
     `Entry (c, "Insert Separator", Layout.key_sep, separator_avail st view),
       (fun () -> separator st view other pos);
     `Separator, ignore;
@@ -1814,7 +1748,7 @@ let run_library (st : state) =
     let c = Ui.text_color lay.ui in
     let all, quant =
       if lib.current = None then true, " All" else false, "" in
-    menu st [|
+    Run_menu.command_menu st [|
       `Entry (c, "Rescan" ^ quant ^ " Quick", Layout.key_rescan,
         if all then rescan_all_avail st else rescan_one_avail st),
         (fun () -> (if all then rescan_all else rescan_one) st `Quick);
@@ -2053,7 +1987,7 @@ let run_library (st : state) =
       let c = Ui.text_color lay.ui in
       let history = Edit.history lib.search in
       let history' = nub history in
-      menu st ([
+      Run_menu.command_menu st ([
         `Entry (c, "Clear Search", Layout.key_clear_search, lib.search.text <> ""),
           (fun () -> Edit.clear lib.search; Library.set_search lib "";
             State.focus_edit lib.search st);
@@ -2232,7 +2166,7 @@ let run_library (st : state) =
       let cmd = Api.Key.is_modifier_down `Command in
       let tracks = lib.tracks.entries in
       let quant = if Table.has_selection tab then "" else " All" in
-      menu st [|
+      Run_menu.command_menu st [|
         `Entry (c, "Tag" ^ quant, Layout.key_tag, tracks <> [||]),
           (fun () -> tag st tracks cmd);
         `Entry (c, "Rescan" ^ quant, Layout.key_rescan, tracks <> [||]),
@@ -2259,7 +2193,7 @@ let run_library (st : state) =
         | None -> Array.length view.artists.columns, []
         | Some i -> i, [fst view.artists.columns.(i)]
       in
-      header_menu st dir.view.artists i current_attrs unused_attrs
+      Run_menu.header_menu st dir.view.artists i current_attrs unused_attrs
     );
 
     if busy then
@@ -2404,7 +2338,7 @@ let run_library (st : state) =
       let cmd = Api.Key.is_modifier_down `Command in
       let tracks = lib.tracks.entries in
       let quant = if Table.has_selection tab then "" else " All" in
-      menu st [|
+      Run_menu.command_menu st [|
         `Entry (c, "Tag" ^ quant, Layout.key_tag, tracks <> [||]),
           (fun () -> tag st tracks cmd);
         `Entry (c, "Rescan" ^ quant, Layout.key_rescan, tracks <> [||]),
@@ -2431,7 +2365,7 @@ let run_library (st : state) =
         | None -> Array.length view.albums.columns, []
         | Some i -> i, [fst view.albums.columns.(i)]
       in
-      header_menu st dir.view.albums i current_attrs unused_attrs
+      Run_menu.header_menu st dir.view.albums i current_attrs unused_attrs
     );
 
     if busy then
@@ -2670,7 +2604,7 @@ let run_library (st : state) =
           then "", Library.selected
           else " All", Fun.const entries
         in
-        menu st [|
+        Run_menu.command_menu st [|
           `Entry (c, "Tag" ^ quant, Layout.key_tag, tag_avail st view),
             (fun () -> tag st (tracks lib) cmd);
           `Entry (c, "Rescan" ^ quant, Layout.key_rescan, rescan_avail st view),
@@ -2701,7 +2635,7 @@ let run_library (st : state) =
         | None -> Array.length view.tracks.columns, []
         | Some i -> i, [fst view.tracks.columns.(i)]
       in
-      header_menu st dir.view.tracks i current_attrs unused_attrs
+      Run_menu.header_menu st dir.view.tracks i current_attrs unused_attrs
     );
 
     if busy then
@@ -3012,7 +2946,7 @@ and run' (st : state) =
     else if library_shown then run_library st;
     if playlist_shown || overlay_shown then run_edit st;
     run_toggle_panes st;
-    if menu_shown then run_menu st;
+    if menu_shown then Run_menu.run st;
   );
 
   (* Adjust font and grid size *)

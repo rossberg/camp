@@ -7,7 +7,9 @@
     data track query text bin storage
     control playlist library filesel menu config
     api ui layout
-    state app main
+    state app
+    run_menu
+    main
   )
   (libraries unix directories raylib sqlite3 camomile audio_file)
   (link_deps (include link_deps.sexp))
