@@ -8,7 +8,7 @@
     control playlist library filesel menu config
     api ui layout
     state app
-    run_menu
+    run_menu run_filesel
     main
   )
   (libraries unix directories raylib sqlite3 camomile audio_file)

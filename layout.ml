@@ -100,6 +100,14 @@ let library_x g = if g.library_side = `Left then 0 else control_w g - margin g
 let library_w g = g.library_width
 
 
+(* Helper *)
+
+let clamp min max v =
+  if v < min then min else
+  if v > max then max else
+  v
+
+
 (* Keys *)
 
 let nokey = ([], `None)

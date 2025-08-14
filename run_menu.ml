@@ -54,7 +54,7 @@ let header_menu (st : state) (view : _ Library.view) i current_attrs unused_attr
   )
 
 
-(* Running *)
+(* Runner *)
 
 let run (st : state) =
   let lay = st.layout in
