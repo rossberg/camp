@@ -6,6 +6,7 @@ open Audio_file
 (* State *)
 
 type state = Ui.cached State.t
+type dir = Library.dir
 
 
 (* Helpers *)
@@ -1491,18 +1492,16 @@ let run_playlist (st : state) =
 let rescan_all_avail (st : state) =
   st.library.root.children <> [||]
 let rescan_all (st : state) mode =
-  Option.iter (fun i ->
-    let dir = st.library.browser.entries.(i) in
+  Option.iter (fun dir ->
     if Data.is_dir dir then Library.rescan_dirs st.library mode [|dir|]
-  ) (Library.selected_dir st.library)
+  ) st.library.current
 
 let rescan_one_avail (st : state) =
-  Library.selected_dir st.library <> None && rescan_all_avail st
+  st.library.current <> None && rescan_all_avail st
 let rescan_one (st : state) mode =
-  Option.iter (fun i ->
-    let dir = st.library.browser.entries.(i) in
+  Option.iter (fun dir ->
     if Data.is_dir dir then Library.rescan_dirs st.library mode [|dir|]
-  ) (Library.selected_dir st.library)
+  ) st.library.current
 
 let insert_avail (st : state) =
   not st.layout.filesel_shown
@@ -1522,11 +1521,10 @@ let remove_avail (st : state) =
   Library.current_is_root st.library
 
 let remove (st : state) =
-  Option.iter (fun i ->
-    let dir = st.library.browser.entries.(i) in
+  Option.iter (fun (dir : dir) ->
     if not (Library.remove_roots st.library [dir.path]) then
       Layout.browser_error_box st.layout  (* flash *)
-  ) (Library.selected_dir st.library)
+  ) st.library.current
 
 let remove_list_avail (st : state) =
   Library.current_is_playlist st.library ||
@@ -1534,8 +1532,7 @@ let remove_list_avail (st : state) =
 
 let remove_list (st : state) =
   let lib = st.library in
-  Option.iter (fun i ->
-    let dir = st.library.browser.entries.(i) in
+  Option.iter (fun (dir : dir) ->
     if Data.is_playlist dir && dir.tracks <> [||] then
     (
       Library.error lib "Playlist is not empty";
@@ -1553,7 +1550,7 @@ let remove_list (st : state) =
       else
         Library.refresh_artists_albums_tracks lib
     )
-  ) (Library.selected_dir lib)
+  ) lib.current
 
 
 let create_list (st : state) ext s view_opt path =
@@ -1564,62 +1561,49 @@ let create_list (st : state) ext s view_opt path =
       ("Error creating file " ^ path ^ ", path is outside library");
     Layout.browser_error_box st.layout;  (* flash *)
   | Some parent ->
-    (try
-      let path =
-        if String.lowercase_ascii (File.extension path) = ext
-        then path
-        else path ^ ext
-      in
-      File.store `Bin path s;
-      match Library.insert_dir lib path with
-      | None -> raise (Sys_error "library is out of sync")
-      | Some dir ->
-        Library.fold_dir lib parent false;
-        Option.iter (fun view -> dir.view <- view) view_opt;
-        Option.iter (Library.select_dir lib)
-          (Array.find_index ((==) dir) lib.browser.entries)
-    with Sys_error msg ->
-      Library.error lib ("Error creating file " ^ path ^ ", " ^ msg);
-      Layout.browser_error_box st.layout;  (* flash *)
-    );
+    let path =
+      if String.lowercase_ascii (File.extension path) = ext
+      then path
+      else path ^ ext
+    in
+    File.store `Bin path s;
+    match Library.insert_dir lib path with
+    | None -> raise (Sys_error "library is out of sync")
+    | Some dir ->
+      Library.fold_dir lib parent false;
+      Option.iter (fun view -> dir.view <- view) view_opt;
+      Option.iter (Library.select_dir lib)
+        (Array.find_index ((==) dir) lib.browser.entries)
   );
-  State.focus_playlist st
+  State.focus_table lib.tracks st
 
 let create_playlist_avail (st : state) =
   Library.current_is_dir st.library &&
   not (Library.current_is_all st.library)
 
 let create_playlist (st : state) =
-  let dir = Option.get st.library.current in
-  st.filesel.op <- Some (`Write, `File, create_list st ".m3u" "" None);
-  st.layout.filesel_shown <- true;
-  Edit.set st.filesel.input ".m3u";
-  Edit.move_begin st.filesel.input;
-  State.defocus_all st;
-  Filesel.focus_input st.filesel;
-  let path = if Data.is_dir dir then dir.path else File.dir dir.path in
-  Filesel.set_dir_path st.filesel path
+  Option.iter (fun (dir : dir) ->
+    let path = if Data.is_dir dir then dir.path else File.dir dir.path in
+    Filesel.set_dir_path st.filesel path;
+    filesel st `Write `File ".m3u" (create_list st ".m3u" "" None);
+  ) st.library.current
 
 let create_viewlist_avail (st : state) =
   st.library.search.text <> "" && st.library.tracks.entries <> [||]
 
 let create_viewlist (st : state) =
-  let dir = Option.get st.library.current in
-  let prefix =
-    if Data.is_all dir || Data.is_viewlist dir then ""
-    else "\"" ^ dir.path ^ "\" @ #filepath "
-  in
-  let query = prefix ^ st.library.search.text in
-  let view = Library.copy_views dir.view in
-  view.search <- "";
-  st.filesel.op <- Some (`Write, `File, create_list st ".m3v" query (Some view));
-  st.layout.filesel_shown <- true;
-  Edit.set st.filesel.input ".m3v";
-  Edit.move_begin st.filesel.input;
-  State.defocus_all st;
-  Filesel.focus_input st.filesel;
-  let path = if Data.is_dir dir then dir.path else File.dir dir.path in
-  Filesel.set_dir_path st.filesel path
+  Option.iter (fun (dir : dir) ->
+    let prefix =
+      if Data.is_all dir || Data.is_viewlist dir then ""
+      else "\"" ^ dir.path ^ "\" @ #filepath "
+    in
+    let query = prefix ^ st.library.search.text in
+    let view = Library.copy_views dir.view in
+    view.search <- "";
+    let path = if Data.is_dir dir then dir.path else File.dir dir.path in
+    Filesel.set_dir_path st.filesel path;
+    filesel st `Write `File ".m3v" (create_list st ".m3v" query (Some view));
+  ) st.library.current
 
 
 let spin_delay = 3
@@ -1910,8 +1894,7 @@ let run_library (st : state) =
   if Layout.rescan_button lay (active_if rescan_one_avail) then
   (
     (* Click on Rescan (Scan) button: rescan directory, view, or files *)
-    Option.iter (fun i ->
-      let dir = entries.(i) in
+    Option.iter (fun (dir : dir) ->
       let mode =
         if Api.Key.is_modifier_down `Shift
         || dir.view.tracks.shown <> None && Table.has_selection lib.tracks
@@ -1928,7 +1911,7 @@ let run_library (st : state) =
         Library.rescan_tracks lib mode lib.tracks.entries
       else
         Library.rescan_dirs lib mode [|dir|]
-    ) (Library.selected_dir lib)
+    ) lib.current
   );
 
   (* Scanning indicator *)
