@@ -91,6 +91,7 @@ val rich_edit_text : t -> area -> Edit.t -> Uchar.t
 
 val button : t -> area -> ?protrude: bool -> modifier list * key -> bool -> bool option -> bool
 val labeled_button : t -> area -> ?protrude: bool -> int -> color -> string -> modifier list * key -> bool -> bool option -> bool
+val invisible_button : t -> area -> modifier list -> modifier list * key -> bool -> bool
 
 val progress_bar : t -> area -> float -> float
 val volume_bar : t -> area -> float -> float

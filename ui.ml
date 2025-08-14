@@ -611,6 +611,11 @@ let ticker ui r s =
 
 (* Buttons *)
 
+let invisible_button ui r mods modkey focus =
+  let _, status = element ui r no_modkey in
+  focus && status = `Released && Key.are_modifiers_down mods ||
+  key ui modkey focus
+
 let button ui r ?(protrude=true) modkey focus active =
   let (x, y, w, h), status = element ui r modkey ~focus in
   let img = get_img ui ui.img_button in
@@ -625,7 +630,6 @@ let button ui r ?(protrude=true) modkey focus active =
   match active with
   | None -> false
   | Some active -> if status = `Released then not active else active
-
 
 let labeled_button ui r ?(protrude=true) hsym c txt modkey focus active =
   let (x, y, w, h), status = element ui r modkey ~focus in

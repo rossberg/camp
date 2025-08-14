@@ -364,7 +364,7 @@ let run_control (st : state) =
     Control.mute st.control (not st.control.mute)
   in
   Layout.mute_text lay (Ui.error_color lay.ui) `Inverted ctl.mute "MUTE";
-  if Layout.mute_button lay || Layout.mute_key lay focus then
+  if Layout.mute_button lay then
   (
     (* Click on mute label: toggle muting *)
     toggle_mute st;
@@ -676,8 +676,7 @@ let run_toggle_panes (st : state) =
   );
 
   (* Minimize button *)
-  if Layout.minimize_button lay && Api.Key.is_modifier_down `Shift
-  || Layout.minimize_key lay then
+  if Layout.minimize_button lay then
   (
     (* Right-click on power button: minimize window *)
     minimize st
@@ -1198,9 +1197,9 @@ let run_edit (st : state) =
     undo st view other
   );
 
-  if Layout.redo_button lay (active_if redo_avail) then
+  if Layout.redo_button lay then
   (
-    (* Click on Redo button: pop redo *)
+    (* Redo key pressed or Shift-click on Undo button: pop redo *)
     redo st view other
   );
 

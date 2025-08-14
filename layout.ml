@@ -200,10 +200,10 @@ let shown_indicator_x g = shown_x g + (shown_w - indicator_w g)/2 + 1
 
 let power_h = 22
 let power_y g = margin g
-let power_button g = Ui.button g.ui (cp, shown_x g, power_y g, shown_w, power_h) key_quit true
+let power_area g = (cp, shown_x g, power_y g, shown_w, power_h)
+let power_button g = Ui.button g.ui (power_area g) key_quit true
 let power_label g = Ui.label g.ui (cp, shown_x g, power_y g + power_h + 1, shown_w, label_h g) `Center "POWER"
-let minimize_button g = Ui.mouse g.ui (cp, shown_x g, power_y g, shown_w, power_h) `Left
-let minimize_key g = Ui.key g.ui key_min true
+let minimize_button g = Ui.invisible_button g.ui (power_area g) [`Shift] key_min true
 
 let shown_indicator y g = Ui.indicator g.ui `Green (cp, shown_indicator_x g, y - indicator_w g - 1, indicator_w g, indicator_w g)
 let shown_button y key g = Ui.button g.ui (cp, shown_x g, y, shown_w, shown_h) key true
@@ -244,10 +244,9 @@ let volume_bar g = Ui.volume_bar g.ui (cp, volume_x g, volume_y g, volume_w, vol
 let volume_wheel g = Ui.wheel g.ui (cp, 0, 0, control_w g, control_h g)
 
 let mute_text g = Ui.color_text g.ui (cp, mute_x g, mute_y g, mute_w, g.label) `Center
-let mute_button g = Ui.mouse g.ui (mute_area g) `Left
+let mute_button g = Ui.invisible_button g.ui (mute_area g) [] key_mute true
 let mute_drag g = Ui.drag g.ui (mute_area g)
 
-let mute_key g = Ui.key g.ui key_mute
 let volup_key g = Ui.key g.ui key_volup
 let voldown_key g = Ui.key g.ui key_voldn
 
@@ -288,8 +287,7 @@ let seek_bar g = Ui.progress_bar g.ui (cp, margin g + info_margin g / 2, seek_y 
 
 (* Hidden mode buttons *)
 let color_y g = lcd_y g + lcd_h
-let color_button side g = Ui.mouse g.ui (cp, margin g, color_y g, mute_x g, ticker_y g) side
-let color_button = color_button `Left
+let color_button g = Ui.mouse g.ui (cp, margin g, color_y g, mute_x g, ticker_y g) `Left
 
 let fps_text g = Ui.text g.ui (cp, cover_x g + cover_w + 20, margin g + info_margin g, 40, 12) `Left
 let fps_key g = Ui.key g.ui key_fps true
@@ -380,9 +378,10 @@ let ep = pp + 1
 let edit_pane g = Ui.pane g.ui ep (playlist_x g, - bottom_h g, control_w g, bottom_h g)
 
 (* Buttons *)
-let edit_w = 25
+let edit_w = 27
 let edit_h = 20
-let edit_button i j label key g = Ui.labeled_button g.ui (ep, margin g + i*5 + j*edit_w, - edit_h, edit_w, edit_h) (button_label_h g) (Ui.inactive_color g.ui) label key true
+let edit_area i j g = (ep, margin g + i*5 + j*edit_w, - edit_h, edit_w, edit_h)
+let edit_button i j label key g = Ui.labeled_button g.ui (edit_area i j g) (button_label_h g) (Ui.inactive_color g.ui) label key true
 
 let tag_button = edit_button 0 0 "TAG" key_tag
 let sep_button = edit_button 1 1 "SEP" key_sep
@@ -391,9 +390,9 @@ let crop_button = edit_button 2 3 "CROP" key_crop
 let wipe_button = edit_button 2 4 "WIPE" key_wipe
 let del_button_alt g = Ui.key g.ui key_del2 true
 let undo_button = edit_button 3 5 "UNDO" key_undo
-let redo_button = edit_button 3 6 "REDO" key_redo
-let save_button = edit_button 4 7 "SAVE" key_save
-let load_button = edit_button 4 8 "LOAD" key_load
+let redo_button g = Ui.invisible_button g.ui (edit_area 3 5 g) [`Shift] key_redo true
+let save_button = edit_button 4 6 "SAVE" key_save
+let load_button = edit_button 4 7 "LOAD" key_load
 
 let cut_key g = Ui.key g.ui key_cut true
 let copy_key g = Ui.key g.ui key_copy true
@@ -470,7 +469,9 @@ let del_key g = Ui.key g.ui key_del true
 let backspace_key g = Ui.key g.ui key_del2 true
 
 (* Buttons *)
-let ledit_button i j label key g = Ui.labeled_button g.ui (bp, margin g + i*5 + j*edit_w, - edit_h, edit_w, edit_h) (button_label_h g) (Ui.inactive_color g.ui) label key true
+let ledit_w = 25
+let ledit_h = 20
+let ledit_button i j label key g = Ui.labeled_button g.ui (bp, margin g + i*5 + j*edit_w, - edit_h, ledit_w, ledit_h) (button_label_h g) (Ui.inactive_color g.ui) label key true
 
 let insert_button = ledit_button 0 0 "ADD" key_adddir
 let remove_button = ledit_button 0 1 "DEL" key_deldir
