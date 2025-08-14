@@ -1,6 +1,10 @@
 (* Run Menu UI *)
 
+(* Runner *)
+
 val run : State.t -> unit
+
+(* Initiate Menus *)
 
 val command_menu : State.t -> (Ui.menu_entry * (unit -> unit)) array -> unit
 val header_menu :

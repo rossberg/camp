@@ -551,7 +551,7 @@ let run (st : state) =
 
 (* Pane Activation Runner *)
 
-let run_toggle_panes (st : state) =
+let run_toggle_panel (st : state) =
   let lay = st.layout in
 
   Layout.playlist_label lay;

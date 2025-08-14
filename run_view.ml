@@ -1,0 +1,527 @@
+(* Generic Handling of Editable Track View UI *)
+
+open Audio_file
+
+type state = State.t
+type table = (Data.track, Ui.cached) Table.t
+
+
+(* Helpers *)
+
+let exec prog args =
+  let cmd = Filename.quote_command prog args in
+  let cmd' = if not Sys.win32 then cmd else
+    "\"start /b ^\"^\" " ^ String.sub cmd 1 (String.length cmd - 1) in
+  ignore (Sys.command cmd')
+
+
+(* Generic abstraction *)
+
+module type View =  (* target view for edit ops *)
+sig
+  open Data
+
+  type 'cache t
+
+  val it : Ui.cached t
+  val focus : (track, Ui.cached) Table.t -> State.t -> unit
+  val deselect_other : unit -> unit
+
+  val length : Ui.cached t -> int
+  val tracks : Ui.cached t -> track array
+  val table : Ui.cached t -> (track, Ui.cached) Table.t
+
+  val num_selected : Ui.cached t -> int
+  val first_selected : Ui.cached t -> int option
+  val selected : Ui.cached t -> track array
+  val select_all : Ui.cached t -> unit
+  val deselect_all : Ui.cached t -> unit
+  val select_invert : Ui.cached t -> unit
+(*  val select : Ui.cached t -> int -> int -> unit*)
+(*  val deselect : Ui.cached t -> int -> int -> unit*)
+
+  val insert : Ui.cached t -> int -> track array -> unit
+  val replace_all : Ui.cached t -> track array -> unit
+  val remove_all : Ui.cached t -> unit
+  val remove_selected : Ui.cached t -> unit
+  val remove_unselected : Ui.cached t -> unit
+  val remove_invalid : Ui.cached t -> unit
+(*  val move_selected : Ui.cached t -> int -> unit*)
+  val reverse_selected : Ui.cached t -> unit
+  val reverse_all : Ui.cached t -> unit
+  val undo : Ui.cached t -> unit
+  val redo : Ui.cached t -> unit
+end
+
+type view = (module View)
+
+let playlist_view (st : state) : view =
+  (module struct
+    include Playlist
+    let it = st.playlist
+    let focus _ = State.focus_playlist
+    let deselect_other () = Library.deselect_all st.library
+  end : View)
+
+let library_view (st : state) : view =
+  (module struct
+    include Library
+    let it = st.library
+    let focus = State.focus_library
+    let deselect_other () = Playlist.deselect_all st.playlist
+  end : View)
+
+
+(* Drag & Drop *)
+
+let update_control (st : state) =
+  if Control.switch_if_empty st.control (Playlist.current_opt st.playlist) then
+  (
+    Table.dirty st.library.tracks;  (* current song has changed *)
+    Table.dirty st.library.browser;
+  )
+
+let current_is_grid (st : state) =
+  match st.library.current with
+  | None -> false
+  | Some dir -> dir.view.tracks.shown = Some `Grid
+
+let drag (st : state) table_drag (module View : View) =
+  let lay = st.layout in
+  let tab = View.table View.it in
+  (* Drag over table: highlight target entry *)
+  Ui.delay lay.ui (fun () -> table_drag lay tab)
+
+let drag_on_playlist (st : state) =
+  if st.layout.playlist_shown then
+    drag st Layout.playlist_drag (playlist_view st)
+
+let library_drag (st : state) (lay : Layout.t) =
+  let drag, grid_drag =
+    if lay.lower_shown then Layout.(lower_drag, lower_grid_drag) else
+    if lay.right_shown then Layout.(right_drag, right_grid_drag) else
+    Layout.(left_drag, left_grid_drag)
+  in
+  if current_is_grid st then grid_drag lay lay.tracks_grid else drag lay
+
+let drag_on_library (st : state) =
+  if st.layout.library_shown && Library.current_is_shown_playlist st.library then
+    drag st (library_drag st) (library_view st)
+
+let drop (st : state) tracks table_mouse (module View : View) =
+  if tracks <> [||] then
+  (
+    let lay = st.layout in
+    let view = View.it in
+    let tab = View.table view in
+    Option.iter (fun pos ->
+      (* Drop onto table: send tracks there *)
+      View.insert view pos tracks;
+      State.defocus_all st;
+      View.focus tab st;
+      update_control st;
+    ) (table_mouse lay tab)
+  )
+
+let drop_on_playlist (st : state) tracks =
+  if st.layout.playlist_shown then
+    drop st tracks Layout.playlist_mouse (playlist_view st)
+
+let library_mouse (st : state) (lay : Layout.t) =
+  let mouse, grid_mouse =
+    if lay.lower_shown then Layout.(lower_mouse, lower_grid_mouse) else
+    if lay.right_shown then Layout.(right_mouse, right_grid_mouse) else
+    Layout.(left_mouse, left_grid_mouse)
+  in
+  if current_is_grid st then grid_mouse lay lay.tracks_grid else mouse lay
+
+let drop_on_library (st : state) tracks =
+  if st.layout.library_shown && Library.current_is_shown_playlist st.library then
+    drop st tracks (library_mouse st) (library_view st)
+
+
+(* Edit Operations *)
+
+let editable (st : state) (module View : View) =
+  View.(table it) == st.playlist.table ||
+  Library.current_is_playlist st.library
+
+let separator_avail st view =
+  editable st view
+let separator _st (module View : View) pos =
+  View.(insert it) pos [|Data.make_separator ()|];
+  View.deselect_other ()
+
+let remove_avail st (module View : View) =
+  editable st (module View) && View.(num_selected it > 0)
+let remove _st (module View : View) =
+  View.(remove_selected it)
+
+let crop_avail st (module View : View) =
+  editable st (module View) &&
+  View.(num_selected it > 0 && num_selected it < length it)
+let crop _st (module View : View) =
+  View.(remove_unselected it)
+
+let wipe_avail st (module View : View) =
+  editable st (module View) &&
+  Array.exists (fun track -> track.Data.status = `Absent) View.(table it).entries
+let wipe _st (module View : View) =
+  View.(remove_invalid it)
+
+let clear_avail st (module View : View) =
+  editable st (module View) && View.(length it > 0)
+let clear _st (module View : View) =
+  View.(remove_all it)
+
+let undo_avail _st (module View : View) =
+  !(View.(table it).undos) <> []
+let undo (st : state) (module View : View) =
+  View.(undo it);
+  update_control st
+
+let redo_avail _st (module View : View) =
+  !(View.(table it).redos) <> []
+let redo (st : state) (module View : View) =
+  View.(redo it);
+  update_control st
+
+let copy_avail _st (module View : View) =
+  View.(num_selected it > 0)
+let copy (st : state) (module View : View) =
+  let s = Track.to_m3u View.(selected it) in
+  Api.Clipboard.write (Ui.window st.layout.ui) s
+
+let cut_avail st view =
+  copy_avail st view && remove_avail st view
+let cut st view =
+  copy st view;
+  remove st view
+
+let paste_avail (st : state) view =
+  editable st view && Api.Clipboard.read (Ui.window st.layout.ui) <> None
+let paste (st : state) (module View : View) =
+  let s = Option.value (Api.Clipboard.read (Ui.window st.layout.ui)) ~default: "" in
+  let tracks = Track.of_m3u s in
+  let found_proper =
+    Array.exists (fun (track : Data.track) ->
+      Data.is_track_path track.path
+    ) tracks
+  in
+  if found_proper && tracks <> [||] then
+  (
+    let pos = Option.value (View.first_selected View.it) ~default: 0 in
+    View.(insert it) pos tracks;
+    View.deselect_other ();
+    update_control st;
+  )
+
+let select_all_avail _st (module View : View) =
+  View.(num_selected it < length it)
+let select_all _st (module View : View) =
+  View.(select_all it);
+  View.deselect_other ()
+
+let select_none_avail _st (module View : View) =
+  View.(num_selected it > 0)
+let select_none _st (module View : View) =
+  View.(deselect_all it)
+
+let select_invert_avail _st (module View : View) =
+  View.(num_selected it > 0)
+let select_invert _st (module View : View) =
+  View.(select_invert it)
+
+let reverse_avail _st (module View : View) =
+  View.(num_selected it > 1)
+let reverse _st (module View : View) =
+  View.(reverse_selected it)
+
+let reverse_all_avail _st (module View : View) =
+  View.(length it > 1)
+let reverse_all _st (module View : View) =
+  View.(reverse_all it)
+
+let load_avail (st : state) (module View : View) =
+  editable st (module View) && not st.layout.filesel_shown
+let load (st : state) (module View : View) =
+  Run_filesel.filesel st `Read `File "" ".m3u" (fun path ->
+    let tracks = Track.of_m3u (File.load `Bin path) in
+    View.(replace_all it) tracks;
+    View.(focus (table it) st);
+    if View.(table it) == st.playlist.table then
+    (
+      Control.eject st.control;
+      Control.switch st.control tracks.(0) true;
+      Table.dirty st.library.tracks;
+      Table.dirty st.library.browser;
+    )
+  )
+
+let save_avail (st : state) _view =
+  not st.layout.filesel_shown
+let save (st : state) (module View : View) =
+  Run_filesel.filesel st `Write `File "" ".m3u" (fun path ->
+    File.store `Bin path (Track.to_m3u View.(table it).entries)
+  )
+
+let rescan_avail _st (module View : View) =
+  View.(length it > 0)
+let rescan (st : state) tracks =
+  Library.rescan_tracks st.library `Thorough tracks
+
+let tag_avail (st : state) (module View : View) =
+  View.(length it > 0) &&
+  try Unix.(access st.config.exec_tag [X_OK]); true
+  with Unix.Unix_error _ -> false
+
+let tag (st : state) tracks additive =
+  let paths = Array.map (fun (track : Data.track) -> track.path) tracks in
+  Domain.spawn (fun () ->
+    let paths' =
+      List.filter (fun p -> not (M3u.is_separator p)) (Array.to_list paths) in
+    if st.config.exec_tag_max_len = 0 && not additive then
+      exec st.config.exec_tag paths'
+    else
+    (
+      (* Work around Windows command line limits *)
+      let args = ref paths' in
+      let rec pick len max =
+        match !args with
+        | [] -> []
+        | arg1::args' ->
+          let len' = len + String.length arg1 + 5 in
+          if len <> 0 && len' > max then [] else
+          (
+            args := args';
+            arg1 :: pick len' max
+          )
+      in
+      (* Mp3tag immediately resorts the tracks by current column, unless added
+       * with /add. However, /add only works with individual tracks and exec's,
+       * which is very slow, so only use that when (a) we have less then a
+       * certain number of tracks, or (b) when the command line gets too long
+       * for a single call anyways. *)
+      let max =
+        if List.length paths' < 20 then 1 else st.config.exec_tag_max_len in
+      if not additive then exec st.config.exec_tag (pick 0 max);
+      List.iter (fun arg -> exec st.config.exec_tag ["/add"; arg]) !args;
+    )
+  ) |> ignore
+
+
+let search_avail (st : state) =
+  st.library.current <> None
+
+let search (st : state) =
+  State.focus_edit st.library.search st
+
+
+(* Initiate Menus *)
+
+let list_menu (st : state) view =
+  let lay = st.layout in
+  let module View = (val view : View) in 
+
+  let c = Ui.text_color lay.ui in
+  let all, quant, tracks =
+    if View.(num_selected it) > 0
+    then false, "", View.selected
+    else true, " All", View.tracks
+  in
+  Run_menu.command_menu st [|
+    `Entry (c, "Tag" ^ quant, Layout.key_tag, tag_avail st view),
+      (fun () -> tag st (tracks View.it) (not all));
+    `Entry (c, "Rescan" ^ quant, Layout.key_rescan, rescan_avail st view),
+      (fun () -> rescan st (tracks View.it));
+    `Separator, ignore;
+    `Entry (c, "Select All", Layout.key_all, select_all_avail st view),
+      (fun () -> select_all st view);
+    `Entry (c, "Select None", Layout.key_none, select_none_avail st view),
+      (fun () -> select_none st view);
+    `Entry (c, "Invert Selection", Layout.key_invert, select_invert_avail st view),
+      (fun () -> select_invert st view);
+    `Separator, ignore;
+    `Entry (c, "Search...", Layout.key_search, search_avail st),
+      (fun () -> search st);
+    `Separator, ignore;
+    `Entry (c, "Save...", Layout.key_save, save_avail st view),
+      (fun () -> save st view);
+  |]
+
+let edit_menu (st : state) view pos_opt =
+  let lay = st.layout in
+  let module View = (val view : View) in 
+
+  let pos = Option.value pos_opt ~default: View.(length it) in
+  let c = Ui.text_color lay.ui in
+  let all, quant, tracks =
+    if View.(num_selected it) > 0
+    then false, "", View.selected
+    else true, " All", View.tracks
+  in
+  Run_menu.command_menu st [|
+    `Entry (c, "Insert Separator", Layout.key_sep, separator_avail st view),
+      (fun () -> separator st view pos);
+    `Separator, ignore;
+    `Entry (c, "Tag" ^ quant, Layout.key_tag, tag_avail st view),
+      (fun () -> tag st (tracks View.it) (not all));
+    `Entry (c, "Rescan" ^ quant, Layout.key_rescan, rescan_avail st view),
+      (fun () -> rescan st (tracks View.it));
+    `Entry (c, "Remove" ^ quant, Layout.key_del,
+      if all then clear_avail st view else remove_avail st view),
+      (fun () -> (if all then clear else remove) st view);
+    `Entry (c, "Reverse" ^ quant, Layout.key_rev,
+      if all then reverse_all_avail st view else reverse_avail st view),
+      (fun () -> (if all then reverse_all else reverse) st view);
+    `Entry (c, "Wipe", Layout.key_wipe, wipe_avail st view),
+      (fun () -> wipe st view);
+    `Separator, ignore;
+    `Entry (c, "Cut", Layout.key_cut, cut_avail st view),
+      (fun () -> cut st view);
+    `Entry (c, "Copy", Layout.key_copy, copy_avail st view),
+      (fun () -> copy st view);
+    `Entry (c, "Paste", Layout.key_paste, paste_avail st view),
+      (fun () -> paste st view);
+    `Entry (c, "Crop", Layout.key_crop, crop_avail st view),
+      (fun () -> crop st view);
+    `Separator, ignore;
+    `Entry (c, "Select All", Layout.key_all, select_all_avail st view),
+      (fun () -> select_all st view);
+    `Entry (c, "Select None", Layout.key_none, select_none_avail st view),
+      (fun () -> select_none st view);
+    `Entry (c, "Invert Selection", Layout.key_invert, select_invert_avail st view),
+      (fun () -> select_invert st view);
+    `Separator, ignore;
+    `Entry (c, "Undo", Layout.key_undo, undo_avail st view),
+      (fun () -> undo st view);
+    `Entry (c, "Redo", Layout.key_redo, redo_avail st view),
+      (fun () -> redo st view);
+    `Separator, ignore;
+    `Entry (c, "Load...", Layout.key_load, load_avail st view),
+      (fun () -> load st view);
+    `Entry (c, "Save...", Layout.key_save, save_avail st view),
+      (fun () -> save st view);
+  |]
+
+
+(* Runner *)
+
+let run_edit_panel (st : state) =
+  let pl = st.playlist in
+  let lib = st.library in
+  let lay = st.layout in
+
+  Layout.edit_pane lay;
+
+  let lib_shows_tracks =
+    match lib.current with
+    | None -> false
+    | Some dir -> dir.view.tracks.shown <> None
+  in
+  let pl_focus = pl.table.focus in
+  let lib_focus = lib_shows_tracks &&
+    ( lib.tracks.focus || lib.albums.focus || lib.artists.focus ||
+      lib.browser.focus || lib.search.focus )
+  in
+
+  assert (not (pl_focus && lib_focus));
+  assert (lay.playlist_shown || not pl_focus);
+  assert (lay.library_shown || not lib_focus);
+
+  let playlist = playlist_view st in
+  let library = library_view st in
+  let view = if pl_focus then playlist else library in
+  let module View = (val view) in
+
+  let active_if avail =
+    if (pl_focus || lib_focus) && avail st view then Some false else None
+  in
+
+  (* Separator button *)
+  if Layout.sep_button lay (active_if separator_avail) then
+  (
+    (* Click on Separator button: insert separator *)
+    let pos = Option.value View.(first_selected it) ~default: 0 in
+    separator st view pos
+  );
+
+  (* Edit buttons *)
+  if Layout.del_button lay (active_if remove_avail)
+  || remove_avail st view && Layout.del_button_alt lay then
+  (
+    (* Click on Delete button: remove selected tracks from playlist *)
+    remove st view
+  );
+
+  if Layout.crop_button lay (active_if crop_avail) then
+  (
+    (* Click on Crop button: remove unselected tracks from playlist *)
+    crop st view
+  );
+
+  if Layout.wipe_button lay (active_if wipe_avail) then
+  (
+    (* Click on Wipe button: remove invalid tracks from playlist *)
+    wipe st view
+  );
+
+  if Layout.undo_button lay (active_if undo_avail) then
+  (
+    (* Click on Undo button: pop undo *)
+    undo st view
+  );
+
+  if Layout.redo_button lay then
+  (
+    (* Redo key pressed or Shift-click on Undo button: pop redo *)
+    redo st view
+  );
+
+  (* Edit keys *)
+  if cut_avail st view && Layout.cut_key lay then
+  (
+    (* Press of Cut key: remove selected tracks and write them to clipboard *)
+    cut st view
+  );
+
+  if copy_avail st view && Layout.copy_key lay then
+  (
+    (* Press of Copy key: write selected tracks to clipboard *)
+    copy st view
+  );
+
+  if paste_avail st view && Layout.paste_key lay then
+  (
+    (* Press of Paste key: insert tracks from clipboard *)
+    paste st view
+  );
+
+  (* Tag button *)
+  if Layout.tag_button lay (active_if tag_avail) then
+  (
+    (* Click on Tag button: execute tagging program *)
+    let tracks =
+      View.(if num_selected it > 0 then selected it else tracks it) in
+    (* Command-click: add tracks to tagger if it's already open *)
+    let additive = Api.Key.is_modifier_down `Command in
+    tag st tracks additive;
+  );
+
+  (* Load button *)
+  if Layout.load_button lay (active_if load_avail) then
+  (
+    (* Click on Load button: load playlist *)
+    load st view
+  );
+
+  (* Save button *)
+  if Layout.save_button lay (active_if save_avail) then
+  (
+    (* Click on Save button: save playlist *)
+    save st view
+  );
+
+  (* Focus buttons *)
+  if Layout.focus_next_key lay then State.focus_next st;
+  if Layout.focus_prev_key lay then State.focus_prev st
