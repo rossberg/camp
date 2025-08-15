@@ -140,6 +140,73 @@ let drop_on_library (st : state) tracks =
     drop st tracks (library_mouse st) (library_view st)
 
 
+let expand_paths (st : state) paths =
+  let tracks = ref [] in
+  let add_track (track : Data.track) =
+    tracks := track :: !tracks
+  in
+  let add_playlist path =
+    let s = File.load `Bin path in
+    List.iter (fun item -> add_track (Track.of_m3u_item item)) (M3u.parse_ext s)
+  in
+  let add_viewlist path =
+    let s = File.load `Bin path in
+    match Query.parse_query s with
+    | Error msg -> Library.error st.library msg
+    | Ok _query -> ()  (* TODO
+      List.iter add_track (Library.) *)
+  in
+  let rec add_path path =
+    try
+      if File.exists_dir path then
+        Array.iter (fun file ->
+          add_path File.(path // file)
+        ) (File.read_dir path)
+      else if Data.is_playlist_path path then
+        add_playlist path
+      else if Data.is_viewlist_path path then
+        add_viewlist path
+      else if Data.is_track_path path then
+        add_track (Data.make_track path)
+    with Sys_error _ -> ()
+  in
+  List.iter add_path paths;
+  Array.of_list (List.rev !tracks)
+
+let external_drop (st : state) (module View : View) =
+  let dropped = Api.Files.dropped (Ui.window st.layout.ui) in
+  if dropped <> [] then
+    drop_on_library st (expand_paths st dropped)
+
+let external_drop_on_playlist st = external_drop st (playlist_view st)
+let external_drop_on_library st = external_drop st (library_view st)
+
+
+let set_drop_cursor (st : state) =
+  let lay = st.layout in
+  let pl = st.playlist in
+  let lib = st.library in
+  let droppable =
+    lay.playlist_shown &&
+      (* over playlist *)
+      Layout.playlist_mouse lay pl.table <> None
+    ||
+    lay.library_shown && (
+      (* over library playlist view? *)
+      Library.current_is_playlist lib &&
+        library_mouse st lay lib.tracks <> None
+      ||
+      (* over browser entry that is a playlist? *)
+      match Layout.browser_mouse lay lib.browser with
+      | None -> false
+      | Some i ->
+        i < Table.length lib.browser && Data.is_playlist lib.browser.entries.(i)
+    )
+  in
+  Api.Mouse.set_cursor (Ui.window lay.ui)
+    (if droppable then `Point else `Blocked)
+
+
 (* Edit Operations *)
 
 let editable (st : state) (module View : View) =

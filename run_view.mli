@@ -34,4 +34,7 @@ val drag_on_library : State.t -> unit
 val drop_on_playlist : State.t -> Data.track array -> unit
 val drop_on_library : State.t -> Data.track array -> unit
 
-val library_mouse : State.t -> Layout.t -> table -> int option
+val external_drop_on_playlist : State.t -> unit
+val external_drop_on_library : State.t -> unit
+
+val set_drop_cursor : State.t -> unit

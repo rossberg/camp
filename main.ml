@@ -13,319 +13,9 @@ type dir = Library.dir
 
 let refresh_delay = 9
 
-let rec log10 n = if n < 10 then 0 else 1 + log10 (n / 10)
-
 let clamp = Layout.clamp
 
-
-let start_time = Unix.gettimeofday ()
-
-let time () = Unix.gettimeofday () -. start_time
-
-
 let fmt = Printf.sprintf
-
-let fmt_time t =
-  let t' = int_of_float (Float.trunc t) in
-  fmt "%d:%02d" (t' / 60) (t' mod  60)
-
-let _fmt_time2 t =
-  let t' = int_of_float (Float.trunc t) in
-  fmt "%02d:%02d" (t' / 60) (t' mod  60)
-
-let fmt_time3 t =
-  let t' = int_of_float (Float.trunc t) in
-  if t' < 3600 then
-    fmt_time t
-  else
-    fmt "%d:%02d:%02d" (t' / 3600) (t' / 60 mod 60) (t' mod  60)
-
-
-let set_drop_cursor (st : state) =
-  let lay = st.layout in
-  let pl = st.playlist in
-  let lib = st.library in
-  let droppable =
-    lay.playlist_shown &&
-      (* over playlist *)
-      Layout.playlist_mouse lay pl.table <> None
-    ||
-    lay.library_shown && (
-      (* over library playlist view? *)
-      Library.current_is_playlist lib &&
-        Run_view.library_mouse st lay lib.tracks <> None
-      ||
-      (* over browser entry that is a playlist? *)
-      match Layout.browser_mouse lay lib.browser with
-      | None -> false
-      | Some i ->
-        i < Table.length lib.browser && Data.is_playlist lib.browser.entries.(i)
-    )
-  in
-  Api.Mouse.set_cursor (Ui.window lay.ui)
-    (if droppable then `Point else `Blocked)
-
-let drag_on_browser (st : state) =
-  let lay = st.layout in
-  let lib = st.library in
-  let browser = lib.browser in
-  if st.layout.library_shown then
-  (
-    Option.iter (fun i ->
-      if i < Array.length browser.entries then
-      (
-        let dir = browser.entries.(i) in
-        if Data.is_playlist dir then
-        (
-          (* Drag over playlist browser entry: highlight target entry *)
-          Ui.delay lay.ui (fun () -> Layout.browser_drag lay `Inside browser)
-        )
-      )
-    ) (Layout.browser_mouse lay browser)
-  )
-
-let drop_on_browser (st : state) tracks =
-  let lay = st.layout in
-  let lib = st.library in
-  let browser = lib.browser in
-  if st.layout.library_shown then
-  (
-    Option.iter (fun i ->
-      if i < Array.length browser.entries then
-      (
-        let dir = browser.entries.(i) in
-        if Data.is_playlist dir then
-        (
-          (* Drop onto playlist browser entry: send tracks there *)
-          (* Since the dir might not be selected, and updating views is
-           * asynchronous, write to file directly *)
-          (try
-            let s = File.load `Bin dir.path in
-            let s' = Track.to_m3u (Array.append (Track.of_m3u s) tracks) in
-            File.store `Bin dir.path s'
-          with exn ->
-            Storage.log_exn "file" exn ("modifying playlist " ^ dir.path)
-          );
-          if Library.selected_dir lib = Some i then
-          (
-            Library.deselect_dir lib;  (* force reload *)
-            Library.select_dir lib i;
-            Library.refresh_artists_albums_tracks lib;
-          );
-        )
-      )
-    ) (Layout.browser_mouse lay browser)
-  )
-
-
-
-
-(* Playlist Pane *)
-
-let expand_paths lib paths =
-  let tracks = ref [] in
-  let add_track (track : Data.track) =
-    tracks := track :: !tracks
-  in
-  let add_playlist path =
-    let s = File.load `Bin path in
-    List.iter (fun item -> add_track (Track.of_m3u_item item)) (M3u.parse_ext s)
-  in
-  let add_viewlist path =
-    let s = File.load `Bin path in
-    match Query.parse_query s with
-    | Error msg -> Library.error lib msg
-    | Ok _query -> ()  (* TODO
-      List.iter add_track (Library.) *)
-  in
-  let rec add_path path =
-    try
-      if File.exists_dir path then
-        Array.iter (fun file ->
-          add_path File.(path // file)
-        ) (File.read_dir path)
-      else if Data.is_playlist_path path then
-        add_playlist path
-      else if Data.is_viewlist_path path then
-        add_viewlist path
-      else if Data.is_track_path path then
-        add_track (Data.make_track path)
-    with Sys_error _ -> ()
-  in
-  List.iter add_path paths;
-  Array.of_list (List.rev !tracks)
-
-let run_playlist (st : state) =
-  let pl = st.playlist in
-  let lay = st.layout in
-  let win = Ui.window lay.ui in
-  let tab = pl.table in
-  let len = Table.length tab in
-  let now = Unix.time () in
-
-  Layout.playlist_pane lay;
-
-  (* Playlist table *)
-  let _, _, _, h = Ui.dim lay.ui (Layout.playlist_area lay) in
-  let page = max 1 (int_of_float (Float.floor (float h /. float lay.text))) in
-  let digits_pos = log10 (len + 1) + 1 in
-  let digits_time = ref 1 in
-  for i = tab.vscroll to min len (tab.vscroll + page) - 1 do
-    let time = Track.time tab.entries.(i) in
-    if time > 599.4 then
-      digits_time := max !digits_time (if time > 5999.4 then 3 else 2)
-  done;
-  let font = Ui.font lay.ui lay.text in
-  let s_pos = String.make digits_pos '0' ^ "." in
-  let s_time = String.make !digits_time '0' ^ ":00" in
-  let cw_pos = Api.Draw.text_width win lay.text font s_pos + 1 in
-  let cw_time = Api.Draw.text_width win lay.text font s_time + 1 in
-  let cols = [|cw_pos, `Right; -1, `Left; cw_time, `Right|] in
-
-  if Api.Draw.frame win mod refresh_delay = 0 then
-    Table.dirty tab;  (* to capture track updates *)
-
-  let pp_row i =
-    let track = tab.entries.(i) in
-    if now -. track.file.age > st.config.delay_track_update then
-      Track.update track;
-    let c =
-      match track.status with
-      | _ when tab.pos = Some i ->
-        if track.path = (Option.get st.control.current).path then `White else `Gray 0xc0
-      | _ when Data.is_separator track -> Ui.text_color lay.ui
-      | `Absent -> Ui.error_color lay.ui
-      | `Invalid -> Ui.warn_color lay.ui
-      | `Undet -> Ui.semilit_color (Ui.text_color lay.ui)
-      | `Predet | `Det -> Ui.text_color lay.ui
-    in
-    let time = Track.time track in
-    let stime = if time = 0.0 then "" else fmt_time time in
-    c, [|
-      `Text (fmt "%0*d." digits_pos (i + 1));
-      `Text (Track.name track);
-      `Text stime
-    |]
-  in
-
-  (match Layout.playlist_table lay cols None tab pp_row with
-  | `None | `Scroll -> ()
-  | `Sort _ | `Resize _ | `Reorder _ | `HeadMenu _ -> assert false
-
-  | `Select ->
-    State.focus_playlist st;
-    Playlist.refresh_total_selected pl
-
-  | `Click (Some i) when Api.Mouse.is_doubleclick `Left ->
-    (* Double-click on track: switch to track *)
-    Table.set_pos tab (Some i);
-    Control.switch st.control tab.entries.(i) true;
-    Table.dirty st.library.tracks;  (* redraw for current track *)
-    Table.dirty st.library.browser;
-    if pl.shuffle <> None then
-      Playlist.shuffle_next pl i;
-
-  | `Click _ ->
-    (* Single-click: grab focus *)
-    if Api.Mouse.is_pressed `Left then State.focus_playlist st;
-    Playlist.refresh_total_selected pl;
-
-  | `Move delta ->
-    (* Cmd-cursor movement: move selection *)
-    Playlist.move_selected pl delta;
-
-  | `Drag (delta, way, motion) ->
-    (* Drag: move selection if inside *)
-    if Api.Key.are_modifiers_down [] then
-    (
-      State.focus_playlist st;
-      if Playlist.num_selected pl > 0 then
-      (
-        if motion <> `Unmoved then set_drop_cursor st;
-        match way with
-        | `Inside | `Inward -> ()
-        | `Outward | `Outside ->
-          Run_view.drag_on_library st;
-          drag_on_browser st;
-      );
-
-      (* Invariant:
-       * - on Start: no undo or redo added yet
-       * - when Inside: one undo for returning to original state on undo stack
-       * - when Outside: one redo for creating new state on redo stack
-       *)
-      if motion = `Moving then
-      (
-        (* Start of drag & drop: remember original configuration *)
-        Table.push_undo pl.table;
-      );
-
-      (match way with
-      | `Outward ->
-        (* Leaving area: snap back to original state *)
-        Playlist.undo pl;
-        Playlist.save_playlist pl;
-      | `Inward ->
-        (* Reentering area: restore updated state *)
-        Playlist.redo pl
-      | `Inside | `Outside -> ()
-      );
-
-      (* Positional movement *)
-      if delta <> 0 && Playlist.num_selected pl > 0 then
-      (
-        match way with
-        | `Inside | `Inward ->
-          Playlist.move_selected pl delta;
-          (* Erase intermediate new state *)
-          Table.drop_undo pl.table;
-        | `Outside | `Outward -> ()  (* ignore *)
-      );
-    )
-
-  | `Drop ->
-    if Api.Key.are_modifiers_down [] then
-    (
-      if Ui.mouse_inside lay.ui (Layout.playlist_area lay) then
-      (
-        (* Dropping inside playlist: drop aux undo if no change *)
-        Table.clean_undo pl.table
-      )
-      else
-      (
-        (* Dropping outside playlist: drop aux redo for new state *)
-        Table.drop_redo pl.table;
-
-        let tracks = Playlist.selected pl in
-        Run_view.drop_on_library st tracks;
-        drop_on_browser st tracks;
-      )
-    );
-
-  | `Menu i_opt ->
-    (* Right-click on content: context menu *)
-    State.focus_playlist st;
-    Run_view.(edit_menu st (playlist_view st) i_opt)
-  );
-
-  (* Playlist drag & drop *)
-  let dropped = Api.Files.dropped win in
-  if dropped <> [] then
-  (
-    (* Files drop: insert paths at pointed position *)
-    Run_view.drop_on_playlist st (expand_paths st.library dropped);
-  );
-
-  (* Playlist total *)
-  if int_of_float (time ()) mod 10 = 0 then Playlist.refresh_total pl;
-  let fmt_total (t, n) = fmt_time3 t ^ if n > 0 then "+" else "" in
-  let s1 =
-    if pl.total_selected = (0.0, 0) then "" else
-    fmt_total pl.total_selected ^ "/"
-  in
-  let s2 = fmt_total pl.total in
-  Layout.playlist_total_box lay;
-  Layout.playlist_total_text lay `Regular true (s1 ^ s2)
 
 
 (* Library Panes *)
@@ -576,7 +266,7 @@ let run_library (st : state) =
       (* State.focus_library browser st; *)  (* don't steal after double-click! *)
       if lib.tracks.entries <> [||] then
       (
-        if motion <> `Unmoved then set_drop_cursor st;
+        if motion <> `Unmoved then Run_view.set_drop_cursor st;
         Run_view.drag_on_playlist st;
       );
 
@@ -598,7 +288,7 @@ let run_library (st : state) =
             else
             (
               (* Drag over other browser entry *)
-              drag_on_browser st;
+              Run_browser.drag_on_browser st;
             )
           ) (Library.selected_dir lib)
         )
@@ -638,7 +328,7 @@ let run_library (st : state) =
             else
             (
               (* Drop on other browser entry *)
-              drop_on_browser st tracks;
+              Run_browser.drop_on_browser st tracks;
             )
           ) (Library.selected_dir lib)
         )
@@ -1044,9 +734,9 @@ let run_library (st : state) =
         (* State.focus_library tab st; *)  (* don't steal after double-click! *)
         if Table.num_selected lib.artists > 0 && lib.tracks.entries <> [||] then
         (
-          if motion <> `Unmoved then set_drop_cursor st;
+          if motion <> `Unmoved then Run_view.set_drop_cursor st;
           Run_view.drag_on_playlist st;
-          drag_on_browser st;
+          Run_browser.drag_on_browser st;
         )
       );
 
@@ -1059,7 +749,7 @@ let run_library (st : state) =
         (* Drag & drop onto playlist or browser: send tracks to playlist *)
         let tracks = lib.tracks.entries in
         Run_view.drop_on_playlist st tracks;
-        drop_on_browser st tracks;
+        Run_browser.drop_on_browser st tracks;
       )
 
     | `Menu _ ->
@@ -1216,9 +906,9 @@ let run_library (st : state) =
         (* State.focus_library tab st; *)  (* don't steal after double-click! *)
         if Table.num_selected lib.albums > 0 && lib.tracks.entries <> [||] then
         (
-          if motion <> `Unmoved then set_drop_cursor st;
+          if motion <> `Unmoved then Run_view.set_drop_cursor st;
           Run_view.drag_on_playlist st;
-          drag_on_browser st;
+          Run_browser.drag_on_browser st;
         )
       );
 
@@ -1231,7 +921,7 @@ let run_library (st : state) =
         (* Drag & drop onto playlist or browser: send tracks to playlist *)
         let tracks = lib.tracks.entries in
         Run_view.drop_on_playlist st tracks;
-        drop_on_browser st tracks;
+        Run_browser.drop_on_browser st tracks;
       )
 
     | `Menu _ ->
@@ -1424,12 +1114,12 @@ let run_library (st : state) =
         (* State.focus_library tab st; *)  (* don't steal after double-click! *)
         if Library.num_selected lib > 0 then
         (
-          if motion <> `Unmoved then set_drop_cursor st;
+          if motion <> `Unmoved then Run_view.set_drop_cursor st;
           (match way with
           | `Inside | `Inward -> ()
           | `Outside | `Outward ->
             Run_view.drag_on_playlist st;
-            drag_on_browser st;
+            Run_browser.drag_on_browser st;
           );
 
           if Library.current_is_plain_playlist lib then
@@ -1484,7 +1174,7 @@ let run_library (st : state) =
           (* Drag & drop onto playlist or browser: send tracks to playlist *)
           let tracks = Library.selected lib in
           Run_view.drop_on_playlist st tracks;
-          drop_on_browser st tracks;
+          Run_browser.drop_on_browser st tracks;
         )
       )
 
@@ -1512,13 +1202,8 @@ let run_library (st : state) =
     if busy then
       tracks_spin lay (spin win);
 
-    (* Playlist drag & drop *)
-    let dropped = Api.Files.dropped win in
-    if dropped <> [] then
-    (
-      (* Files drop: insert paths at pointed position *)
-      Run_view.drop_on_library st (expand_paths lib dropped);
-    );
+    (* Playlist file drag & drop *)
+    Run_view.external_drop_on_library st;
 
     (* Divider *)
     if lay.lower_shown then
@@ -1585,7 +1270,7 @@ and run' (st : state) =
   Run_control.run st;
   if not (Api.Window.is_minimized win) then
   (
-    if playlist_shown then run_playlist st;
+    if playlist_shown then Run_playlist.run st;
     if filesel_shown then Run_filesel.run st
     else if library_shown then run_library st;
     if playlist_shown || overlay_shown then Run_view.run_edit_panel st;
