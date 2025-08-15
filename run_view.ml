@@ -17,15 +17,29 @@ let exec prog args =
 
 (* Generic abstraction *)
 
-module type View =  (* target view for edit ops *)
+module type View =
 sig
   open Data
 
   type 'cache t
+  type table
+
+  module Select :  (* ops on the target table *)
+  sig
+    val length : table -> int
+    val num_selected : table -> int
+    val select_all : table -> unit
+    val deselect_all : table -> unit
+    val select_invert : table -> unit
+  end
 
   val it : Ui.cached t
-  val focus : (track, Ui.cached) Table.t -> State.t -> unit
+  val tab : table
+  val focus : State.t -> unit
   val deselect_other : unit -> unit
+  val refresh_deps : 'a Library.t -> unit
+
+  (* Ops on the underlying tracks table *)
 
   val length : Ui.cached t -> int
   val tracks : Ui.cached t -> track array
@@ -58,18 +72,50 @@ type view = (module View)
 let playlist_view (st : state) : view =
   (module struct
     include Playlist
+    module Select = Playlist
+    type table = Ui.cached t
     let it = st.playlist
-    let focus _ = State.focus_playlist
+    let tab = st.playlist
+    let focus = State.focus_playlist
     let deselect_other () = Library.deselect_all st.library
-  end : View)
+    let refresh_deps = ignore
+  end)
 
-let library_view (st : state) : view =
+let tracks_view (st : state) : view =
   (module struct
     include Library
+    module Select = Library
+    type table = Ui.cached t
     let it = st.library
-    let focus = State.focus_library
+    let tab = st.library
+    let focus = State.focus_library st.library.tracks
     let deselect_other () = Playlist.deselect_all st.playlist
-  end : View)
+    let refresh_deps = ignore
+  end)
+
+let albums_view (st : state) : view =
+  (module struct
+    include Library
+    module Select = Table
+    type table = (Data.album, Ui.cached) Table.t
+    let it = st.library
+    let tab = it.albums
+    let focus = State.focus_library tab
+    let deselect_other = ignore
+    let refresh_deps lib = Library.refresh_tracks lib
+  end)
+
+let artists_view (st : state) : view =
+  (module struct
+    include Library
+    module Select = Table
+    type table = (Data.artist, Ui.cached) Table.t
+    let it = st.library
+    let tab = it.artists
+    let focus = State.focus_library tab
+    let deselect_other = ignore
+    let refresh_deps lib = Library.refresh_albums_tracks lib
+  end)
 
 
 (* Drag & Drop *)
@@ -104,9 +150,9 @@ let library_drag (st : state) (lay : Layout.t) =
   in
   if current_is_grid st then grid_drag lay lay.tracks_grid else drag lay
 
-let drag_on_library (st : state) =
+let drag_on_tracks (st : state) =
   if st.layout.library_shown && Library.current_is_shown_playlist st.library then
-    drag st (library_drag st) (library_view st)
+    drag st (library_drag st) (tracks_view st)
 
 let drop (st : state) tracks table_mouse (module View : View) =
   if tracks <> [||] then
@@ -118,7 +164,7 @@ let drop (st : state) tracks table_mouse (module View : View) =
       (* Drop onto table: send tracks there *)
       View.insert view pos tracks;
       State.defocus_all st;
-      View.focus tab st;
+      View.focus st;
       update_control st;
     ) (table_mouse lay tab)
   )
@@ -135,9 +181,9 @@ let library_mouse (st : state) (lay : Layout.t) =
   in
   if current_is_grid st then grid_mouse lay lay.tracks_grid else mouse lay
 
-let drop_on_library (st : state) tracks =
+let drop_on_tracks (st : state) tracks =
   if st.layout.library_shown && Library.current_is_shown_playlist st.library then
-    drop st tracks (library_mouse st) (library_view st)
+    drop st tracks (library_mouse st) (tracks_view st)
 
 
 let expand_paths (st : state) paths =
@@ -173,13 +219,13 @@ let expand_paths (st : state) paths =
   List.iter add_path paths;
   Array.of_list (List.rev !tracks)
 
-let external_drop (st : state) (module View : View) =
+let external_drop drop_on (st : state) (module View : View) =
   let dropped = Api.Files.dropped (Ui.window st.layout.ui) in
   if dropped <> [] then
-    drop_on_library st (expand_paths st dropped)
+    drop_on st (expand_paths st dropped)
 
-let external_drop_on_playlist st = external_drop st (playlist_view st)
-let external_drop_on_library st = external_drop st (library_view st)
+let external_drop_on_playlist st = external_drop drop_on_playlist st (playlist_view st)
+let external_drop_on_tracks st = external_drop drop_on_tracks st (tracks_view st)
 
 
 let set_drop_cursor (st : state) =
@@ -283,22 +329,6 @@ let paste (st : state) (module View : View) =
     update_control st;
   )
 
-let select_all_avail _st (module View : View) =
-  View.(num_selected it < length it)
-let select_all _st (module View : View) =
-  View.(select_all it);
-  View.deselect_other ()
-
-let select_none_avail _st (module View : View) =
-  View.(num_selected it > 0)
-let select_none _st (module View : View) =
-  View.(deselect_all it)
-
-let select_invert_avail _st (module View : View) =
-  View.(num_selected it > 0)
-let select_invert _st (module View : View) =
-  View.(select_invert it)
-
 let reverse_avail _st (module View : View) =
   View.(num_selected it > 1)
 let reverse _st (module View : View) =
@@ -315,7 +345,7 @@ let load (st : state) (module View : View) =
   Run_filesel.filesel st `Read `File "" ".m3u" (fun path ->
     let tracks = Track.of_m3u (File.load `Bin path) in
     View.(replace_all it) tracks;
-    View.(focus (table it) st);
+    View.(focus st);
     if View.(table it) == st.playlist.table then
     (
       Control.eject st.control;
@@ -383,12 +413,27 @@ let search_avail (st : state) =
 let search (st : state) =
   State.focus_edit st.library.search st
 
+let select_all_avail _st (module View : View) =
+  View.(Select.(num_selected tab < length tab))
+let select_all (st : state) (module View : View) =
+  View.(Select.select_all tab; refresh_deps st.library)
+
+let select_none_avail _st (module View : View) =
+  View.(Select.num_selected tab > 0)
+let select_none (st : state) (module View : View) =
+  View.(Select.deselect_all tab; refresh_deps st.library)
+
+let select_invert_avail _st (module View : View) =
+  View.(Select.num_selected tab > 0)
+let select_invert (st : state) (module View : View) =
+  View.(Select.select_invert tab; refresh_deps st.library)
+
 
 (* Initiate Menus *)
 
 let list_menu (st : state) view =
   let lay = st.layout in
-  let module View = (val view : View) in 
+  let module View = (val view : View) in
 
   let c = Ui.text_color lay.ui in
   let all, quant, tracks =
@@ -497,7 +542,7 @@ let run_edit_panel (st : state) =
   assert (lay.library_shown || not lib_focus);
 
   let playlist = playlist_view st in
-  let library = library_view st in
+  let library = tracks_view st in
   let view = if pl_focus then playlist else library in
   let module View = (val view) in
 

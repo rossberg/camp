@@ -124,7 +124,7 @@ let run (st : state) =
         match way with
         | `Inside | `Inward -> ()
         | `Outward | `Outside ->
-          Run_view.drag_on_library st;
+          Run_view.drag_on_tracks st;
           Run_library.drag_on_browser st;
       );
 
@@ -176,7 +176,7 @@ let run (st : state) =
         Table.drop_redo pl.table;
 
         let tracks = Playlist.selected pl in
-        Run_view.drop_on_library st tracks;
+        Run_view.drop_on_tracks st tracks;
         Run_library.drop_on_browser st tracks;
       )
     );
