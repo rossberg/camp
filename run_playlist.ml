@@ -125,7 +125,7 @@ let run (st : state) =
         | `Inside | `Inward -> ()
         | `Outward | `Outside ->
           Run_view.drag_on_library st;
-          Run_browser.drag_on_browser st;
+          Run_library.drag_on_browser st;
       );
 
       (* Invariant:
@@ -177,7 +177,7 @@ let run (st : state) =
 
         let tracks = Playlist.selected pl in
         Run_view.drop_on_library st tracks;
-        Run_browser.drop_on_browser st tracks;
+        Run_library.drop_on_browser st tracks;
       )
     );
 
