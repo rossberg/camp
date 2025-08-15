@@ -185,7 +185,7 @@ let drop_on_browser (st : state) tracks =
   )
 
 
-(* Runner *)
+(* Generic view runner *)
 
 let spin_delay = 3
 let spins = [|"|"; "/"; "-"; "\\"|]
@@ -195,10 +195,190 @@ let convert_sorting columns sorting =
   let index attr = Array.find_index (fun (a, _) -> a = attr) columns in
   List.map (fun (attr, order) -> Option.get (index attr), order) sorting
 
+
+let run_view (st : state)
+    layout grid_w
+    (tab : _ Table.t) busy_tab dep_tab
+    refresh_busy refresh_deps
+    reorder (view : _ Library.view)
+    attr_string prim_attr all_attrs
+    path_of text_of =
+  let lib = st.library in
+  let lay = st.layout in
+  let win = Ui.window lay.ui in
+
+  let pane, area, table, grid, spinner = layout in
+  pane lay;
+
+  let busy = refresh_busy lib in
+  let tab = if busy then busy_tab else tab in
+  let old_selected = tab.selected in
+  let cols =
+    Array.map (fun (attr, cw) -> cw, Library.attr_align attr) view.columns in
+  let headings =
+    Array.map (fun (attr, _) -> Library.attr_name attr) view.columns in
+
+  if Option.get view.shown = `Grid
+  && Api.Draw.frame win mod refresh_delay = 2 then
+    Table.dirty tab;  (* to capture cover updates *)
+
+  let entries = tab.entries in  (* could change concurrently *)
+  let pp_row i =
+    let entry = entries.(i) in
+    Ui.text_color lay.ui,
+    Array.map (fun (attr, _) ->
+      match (attr :> Data.any_attr) with
+      | `Cover ->
+        if not lib.cover then `Text "" else
+        (match Library.load_cover lib win (path_of entry) with
+        | Some img -> `Image img
+        | None -> `Text ""
+        )
+      | _ -> `Text (attr_string entry attr)
+    ) view.columns
+  in
+
+  let pp_cell i =
+    let entry = entries.(i) in
+    let img =
+      match Library.load_cover lib win (path_of entry) with
+      | Some img -> img
+      | None -> Ui.nocover lay.ui
+    in img, Ui.text_color lay.ui, text_of entry
+  in
+
+  let sorting = convert_sorting view.columns view.sorting in
+  let header = Some (headings, sorting) in
+  (match
+    match Option.get view.shown with
+    | `Table -> table lay cols header tab pp_row
+    | `Grid -> grid lay grid_w header tab pp_cell
+  with
+  | `None | `Scroll | `Move _ -> ()
+
+  | `Select ->
+    (* New selection: grab focus, update filter *)
+    State.focus_library tab st;
+    refresh_deps lib;
+
+  | `Sort i ->
+    (* Click on column header: reorder view accordingly *)
+    let attr = fst view.columns.(i) in
+    let k =
+      Bool.to_int (Api.Key.is_modifier_down `Shift) +
+      Bool.to_int (Api.Key.is_modifier_down `Alt) * 2 +
+      Bool.to_int (Api.Key.is_modifier_down `Command) * (-4)
+    in
+    view.sorting <- Data.insert_sorting prim_attr attr k 4 view.sorting;
+    Option.iter (Library.save_dir lib) lib.current;
+    reorder lib;
+
+  | `Resize ws ->
+    (* Column resizing: update column widths *)
+    Array.mapi_inplace (fun i (a, _) -> a, ws.(i)) view.columns;
+    Option.iter (Library.save_dir lib) lib.current;
+
+  | `Reorder perm ->
+    (* Column reordering: update columns *)
+    Data.permute perm view.columns;
+    Option.iter (Library.save_dir lib) lib.current;
+
+  | `Click (Some _i) when Api.Mouse.is_doubleclick `Left ->
+    (* Double-click on entry: clear playlist and send tracks to it *)
+    let n = Table.num_selected dep_tab in
+    if n <> 0 && n <> Table.length dep_tab then
+    (
+      Table.deselect_all dep_tab;       (* deactivate inner filter *)
+      Library.refresh_tracks_sync lib;  (* could be slow... *)
+    );
+    let tracks = lib.tracks.entries in
+    if tracks <> [||] then
+    (
+      Playlist.replace_all st.playlist (Array.copy tracks);
+      State.focus_playlist st;
+      Control.eject st.control;
+      Control.switch st.control tracks.(0) true;
+      Table.dirty st.library.tracks;  (* redraw for current track *)
+      Table.dirty st.library.browser;
+    )
+
+  | `Click _ ->
+    (* Single-click: grab focus, update filter *)
+    if Api.Mouse.is_pressed `Left then State.focus_library tab st;
+    if not (Table.IntSet.equal tab.selected old_selected) then
+      refresh_deps lib;
+
+  | `Drag (_, _, motion) ->
+    (* Drag: adjust cursor *)
+    if Api.Key.are_modifiers_down [] then
+    (
+      (* State.focus_library tab st; *)  (* don't steal after double-click! *)
+      if Table.num_selected tab > 0 && lib.tracks.entries <> [||] then
+      (
+        if motion <> `Unmoved then Run_view.set_drop_cursor st;
+        Run_view.drag_on_playlist st;
+        drag_on_browser st;
+      )
+    );
+
+  | `Drop ->
+    if Api.Key.are_modifiers_down []
+    && not (Ui.mouse_inside lay.ui (area lay)) then
+    (
+      (* Drag & drop originating from current view *)
+
+      (* Drag & drop onto playlist or browser: send tracks to playlist *)
+      let tracks = lib.tracks.entries in
+      Run_view.drop_on_playlist st tracks;
+      drop_on_browser st tracks;
+    )
+
+  | `Menu _ ->
+    (* Right-click on artists: context menu *)
+    State.focus_library tab st;
+    let c = Ui.text_color lay.ui in
+    let tracks = lib.tracks.entries in
+    let quant = if Table.has_selection tab then "" else " All" in
+    let view = Run_view.library_view st in
+    Run_menu.command_menu st [|
+      `Entry (c, "Tag" ^ quant, Layout.key_tag, Run_view.tag_avail st view),
+        (fun () -> Run_view.tag st tracks false);
+      `Entry (c, "Rescan" ^ quant, Layout.key_rescan, Run_view.rescan_avail st view),
+        (fun () -> Run_view.rescan st tracks);
+      `Separator, ignore;
+      `Entry (c, "Select All", Layout.key_all,  Table.(num_selected tab < length tab)),
+        (fun () -> Table.select_all tab; refresh_deps lib);
+      `Entry (c, "Select None", Layout.key_none, Table.(num_selected tab > 0)),
+        (fun () -> Table.deselect_all tab; refresh_deps lib);
+      `Entry (c, "Invert Selection", Layout.key_invert, Table.(num_selected tab > 0)),
+        (fun () -> Table.select_invert tab; refresh_deps lib);
+      `Separator, ignore;
+      `Entry (c, "Search...", Layout.key_search, lib.current <> None),
+        (fun () -> State.focus_edit lib.search st);
+    |]
+
+  | `HeadMenu i_opt ->
+    (* Right-click on header: header menu *)
+    State.focus_library tab st;
+    let used_attrs = Array.to_list (Array.map fst view.columns) in
+    let unused_attrs = Data.diff_attrs all_attrs used_attrs in
+    let i, current_attrs =
+      match i_opt with
+      | None -> Array.length view.columns, []
+      | Some i -> i, [fst view.columns.(i)]
+    in
+    Run_menu.header_menu st view i current_attrs unused_attrs
+  );
+
+  if busy then
+    spinner lay (spin win)
+
+
+(* Runner *)
+
 let busy_artists = Table.make 0
 let busy_albums = Table.make 0
 let busy_tracks = Table.make 0
-
 
 let run (st : state) =
   let pl = st.playlist in
@@ -703,322 +883,30 @@ let run (st : state) =
 
   if show_artists then
   (
-    let artists_pane, artists_area, artists_table, _grid, artists_spin =
-      Layout.left_view in
-    artists_pane lay;
-
-    let busy = Library.refresh_artists_busy lib in
-    let tab = if busy then busy_artists else lib.artists in
-    let old_selected = tab.selected in
-    let cols =
-      Array.map (fun (attr, cw) -> cw, Library.attr_align attr)
-        view.artists.columns
-    and headings =
-      Array.map (fun (attr, _) -> Library.attr_name attr) view.artists.columns
-    in
-
-    let entries = tab.entries in  (* could change concurrently *)
-    let pp_row i =
-      let artist = entries.(i) in
-      Ui.text_color lay.ui,
-      Array.map (fun (attr, _) -> `Text (Data.artist_attr_string artist attr))
-        view.artists.columns
-    in
-
-    let sorting = convert_sorting view.artists.columns view.artists.sorting in
-    (match artists_table lay cols (Some (headings, sorting)) tab pp_row with
-    | `None | `Scroll | `Move _ -> ()
-
-    | `Select ->
-      (* New selection: grab focus, update filter *)
-      State.focus_library tab st;
-      Library.refresh_albums_tracks lib;
-
-    | `Sort i ->
-      (* Click on column header: reorder view accordingly *)
-      let attr = fst view.artists.columns.(i) in
-      let k =
-        Bool.to_int (Api.Key.is_modifier_down `Shift) +
-        Bool.to_int (Api.Key.is_modifier_down `Alt) * 2 +
-        Bool.to_int (Api.Key.is_modifier_down `Command) * (-4)
-      in
-      view.artists.sorting <-
-        Data.insert_sorting `Artist attr k 4 view.artists.sorting;
-      Library.save_dir lib dir;
-      Library.reorder_artists lib;
-
-    | `Resize ws ->
-      (* Column resizing: update column widths *)
-      Array.mapi_inplace (fun i (a, _) -> a, ws.(i)) view.artists.columns;
-      if have_dir then Library.save_dir lib dir;
-
-    | `Reorder perm ->
-      (* Column reordering: update columns *)
-      Data.permute perm view.artists.columns;
-      if have_dir then Library.save_dir lib dir;
-
-    | `Click (Some _i) when Api.Mouse.is_doubleclick `Left ->
-      (* Double-click on track: clear playlist and send tracks to it *)
-      let n_albums = Table.num_selected lib.albums in
-      if n_albums <> 0 && n_albums <> Table.length lib.albums then
-      (
-        Table.deselect_all lib.albums;    (* deactivate inner filter *)
-        Library.refresh_tracks_sync lib;  (* could be slow... *)
-      );
-      let tracks = lib.tracks.entries in
-      if tracks <> [||] then
-      (
-        Playlist.replace_all pl (Array.copy tracks);
-        State.focus_playlist st;
-        Control.eject st.control;
-        Control.switch st.control tracks.(0) true;
-        Table.dirty st.library.tracks;  (* redraw for current track *)
-        Table.dirty st.library.browser;
-      )
-
-    | `Click _ ->
-      (* Single-click: grab focus, update filter *)
-      if Api.Mouse.is_pressed `Left then State.focus_library tab st;
-      if not (Table.IntSet.equal tab.selected old_selected) then
-        Library.refresh_albums_tracks lib;
-
-    | `Drag (_, _, motion) ->
-      (* Drag: adjust cursor *)
-      if Api.Key.are_modifiers_down [] then
-      (
-        (* State.focus_library tab st; *)  (* don't steal after double-click! *)
-        if Table.num_selected lib.artists > 0 && lib.tracks.entries <> [||] then
-        (
-          if motion <> `Unmoved then Run_view.set_drop_cursor st;
-          Run_view.drag_on_playlist st;
-          drag_on_browser st;
-        )
-      );
-
-    | `Drop ->
-      if Api.Key.are_modifiers_down []
-      && not (Ui.mouse_inside lay.ui (artists_area lay)) then
-      (
-        (* Drag & drop originating from artists view *)
-
-        (* Drag & drop onto playlist or browser: send tracks to playlist *)
-        let tracks = lib.tracks.entries in
-        Run_view.drop_on_playlist st tracks;
-        drop_on_browser st tracks;
-      )
-
-    | `Menu _ ->
-      (* Right-click on artists: context menu *)
-      State.focus_library tab st;
-      let c = Ui.text_color lay.ui in
-      let tracks = lib.tracks.entries in
-      let quant = if Table.has_selection tab then "" else " All" in
-      let view = Run_view.library_view st in
-      Run_menu.command_menu st [|
-        `Entry (c, "Tag" ^ quant, Layout.key_tag, Run_view.tag_avail st view),
-          (fun () -> Run_view.tag st tracks false);
-        `Entry (c, "Rescan" ^ quant, Layout.key_rescan, Run_view.rescan_avail st view),
-          (fun () -> Run_view.rescan st tracks);
-        `Separator, ignore;
-        `Entry (c, "Select All", Layout.key_all,  Table.(num_selected tab < length tab)),
-          (fun () -> Table.select_all tab; Library.refresh_albums_tracks lib);
-        `Entry (c, "Select None", Layout.key_none, Table.(num_selected tab > 0)),
-          (fun () -> Table.deselect_all tab; Library.refresh_albums_tracks lib);
-        `Entry (c, "Invert Selection", Layout.key_invert, Table.(num_selected tab > 0)),
-          (fun () -> Table.select_invert tab; Library.refresh_albums_tracks lib);
-        `Separator, ignore;
-        `Entry (c, "Search...", Layout.key_search, lib.current <> None),
-          (fun () -> State.focus_edit lib.search st);
-      |]
-
-    | `HeadMenu i_opt ->
-      (* Right-click on artists header: header menu *)
-      State.focus_library tab st;
-      let used_attrs = Array.to_list (Array.map fst view.artists.columns) in
-      let unused_attrs = Data.diff_attrs Data.artist_attrs used_attrs in
-      let i, current_attrs =
-        match i_opt with
-        | None -> Array.length view.artists.columns, []
-        | Some i -> i, [fst view.artists.columns.(i)]
-      in
-      Run_menu.header_menu st dir.view.artists i current_attrs unused_attrs
-    );
-
-    if busy then
-      artists_spin lay (spin win);
+    run_view st Layout.left_view 1
+      lib.artists busy_artists lib.albums
+      Library.refresh_artists_busy Library.refresh_albums_tracks
+      Library.reorder_artists view.artists
+      Data.artist_attr_string `Artist Data.artist_attrs
+      (fun _ -> "") (fun _ -> "");
   );
 
   (* Albums view *)
 
   if show_albums then
   (
-    let albums_pane, albums_area, albums_table, albums_grid, albums_spin =
-      Layout.(if lay.right_shown then right_view else left_view) in
-    albums_pane lay;
-
-    let busy = Library.refresh_albums_busy lib in
-    let tab = if busy then busy_albums else lib.albums in
-    let old_selected = tab.selected in
-    let cols =
-      Array.map (fun (attr, cw) -> cw, Library.attr_align attr)
-        view.albums.columns
-    and headings =
-      Array.map (fun (attr, _) -> Library.attr_name attr) view.albums.columns
+    let album_cover_text (album : Data.album) =
+      Data.album_attr_string album `AlbumArtist ^ " - " ^
+      Data.album_attr_string album `AlbumTitle ^ " (" ^
+      Data.album_attr_string album `Year ^ ")"
     in
-
-    if Option.get view.albums.shown = `Grid
-    && Api.Draw.frame win mod refresh_delay = 2 then
-      Table.dirty tab;  (* to capture cover updates *)
-
-    let entries = tab.entries in  (* could change concurrently *)
-    let pp_row i =
-      let album = entries.(i) in
-      Ui.text_color lay.ui,
-      Array.map (fun (attr, _) ->
-        if attr <> `Cover then
-          `Text (Data.album_attr_string album attr)
-        else if lib.cover then
-          match Library.load_cover lib win album.path with
-          | Some img -> `Image img
-          | None -> `Text ""
-        else `Text ""
-      ) view.albums.columns
-    in
-
-    let pp_cell i =
-      let album = entries.(i) in
-      let img =
-        match Library.load_cover lib win album.path with
-        | Some img -> img
-        | None -> Ui.nocover lay.ui
-      and txt =
-        Data.album_attr_string album `AlbumArtist ^ " - " ^
-        Data.album_attr_string album `AlbumTitle ^ " (" ^
-        Data.album_attr_string album `Year ^ ")"
-      in img, Ui.text_color lay.ui, txt
-    in
-
-    let sorting = convert_sorting view.albums.columns view.albums.sorting in
-    let header = Some (headings, sorting) in
-    (match
-      match Option.get view.albums.shown with
-      | `Table -> albums_table lay cols header tab pp_row
-      | `Grid -> albums_grid lay lay.albums_grid header tab pp_cell
-    with
-    | `None | `Scroll | `Move _ -> ()
-
-    | `Select ->
-      (* New selection: grab focus, update filter *)
-      State.focus_library tab st;
-      Library.refresh_tracks lib;
-
-    | `Sort i ->
-      (* Click on column header: reorder view accordingly *)
-      let attr = fst view.albums.columns.(i) in
-      let k =
-        Bool.to_int (Api.Key.is_modifier_down `Shift) +
-        Bool.to_int (Api.Key.is_modifier_down `Alt) * 2 +
-        Bool.to_int (Api.Key.is_modifier_down `Command) * (-4)
-      in
-      view.albums.sorting <-
-        Data.insert_sorting `None attr k 4 view.albums.sorting;
-      Library.save_dir lib dir;
-      Library.reorder_albums lib;
-
-    | `Resize ws ->
-      (* Column resizing: update column widths *)
-      Array.mapi_inplace (fun i (a, _) -> a, ws.(i)) view.albums.columns;
-      if have_dir then Library.save_dir lib dir;
-
-    | `Reorder perm ->
-      (* Column reordering: update columns *)
-      Data.permute perm view.albums.columns;
-      if have_dir then Library.save_dir lib dir;
-
-    | `Click (Some _i) when Api.Mouse.is_doubleclick `Left ->
-      (* Double-click on track: clear playlist and send tracks to it *)
-      let tracks = lib.tracks.entries in
-      if tracks <> [||] then
-      (
-        Playlist.replace_all pl (Array.copy tracks);
-        State.focus_playlist st;
-        Control.eject st.control;
-        Control.switch st.control tracks.(0) true;
-        Table.dirty st.library.tracks;  (* redraw for current track *)
-        Table.dirty st.library.browser;
-      )
-
-    | `Click _ ->
-      (* Single-click: grab focus, update filter *)
-      if Api.Mouse.is_pressed `Left then State.focus_library tab st;
-      if not (Table.IntSet.equal tab.selected old_selected) then
-        Library.refresh_tracks lib;
-
-    | `Drag (_, _, motion) ->
-      (* Drag: adjust cursor *)
-      if Api.Key.are_modifiers_down [] then
-      (
-        (* State.focus_library tab st; *)  (* don't steal after double-click! *)
-        if Table.num_selected lib.albums > 0 && lib.tracks.entries <> [||] then
-        (
-          if motion <> `Unmoved then Run_view.set_drop_cursor st;
-          Run_view.drag_on_playlist st;
-          drag_on_browser st;
-        )
-      );
-
-    | `Drop ->
-      if Api.Key.are_modifiers_down []
-      && not (Ui.mouse_inside lay.ui (albums_area lay)) then
-      (
-        (* Drag & drop originating from albums view *)
-
-        (* Drag & drop onto playlist or browser: send tracks to playlist *)
-        let tracks = lib.tracks.entries in
-        Run_view.drop_on_playlist st tracks;
-        drop_on_browser st tracks;
-      )
-
-    | `Menu _ ->
-      (* Right-click on albums content: context menu *)
-      State.focus_library tab st;
-      let c = Ui.text_color lay.ui in
-      let cmd = Api.Key.is_modifier_down `Command in
-      let tracks = lib.tracks.entries in
-      let quant = if Table.has_selection tab then "" else " All" in
-      let view = Run_view.library_view st in
-      Run_menu.command_menu st [|
-        `Entry (c, "Tag" ^ quant, Layout.key_tag, Run_view.tag_avail st view),
-          (fun () -> Run_view.tag st tracks cmd);
-        `Entry (c, "Rescan" ^ quant, Layout.key_rescan, Run_view.rescan_avail st view),
-          (fun () -> Run_view.rescan st tracks);
-        `Separator, ignore;
-        `Entry (c, "Select All", Layout.key_all, Table.(num_selected tab < length tab)),
-          (fun () -> Table.select_all tab; Library.refresh_tracks lib);
-        `Entry (c, "Select None", Layout.key_none, Table.(num_selected tab > 0)),
-          (fun () -> Table.deselect_all tab; Library.refresh_tracks lib);
-        `Entry (c, "Invert Selection", Layout.key_invert, Table.(num_selected tab > 0)),
-          (fun () -> Table.select_invert tab; Library.refresh_tracks lib);
-        `Separator, ignore;
-        `Entry (c, "Search...", Layout.key_search, lib.current <> None),
-          (fun () -> State.focus_edit lib.search st);
-      |]
-
-    | `HeadMenu i_opt ->
-      (* Right-click on albums header: header menu *)
-      State.focus_library tab st;
-      let used_attrs = Array.to_list (Array.map fst view.albums.columns) in
-      let unused_attrs = Data.diff_attrs Data.album_attrs used_attrs in
-      let i, current_attrs =
-        match i_opt with
-        | None -> Array.length view.albums.columns, []
-        | Some i -> i, [fst view.albums.columns.(i)]
-      in
-      Run_menu.header_menu st dir.view.albums i current_attrs unused_attrs
-    );
-
-    if busy then
-      albums_spin lay (spin win);
+    run_view st
+      Layout.(if lay.right_shown then right_view else left_view) lay.albums_grid
+      lib.albums busy_albums busy_tracks
+      Library.refresh_albums_busy Library.refresh_tracks
+      Library.reorder_albums view.albums
+      Data.album_attr_string `None Data.album_attrs
+      (fun (album : Data.album) -> album.path) album_cover_text;
 
     (* Divider *)
     if lay.right_shown then
