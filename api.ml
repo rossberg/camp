@@ -198,6 +198,9 @@ end
 module Font =
 struct
   let assets = File.(dir Sys.argv.(0) // "assets")
+  let vertex_fs = File.(assets // "vertex.fs")
+  let shader_s = lazy (Raylib.load_shader vertex_fs File.(assets // "sdf_s.fs"))
+  let shader_l = lazy (Raylib.load_shader vertex_fs File.(assets // "sdf_l.fs"))
 
   let load () path min max size sdf =
     if sdf then
@@ -219,13 +222,10 @@ struct
       Raylib.Font.set_texture font (Raylib.load_texture_from_image atlas);
       Raylib.unload_image atlas;
 
-      let c = if size <= 10 then "s" else "l" in
-      let vertex_fs = File.(assets // "vertex.fs") in
-      let sdf_fs = File.(assets // "sdf_" ^ c ^ ".fs") in
-      let shader = Raylib.load_shader vertex_fs sdf_fs in
+      let shader = if size <= 10 then shader_s else shader_l in
       Raylib.set_texture_filter (Raylib.Font.texture font)
         Raylib.TextureFilter.Bilinear;
-      {font; shader = Some shader}
+      {font; shader = Some (Lazy.force shader)}
     )
     else
     (
@@ -306,12 +306,34 @@ end
 module Draw =
 struct
   let frame = ref 0
-  let scale = ref (1, 1)
+  let current_scale = ref (1, 1)
+  let current_clip = ref None
+  let current_shader = ref None
 
-  let sx v = v * fst !scale
-  let sy v = v * snd !scale
+  let sx v = v * fst !current_scale
+  let sy v = v * snd !current_scale
   let sxy x y = sx x, sy y
   let sxywh x y w h = sx x, sy y, sx w, sy h
+
+  let unclipped f x =
+    (* Ensure well-nesting *)
+    Option.iter (fun _ -> Raylib.end_scissor_mode ()) !current_clip;
+    f x;
+    Option.iter (fun (x, y, w, h) -> Raylib.begin_scissor_mode x y w h)
+      !current_clip
+
+  let shader shader_opt =  (* minimize shader changes by doing them lazily *)
+    (match !current_shader, shader_opt with
+    | None, None -> ()
+    | None, Some shader -> unclipped Raylib.begin_shader_mode shader
+    | Some _, None -> unclipped Raylib.end_shader_mode ()
+    | Some shader_old, Some shader_new ->
+      if shader_old != shader_new then
+        unclipped (fun _ ->
+          Raylib.end_shader_mode (); Raylib.begin_shader_mode shader_new
+        ) ()
+    );
+    current_shader := shader_opt
 
   let start () c =
     Raylib.begin_drawing ();
@@ -327,22 +349,33 @@ struct
   let finish () =
     List.iter (fun f -> f ()) !before_frame_finish;
     incr frame;
+    shader None;
     Raylib.end_drawing ();  (* polls input events *)
     List.iter (fun f -> f ()) !after_frame_finish
 
   let buffered () buf =
+    shader None;
     Raylib.begin_texture_mode buf.texture;
     (* Manual adjustment for High DPI scaling is needed *)
-    scale := point_of_vec2 (Raylib.get_window_scale_dpi ())
+    current_scale := point_of_vec2 (Raylib.get_window_scale_dpi ())
 
   let unbuffered () =
+    shader None;
     Raylib.end_texture_mode ();
-    scale := (1, 1)
+    current_scale := (1, 1)
 
   let clip () x y w h =
-    let x, y, w, h = sxywh x y w h in
+    assert (!current_clip = None);
+    let (x, y, w, h) as r = sxywh x y w h in
+    shader None;
+    current_clip := Some r;
     Raylib.begin_scissor_mode x y w h
-  let unclip () = Raylib.end_scissor_mode ()
+
+  let unclip () =
+    assert (!current_clip <> None);
+    shader None;
+    current_clip := None;
+    Raylib.end_scissor_mode ()
 
   let frame () = !frame
 
@@ -392,9 +425,8 @@ struct
 
   let text () x y h c f s =
     let x, y, _, h = sxywh x y 1 h in
-    Option.iter Raylib.begin_shader_mode f.shader;
-    Raylib.draw_text_ex f.font s (vec2_of_point (x, y)) (float h) 1.0 (color c);
-    Option.iter (fun _ -> Raylib.end_shader_mode ()) f.shader
+    shader f.shader;
+    Raylib.draw_text_ex f.font s (vec2_of_point (x, y)) (float h) 1.0 (color c)
 
   let text_width () h f s : int =
     fst (point_of_vec2 (Raylib.measure_text_ex f.font s (float h) 1.0))
@@ -403,8 +435,9 @@ struct
 
   let image () x y sc img =
     let x, y = sxy x y in
-    let sc = sc *. float (fst !scale) in
+    let sc = sc *. float (fst !current_scale) in
     let v = vec2_of_point (x, y) in
+    shader None;
     Raylib.draw_texture_ex img v 0.0 sc Raylib.Color.white
 
   let image_part () x y w h x' y' w' h' img =
@@ -412,6 +445,7 @@ struct
     let r' = Raylib.Rectangle.create (float x') (float y') (float w') (float h') in
     let r = Raylib.Rectangle.create (float x) (float y) (float w) (float h) in
     let v = vec2_of_point (0, 0) in
+    shader None;
     Raylib.draw_texture_pro img r' r v 0.0 Raylib.Color.white
 
   let buffer () x y buf =
@@ -422,6 +456,7 @@ struct
     let r = Raylib.Rectangle.create (float x) (float y) (float w) (float h) in
     let v = vec2_of_point (0, 0) in
     let img = Raylib.RenderTexture.texture buf.texture in
+    shader None;
     Raylib.draw_texture_pro img r' r v 0.0 Raylib.Color.white
 end
 
