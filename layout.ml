@@ -182,7 +182,9 @@ let key_artists = nokey
 let key_albums = nokey
 let key_tracks = nokey
 
-let key_folddir = nokey
+let key_folddir = plain ' '
+let key_namedir = ([], `Return)
+let key_namedir2 = ([], `Enter)
 let key_adddir = nokey
 let key_deldir = nokey
 let key_newdir = nokey
@@ -462,7 +464,7 @@ let search_label g = Ui.label g.ui (bp, margin g, search_y g + (text_h g - label
 let search_button g = Ui.mouse g.ui (bp, margin g, search_y g, search_label_w g, text_h g) `Left
 let search_key g = Ui.key g.ui key_search true
 let search_box g = Ui.box g.ui (bp, search_x g, search_y g, - divider_w g, text_h g) `Black
-let search_text g = Ui.rich_edit_text g.ui (bp, search_x g + 2, search_y g, - divider_w g - 2, text_h g)
+let search_edit g = Ui.rich_edit_text g.ui (bp, search_x g + 2, search_y g, - divider_w g - 2, text_h g)
 let search_context g = Ui.mouse g.ui (bp, search_x g, search_y g, - divider_w g, text_h g) `Right
 
 (* Browser *)
@@ -472,6 +474,14 @@ let browser_table g = Ui.browser g.ui (browser_area g) (rich_table g 0 false)
 let browser_mouse g = Ui.rich_table_mouse g.ui (browser_area g) (rich_table g 0 false)
 let browser_drag g = Ui.rich_table_drag g.ui (browser_area g) (rich_table g 0 false)
 let browser_error_box g = Ui.box g.ui (browser_area g) (Ui.error_color g.ui)
+
+let rename_area g = Ui.browser_entry_text_area g.ui (browser_area g) (rich_table g 0 false)
+let rename_box g area = Ui.box g.ui area `Black
+let rename_edit g = Ui.rich_edit_text g.ui
+
+let fold_key g = Ui.key g.ui key_folddir
+let rename_key g b =
+  b && (Ui.key g.ui key_namedir b || Ui.key g.ui key_namedir2 b)
 
 (* Buttons *)
 let ledit_w = 25
@@ -597,7 +607,7 @@ let file_label_w _g = 20
 let file_label g = Ui.label g.ui (fp, 0, footer_y g + (text_h g - label_h g + 1)/2, file_label_w g, label_h g) `Left "FILE"
 let file_button g = Ui.mouse g.ui (fp, margin g, footer_y g, file_label_w g, text_h g) `Left
 let file_box g = Ui.box g.ui (fp, file_label_w g, footer_y g, - divider_w g, text_h g) `Black
-let file_text g = Ui.rich_edit_text g.ui (fp, file_label_w g + 2, footer_y g, - divider_w g - 2, text_h g)
+let file_edit g = Ui.rich_edit_text g.ui (fp, file_label_w g + 2, footer_y g, - divider_w g - 2, text_h g)
 
 
 (* Resizing limits *)

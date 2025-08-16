@@ -290,7 +290,9 @@ let rec ok st =
     check "menu with op"
       (st.layout.menu_shown = (st.menu.op <> None)) @
     check "menu modal"
-      (st.layout.menu_shown = Ui.is_modal st.layout.ui) @
+      (not st.layout.menu_shown || Ui.is_modal st.layout.ui) @
+    check "rename modal"
+      (st.library.renaming = None || Ui.is_modal st.layout.ui) @
     []
   with
   | errors when errors <> [] ->

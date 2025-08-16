@@ -41,6 +41,22 @@ let insert (st : state) =
     State.focus_library st.library.browser st;
   )
 
+let rename_avail (st : state) i_opt =
+  match i_opt with
+  | None -> false
+  | Some i -> not (Data.is_all st.library.browser.entries.(i))
+
+let rename (st : state) i_opt =
+  Option.iter (fun i ->
+    let dir = st.library.browser.entries.(i) in
+    State.defocus_all st;
+    Edit.focus st.library.rename;
+    Edit.set st.library.rename dir.name;
+    Ui.delay st.layout.ui (fun () -> Ui.modal st.layout.ui);
+    Library.start_rename st.library i;
+  ) i_opt
+
+
 let remove_avail (st : state) =
   Library.current_is_root st.library
 
@@ -498,17 +514,21 @@ let run (st : state) =
     Library.fold_dir st.library dir (not dir.view.folded)
 
   | `Click (Some i) ->
-    (* Click on dir name: switch view *)
-    (* TODO: allow multiple selections *)
     if Api.Mouse.is_pressed `Left then State.focus_library browser st;
     if Library.selected_dir lib <> dir then
     (
+      (* Click on different dir name: switch view *)
       Library.select_dir lib i;  (* do bureaucracy *)
       Library.deselect_all lib;
       Library.refresh_artists_albums_tracks lib;
       let dir' = entries.(i) in
       lay.left_width <- dir'.view.divider_width;
       lay.upper_height <- dir'.view.divider_height;
+    )
+    else if i > 0 && Library.selected_dir lib = Some i then
+    (
+      (* Click on same dir name: rename *)
+      rename st (Some i)
     );
     if Api.Mouse.is_doubleclick `Left then
     (
@@ -617,7 +637,7 @@ let run (st : state) =
       ) (Layout.browser_mouse lay browser)
     )
 
-  | `Menu _ ->
+  | `Menu i_opt ->
     (* Right-click on browser: context menu *)
     State.focus_library browser st;
     let c = Ui.text_color lay.ui in
@@ -631,19 +651,21 @@ let run (st : state) =
         if all then rescan_all_avail st else rescan_one_avail st),
         (fun () -> (if all then rescan_all else rescan_one) st `Thorough);
       `Separator, ignore;
-      `Entry (c, "Add Root...", Layout.key_adddir, insert_avail st),
-        (fun () -> insert st);
-      `Entry (c, "Remove Root", Layout.key_deldir, remove_avail st),
-        (fun () -> remove st);
-      `Separator, ignore;
       `Entry (c, "Create Playlist...", Layout.key_newdir, create_playlist_avail st),
         (fun () -> create_playlist st);
       `Entry (c, "Create Viewlist...", Layout.key_viewdir, create_viewlist_avail st),
         (fun () -> create_playlist st);
+      `Entry (c, "Rename", Layout.key_namedir, rename_avail st i_opt),
+        (fun () -> rename st i_opt);
       `Entry (c, "Remove " ^
         (if Library.current_is_viewlist lib then "Viewlist" else "Playlist"),
         Layout.key_deldir, remove_list_avail st),
         (fun () -> remove_list st);
+      `Separator, ignore;
+      `Entry (c, "Add Root...", Layout.key_adddir, insert_avail st),
+        (fun () -> insert st);
+      `Entry (c, "Remove Root", Layout.key_deldir, remove_avail st),
+        (fun () -> remove st);
       `Separator, ignore;
       `Entry (c, "Search...", Layout.key_search, lib.current <> None),
         (fun () -> State.focus_edit lib.search st);
@@ -651,6 +673,51 @@ let run (st : state) =
   );
 
   let entries = browser.entries in  (* might have changed from un/folding *)
+
+  (* Browser entry renaming *)
+  let rename_had_focus = lib.rename.focus in
+  Option.iter (fun i ->
+    Ui.nonmodal lay.ui;
+    let dir = entries.(i) in
+    let folded = if dir.children = [||] then None else Some dir.view.folded in
+    let area = Layout.rename_area lay browser i dir.nest folded in
+
+    Layout.rename_box lay area;
+    let _ = Layout.rename_edit lay area lib.rename in
+    if Api.Key.is_released `Escape then
+    (
+      Library.end_rename lib false;
+      Edit.defocus lib.rename;
+      State.focus_table browser st;
+    )
+    else if Api.Key.(is_released `Return || is_released `Enter)
+    || Api.Mouse.is_released `Left && not (Ui.mouse_inside lay.ui area) then
+    (
+      Library.end_rename lib (dir.name <> lib.rename.text);
+      dir.name <- lib.rename.text;
+      Edit.defocus lib.rename;
+      State.focus_table browser st;
+    )
+    else
+      Ui.modal lay.ui
+  ) lib.renaming;
+
+  (* Keys *)
+  if Layout.rename_key lay (browser.focus && not rename_had_focus) then
+  (
+    (* Return or Enter key pressed: rename dir *)
+    if not (Library.current_is_all lib) then
+      rename st (Library.selected_dir lib)
+  );
+
+  if Layout.fold_key lay browser.focus then
+  (
+    (* Space key pressed: fold/unfold dir *)
+    if not (Library.current_is_all lib) then
+      Option.iter (fun (dir : dir) ->
+        Library.fold_dir lib dir (not dir.view.folded)
+      ) lib.current
+  );
 
   (* Browser drag & drop *)
   let dropped = Api.Files.dropped win in
@@ -840,7 +907,7 @@ let run (st : state) =
     );
 
     let search = lib.search.text in
-    let _ = Layout.search_text lay lib.search in
+    let _ = Layout.search_edit lay lib.search in
     if lib.search.focus then
     (
       (* Have or gained focus: make sure it's consistent *)

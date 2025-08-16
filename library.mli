@@ -35,7 +35,9 @@ type 'cache t = private
   mutable error_time : time;
   mutable refresh_time : time;
   mutable cover : bool;
+  mutable renaming : int option;
   search : Edit.t;
+  rename : Edit.t;
   browser : (dir, 'cache) Table.t;
   artists : (artist, 'cache) Table.t;
   albums : (album, 'cache) Table.t;
@@ -127,6 +129,9 @@ val current_is_shown_viewlist : 'a t -> bool
 val current_is_plain_playlist : 'a t -> bool
 
 val has_track : 'a t -> track -> bool
+
+val start_rename : 'a t -> int -> unit
+val end_rename : 'a t -> bool -> unit
 
 
 (* Views *)

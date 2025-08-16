@@ -177,7 +177,7 @@ let run (st : state) =
       Edit.clear fs.input;
   );
 
-  let ch = Layout.file_text lay fs.input in
+  let ch = Layout.file_edit lay fs.input in
   if fs.input.focus then
   (
     (* Have or gained focus: make sure it's consistent *)

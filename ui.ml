@@ -57,6 +57,9 @@ let window ui = ui.win
 let buffered ui b = ui.buffered <- b
 let is_buffered ui = ui.buffered
 
+
+(* Modal mode *)
+
 let modal ui = ui.modal <- true
 let nonmodal ui = ui.modal <- false
 let is_modal ui = ui.modal
@@ -1084,7 +1087,7 @@ type rich_table_action =
   | `HeadMenu of int option
   ]
 
-let rich_table_inner _ui area geo =
+let rich_table_inner_area _ui area geo =
   let p, ax, ay, aw, ah = area in
   let ty = if not geo.has_heading then ay else ay + geo.row_h + 2 in
   let th =
@@ -1095,7 +1098,7 @@ let rich_table_inner _ui area geo =
   (p, ax, ty, aw - geo.scroll_w - 1, th)
 
 let rich_table_mouse ui area geo tab =
-  let area' = rich_table_inner ui area geo in
+  let area' = rich_table_inner_area ui area geo in
   let (_, y, _, _) as r = dim ui area' in
   let (_, my) as m = Mouse.pos ui.win in
   if inside m r then
@@ -1107,7 +1110,7 @@ let rich_table_drag ui area geo style tab =
   match rich_table_mouse ui area geo tab with
   | None -> ()
   | Some i ->
-    let area' = rich_table_inner ui area geo in
+    let area' = rich_table_inner_area ui area geo in
     let x, y, w, _ = dim ui area' in
     focus' ui x (y + (i - tab.vscroll) * geo.row_h) w geo.row_h `White style
 
@@ -1130,7 +1133,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
   assert (geo.has_heading = Option.is_some header_opt);
   let p, ax, ay, aw, ah = area in
   let rh = geo.row_h in
-  let _, _, ty, tw, th = rich_table_inner ui area geo in
+  let _, _, ty, tw, th = rich_table_inner_area ui area geo in
   let header_area = (p, ax, ay, tw, rh) in
   let table_area = (p, ax, ty, tw, th) in
   let vscroll_area = 
@@ -1528,7 +1531,7 @@ type grid_table =
 
 type grid_table_action = rich_table_action
 
-let grid_table_inner _ui area geo =
+let grid_table_inner_area _ui area geo =
   let p, ax, ay, aw, ah = area in
   let ty = if not geo.has_heading then ay else ay + geo.text_h + 2 in
   let tw = aw - geo.scroll_w - 1 in
@@ -1536,7 +1539,7 @@ let grid_table_inner _ui area geo =
   (p, ax, ty, tw, th)
 
 let grid_table_mouse ui area geo tab =
-  let area' = grid_table_inner ui area geo in
+  let area' = grid_table_inner_area ui area geo in
   let (x, y, w, _) as r = dim ui area' in
   let iw = geo.gutter_w + geo.img_h in
   let ih = iw + geo.text_h in
@@ -1552,7 +1555,7 @@ let grid_table_drag ui area geo style tab =
   match grid_table_mouse ui area geo tab with
   | None -> ()
   | Some i ->
-    let area' = grid_table_inner ui area geo in
+    let area' = grid_table_inner_area ui area geo in
     let x, y, w, _ = dim ui area' in
     let iw = geo.gutter_w + geo.img_h in
     let ih = iw + geo.text_h in
@@ -1564,7 +1567,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
   assert (geo.has_heading = Option.is_some header_opt);
   let p, ax, ay, aw, ah = area in
   let ch = geo.text_h in
-  let _, _, ty, tw, th = grid_table_inner ui area geo in
+  let _, _, ty, tw, th = grid_table_inner_area ui area geo in
   let header_area = (p, ax, ay, tw, ch) in
   let table_area = (p, ax, ty, tw, th) in
   let vscroll_area = 
@@ -1871,19 +1874,30 @@ let symbol_empty = " ○"
 let symbol_folded = "►" (* "▸" *)
 let symbol_unfolded = "▼" (* "▾" *)
 
+
+let browser_pp_pre nest folded =
+  let sym =
+    match folded with
+    | None -> symbol_empty
+    | Some true -> symbol_folded
+    | Some false -> symbol_unfolded
+  in
+  if nest = -1 then "" else String.make (3 * nest) ' ' ^ sym ^ " "
+
+let browser_entry_text_area ui area geo (tab : _ Table.t) i nest folded =
+  let p, x, y, w, _ = rich_table_inner_area ui area geo in
+  let mw = (geo.gutter_w + 1) / 2 in  (* inner width padding *)
+  let dx = max 0
+    (Draw.text_width ui.win geo.row_h (font ui geo.row_h)
+      (browser_pp_pre nest folded) + mw - tab.hscroll - 2 (* correction? *))
+  and dy = (i - tab.vscroll) * geo.row_h in
+  (p, x + dx, y + dy, (if w < 0 then w else w - dx), geo.row_h)
+
 let browser ui area geo (tab : _ Table.t) pp_entry =
   let cols = [|-1, `Left|] in
-  let pp_pre nest folded =
-    let sym =
-      match folded with
-      | None -> symbol_empty
-      | Some true -> symbol_folded
-      | Some false -> symbol_unfolded
-    in if nest = -1 then "" else String.make (3 * nest) ' ' ^ sym ^ " "
-  in
   let pp_row i =
     let nest, folded, c, name = pp_entry i in
-    c, [|`Text (pp_pre nest folded ^ name)|]
+    c, [|`Text (browser_pp_pre nest folded ^ name)|]
   in
 
   let selected = tab.selected in
@@ -1910,7 +1924,9 @@ let browser ui area geo (tab : _ Table.t) pp_entry =
     let mx, _ = Mouse.pos ui.win in
     let x, _, _, _ = dim ui area in
     let nest, folded, _, _ = pp_entry i in
-    let tw = Draw.text_width ui.win geo.row_h (font ui geo.row_h) (pp_pre nest folded) in
+    let tw =
+      Draw.text_width ui.win geo.row_h (font ui geo.row_h)
+        (browser_pp_pre nest folded) in
     if mx + tab.hscroll < x + tw
     && not ui.modal && Mouse.(is_down `Left || is_released `Left) then
     (

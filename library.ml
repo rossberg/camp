@@ -64,7 +64,9 @@ type 'cache t =
   mutable error_time : time;
   mutable refresh_time : time;
   mutable cover : bool;
+  mutable renaming : int option;
   search : Edit.t;
+  rename : Edit.t;
   browser : (dir, 'cache) Table.t;
   artists : (artist, 'cache) Table.t;
   albums : (album, 'cache) Table.t;
@@ -72,6 +74,12 @@ type 'cache t =
   covers : cover Map.t Atomic.t;
   scan : scan;
 }
+
+
+let start_rename lib i = lib.renaming <- Some i
+let end_rename lib changed =
+  lib.renaming <- None;
+  if changed then Atomic.set lib.scan.changed true
 
 
 (* Validation *)
@@ -91,6 +99,7 @@ let ok lib =
   check "browser selection consistent with current"
     ( Table.num_selected lib.browser = 0 ||
       Option.get lib.current == (Table.selected lib.browser).(0) ) @
+  check "rename focus consistent" ((lib.renaming <> None) = lib.rename.focus) @
   []
 
 
@@ -257,7 +266,9 @@ let make () =
       error_time = 0.0;
       refresh_time = 0.0;
       cover = true;
+      renaming = None;
       search = Edit.make 100;
+      rename = Edit.make 100;
       browser = Table.make 0;
       artists = Table.make 0;
       albums = Table.make 0;

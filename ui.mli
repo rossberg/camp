@@ -153,7 +153,7 @@ val rich_table :
   (int -> color * cell array) ->     (* row generator *)
     rich_table_action
 
-val rich_table_inner : t -> area -> rich_table -> area
+val rich_table_inner_area : t -> area -> rich_table -> area
 val rich_table_mouse : t -> area -> rich_table -> ('a, cached) Table.t ->
   int option
 val rich_table_drag : t -> area -> rich_table ->
@@ -171,6 +171,9 @@ val browser :
   ('a, cached) Table.t ->                         (* data *)
   (int -> int * bool option * color * string) ->  (* entry generator *)
     browser_action
+
+val browser_entry_text_area :
+  t -> area -> rich_table -> ('a, cached) Table.t -> int -> int -> bool option -> area
 
 val grid :
   t -> area -> int -> int -> int ->
@@ -196,7 +199,7 @@ val grid_table :
   (int -> Api.image * color * string) ->
     grid_table_action
 
-val grid_table_inner : t -> area -> grid_table -> area
+val grid_table_inner_area : t -> area -> grid_table -> area
 val grid_table_mouse : t -> area -> grid_table -> ('a, cached) Table.t ->
   int option
 val grid_table_drag : t -> area -> grid_table ->

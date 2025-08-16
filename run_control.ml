@@ -131,12 +131,15 @@ let run (st : state) =
 
   (* Exit button *)
   (* This has to come first, otherwise Raylib crashes? *)
+  let modal = Ui.is_modal lay.ui in
+  Ui.nonmodal lay.ui;  (* always allow Quit *)
   if not (Layout.power_button lay (Some true))
   && not (Api.Key.is_modifier_down `Shift) then
   (
     (* Power button clicked: quit *)
     quit st
   );
+  if modal then Ui.modal lay.ui;
   Layout.power_label lay;
 
   (* Current status *)
