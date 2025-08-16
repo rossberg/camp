@@ -48,12 +48,15 @@ let rename_avail (st : state) i_opt =
 
 let rename (st : state) i_opt =
   Option.iter (fun i ->
-    let dir = st.library.browser.entries.(i) in
-    State.defocus_all st;
-    Edit.focus st.library.rename;
-    Edit.set st.library.rename dir.name;
-    Ui.delay st.layout.ui (fun () -> Ui.modal st.layout.ui);
-    Library.start_rename st.library i;
+    if i > 0 then
+    (
+      let dir = st.library.browser.entries.(i) in
+      State.defocus_all st;
+      Edit.focus st.library.rename;
+      Edit.set st.library.rename dir.name;
+      Ui.delay st.layout.ui (fun () -> Ui.modal st.layout.ui);
+      Library.start_rename st.library i;
+    )
   ) i_opt
 
 
@@ -523,10 +526,10 @@ let run (st : state) =
       let dir' = entries.(i) in
       lay.left_width <- dir'.view.divider_width;
       lay.upper_height <- dir'.view.divider_height;
-    )
-    else if i > 0 && Library.selected_dir lib = Some i && Api.Mouse.is_pressed `Left then
+    );
+    if Api.Mouse.is_pressed `Left && Api.Key.are_modifiers_down [`Shift] then
     (
-      (* Click on same dir name: rename *)
+      (* Shift-Click on dir name: rename *)
       rename st (Some i)
     );
     if Api.Mouse.is_doubleclick `Left then
