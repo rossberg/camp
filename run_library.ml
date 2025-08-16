@@ -524,7 +524,7 @@ let run (st : state) =
       lay.left_width <- dir'.view.divider_width;
       lay.upper_height <- dir'.view.divider_height;
     )
-    else if i > 0 && Library.selected_dir lib = Some i then
+    else if i > 0 && Library.selected_dir lib = Some i && Api.Mouse.is_pressed `Left then
     (
       (* Click on same dir name: rename *)
       rename st (Some i)
