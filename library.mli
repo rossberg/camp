@@ -176,6 +176,8 @@ val deselect : 'a t -> int -> int -> unit
 
 val set_search : 'a t -> string -> unit
 
+val make_viewlist : dir -> string
+
 
 (* Playlist Editing *)
 

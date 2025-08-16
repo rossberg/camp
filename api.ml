@@ -678,7 +678,7 @@ struct
 
   let char () = Raylib.get_char_pressed ()
 
-  (* Test string: "␣−←→↑↓⤒↟⤓↡⇤⇱⇥⇲⏎⌤⇆↹⎋⌫⌦⎀⁁⇪⇧⌥⎇⌘" *)
+  (* Test string: "␣−←→↑↓⤒↟⤓↡⇤⇱⇥⇲⏎⌤⇆↹⎋⌫⌦⎀⁁⇪⇧⌥⎇⌘★" *)
 
   let key_name = function
     | `None -> ""

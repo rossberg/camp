@@ -1432,6 +1432,13 @@ let save_playlist lib =
   with exn ->
     Storage.log_exn "file" exn ("writing playlist " ^ dir.path)
 
+let make_viewlist (dir : dir) =
+  let prefix =
+    if Data.is_all dir || Data.is_viewlist dir then ""
+    else "\"" ^ dir.path ^ "\" @ #filepath "
+  in
+  prefix ^ dir.view.search
+
 
 (* Before editing, normalise playlist to pos-order to enable correct undo *)
 let compare_pos (tr1 : track) (tr2 : track) = compare tr1.pos tr2.pos

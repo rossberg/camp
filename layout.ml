@@ -159,6 +159,7 @@ let key_min = shiftcmd 'Q'
 let key_rescan = cmd 'R'
 let key_rescan2 = shiftcmd 'R'
 let key_save = cmd 'S'
+let key_save2 = shiftcmd 'S'
 let key_tag = cmd 'T'
 let key_fps = cmd 'U'
 let key_paste = cmd 'V'
@@ -402,6 +403,7 @@ let del_button_alt g = Ui.key g.ui key_del2 true
 let undo_button = edit_button 3 5 "UNDO" key_undo
 let redo_button g = Ui.invisible_button g.ui (edit_area 3 5 g) [`Shift] key_redo true
 let save_button = edit_button 4 6 "SAVE" key_save
+let save_view_button g = Ui.invisible_button g.ui (edit_area 4 6 g) [`Shift] key_save2 true
 let load_button = edit_button 4 7 "LOAD" key_load
 
 let cut_key g = Ui.key g.ui key_cut true

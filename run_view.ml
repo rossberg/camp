@@ -199,8 +199,20 @@ let expand_paths (st : state) paths =
     let s = File.load `Bin path in
     match Query.parse_query s with
     | Error msg -> Library.error st.library msg
-    | Ok _query -> ()  (* TODO
-      List.iter add_track (Library.) *)
+    | Ok query ->
+      let _, _, tracks' =
+        Query.exec query
+          (fun track -> false, false, not (Data.is_separator track))
+          st.library.root
+      in
+      for i = 0 to Array.length tracks' / 2 - 1 do
+        let j = Array.length tracks' - i - 1 in
+        let temp = tracks'.(i) in
+        tracks'.(i) <- tracks'.(j);
+        tracks'.(j) <- temp;
+      done;
+      let tracks'' = Array.to_list tracks' in
+      tracks := if !tracks = [] then tracks'' else tracks'' @ !tracks
   in
   let rec add_path path =
     try
@@ -362,6 +374,20 @@ let save (st : state) (module View : View) =
     File.store `Bin path (Track.to_m3u View.(table it).entries)
   )
 
+let save_view_avail (st : state) _view =
+  not st.layout.filesel_shown && st.layout.library_shown &&
+  not st.playlist.table.focus &&
+  ( st.library.search.text <> "" ||
+    Table.num_selected st.library.artists > 0 ||
+    Table.num_selected st.library.albums > 0 )
+let save_view (st : state) _view =
+  Option.iter (fun dir ->
+    Run_filesel.filesel st `Write `File "" ".m3v" (fun path ->
+      File.store `Bin path (Library.make_viewlist dir ^ "\n")
+    )
+  ) st.library.current
+
+
 let rescan_avail _st (module View : View) =
   View.(length it > 0)
 let rescan (st : state) tracks =
@@ -457,8 +483,10 @@ let list_menu (st : state) view =
     `Entry (c, "Search...", Layout.key_search, search_avail st),
       (fun () -> search st);
     `Separator, ignore;
-    `Entry (c, "Save...", Layout.key_save, save_avail st view),
+    `Entry (c, "Save as Playlist...", Layout.key_save, save_avail st view),
       (fun () -> save st view);
+    `Entry (c, "Save as Viewlist...", Layout.key_save2, save_view_avail st view),
+      (fun () -> save_view st view);
   |]
 
 let edit_menu (st : state) view pos_opt =
@@ -472,7 +500,7 @@ let edit_menu (st : state) view pos_opt =
     then false, "", View.selected
     else true, " All", View.tracks
   in
-  Run_menu.command_menu st [|
+  Run_menu.command_menu st (Array.append [|
     `Entry (c, "Insert Separator", Layout.key_sep, separator_avail st view),
       (fun () -> separator st view pos);
     `Separator, ignore;
@@ -514,7 +542,13 @@ let edit_menu (st : state) view pos_opt =
       (fun () -> load st view);
     `Entry (c, "Save...", Layout.key_save, save_avail st view),
       (fun () -> save st view);
-  |]
+  |] (
+    if View.(table it) == st.playlist.table then [||] else
+    [|
+      `Entry (c, "Save View...", Layout.key_save2, save_view_avail st view),
+        (fun () -> save_view st view);
+    |])
+  )
 
 
 (* Runner *)
@@ -627,11 +661,20 @@ let run_edit_panel (st : state) =
     load st view
   );
 
-  (* Save button *)
-  if Layout.save_button lay (active_if save_avail) then
+  (* Save Playlist button *)
+  if Layout.save_button lay (active_if save_avail)
+  && Api.Key.are_modifiers_down [] then
   (
     (* Click on Save button: save playlist *)
     save st view
+  );
+
+  (* Save Viewlist button *)
+  if Layout.save_view_button lay then
+  (
+    (* Save-View key pressed or Shift-Click on Save button: save viewlist *)
+    if save_view_avail st view then
+      save_view st view
   );
 
   (* Focus buttons *)

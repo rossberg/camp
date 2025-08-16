@@ -386,7 +386,7 @@ let rec meta_attr_string (meta : Meta.t) = function
   | `Country -> meta.country
   | `Length -> nonzero 0.0 string_of_time meta.length
   | `Rating ->
-    let star = "*" in  (* TODO: "★" *)
+    let star = "*" in  (* "★" *)
     let len = String.length star in
     String.init (meta.rating * len) (fun i -> star.[i mod len])
   | `Cover -> nonempty (fun (pic : Meta.picture) () -> pic.data) meta.cover ()

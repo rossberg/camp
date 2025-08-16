@@ -129,15 +129,14 @@ let create_playlist (st : state) =
   ) st.library.current
 
 let create_viewlist_avail (st : state) =
-  st.library.search.text <> "" && st.library.tracks.entries <> [||]
+  st.library.tracks.entries <> [||] &&
+  ( st.library.search.text <> "" ||
+    Table.num_selected st.library.artists > 0 ||
+    Table.num_selected st.library.albums > 0 )
 
 let create_viewlist (st : state) =
   Option.iter (fun (dir : dir) ->
-    let prefix =
-      if Data.is_all dir || Data.is_viewlist dir then ""
-      else "\"" ^ dir.path ^ "\" @ #filepath "
-    in
-    let query = prefix ^ st.library.search.text in
+    let query = Library.make_viewlist dir in
     let view = Library.copy_views dir.view in
     view.search <- "";
     let path = if Data.is_dir dir then dir.path else File.dir dir.path in
