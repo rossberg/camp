@@ -55,6 +55,7 @@ sig
   val is_hidden : window -> bool
 
   val screen_size : window -> size
+  val is_hires : window -> bool
   val fps : window -> int
 end
 

@@ -162,6 +162,7 @@ let key_save = cmd 'S'
 let key_save2 = shiftcmd 'S'
 let key_tag = cmd 'T'
 let key_fps = cmd 'U'
+let key_sdf = shiftcmd 'U'
 let key_paste = cmd 'V'
 let key_wipe = cmd 'W'
 let key_cut = cmd 'X'
@@ -302,6 +303,8 @@ let color_button g = Ui.mouse g.ui (cp, margin g, color_y g, mute_x g, ticker_y 
 
 let fps_text g = Ui.text g.ui (cp, cover_x g + cover_w + 20, margin g + info_margin g, 40, 12) `Left
 let fps_key g = Ui.key g.ui key_fps true
+
+let sdf_key g = Ui.key g.ui key_sdf true
 
 (* Control buttons *)
 let ctl_w = 39

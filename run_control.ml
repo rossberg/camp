@@ -72,15 +72,25 @@ let toggle_fps (st : state) =
   let ctl = st.control in
   ctl.fps <- not ctl.fps
 
-let cycle_color (st : state) d =
-  let lay = st.layout in
-  let n = Ui.num_palette lay.ui in
-  Ui.set_palette lay.ui ((Ui.get_palette lay.ui + d + n) mod n);
+let dirty_all (st : state) =
   Table.dirty st.playlist.table;
   Table.dirty st.library.browser;
   Table.dirty st.library.artists;
   Table.dirty st.library.albums;
-  Table.dirty st.library.tracks
+  Table.dirty st.library.tracks;
+  Table.dirty st.filesel.dirs;
+  Table.dirty st.filesel.files
+
+let toggle_sdf (st : state) =
+  let lay = st.layout in
+  Ui.font_sdf lay.ui (not (Ui.font_is_sdf lay.ui));
+  dirty_all st
+
+let cycle_color (st : state) d =
+  let lay = st.layout in
+  let n = Ui.num_palette lay.ui in
+  Ui.set_palette lay.ui ((Ui.get_palette lay.ui + d + n) mod n);
+  dirty_all st
 
 let clamp_text = Layout.clamp 10 64
 
@@ -212,6 +222,8 @@ let run (st : state) =
     Layout.fps_text lay `Regular true (fmt "%d FPS" (Api.Window.fps win));
   (* Press of FPS key: toggle FPS display *)
   if Layout.fps_key lay then toggle_fps st;
+
+  if Layout.sdf_key lay then toggle_sdf st;
 
   (* Audio properties *)
   if not silence then

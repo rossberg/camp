@@ -136,6 +136,7 @@ struct
     let mon = Raylib.get_current_monitor () in
     Raylib.get_monitor_width mon, Raylib.get_monitor_height mon
 
+  let is_hires () = Raylib.(Vector2.y (get_window_scale_dpi ())) > 1.0
   let fps () = Raylib.get_fps ()
 end
 

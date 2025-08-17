@@ -38,7 +38,7 @@ let make win =
   Window.set_icon win icon;
   { win;
     buffered = true;
-    font_sdf = false;
+    font_sdf = Window.is_hires win;
     palette = 0;
     panes = Array.make 10 (0, 0, 0, 0);
     modal = false;
@@ -172,8 +172,11 @@ let border ui = function
 
 (* Fonts *)
 
-let font_sdf ui b = ui.font_sdf <- b
 let font_is_sdf ui = ui.font_sdf
+
+let font_sdf ui b =
+  ui.font_sdf <- b;
+  Array.map_inplace (Fun.const None) ui.fonts
 
 let font' ui h file min max fonts =
   match fonts.(h) with
