@@ -374,7 +374,7 @@ let playlist_drag g = Ui.rich_table_drag g.ui (playlist_area g) (rich_table g 0 
 
 (* Total text field *)
 let total_w g = - margin g - scrollbar_w g
-let total_x g = total_w g - 100
+let total_x g = total_w g - 90
 let total_y g = g.playlist_height + footer_y g  (* Hack: this is outside the pane *)
 let playlist_total_box g = Ui.box g.ui (pp, total_x g, total_y g, total_w g, text_h g) `Black
 let playlist_total_text g = Ui.text g.ui (pp, total_x g, total_y g, total_w g - (gutter_w g + 1)/2, text_h g) `Right

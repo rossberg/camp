@@ -7,6 +7,11 @@ type path = string
 type time = float
 
 
+(* General stuff *)
+
+val is_mac : bool
+
+
 (* Geometry helpers *)
 
 type point = int * int

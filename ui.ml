@@ -188,7 +188,7 @@ let font' ui h file min max fonts =
 
 let font ui h =
   let max = if h < 10 then 0x80 else 0x2800 in
-  font' ui h File.(assets // "tahoma.ttf") 0x0020 max ui.fonts
+  font' ui h File.(assets // "font.ttf") 0x0020 max ui.fonts
 
 
 (* Images *)
@@ -646,8 +646,8 @@ let labeled_button ui r ?(protrude=true) hsym c txt modkey focus active =
     | Some false -> inactive_color ui
     | Some true -> c
   in
-  let xsym = (x + (w - hsym)/2) in
-  let ysym = (y + (h - hsym)/2) + Bool.to_int (status = `Pressed) in
+  let xsym = (x + (w - hsym + 1)/2) in
+  let ysym = (y + (h - hsym + 1)/2) + Bool.to_int (status = `Pressed) in
   (match txt with
   | "" -> ()
   | "[]" ->
@@ -1890,9 +1890,10 @@ let browser_pp_pre nest folded =
 let browser_entry_text_area ui area geo (tab : _ Table.t) i nest folded =
   let p, x, y, w, _ = rich_table_inner_area ui area geo in
   let mw = (geo.gutter_w + 1) / 2 in  (* inner width padding *)
+  let correction = if Api.is_mac then -2 else +1 in
   let dx = max 0
     (Draw.text_width ui.win geo.row_h (font ui geo.row_h)
-      (browser_pp_pre nest folded) + mw - tab.hscroll - 2 (* correction? *))
+      (browser_pp_pre nest folded) + mw - tab.hscroll + correction)
   and dy = (i - tab.vscroll) * geo.row_h in
   (p, x + dx, y + dy, (if w < 0 then w else w - dx), geo.row_h)
 
