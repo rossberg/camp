@@ -184,13 +184,6 @@ let focus' ui x y w h c style =
   | `Inside ->
     Draw.gradient ui.win x y w b c1 `Vertical c2;
     Draw.gradient ui.win x (y + h - b) w b c2 `Vertical c1
-(*
-    Draw.gradient ui.win x y b h c1 `Horizontal c2;
-    Draw.gradient ui.win (x + w - b) y b h c2 `Horizontal c1
-*)
-(*
-    Draw.fill ui.win x y w h (`Trans (c, 0x20))
-*)
 
 let focus ui area =
   let x, y, w, h = dim ui area in
@@ -558,18 +551,6 @@ let lcd ui area d =
     | '7' -> [`C; `S; `NW; `SW]
     | '8' -> []
     | '9' -> [`SW]
-(*
-    | '0' -> [`N; `S; `NW; `SW; `NE; `SE]
-    | '1' -> [`NE; `SE]
-    | '2' -> [`N; `S; `C; `SW; `NE]
-    | '3' -> [`N; `S; `C; `NE; `SE]
-    | '4' -> [`C; `NW; `NE; `SE]
-    | '5' -> [`N; `S; `C; `NW; `SE]
-    | '6' -> [`N; `S; `C; `NW; `SW; `SE]
-    | '7' -> [`N; `NE; `SE]
-    | '8' -> [`N; `S; `C; `NW; `SW; `NE; `SE]
-    | '9' -> [`N; `S; `C; `NW; `NE; `SE]
-*)
     | _ -> []
     )
 
@@ -709,16 +690,6 @@ let volume_bar ui area v =
   if status <> `Pressed then v else
   let _, my = Mouse.pos ui.win in
   clamp 0.0 1.0 (float (y + h - my) /. float h)
-(*
-  let (x, y, w, h), status = widget ui area no_modkey in
-  let h' = int_of_float (v *. float (h - 2)) in
-  Draw.fill ui.win x y w h (fill ui false);
-  Draw.fill ui.win x (y + h - h' - 1) w h' (fill true);
-  Draw.rect ui.win x y w h (border ui status);
-  if status <> `Pressed then v else
-  let _, my = Mouse.pos ui.win in
-  clamp 0.0 1.0 (float (y + h - my) /. float h)
-*)
 
 
 type drag += Scroll_bar_page of {last_repeat : time}
@@ -1027,38 +998,6 @@ let header ui area gw cols (titles, sorting) hscroll =
     `Click i
 
   | _ -> `None
-
-(*
-  match drag_status ui area (1, max_int) with
-  | `None | `Take | `Drop -> `None
-  | `Click -> find_heading mx
-  | `Drag ((dx, _), _, _) ->
-    if dx = 0 then `None else
-    match find_gutter (mx - dx) with
-    | `None -> `None
-    | `Gutter i ->
-      let add_fst d (x, y) = (max 0 (x + d), y) in
-      cols.(i) <- add_fst dx cols.(i);
-      if i + 1 < Array.length cols && Key.is_modifier_down `Shift then
-        cols.(i + 1) <- add_fst (-dx) cols.(i + 1);
-      `Resize
-    | `Header i ->
-      match find_gutter mx with
-      | `None | `Gutter _ -> `None
-      | `Header j ->
-        if i = j then `None else
-        let save_cols = Array.copy cols in
-        let col = cols.(i) in
-        if i < j then
-          Array.blit cols (i + 1) cols i (j - i)
-        else
-          Array.blit cols j cols (j + 1) (i - j);
-        cols.(j) <- col;
-        (* Undo change if new position is not unambiguous. *)
-        match find_gutter mx with
-        | `Header k when k = j -> `Reorder
-        | _ -> Array.blit save_cols 0 cols 0 (Array.length cols); `None
-*)
 
 
 (* Text Input Field *)
