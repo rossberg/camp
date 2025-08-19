@@ -59,33 +59,40 @@ val nocover : t -> Api.image
 (* Input *)
 
 type motion = [`Unmoved | `Moving | `Moved]
-type way = [`Inside | `Outside | `Outward | `Inward]
+type trajectory = [`Inside | `Outside | `Outward | `Inward]
 
 val key : t -> modifier list * key -> bool -> bool
 val mouse : t -> area -> side -> bool
-val drag : t -> area -> size -> [`None | `Click | `Take | `Drag of size * way * motion | `Drop]
+val drag : t -> area -> size ->
+  [`None | `Click | `Take | `Drag of size * motion * trajectory | `Drop]
 val wheel : t -> area -> float * float
 
-(* Widgets *)
+(* Focus *)
 
-type align = [`Left | `Center | `Right]
-type inversion = [`Regular | `Inverted]
+val focus : t -> area -> unit
+val mouse_focus : t -> area -> int -> unit
+
+(* Window *)
 
 val start : t -> unit
 val finish : t -> int -> size -> size -> unit
+
 val delay : t -> (unit -> unit) -> unit
+
+(* Simple Widgets *)
+
+type align = [`Left | `Center | `Right]
+type inversion = [`Regular | `Inverted]
 
 val label : t -> area -> align -> string -> unit
 val indicator : t -> color -> area -> bool -> unit
 val lcd : t -> area -> char -> unit
 
-val focus : t -> area -> unit
-val mouse_reflection : t -> area -> int -> unit
-
 val box : t -> area -> color -> unit
 val text : t -> area -> align -> inversion -> bool -> string -> unit
 val color_text : t -> area -> align -> color -> inversion -> bool -> string -> unit
 val ticker : t -> area -> string -> unit
+
 val edit_text : t -> area -> string -> int -> (int * int) option -> bool -> string * int * (int * int) option * Uchar.t
 val rich_edit_text : t -> area -> Edit.t -> Uchar.t
 
@@ -99,6 +106,8 @@ val scroll_bar : t -> area -> Api.orientation -> float -> float -> float
 
 val divider : t -> area -> Api.orientation -> int -> int -> int -> int
 
+(* Table *)
+
 type order = [`Asc | `Desc]
 type sorting = (int * order) list
 type column = int * align
@@ -110,8 +119,6 @@ val table : t -> area -> int -> int -> column array -> row array -> int ->
   int option
 val header : t -> area -> int -> column array -> heading -> int ->
   [`Click of int | `Resize of int array | `Reorder of int array | `Menu of int option | `None]
-
-(* Rich widgets *)
 
 type cached
 
@@ -129,7 +136,7 @@ type table_action =
   | `Select
   | `Scroll
   | `Move of int
-  | `Drag of int * way * motion
+  | `Drag of int * motion * trajectory
   | `Drop
   | `Menu of int option
   | `None
@@ -164,6 +171,8 @@ type browser_action =
   | `Fold of int
   ]
 
+(* Browser *)
+
 val browser :
   t ->
   area ->
@@ -174,6 +183,8 @@ val browser :
 
 val browser_entry_text_area :
   t -> area -> rich_table -> ('a, cached) Table.t -> int -> int -> bool option -> area
+
+(* Grid *)
 
 val grid :
   t -> area -> int -> int -> int ->
@@ -205,6 +216,7 @@ val grid_table_mouse : t -> area -> grid_table -> ('a, cached) Table.t ->
 val grid_table_drag : t -> area -> grid_table ->
   [`Left | `Inside] -> ('a, cached) Table.t -> unit
 
+(* Pop-up Menu *)
 
 type menu_entry =
   [`Separator | `Entry of color * string * (modifier list * key) * bool]

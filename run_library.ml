@@ -340,7 +340,7 @@ let run_view (st : state)
     if editable then
       Library.move_selected lib delta;
 
-  | `Drag (delta, way, motion) ->
+  | `Drag (delta, motion, traj) ->
     (* Drag: adjust cursor *)
     if Api.Key.are_modifiers_down [] then
     (
@@ -348,7 +348,7 @@ let run_view (st : state)
       if Table.num_selected tab > 0 && lib.tracks.entries <> [||] then
       (
         if motion <> `Unmoved then Run_view.set_drop_cursor st;
-        (match way with
+        (match traj with
         | `Inside | `Inward when editable -> ()
         | `Inside | `Inward | `Outside | `Outward ->
           Run_view.drag_on_playlist st;
@@ -365,7 +365,7 @@ let run_view (st : state)
             (* Start of drag & drop: remember original configuration *)
             Table.push_undo lib.tracks;
           );
-          (match way with
+          (match traj with
           | `Outward ->
             (* Leaving area: snap back to original state *)
             Library.undo lib;
@@ -379,7 +379,7 @@ let run_view (st : state)
           (* Positional movement *)
           if delta <> 0 then
           (
-            match way with
+            match traj with
             | `Inside | `Inward ->
               Library.move_selected lib delta;
               (* Erase intermediate new state *)
@@ -563,7 +563,7 @@ let run (st : state) =
     Library.refresh_artists_albums_tracks lib;
     if Api.Mouse.is_pressed `Left then State.focus_library browser st;
 
-  | `Drag (_, _, motion) ->
+  | `Drag (_, motion, _) ->
     (* Drag: adjust cursor *)
     if Api.Key.are_modifiers_down [] then
     (

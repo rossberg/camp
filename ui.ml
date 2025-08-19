@@ -19,7 +19,7 @@ type t =
   mutable palette : int;
   mutable panes : rect array;
   mutable modal : bool;             (* whether a pop-up menu is shown *)
-  mutable mouse_owned : bool;       (* whether mouse was owned by an element *)
+  mutable mouse_owned : bool;       (* whether mouse was owned by a widget *)
   mutable drag_origin : point;      (* starting position of mouse drag *)
   mutable drag_extra : drag;        (* associated data for drag operation *)
   mutable delayed : (unit -> unit) list;   (* draw at end of frame *)
@@ -170,6 +170,45 @@ let border ui = function
   | _ -> `Black
 
 
+(* Focus *)
+
+let focus' ui x y w h c style =
+  let c1 = `Trans (c, 0x60 (* 0x40 *)) in
+  let c2 = `Trans (c, 0x00) in
+  let b = 8 (* 6 *) in
+  match style with
+  | `Above ->
+    Draw.gradient ui.win x y w b c1 `Vertical c2;
+  | `Left ->
+    Draw.gradient ui.win x y b h c1 `Horizontal c2;
+  | `Inside ->
+    Draw.gradient ui.win x y w b c1 `Vertical c2;
+    Draw.gradient ui.win x (y + h - b) w b c2 `Vertical c1
+(*
+    Draw.gradient ui.win x y b h c1 `Horizontal c2;
+    Draw.gradient ui.win (x + w - b) y b h c2 `Horizontal c1
+*)
+(*
+    Draw.fill ui.win x y w h (`Trans (c, 0x20))
+*)
+
+let focus ui area =
+  let x, y, w, h = dim ui area in
+  focus' ui x y w h (text_color ui) `Inside
+
+
+let mouse_focus' ui r =
+  let mx, my = Mouse.pos ui.win in
+  Draw.gradient_circ ui.win (mx - r) (my - r) (2 * r) (2 * r)
+    (`Trans (`White, 0x20)) (`Trans (`White, 0x00))
+
+let mouse_focus ui area r =
+  let x, y, w, h = dim ui area in
+  Draw.clip ui.win x y w h;
+  mouse_focus' ui r;
+  Draw.unclip ui.win
+
+
 (* Fonts *)
 
 let font_is_sdf ui = ui.font_sdf
@@ -222,15 +261,12 @@ let background ui x y w h =
   Draw.fill ui.win (x + 1) (y + h - 2) (w - 1) 2 (`Gray 0x10);
   Draw.fill ui.win (x + w - 1) y 1 (h - 2) (`Gray 0x10);
 
-  let mx, my = Mouse.pos ui.win in
-  let r = 50 in
-  Draw.gradient_circ ui.win (mx - r) (my - r) (2 * r) (2 * r)
-    (`Trans (`White, 0x20)) (`Trans (`White, 0x00));
+  mouse_focus' ui 50;
 
   Draw.unclip ui.win
 
 
-(* Window Background *)
+(* Window *)
 
 type drag += Move of {target : point}
 type drag += Resize of {overshoot : size}
@@ -335,7 +371,7 @@ let delay ui f =
   ui.delayed <- f :: ui.delayed
 
 
-(* Input elements *)
+(* Input Status *)
 
 let no_modkey = ([], `None)
 
@@ -385,7 +421,7 @@ let mouse_status ui r = function
 
 
 type motion = [`Unmoved | `Moving | `Moved]
-type way = [`Inside | `Outside | `Outward | `Inward]
+type trajectory = [`Inside | `Outside | `Outward | `Inward]
 type drag += Drag of {pos : point; moved : bool; inside : bool}
 
 let drag_status ui r (stepx, stepy) =
@@ -411,20 +447,20 @@ let drag_status ui r (stepx, stepy) =
     let moved' = Mouse.is_drag `Left in
     let inside' = Api.inside m r in
     ui.drag_extra <- Drag {pos; moved = moved'; inside = inside'};
-    let way =
-      match inside, inside' with
-      | true, true -> `Inside
-      | true, false -> `Outward
-      | false, true -> `Inward
-      | false, false -> `Outside
-    in
     let motion =
       match moved, moved' with
       | true, _ -> `Moved
       | false, true -> `Moving
       | false, false -> `Unmoved
     in
-    `Drag ((dx', dy'), way, motion)
+    let traj =
+      match inside, inside' with
+      | true, true -> `Inside
+      | true, false -> `Outward
+      | false, true -> `Inward
+      | false, false -> `Outside
+    in
+    `Drag ((dx', dy'), motion, traj)
   | _ -> assert false
 
 let wheel_status ui r =
@@ -439,7 +475,14 @@ let wheel ui r = wheel_status ui (dim ui r)
 let drag ui r eps = drag_status ui (dim ui r) eps
 
 
-(* Auxiliary UI elements *)
+(* Decorative Widgets *)
+
+let indicator ui c r on =
+  let x, y, w, h = dim ui r in
+  Draw.fill_circ ui.win x y w h (if on then c else unlit_color c);
+  Draw.fill_circ ui.win (x + w/4) (y + h/4) (min 2 (w/3)) (min 2 (h/3))
+    (`Trans (`White, if on then 0xe0 else 0x30));
+  Draw.circ ui.win x y w h (border ui `Untouched)
 
 let colored_label ui c r align s =
   let x, y, w, h = dim ui r in
@@ -454,13 +497,6 @@ let colored_label ui c r align s =
 
 let label ui r align s =
   colored_label ui `White r align s
-
-let indicator ui c r on =
-  let x, y, w, h = dim ui r in
-  Draw.fill_circ ui.win x y w h (if on then c else unlit_color c);
-  Draw.fill_circ ui.win (x + w/4) (y + h/4) (min 2 (w/3)) (min 2 (h/3))
-    (`Trans (`White, if on then 0xe0 else 0x30));
-  Draw.circ ui.win x y w h (border ui `Untouched)
 
 let lcd' ui r' c elem =
   let open Draw in
@@ -537,43 +573,9 @@ let lcd ui r d =
     )
 
 
-let focus' ui x y w h c style =
-  let c1 = `Trans (c, 0x60 (* 0x40 *)) in
-  let c2 = `Trans (c, 0x00) in
-  let b = 8 (* 6 *) in
-  match style with
-  | `Above ->
-    Draw.gradient ui.win x y w b c1 `Vertical c2;
-  | `Left ->
-    Draw.gradient ui.win x y b h c1 `Horizontal c2;
-  | `Inside ->
-    Draw.gradient ui.win x y w b c1 `Vertical c2;
-    Draw.gradient ui.win x (y + h - b) w b c2 `Vertical c1
-(*
-    Draw.gradient ui.win x y b h c1 `Horizontal c2;
-    Draw.gradient ui.win (x + w - b) y b h c2 `Horizontal c1
-*)
-(*
-    Draw.fill ui.win x y w h (`Trans (c, 0x20))
-*)
+(* Passive Widgets *)
 
-
-let focus ui area =
-  let x, y, w, h = dim ui area in
-  focus' ui x y w h (text_color ui) `Inside
-
-let mouse_reflection ui area r =
-  let x, y, w, h = dim ui area in
-  Draw.clip ui.win x y w h;
-  let mx, my = Mouse.pos ui.win in
-  Draw.gradient_circ ui.win (mx - r) (my - r) (2 * r) (2 * r)
-    (`Trans (`White, 0x20)) (`Trans (`White, 0x00));
-  Draw.unclip ui.win
-
-
-(* Passive UI Elements *)
-
-let element ui r ?(focus = false) modkey =
+let widget ui r ?(focus = false) modkey =
   let r' = dim ui r in
   r',
   match mouse_status ui r' `Left, key_status ui modkey focus with
@@ -584,11 +586,11 @@ let element ui r ?(focus = false) modkey =
 
 
 let box ui r c =
-  let (x, y, w, h), _ = element ui r no_modkey in
+  let (x, y, w, h), _ = widget ui r no_modkey in
   Draw.fill ui.win x y w h c
 
 let color_text ui r align c inv active s =
-  let (x, y, w, h), _status = element ui r no_modkey in
+  let (x, y, w, h), _status = widget ui r no_modkey in
   let fg = mode c active in
   let bg = `Black in
   let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
@@ -606,7 +608,7 @@ let text ui r align =
   color_text ui r align (text_color ui)
 
 let ticker ui r s =
-  let (x, y, w, h), _status = element ui r no_modkey in
+  let (x, y, w, h), _status = widget ui r no_modkey in
   Draw.fill ui.win x y w h `Black;
   let tw = Draw.text_width ui.win h (font ui h) s in
   Draw.clip ui.win x y w h;
@@ -618,12 +620,12 @@ let ticker ui r s =
 (* Buttons *)
 
 let invisible_button ui r mods modkey focus =
-  let _, status = element ui r no_modkey in
+  let _, status = widget ui r no_modkey in
   focus && status = `Released && Key.are_modifiers_down mods ||
   key ui modkey focus
 
 let button ui r ?(protrude=true) modkey focus active =
-  let (x, y, w, h), status = element ui r modkey ~focus in
+  let (x, y, w, h), status = widget ui r modkey ~focus in
   let img = get_img ui ui.img_button in
   let sx, sy = if status = `Pressed then 800, 400 else 0, 200 in
   Api.Draw.image_part ui.win x y w h sx sy w h img;
@@ -638,7 +640,7 @@ let button ui r ?(protrude=true) modkey focus active =
   | Some active -> if status = `Released then not active else active
 
 let labeled_button ui r ?(protrude=true) hsym c txt modkey focus active =
-  let (x, y, w, h), status = element ui r modkey ~focus in
+  let (x, y, w, h), status = widget ui r modkey ~focus in
   let result = button ui r ~protrude modkey focus active in
   let c =
     match active with
@@ -682,7 +684,7 @@ let labeled_button ui r ?(protrude=true) hsym c txt modkey focus active =
 (* Bars *)
 
 let progress_bar ui r v =
-  let (x, y, w, h), status = element ui r no_modkey in
+  let (x, y, w, h), status = widget ui r no_modkey in
   Draw.fill ui.win x y w h (fill ui false);
   Draw.fill ui.win x y (int_of_float (v *. float w)) h (fill ui true);
   for i = 0 to w / 2 - 1 do
@@ -695,7 +697,7 @@ let progress_bar ui r v =
 
 
 let volume_bar ui r v =
-  let (x, y, w, h), status = element ui r no_modkey in
+  let (x, y, w, h), status = widget ui r no_modkey in
   let h' = int_of_float ((1.0 -. v) *. float h) in
   Draw.fill ui.win (x + w - 2) y 2 h (fill ui true);
   Draw.tri ui.win (x + 2) y (x + w - 2) (y + h) (x + w - 2) y (fill ui true);
@@ -707,7 +709,7 @@ let volume_bar ui r v =
   let _, my = Mouse.pos ui.win in
   clamp 0.0 1.0 (float (y + h - my) /. float h)
 (*
-  let (x, y, w, h), status = element ui r no_modkey in
+  let (x, y, w, h), status = widget ui r no_modkey in
   let h' = int_of_float (v *. float (h - 2)) in
   Draw.fill ui.win x y w h (fill ui false);
   Draw.fill ui.win x (y + h - h' - 1) w h' (fill true);
@@ -723,7 +725,7 @@ type drag += Scroll_bar_drag of {value : float; mx : int; my : int}
 
 let scroll_bar ui r orient v len =
   assert (v +. len <= 1.0);
-  let (x, y, w, h), status = element ui r no_modkey in
+  let (x, y, w, h), status = widget ui r no_modkey in
   Draw.fill ui.win x y w h (fill ui false);
   let x', y', w', h' as r' =
     match orient with
@@ -788,7 +790,7 @@ let scroll_bar ui r orient v len =
 type drag += Divide of {overshoot : size}
 
 let divider ui r orient v minv maxv =
-  let (x, y, w, h), status = element ui r no_modkey in
+  let (x, y, w, h), status = widget ui r no_modkey in
   let proj = match orient with `Horizontal -> fst | `Vertical -> snd in
   let inj v = match orient with `Horizontal -> v, y | `Vertical -> x, v in
   let cursor = match orient with `Horizontal -> `E_W | `Vertical -> `N_S in
@@ -887,7 +889,7 @@ let table' ui area gw ch cols rows hscroll =
   ) cols
 
 let table ui area gw ch cols rows hscroll =
-  let (_, y, _, _), status = element ui area no_modkey in
+  let (_, y, _, _), status = widget ui area no_modkey in
   table' ui area gw ch cols rows hscroll;
   if status = `Pressed || status = `Released then
     let _, my = Mouse.pos ui.win in
@@ -905,7 +907,7 @@ type drag += Header_resize of {mouse_x : int; col : int}
 type drag += Header_reorder of {mouse_x : int; col : int; moved : bool}
 
 let header ui area gw cols (titles, sorting) hscroll =
-  let (x, y, w, h) as r, status = element ui area no_modkey in
+  let (x, y, w, h) as r, status = widget ui area no_modkey in
   let texts = Array.map (fun s -> `Text s) titles in
   ignore (table ui area gw h cols [|text_color ui, `Inverted, texts|] hscroll);
 
@@ -1029,7 +1031,7 @@ let header ui area gw cols (titles, sorting) hscroll =
   match drag_status ui r (1, max_int) with
   | `None | `Take | `Drop -> `None
   | `Click -> find_heading mx
-  | `Drag ((dx, _), _) ->
+  | `Drag ((dx, _), _, _) ->
     if dx = 0 then `None else
     match find_gutter (mx - dx) with
     | `None -> `None
@@ -1058,972 +1060,7 @@ let header ui area gw cols (titles, sorting) hscroll =
 *)
 
 
-(* Rich Tables *)
-
-type cached = buffer
-
-type rich_table =
-  { gutter_w : int;
-    row_h : int;
-    scroll_w : int ;
-    scroll_h : int;
-    refl_r : int;
-    has_heading : bool
-  }
-
-type table_action =
-  [ `Click of int option
-  | `Select
-  | `Scroll
-  | `Move of int
-  | `Drag of int * way * motion
-  | `Drop
-  | `Menu of int option
-  | `None
-  ]
-
-type rich_table_action =
-  [ table_action
-  | `Sort of int
-  | `Resize of int array   (* new sizes *)
-  | `Reorder of int array  (* permutation *)
-  | `HeadMenu of int option
-  ]
-
-let rich_table_inner_area _ui area geo =
-  let p, ax, ay, aw, ah = area in
-  let ty = if not geo.has_heading then ay else ay + geo.row_h + 2 in
-  let th =
-    ah -
-    (if ah < 0 then 0 else ty - ay) -
-    (if geo.scroll_h = 0 then 0 else geo.scroll_h + 1)
-  in
-  (p, ax, ty, aw - geo.scroll_w - 1, th)
-
-let rich_table_mouse ui area geo tab =
-  let area' = rich_table_inner_area ui area geo in
-  let (_, y, _, _) as r = dim ui area' in
-  let (_, my) as m = Mouse.pos ui.win in
-  if inside m r then
-    Some (min (Table.length tab) ((my - y) / geo.row_h + tab.vscroll))
-  else
-    None
-
-let rich_table_drag ui area geo style tab =
-  match rich_table_mouse ui area geo tab with
-  | None -> ()
-  | Some i ->
-    let area' = rich_table_inner_area ui area geo in
-    let x, y, w, _ = dim ui area' in
-    focus' ui x (y + (i - tab.vscroll) * geo.row_h) w geo.row_h `White style
-
-let adjust_cache tab w h =
-  Option.iter (fun buf ->
-    if Buffer.size buf <> (w, h) then
-    (
-      Table.uncache tab;
-      Buffer.dispose buf;
-    )
-  ) tab.cache;
-  match tab.cache with
-  | Some buf -> buf
-  | None ->
-    let buf = Buffer.create w h in
-    Table.cache tab buf;
-    buf
-
-let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_row =
-  assert (geo.has_heading = Option.is_some header_opt);
-  let p, ax, ay, aw, ah = area in
-  let rh = geo.row_h in
-  let _, _, ty, tw, th = rich_table_inner_area ui area geo in
-  let header_area = (p, ax, ay, tw, rh) in
-  let table_area = (p, ax, ty, tw, th) in
-  let vscroll_area = 
-    (p, (if aw < 0 then tw else ax + aw + 1), ay, geo.scroll_w, ah) in
-  let hscroll_area =
-    (p, ax, (if ah < 0 then ah - geo.scroll_h else ty + th + 1), tw, geo.scroll_h) in
-  let (x, y, w, h) as r = dim ui table_area in
-
-  let shift = Key.are_modifiers_down [`Shift] in
-  let command = Key.are_modifiers_down [`Command] in
-
-  Mutex.protect tab.mutex (fun () ->
-    let len = Table.length tab in
-    let page = max 1 (int_of_float (Float.floor (float h /. float rh))) in
-    let limit = min len (tab.vscroll + page) in
-    (* Correct scrolling position for possible resize *)
-    Table.adjust_vscroll tab tab.vscroll page;
-
-    (* Body *)
-    let buf = adjust_cache tab w h in
-    if not ui.buffered || tab.dirty || Draw.frame ui.win mod 10 = 7 then
-    (
-      let rows =
-        Array.init (min page len) (fun i ->
-          let i = tab.vscroll + i in
-          let c, cols = pp_row i in
-          let inv = if Table.is_selected tab i then `Inverted else `Regular in
-          c, inv, cols
-        )
-      in
-      if ui.buffered then Draw.buffered ui.win buf;
-      let area' = if ui.buffered then (-1, 0, 0, w, h) else table_area in
-      table' ui area' geo.gutter_w rh cols rows tab.hscroll;
-      if ui.buffered then Draw.unbuffered ui.win;
-      Table.clean tab;
-    );
-    if ui.buffered then Draw.buffer ui.win x y buf;
-
-    let mx, my = Mouse.pos ui.win in
-    let i = tab.vscroll + (my - y) / rh in
-    let _, status = element ui table_area no_modkey in
-    (* Mirrors logic in table *)
-    let left_mouse_used = (status = `Pressed || status = `Released) in
-
-    let result =
-      if not ui.modal && Mouse.is_pressed `Right then
-      (
-        if inside (mx, my) r then
-          `Menu (if i >= limit then None else Some i)
-        else
-          `None
-      )
-      else if not left_mouse_used then
-        `None
-      else if not (shift || command) then
-      (
-        match drag_status ui r (max_int, rh) with
-        | `None -> `None
-
-        | `Take ->
-          (* Click *)
-          if i >= limit then
-          (
-            (* Click on empty space *)
-            Table.deselect_all tab;
-            `Click None
-          )
-          else
-          (
-            (* Click on entry *)
-            if not (Table.is_selected tab i) then
-              Table.deselect_all tab;
-            if not (Mouse.is_doubleclick `Left) then
-              Table.select tab i i;
-            `Click (Some i)
-          )
-
-        | `Click ->
-          (* Click-release: deselect all except for clicked entry *)
-          Table.deselect_all tab;
-          if i >= limit then
-          (
-            (* Click on empty space *)
-            `Click None
-          )
-          else
-          (
-            (* Click on entry *)
-            Table.select tab i i;
-            `Click (Some i)
-          )
-
-        | `Drag ((_, dy), way, motion) -> `Drag (dy, way, motion)
-
-        | `Drop -> `Drop
-      )
-      else if command && not ui.modal && Mouse.is_pressed `Left then
-      (
-        (* Cmd-click on entry: toggle selection of clicked entry *)
-        if i >= limit then
-          `Click None
-        else
-        (
-          if Table.is_selected tab i then
-            Table.deselect tab i i
-          else
-            Table.select tab i i;
-          `Click (Some i);
-        )
-      )
-      else if shift && not ui.modal && Mouse.is_down `Left then
-      (
-        (* Shift-click/drag on playlist: adjust selection range *)
-        let default = if i < len then (i, i) else (0, 0) in
-        let pos1, pos2 = Option.value tab.sel_range ~default in
-        let i' = max 0 (min i (len - 1)) in
-        let old_selection = tab.selected in
-        if tab.sel_range = None || Table.is_selected tab pos1 then
-        (
-          (* Entry was already selected: deselect old range, select new range *)
-          Table.deselect tab pos2 i';
-          Table.select tab pos1 i'
-        )
-        else
-        (
-          (* Track was not selected: select old range, deselect new range *)
-          Table.select tab pos2 i';
-          Table.deselect tab pos1 i'
-        );
-        if not ui.modal && Mouse.is_pressed `Left then
-          `Click (if i < len then Some i else None)
-        else if Table.IntSet.equal tab.selected old_selection then
-          `None
-        else
-          `Select
-      )
-      else `None
-    in
-
-    (* Header *)
-    let result =
-      match header_opt with
-      | None -> result
-      | Some heading ->
-        match header ui header_area geo.gutter_w cols heading tab.hscroll with
-        | `Click i -> Table.dirty tab; `Sort i
-        | `Resize ws -> Table.dirty tab; `Resize ws
-        | `Reorder perm -> Table.dirty tab; `Reorder perm
-        | `Menu i -> `HeadMenu i
-        | `None -> result
-    in
-
-    (* Vertical scrollbar *)
-    let wdx, wdy = wheel_status ui r in
-    let wdx, wdy = if Float.abs wdx > Float.abs wdy then wdx, 0.0 else 0.0, wdy in
-    let vwheel = not shift && len > page || wdy = 0.0 in
-    let h' = page * rh in
-    let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * rh)) in
-    let pos = if len = 0 then 0.0 else float tab.vscroll /. float len in
-    let coeff = max 1.0 (float page /. 4.0) /. float (len - page) in
-    let wheel = if vwheel then coeff *. wdy else 0.0 in
-    let pos' = scroll_bar ui vscroll_area `Vertical pos ext -. wheel in
-    let result =
-      if result <> `None || pos = pos' then result else
-      (
-        Table.set_vscroll tab
-          (max 0 (int_of_float (Float.round (pos' *. float len)))) page;
-        `Scroll
-      )
-    in
-
-    (* Horizontal scrollbar *)
-    let result =
-      if geo.scroll_h = 0 then result else
-      let vw = Array.fold_left (fun w (cw, _) -> w + cw + geo.gutter_w) 0 cols in
-      let vw' = max vw (tab.hscroll + w) in
-      let ext = if vw' = 0 then 1.0 else min 1.0 (float w /. float vw') in
-      let pos = if vw' = 0 then 0.0 else float tab.hscroll /. float vw' in
-      let wheel = if vwheel then wdx else wdy in
-      let pos' = scroll_bar ui hscroll_area `Horizontal pos ext -. 0.05 *. wheel in
-      if result <> `None || pos = pos' then result else
-      (
-        Table.set_hscroll tab
-          (clamp 0 (max 0 (vw' - w)) (int_of_float (Float.round (pos' *. float vw'))));
-        `Scroll
-      )
-    in
-
-    (* Focus and mouse reflection *)
-    if tab.focus && len > 0 then focus ui table_area;
-    mouse_reflection ui area geo.refl_r;
-
-    (* Keys *)
-    let result =
-      if result <> `None || not tab.focus then result else
-      (
-        let d =
-          if key_status' ui (`Arrow `Up) = `Pressed then -1 else
-          if key_status' ui (`Arrow `Down) = `Pressed then +1 else
-          if key_status' ui (`Page `Up) = `Pressed then -page else
-          if key_status' ui (`Page `Down) = `Pressed then +page else
-          if key_status' ui (`End `Up) = `Pressed then -len else
-          if key_status' ui (`End `Down) = `Pressed then +len else
-          0
-        in
-        if min len (abs d) > 0 then
-        (
-          (* Cursor movement *)
-          let has_sel = tab.sel_range <> None in
-          let default =
-            0, if not shift then tab.vscroll else if d < 0 then len else -1 in
-          let pos1, pos2 = Option.value tab.sel_range ~default in
-          let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
-
-          if not (shift || command) then
-          (
-            (* Plain cursor movement: deselect all, reselect relative to range end *)
-            if has_sel then
-            (
-              Table.deselect_all tab;
-              Table.select tab i i;
-              Table.adjust_vscroll tab i page;
-              `Select
-            )
-            else
-            (
-              Table.set_vscroll tab i page;
-              `Scroll
-            )
-          )
-          else if shift then
-          (
-            (* Shift-cursor movement: adjust selection range *)
-            if not has_sel then
-            (
-              (* No selection yet: range from end of playlist *)
-              Table.select tab (len - 1) i;
-            )
-            else if Table.is_selected tab pos1 then
-            (
-              (* Range start was already selected: deselect old range, select new *)
-              Table.deselect tab (max 0 pos2) i;
-              Table.select tab pos1 i;
-            )
-            else
-            (
-              (* Range start was not selected: select old range, deselect new *)
-              Table.select tab (max 0 pos2) i;
-              Table.deselect tab pos1 i;
-            );
-            Table.adjust_vscroll tab i page;
-            `Select
-          )
-          else if command && has_sel then
-          (
-            (* Cmd-cursor movement: move selection *)
-            Table.adjust_vscroll tab i page;
-            `Move d
-          )
-          else `None
-        )
-        else if command then
-        (
-          if key_status' ui (`Char 'A') = `Pressed then
-          (
-            (* Select-all key pressed: select all *)
-            Table.select_all tab;
-            `Select
-          )
-          else if key_status' ui (`Char 'N') = `Pressed then
-          (
-            (* Deselect-all key pressed: deselect all *)
-            Table.deselect_all tab;
-            `Select
-          )
-          else if key_status' ui (`Char 'I') = `Pressed then
-          (
-            (* Selection inversion key pressed: invert selection *)
-            Table.select_invert tab;
-            `Select
-          )
-          else `None
-        )
-        else
-        (
-          let ch = Key.char () in
-          if ch >= Uchar.of_int 32 then
-          (
-            (* Plain character pressed: scroll to first entry *)
-            let b = Bytes.make 8 '\000' in
-            let s = Bytes.sub_string b 0 (Bytes.set_utf_8_uchar b 0 ch) in
-            let col =
-              match header_opt with
-              | Some (_, (col, _)::_) -> col  (* primary sort key *)
-              | _ -> 0
-            in
-            let rec find i =
-              if i = len then i else
-              let _, row = pp_row i in  (* TODO: only pp relevant column *)
-              match row.(col) with
-              | `Text s' when Data.compare_utf_8 s s' <= 0 -> i
-              | _ -> find (i + 1)
-            in
-            let i = find 0 in
-            if i < len then
-            (
-              Table.set_vscroll tab i page;
-              `Scroll
-            )
-            else `None
-          )
-          else `None
-        )
-      )
-    in
-
-    let result =
-      if result <> `None || not tab.focus || geo.scroll_h = 0 then result else
-      (
-        let step = if shift then 10 else 50 in
-        let dh =
-          if key_status' ui (`Arrow `Left) = `Pressed then -step else
-          if key_status' ui (`Arrow `Right) = `Pressed then +step else
-          0
-        in
-        if abs dh > 0 && not command then
-        (
-          Table.set_hscroll tab (tab.hscroll + dh);
-          `Scroll;
-        )
-        else `None
-      )
-    in
-
-    result
-  )
-
-
-(* Grid *)
-
-let grid' ui area gw iw ch matrix =
-  let x, y, w, h = dim ui area in
-  Draw.fill ui.win x y w h `Black;
-  let mw = (gw + 1)/2 in
-  let font = font ui ch in
-  let nrows = Array.length matrix in
-  let ncols = if nrows = 0 then 0 else Array.length matrix.(0) in
-  for i = 0 to ncols - 1 do
-    let cx = x + mw + i * (iw + gw) in
-    Draw.clip ui.win (cx - 1) y (iw + 2) h;
-    for j = 0 to nrows - 1 do
-      Option.iter (fun (img, c, inv, txt) ->
-        let cy = y + mw + j * (iw + gw + ch) in
-        let fg, bg = if inv = `Inverted then `Black, c else c, `Black in
-        if bg <> `Black then
-          Draw.fill ui.win (cx - 1) (cy - 1) (iw + 2) (iw + ch + 2) bg;
-        let iw', ih' = Image.size img in
-        let scale = float iw /. float (max iw' ih') in
-        let dx = int_of_float ((float iw -. scale *. float iw') /. 2.0) in
-        let dy = int_of_float ((float iw -. scale *. float ih') /. 2.0) in
-        Api.Draw.image_part ui.win (cx + dx) (cy + dy) (iw - 2*dx) (iw - 2*dy) 0 0 iw' ih' img;
-        let tw = Draw.text_width ui.win ch font txt in
-        let dx = max 0 ((iw - tw - 2) / 2) in
-        Draw.text ui.win (cx + dx + 1) (cy + iw) ch fg font txt;
-        if tw > iw - 2 then
-        (
-          let rw = min (iw - 2) 16 in
-          Draw.gradient ui.win (cx + iw - rw + 1) (cy + iw) rw ch
-            (`Trans (bg, 0)) `Horizontal bg;
-        );
-      ) matrix.(j).(i)
-    done;
-    Draw.unclip ui.win
-  done
-
-
-let grid ui area gw iw ch matrix =
-  let (x, y, _, _), status = element ui area no_modkey in
-  grid' ui area gw iw ch matrix;
-  if status = `Pressed || status = `Released then
-    let mx, my = Mouse.pos ui.win in
-    Some ((mx - x) / (iw + gw), (my - y) / (iw + ch + gw))
-  else
-    None
-
-
-type grid_table =
-  { gutter_w : int;
-    img_h : int;
-    text_h : int;
-    scroll_w : int ;
-    refl_r : int;
-    has_heading : bool
-  }
-
-type grid_table_action = rich_table_action
-
-let grid_table_inner_area _ui area geo =
-  let p, ax, ay, aw, ah = area in
-  let ty = if not geo.has_heading then ay else ay + geo.text_h + 2 in
-  let tw = aw - geo.scroll_w - 1 in
-  let th = ah - (if ah < 0 then 0 else ty - ay) in
-  (p, ax, ty, tw, th)
-
-let grid_table_mouse ui area geo tab =
-  let area' = grid_table_inner_area ui area geo in
-  let (x, y, w, _) as r = dim ui area' in
-  let iw = geo.gutter_w + geo.img_h in
-  let ih = iw + geo.text_h in
-  let line = max 1 Float.(to_int (floor (float w /. float iw))) in
-  let (mx, my) as m = Mouse.pos ui.win in
-  if inside m r then
-    let i, j = (mx - x) / iw, (my - y) / ih in
-    Some (min (Table.length tab) (j * line + i + tab.vscroll))
-  else
-    None
-
-let grid_table_drag ui area geo style tab =
-  match grid_table_mouse ui area geo tab with
-  | None -> ()
-  | Some i ->
-    let area' = grid_table_inner_area ui area geo in
-    let x, y, w, _ = dim ui area' in
-    let iw = geo.gutter_w + geo.img_h in
-    let ih = iw + geo.text_h in
-    let line = max 1 Float.(to_int (floor (float w /. float iw))) in
-    let i' = i - tab.vscroll in
-    focus' ui (x + i' mod line * iw) (y + i' / line * ih) iw ih `White style
-
-let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
-  assert (geo.has_heading = Option.is_some header_opt);
-  let p, ax, ay, aw, ah = area in
-  let ch = geo.text_h in
-  let _, _, ty, tw, th = grid_table_inner_area ui area geo in
-  let header_area = (p, ax, ay, tw, ch) in
-  let table_area = (p, ax, ty, tw, th) in
-  let vscroll_area = 
-    (p, (if aw < 0 then tw else ax + aw + 1), ay, geo.scroll_w, ah) in
-  let (x, y, w, h) as r = dim ui table_area in
-
-  let shift = Key.are_modifiers_down [`Shift] in
-  let command = Key.are_modifiers_down [`Command] in
-
-  Mutex.protect tab.mutex (fun () ->
-    let len = Array.length tab.entries in
-    let iw = geo.gutter_w + geo.img_h in
-    let ih = iw + ch in
-    let line = max 1 Float.(to_int (floor (float w /. float iw))) in
-    let page =
-      max 1 Float.(to_int (floor (float h /. float ih)) * line) in
-    (* Correct scrolling position for possible resize *)
-    Table.adjust_vscroll tab tab.vscroll page;
-
-    (* Body *)
-    let buf = adjust_cache tab w h in
-    if not ui.buffered || tab.dirty then
-    (
-      let matrix =
-        Array.init page (fun j ->
-          Array.init line (fun i ->
-            let k = tab.vscroll + j * line + i in
-            if k >= len then None else
-            let img, c, txt = pp_cell k in
-            let inv = if Table.is_selected tab k then `Inverted else `Regular in
-            Some (img, c, inv, txt)
-          )
-        )
-      in
-      if ui.buffered then Draw.buffered ui.win buf;
-      let area' = if ui.buffered then (-1, 0, 0, w, h) else table_area in
-      grid' ui area' geo.gutter_w geo.img_h geo.text_h matrix;
-      if ui.buffered then Draw.unbuffered ui.win;
-      Table.clean tab;
-    );
-    if ui.buffered then Draw.buffer ui.win x y buf;
-    
-    let mx, my = Mouse.pos ui.win in
-    let i, j = (mx - x) / iw, (my - y) / ih in
-    let k = tab.vscroll + j * line + i in
-    let on_bg = i >= line || k >= min len (tab.vscroll + page) in
-
-    let _, status = element ui table_area no_modkey in
-    (* Mirrors logic in grid *)
-    let left_mouse_used = (status = `Pressed || status = `Released) in
-
-    let result =
-      if not ui.modal && Mouse.is_pressed `Right then
-      (
-        if inside (mx, my) r then
-          `Menu (if on_bg then None else Some k)
-        else
-          `None
-      )
-      else if not left_mouse_used then
-        `None
-      else if not (shift || command) then
-      (
-        match drag_status ui r (iw, ih) with
-        | `None -> `None
-
-        | `Take ->
-          (* Click *)
-          if on_bg then
-          (
-            (* Click on empty space *)
-            Table.deselect_all tab;
-            `Click None
-          )
-          else
-          (
-            (* Click on entry *)
-            if not (Table.is_selected tab k) then
-              Table.deselect_all tab;
-            if not (Mouse.is_doubleclick `Left) then
-              Table.select tab k k;
-            `Click (Some k)
-          )
-
-        | `Click ->
-          (* Click-release: deselect all except for clicked entry *)
-          Table.deselect_all tab;
-          if on_bg then
-            `Click None
-          else
-          (
-            Table.select tab k k;
-            `Click (Some i)
-          )
-
-        | `Drag ((dx, dy), way, motion) -> `Drag (dx + dy * line, way, motion)
-
-        | `Drop -> `Drop
-      )
-      else if command && not ui.modal && Mouse.is_pressed `Left then
-      (
-        (* Cmd-click on entry: toggle selection of clicked entry *)
-        if on_bg then
-          `Click None
-        else
-        (
-          if Table.is_selected tab k then
-            Table.deselect tab k k
-          else
-            Table.select tab k k;
-          `Click (Some k);
-        )
-      )
-      else if shift && not ui.modal && Mouse.is_down `Left then
-      (
-        (* Shift-click/drag on playlist: adjust selection range *)
-        let default = if k < len then (k, k) else (0, 0) in
-        let pos1, pos2 = Option.value tab.sel_range ~default in
-        let k' = max 0 (min k (len - 1)) in
-        let old_selection = tab.selected in
-        if tab.sel_range = None || Table.is_selected tab pos1 then
-        (
-          (* Entry was already selected: deselect old range, select new range *)
-          Table.deselect tab pos2 k';
-          Table.select tab pos1 k'
-        )
-        else
-        (
-          (* Track was not selected: select old range, deselect new range *)
-          Table.select tab pos2 k';
-          Table.deselect tab pos1 k'
-        );
-        if not ui.modal && Mouse.is_pressed `Left then
-          `Click (if k < len then Some k else None)
-        else if Table.IntSet.equal tab.selected old_selection then
-          `None
-        else
-          `Select
-      )
-      else `None
-    in
-
-    (* Header *)
-    let result =
-      match header_opt with
-      | None -> result
-      | Some heading ->
-        let cols = Array.map (Fun.const (40, `Left)) (fst heading) in
-        match header ui header_area geo.gutter_w cols heading tab.hscroll with
-        | `Click i -> `Sort i
-        | `Resize ws -> `Resize ws
-        | `Reorder perm -> `Reorder perm
-        | `Menu i -> `HeadMenu i
-        | `None -> result
-    in
-
-    (* Vertical scrollbar *)
-    let ext = if len = 0 then 1.0 else min 1.0 (float page /. float len) in
-    let pos = if len = 0 then 0.0 else float tab.vscroll /. float len in
-    let coeff = max 1.0 (float line) /. float (len - page) in
-    let wheel = coeff *. snd (wheel_status ui r) in
-    let pos' = scroll_bar ui vscroll_area `Vertical pos ext -. wheel in
-    let result =
-      if result <> `None || pos = pos' then result else
-      (
-        Table.set_vscroll tab
-          (int_of_float (Float.round (pos' *. float len))) page;
-        `Scroll
-      )
-    in
-
-    (* Focus and mouse reflection *)
-    if tab.focus && len > 0 then focus ui table_area;
-    mouse_reflection ui area geo.refl_r;
-
-    (* Keys *)
-    let result =
-      if result <> `None || not tab.focus then result else
-      (
-        let d =
-          if key_status' ui (`Arrow `Up) = `Pressed then -line else
-          if key_status' ui (`Arrow `Down) = `Pressed then +line else
-          if key_status' ui (`Page `Up) = `Pressed then -page else
-          if key_status' ui (`Page `Down) = `Pressed then +page else
-          if key_status' ui (`End `Up) = `Pressed then -len else
-          if key_status' ui (`End `Down) = `Pressed then +len else
-          0
-        in
-        if min len (abs d) > 0 then
-        (
-          (* Cursor movement *)
-          let has_sel = tab.sel_range <> None in
-          let default =
-            0, if not shift then tab.vscroll else if d < 0 then len else -1 in
-          let pos1, pos2 = Option.value tab.sel_range ~default in
-          let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
-
-          if not (shift || command) then
-          (
-            (* Plain cursor movement: deselect all, reselect relative to range end *)
-            if has_sel then
-            (
-              Table.deselect_all tab;
-              Table.select tab i i;
-              Table.adjust_vscroll tab i page;
-              `Select
-            )
-            else
-            (
-              Table.set_vscroll tab i page;
-              `Scroll
-            )
-          )
-          else if shift then
-          (
-            (* Shift-cursor movement: adjust selection range *)
-            if not has_sel then
-            (
-              (* No selection yet: range from end of playlist *)
-              Table.select tab (len - 1) i;
-            )
-            else if Table.is_selected tab pos1 then
-            (
-              (* Range start was already selected: deselect old range, select new *)
-              Table.deselect tab (max 0 pos2) i;
-              Table.select tab pos1 i;
-            )
-            else
-            (
-              (* Range start was not selected: select old range, deselect new *)
-              Table.select tab (max 0 pos2) i;
-              Table.deselect tab pos1 i;
-            );
-            Table.adjust_vscroll tab i page;
-            `Select
-          )
-          else if command && has_sel then
-          (
-            (* Cmd-cursor movement: move selection *)
-            Table.adjust_vscroll tab i page;
-            `Move d
-          )
-          else `None
-        )
-        else if command then
-        (
-          if key_status' ui (`Char 'A') = `Pressed then
-          (
-            (* Select-all key pressed: select all *)
-            Table.select_all tab;
-            `Select
-          )
-          else if key_status' ui (`Char 'N') = `Pressed then
-          (
-            (* Deselect-all key pressed: deselect all *)
-            Table.deselect_all tab;
-            `Select
-          )
-          else if key_status' ui (`Char 'I') = `Pressed then
-          (
-            (* Selection inversion key pressed: invert selection *)
-            Table.select_invert tab;
-            `Select
-          )
-          else `None
-        )
-        else
-        (
-          let ch = Key.char () in
-          if ch >= Uchar.of_int 32 then
-          (
-            (* Plain character pressed: scroll to first entry *)
-            let b = Bytes.make 8 '\000' in
-            let s = Bytes.sub_string b 0 (Bytes.set_utf_8_uchar b 0 ch) in
-            let rec find i =
-              if i = Table.length tab then i else
-              let _, _, txt = pp_cell i in  (* TODO: only pp relevant column *)
-              if Data.compare_utf_8 s txt <= 0 then i else find (i + 1)
-            in
-            let i = find 0 in
-            if i < len then
-            (
-              Table.adjust_vscroll tab ((i + line - 1) / line) page;
-              `Scroll
-            )
-            else `None
-          )
-          else `None
-        )
-      )
-    in
-    result
-  )
-
-
-(* Browser *)
-
-type browser_action =
-  [ table_action
-  | `Fold of int
-  ]
-
-let symbol_empty = " ○"
-let symbol_folded = "►" (* "▸" *)
-let symbol_unfolded = "▼" (* "▾" *)
-
-
-let browser_pp_pre nest folded =
-  let sym =
-    match folded with
-    | None -> symbol_empty
-    | Some true -> symbol_folded
-    | Some false -> symbol_unfolded
-  in
-  if nest = -1 then "" else String.make (3 * nest) ' ' ^ sym ^ " "
-
-let browser_entry_text_area ui area geo (tab : _ Table.t) i nest folded =
-  let p, x, y, w, _ = rich_table_inner_area ui area geo in
-  let mw = (geo.gutter_w + 1) / 2 in  (* inner width padding *)
-  let correction = if Api.is_mac then -2 else +1 in
-  let dx = max 0
-    (Draw.text_width ui.win geo.row_h (font ui geo.row_h)
-      (browser_pp_pre nest folded) + mw - tab.hscroll + correction)
-  and dy = (i - tab.vscroll) * geo.row_h in
-  (p, x + dx, y + dy, (if w < 0 then w else w - dx), geo.row_h)
-
-let browser ui area geo (tab : _ Table.t) pp_entry =
-  let cols = [|-1, `Left|] in
-  let pp_row i =
-    let nest, folded, c, name = pp_entry i in
-    c, [|`Text (browser_pp_pre nest folded ^ name)|]
-  in
-
-  let selected = tab.selected in
-  (match rich_table ui area geo cols None tab pp_row with
-  | `None -> `None
-  | `Scroll -> `Scroll
-  | `Move i -> `Move i
-  | `Drag (i, way, motion) -> `Drag (i, way, motion)
-  | `Drop -> `Drop
-  | `Menu i -> `Menu i
-  | `Sort _ | `Resize _ | `Reorder _ | `HeadMenu _ -> assert false
-
-  | `Select ->
-    (* TODO: allow multiple selections *)
-    if Table.num_selected tab <= 1 then `Select else
-    (
-      Table.reset_selected tab selected;  (* override *)
-      `None
-    )
-
-  | `Click None -> `Click None
-  | `Click (Some i) ->
-    (* Click on entry *)
-    let mx, _ = Mouse.pos ui.win in
-    let x, _, _, _ = dim ui area in
-    let nest, folded, _, _ = pp_entry i in
-    let tw =
-      Draw.text_width ui.win geo.row_h (font ui geo.row_h)
-        (browser_pp_pre nest folded) in
-    if mx + tab.hscroll < x + tw
-    && not ui.modal && Mouse.(is_down `Left || is_released `Left) then
-    (
-      (* CLick on triangle *)
-      Table.reset_selected tab selected;  (* override selection change*)
-      if Mouse.is_released `Left then
-        `Fold i
-      else
-        `None
-    )
-    else
-    (
-      (* Click on name *)
-      (* TODO: allow multiple selections *)
-      if Table.num_selected tab > 1 then
-        Table.reset_selected tab selected;  (* override *)
-      `Click (Some i)
-    )
-  )
-
-
-(* Pop-up Menu *)
-
-type menu_entry =
-  [`Separator | `Entry of color * string * (modifier list * key) * bool]
-
-let menu_separator = String.concat "" (List.init 80 (Fun.const "·"))
-
-let menu ui x y bw gw ch items =
-  assert ui.modal;
-
-  let font = font ui ch in
-  let keys =
-    Array.map (function
-      | `Separator -> ""
-      | `Entry (_, _, (mods, key), _) ->
-        String.concat "+" Api.Key.(List.map modifier_name mods @ [key_name key])
-    ) items
-  in
-  let lw = 2 * gw +
-    Array.fold_left (fun w -> function
-      | `Separator -> w
-      | `Entry (_, s, _, _) -> max w (Draw.text_width ui.win ch font s + 1)
-    ) 0 items
-  and rw =
-    Array.fold_left (fun w s ->
-      max w (Draw.text_width ui.win ch font s + 1)
-    ) 0 keys
-  in
-  let ww, wh = Window.size ui.win in
-  let mw = (gw + 1)/2 in  (* inner width padding *)
-  let w = lw + gw + rw + 2 * mw in
-  let h = ch * Array.length items in
-  let x = max 0 (min x (ww - w - 2 * bw)) in
-  let y = max 0 (min y (wh - h - 2 * bw)) in
-
-  background ui x y (w + 2 * bw) (h + 2 * bw);
-
-  let mx, my = Mouse.pos ui.win in
-  let i =
-    if inside (mx, my) (x + bw, y + bw, w, h) then (my - y - bw)/ch else -1 in
-
-  let area = (-1, x + bw, y + bw, w, h) in
-  let cols = [|lw, `Left; rw, `Right|] in 
-  let c_sep = semilit_color (text_color ui) in
-  let rows =
-    Array.mapi (fun j -> function
-      | `Separator -> c_sep, `Regular, [|`Text menu_separator; `Text ""|]
-      | `Entry (c, txt, _, enabled) ->
-        let c' = if enabled then c else semilit_color c in
-        let inv = if enabled && i = j then `Inverted else `Regular in
-        c', inv, [|`Text txt; `Text keys.(j)|]
-    ) items
-  in
-
-  ui.mouse_owned <- true;
-  ui.modal <- false;
-  let released = Mouse.is_released `Left || Mouse.is_pressed `Right in
-  let enabled i = match items.(i) with `Entry (_, _, _, b) -> b | _ -> false in
-  match table ui area gw ch cols rows 0 with
-  | Some i when released && enabled i -> `Click i
-  | None when released -> `Close
-  | _ ->
-    let key_pressed = function
-      | `Entry (_, _, modkey, _) -> key ui modkey true
-      | `Separator -> false
-    in
-    match Array.find_index key_pressed items with
-    | Some i -> `Click i
-    | None -> ui.modal <- true; `None
-
-
-(* Edit widget *)
+(* Text Input Field *)
 
 let find_next_char s i =
   i + Uchar.utf_decode_length (String.get_utf_8_uchar s i)
@@ -2054,8 +1091,9 @@ let find_pos ui x h font s =
     if w > x then i else find (i + n)
   in find 0
 
+
 let edit_text ui area s scroll selection focus =
-  let (x, y, w, h), status = element ui area no_modkey in
+  let (x, y, w, h), status = widget ui area no_modkey in
   let len = String.length s in
   let font = font ui h in
   let c = text_color ui in
@@ -2260,3 +1298,968 @@ let rich_edit_text ui area (edit : Edit.t) =
   );
 
   ch
+
+
+(* Rich Tables *)
+
+type cached = buffer
+
+type rich_table =
+  { gutter_w : int;
+    row_h : int;
+    scroll_w : int ;
+    scroll_h : int;
+    refl_r : int;
+    has_heading : bool
+  }
+
+type table_action =
+  [ `Click of int option
+  | `Select
+  | `Scroll
+  | `Move of int
+  | `Drag of int * motion * trajectory
+  | `Drop
+  | `Menu of int option
+  | `None
+  ]
+
+type rich_table_action =
+  [ table_action
+  | `Sort of int
+  | `Resize of int array   (* new sizes *)
+  | `Reorder of int array  (* permutation *)
+  | `HeadMenu of int option
+  ]
+
+let rich_table_inner_area _ui area geo =
+  let p, ax, ay, aw, ah = area in
+  let ty = if not geo.has_heading then ay else ay + geo.row_h + 2 in
+  let th =
+    ah -
+    (if ah < 0 then 0 else ty - ay) -
+    (if geo.scroll_h = 0 then 0 else geo.scroll_h + 1)
+  in
+  (p, ax, ty, aw - geo.scroll_w - 1, th)
+
+let rich_table_mouse ui area geo tab =
+  let area' = rich_table_inner_area ui area geo in
+  let (_, y, _, _) as r = dim ui area' in
+  let (_, my) as m = Mouse.pos ui.win in
+  if inside m r then
+    Some (min (Table.length tab) ((my - y) / geo.row_h + tab.vscroll))
+  else
+    None
+
+let rich_table_drag ui area geo style tab =
+  match rich_table_mouse ui area geo tab with
+  | None -> ()
+  | Some i ->
+    let area' = rich_table_inner_area ui area geo in
+    let x, y, w, _ = dim ui area' in
+    focus' ui x (y + (i - tab.vscroll) * geo.row_h) w geo.row_h `White style
+
+let adjust_cache tab w h =
+  Option.iter (fun buf ->
+    if Buffer.size buf <> (w, h) then
+    (
+      Table.uncache tab;
+      Buffer.dispose buf;
+    )
+  ) tab.cache;
+  match tab.cache with
+  | Some buf -> buf
+  | None ->
+    let buf = Buffer.create w h in
+    Table.cache tab buf;
+    buf
+
+let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_row =
+  assert (geo.has_heading = Option.is_some header_opt);
+  let p, ax, ay, aw, ah = area in
+  let rh = geo.row_h in
+  let _, _, ty, tw, th = rich_table_inner_area ui area geo in
+  let header_area = (p, ax, ay, tw, rh) in
+  let table_area = (p, ax, ty, tw, th) in
+  let vscroll_area = 
+    (p, (if aw < 0 then tw else ax + aw + 1), ay, geo.scroll_w, ah) in
+  let hscroll_area =
+    (p, ax, (if ah < 0 then ah - geo.scroll_h else ty + th + 1), tw, geo.scroll_h) in
+  let (x, y, w, h) as r = dim ui table_area in
+
+  let shift = Key.are_modifiers_down [`Shift] in
+  let command = Key.are_modifiers_down [`Command] in
+
+  Mutex.protect tab.mutex (fun () ->
+    let len = Table.length tab in
+    let page = max 1 (int_of_float (Float.floor (float h /. float rh))) in
+    let limit = min len (tab.vscroll + page) in
+    (* Correct scrolling position for possible resize *)
+    Table.adjust_vscroll tab tab.vscroll page;
+
+    (* Body *)
+    let buf = adjust_cache tab w h in
+    if not ui.buffered || tab.dirty || Draw.frame ui.win mod 10 = 7 then
+    (
+      let rows =
+        Array.init (min page len) (fun i ->
+          let i = tab.vscroll + i in
+          let c, cols = pp_row i in
+          let inv = if Table.is_selected tab i then `Inverted else `Regular in
+          c, inv, cols
+        )
+      in
+      if ui.buffered then Draw.buffered ui.win buf;
+      let area' = if ui.buffered then (-1, 0, 0, w, h) else table_area in
+      table' ui area' geo.gutter_w rh cols rows tab.hscroll;
+      if ui.buffered then Draw.unbuffered ui.win;
+      Table.clean tab;
+    );
+    if ui.buffered then Draw.buffer ui.win x y buf;
+
+    let mx, my = Mouse.pos ui.win in
+    let i = tab.vscroll + (my - y) / rh in
+    let _, status = widget ui table_area no_modkey in
+    (* Mirrors logic in table *)
+    let left_mouse_used = (status = `Pressed || status = `Released) in
+
+    let result =
+      if not ui.modal && Mouse.is_pressed `Right then
+      (
+        if inside (mx, my) r then
+          `Menu (if i >= limit then None else Some i)
+        else
+          `None
+      )
+      else if not left_mouse_used then
+        `None
+      else if not (shift || command) then
+      (
+        match drag_status ui r (max_int, rh) with
+        | `None -> `None
+
+        | `Take ->
+          (* Click *)
+          if i >= limit then
+          (
+            (* Click on empty space *)
+            Table.deselect_all tab;
+            `Click None
+          )
+          else
+          (
+            (* Click on entry *)
+            if not (Table.is_selected tab i) then
+              Table.deselect_all tab;
+            if not (Mouse.is_doubleclick `Left) then
+              Table.select tab i i;
+            `Click (Some i)
+          )
+
+        | `Click ->
+          (* Click-release: deselect all except for clicked entry *)
+          Table.deselect_all tab;
+          if i >= limit then
+          (
+            (* Click on empty space *)
+            `Click None
+          )
+          else
+          (
+            (* Click on entry *)
+            Table.select tab i i;
+            `Click (Some i)
+          )
+
+        | `Drag ((_, dy), motion, traj) -> `Drag (dy, motion, traj)
+
+        | `Drop -> `Drop
+      )
+      else if command && not ui.modal && Mouse.is_pressed `Left then
+      (
+        (* Cmd-click on entry: toggle selection of clicked entry *)
+        if i >= limit then
+          `Click None
+        else
+        (
+          if Table.is_selected tab i then
+            Table.deselect tab i i
+          else
+            Table.select tab i i;
+          `Click (Some i);
+        )
+      )
+      else if shift && not ui.modal && Mouse.is_down `Left then
+      (
+        (* Shift-click/drag on playlist: adjust selection range *)
+        let default = if i < len then (i, i) else (0, 0) in
+        let pos1, pos2 = Option.value tab.sel_range ~default in
+        let i' = max 0 (min i (len - 1)) in
+        let old_selection = tab.selected in
+        if tab.sel_range = None || Table.is_selected tab pos1 then
+        (
+          (* Entry was already selected: deselect old range, select new range *)
+          Table.deselect tab pos2 i';
+          Table.select tab pos1 i'
+        )
+        else
+        (
+          (* Track was not selected: select old range, deselect new range *)
+          Table.select tab pos2 i';
+          Table.deselect tab pos1 i'
+        );
+        if not ui.modal && Mouse.is_pressed `Left then
+          `Click (if i < len then Some i else None)
+        else if Table.IntSet.equal tab.selected old_selection then
+          `None
+        else
+          `Select
+      )
+      else `None
+    in
+
+    (* Header *)
+    let result =
+      match header_opt with
+      | None -> result
+      | Some heading ->
+        match header ui header_area geo.gutter_w cols heading tab.hscroll with
+        | `Click i -> Table.dirty tab; `Sort i
+        | `Resize ws -> Table.dirty tab; `Resize ws
+        | `Reorder perm -> Table.dirty tab; `Reorder perm
+        | `Menu i -> `HeadMenu i
+        | `None -> result
+    in
+
+    (* Vertical scrollbar *)
+    let wdx, wdy = wheel_status ui r in
+    let wdx, wdy = if Float.abs wdx > Float.abs wdy then wdx, 0.0 else 0.0, wdy in
+    let vwheel = not shift && len > page || wdy = 0.0 in
+    let h' = page * rh in
+    let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * rh)) in
+    let pos = if len = 0 then 0.0 else float tab.vscroll /. float len in
+    let coeff = max 1.0 (float page /. 4.0) /. float (len - page) in
+    let wheel = if vwheel then coeff *. wdy else 0.0 in
+    let pos' = scroll_bar ui vscroll_area `Vertical pos ext -. wheel in
+    let result =
+      if result <> `None || pos = pos' then result else
+      (
+        Table.set_vscroll tab
+          (max 0 (int_of_float (Float.round (pos' *. float len)))) page;
+        `Scroll
+      )
+    in
+
+    (* Horizontal scrollbar *)
+    let result =
+      if geo.scroll_h = 0 then result else
+      let vw = Array.fold_left (fun w (cw, _) -> w + cw + geo.gutter_w) 0 cols in
+      let vw' = max vw (tab.hscroll + w) in
+      let ext = if vw' = 0 then 1.0 else min 1.0 (float w /. float vw') in
+      let pos = if vw' = 0 then 0.0 else float tab.hscroll /. float vw' in
+      let wheel = if vwheel then wdx else wdy in
+      let pos' = scroll_bar ui hscroll_area `Horizontal pos ext -. 0.05 *. wheel in
+      if result <> `None || pos = pos' then result else
+      (
+        Table.set_hscroll tab
+          (clamp 0 (max 0 (vw' - w)) (int_of_float (Float.round (pos' *. float vw'))));
+        `Scroll
+      )
+    in
+
+    (* Focus and mouse reflection *)
+    if tab.focus && len > 0 then focus ui table_area;
+    mouse_focus ui area geo.refl_r;
+
+    (* Keys *)
+    let result =
+      if result <> `None || not tab.focus then result else
+      (
+        let d =
+          if key_status' ui (`Arrow `Up) = `Pressed then -1 else
+          if key_status' ui (`Arrow `Down) = `Pressed then +1 else
+          if key_status' ui (`Page `Up) = `Pressed then -page else
+          if key_status' ui (`Page `Down) = `Pressed then +page else
+          if key_status' ui (`End `Up) = `Pressed then -len else
+          if key_status' ui (`End `Down) = `Pressed then +len else
+          0
+        in
+        if min len (abs d) > 0 then
+        (
+          (* Cursor movement *)
+          let has_sel = tab.sel_range <> None in
+          let default =
+            0, if not shift then tab.vscroll else if d < 0 then len else -1 in
+          let pos1, pos2 = Option.value tab.sel_range ~default in
+          let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
+
+          if not (shift || command) then
+          (
+            (* Plain cursor movement: deselect all, reselect relative to range end *)
+            if has_sel then
+            (
+              Table.deselect_all tab;
+              Table.select tab i i;
+              Table.adjust_vscroll tab i page;
+              `Select
+            )
+            else
+            (
+              Table.set_vscroll tab i page;
+              `Scroll
+            )
+          )
+          else if shift then
+          (
+            (* Shift-cursor movement: adjust selection range *)
+            if not has_sel then
+            (
+              (* No selection yet: range from end of playlist *)
+              Table.select tab (len - 1) i;
+            )
+            else if Table.is_selected tab pos1 then
+            (
+              (* Range start was already selected: deselect old range, select new *)
+              Table.deselect tab (max 0 pos2) i;
+              Table.select tab pos1 i;
+            )
+            else
+            (
+              (* Range start was not selected: select old range, deselect new *)
+              Table.select tab (max 0 pos2) i;
+              Table.deselect tab pos1 i;
+            );
+            Table.adjust_vscroll tab i page;
+            `Select
+          )
+          else if command && has_sel then
+          (
+            (* Cmd-cursor movement: move selection *)
+            Table.adjust_vscroll tab i page;
+            `Move d
+          )
+          else `None
+        )
+        else if command then
+        (
+          if key_status' ui (`Char 'A') = `Pressed then
+          (
+            (* Select-all key pressed: select all *)
+            Table.select_all tab;
+            `Select
+          )
+          else if key_status' ui (`Char 'N') = `Pressed then
+          (
+            (* Deselect-all key pressed: deselect all *)
+            Table.deselect_all tab;
+            `Select
+          )
+          else if key_status' ui (`Char 'I') = `Pressed then
+          (
+            (* Selection inversion key pressed: invert selection *)
+            Table.select_invert tab;
+            `Select
+          )
+          else `None
+        )
+        else
+        (
+          let ch = Key.char () in
+          if ch >= Uchar.of_int 32 then
+          (
+            (* Plain character pressed: scroll to first entry *)
+            let b = Bytes.make 8 '\000' in
+            let s = Bytes.sub_string b 0 (Bytes.set_utf_8_uchar b 0 ch) in
+            let col =
+              match header_opt with
+              | Some (_, (col, _)::_) -> col  (* primary sort key *)
+              | _ -> 0
+            in
+            let rec find i =
+              if i = len then i else
+              let _, row = pp_row i in  (* TODO: only pp relevant column *)
+              match row.(col) with
+              | `Text s' when Data.compare_utf_8 s s' <= 0 -> i
+              | _ -> find (i + 1)
+            in
+            let i = find 0 in
+            if i < len then
+            (
+              Table.set_vscroll tab i page;
+              `Scroll
+            )
+            else `None
+          )
+          else `None
+        )
+      )
+    in
+
+    let result =
+      if result <> `None || not tab.focus || geo.scroll_h = 0 then result else
+      (
+        let step = if shift then 10 else 50 in
+        let dh =
+          if key_status' ui (`Arrow `Left) = `Pressed then -step else
+          if key_status' ui (`Arrow `Right) = `Pressed then +step else
+          0
+        in
+        if abs dh > 0 && not command then
+        (
+          Table.set_hscroll tab (tab.hscroll + dh);
+          `Scroll;
+        )
+        else `None
+      )
+    in
+
+    result
+  )
+
+
+(* Browser *)
+
+type browser_action =
+  [ table_action
+  | `Fold of int
+  ]
+
+let symbol_empty = " ○"
+let symbol_folded = "►" (* "▸" *)
+let symbol_unfolded = "▼" (* "▾" *)
+
+
+let browser_pp_pre nest folded =
+  let sym =
+    match folded with
+    | None -> symbol_empty
+    | Some true -> symbol_folded
+    | Some false -> symbol_unfolded
+  in
+  if nest = -1 then "" else String.make (3 * nest) ' ' ^ sym ^ " "
+
+let browser_entry_text_area ui area geo (tab : _ Table.t) i nest folded =
+  let p, x, y, w, _ = rich_table_inner_area ui area geo in
+  let mw = (geo.gutter_w + 1) / 2 in  (* inner width padding *)
+  let correction = if Api.is_mac then -2 else +1 in
+  let dx = max 0
+    (Draw.text_width ui.win geo.row_h (font ui geo.row_h)
+      (browser_pp_pre nest folded) + mw - tab.hscroll + correction)
+  and dy = (i - tab.vscroll) * geo.row_h in
+  (p, x + dx, y + dy, (if w < 0 then w else w - dx), geo.row_h)
+
+let browser ui area geo (tab : _ Table.t) pp_entry =
+  let cols = [|-1, `Left|] in
+  let pp_row i =
+    let nest, folded, c, name = pp_entry i in
+    c, [|`Text (browser_pp_pre nest folded ^ name)|]
+  in
+
+  let selected = tab.selected in
+  (match rich_table ui area geo cols None tab pp_row with
+  | `None -> `None
+  | `Scroll -> `Scroll
+  | `Move i -> `Move i
+  | `Drag (i, motion, traj) -> `Drag (i, motion, traj)
+  | `Drop -> `Drop
+  | `Menu i -> `Menu i
+  | `Sort _ | `Resize _ | `Reorder _ | `HeadMenu _ -> assert false
+
+  | `Select ->
+    (* TODO: allow multiple selections *)
+    if Table.num_selected tab <= 1 then `Select else
+    (
+      Table.reset_selected tab selected;  (* override *)
+      `None
+    )
+
+  | `Click None -> `Click None
+  | `Click (Some i) ->
+    (* Click on entry *)
+    let mx, _ = Mouse.pos ui.win in
+    let x, _, _, _ = dim ui area in
+    let nest, folded, _, _ = pp_entry i in
+    let tw =
+      Draw.text_width ui.win geo.row_h (font ui geo.row_h)
+        (browser_pp_pre nest folded) in
+    if mx + tab.hscroll < x + tw
+    && not ui.modal && Mouse.(is_down `Left || is_released `Left) then
+    (
+      (* CLick on triangle *)
+      Table.reset_selected tab selected;  (* override selection change*)
+      if Mouse.is_released `Left then
+        `Fold i
+      else
+        `None
+    )
+    else
+    (
+      (* Click on name *)
+      (* TODO: allow multiple selections *)
+      if Table.num_selected tab > 1 then
+        Table.reset_selected tab selected;  (* override *)
+      `Click (Some i)
+    )
+  )
+
+
+(* Grids *)
+
+let grid' ui area gw iw ch matrix =
+  let x, y, w, h = dim ui area in
+  Draw.fill ui.win x y w h `Black;
+  let mw = (gw + 1)/2 in
+  let font = font ui ch in
+  let nrows = Array.length matrix in
+  let ncols = if nrows = 0 then 0 else Array.length matrix.(0) in
+  for i = 0 to ncols - 1 do
+    let cx = x + mw + i * (iw + gw) in
+    Draw.clip ui.win (cx - 1) y (iw + 2) h;
+    for j = 0 to nrows - 1 do
+      Option.iter (fun (img, c, inv, txt) ->
+        let cy = y + mw + j * (iw + gw + ch) in
+        let fg, bg = if inv = `Inverted then `Black, c else c, `Black in
+        if bg <> `Black then
+          Draw.fill ui.win (cx - 1) (cy - 1) (iw + 2) (iw + ch + 2) bg;
+        let iw', ih' = Image.size img in
+        let scale = float iw /. float (max iw' ih') in
+        let dx = int_of_float ((float iw -. scale *. float iw') /. 2.0) in
+        let dy = int_of_float ((float iw -. scale *. float ih') /. 2.0) in
+        Api.Draw.image_part ui.win (cx + dx) (cy + dy) (iw - 2*dx) (iw - 2*dy) 0 0 iw' ih' img;
+        let tw = Draw.text_width ui.win ch font txt in
+        let dx = max 0 ((iw - tw - 2) / 2) in
+        Draw.text ui.win (cx + dx + 1) (cy + iw) ch fg font txt;
+        if tw > iw - 2 then
+        (
+          let rw = min (iw - 2) 16 in
+          Draw.gradient ui.win (cx + iw - rw + 1) (cy + iw) rw ch
+            (`Trans (bg, 0)) `Horizontal bg;
+        );
+      ) matrix.(j).(i)
+    done;
+    Draw.unclip ui.win
+  done
+
+
+let grid ui area gw iw ch matrix =
+  let (x, y, _, _), status = widget ui area no_modkey in
+  grid' ui area gw iw ch matrix;
+  if status = `Pressed || status = `Released then
+    let mx, my = Mouse.pos ui.win in
+    Some ((mx - x) / (iw + gw), (my - y) / (iw + ch + gw))
+  else
+    None
+
+
+type grid_table =
+  { gutter_w : int;
+    img_h : int;
+    text_h : int;
+    scroll_w : int ;
+    refl_r : int;
+    has_heading : bool
+  }
+
+type grid_table_action = rich_table_action
+
+let grid_table_inner_area _ui area geo =
+  let p, ax, ay, aw, ah = area in
+  let ty = if not geo.has_heading then ay else ay + geo.text_h + 2 in
+  let tw = aw - geo.scroll_w - 1 in
+  let th = ah - (if ah < 0 then 0 else ty - ay) in
+  (p, ax, ty, tw, th)
+
+let grid_table_mouse ui area geo tab =
+  let area' = grid_table_inner_area ui area geo in
+  let (x, y, w, _) as r = dim ui area' in
+  let iw = geo.gutter_w + geo.img_h in
+  let ih = iw + geo.text_h in
+  let line = max 1 Float.(to_int (floor (float w /. float iw))) in
+  let (mx, my) as m = Mouse.pos ui.win in
+  if inside m r then
+    let i, j = (mx - x) / iw, (my - y) / ih in
+    Some (min (Table.length tab) (j * line + i + tab.vscroll))
+  else
+    None
+
+let grid_table_drag ui area geo style tab =
+  match grid_table_mouse ui area geo tab with
+  | None -> ()
+  | Some i ->
+    let area' = grid_table_inner_area ui area geo in
+    let x, y, w, _ = dim ui area' in
+    let iw = geo.gutter_w + geo.img_h in
+    let ih = iw + geo.text_h in
+    let line = max 1 Float.(to_int (floor (float w /. float iw))) in
+    let i' = i - tab.vscroll in
+    focus' ui (x + i' mod line * iw) (y + i' / line * ih) iw ih `White style
+
+let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
+  assert (geo.has_heading = Option.is_some header_opt);
+  let p, ax, ay, aw, ah = area in
+  let ch = geo.text_h in
+  let _, _, ty, tw, th = grid_table_inner_area ui area geo in
+  let header_area = (p, ax, ay, tw, ch) in
+  let table_area = (p, ax, ty, tw, th) in
+  let vscroll_area = 
+    (p, (if aw < 0 then tw else ax + aw + 1), ay, geo.scroll_w, ah) in
+  let (x, y, w, h) as r = dim ui table_area in
+
+  let shift = Key.are_modifiers_down [`Shift] in
+  let command = Key.are_modifiers_down [`Command] in
+
+  Mutex.protect tab.mutex (fun () ->
+    let len = Array.length tab.entries in
+    let iw = geo.gutter_w + geo.img_h in
+    let ih = iw + ch in
+    let line = max 1 Float.(to_int (floor (float w /. float iw))) in
+    let page =
+      max 1 Float.(to_int (floor (float h /. float ih)) * line) in
+    (* Correct scrolling position for possible resize *)
+    Table.adjust_vscroll tab tab.vscroll page;
+
+    (* Body *)
+    let buf = adjust_cache tab w h in
+    if not ui.buffered || tab.dirty then
+    (
+      let matrix =
+        Array.init page (fun j ->
+          Array.init line (fun i ->
+            let k = tab.vscroll + j * line + i in
+            if k >= len then None else
+            let img, c, txt = pp_cell k in
+            let inv = if Table.is_selected tab k then `Inverted else `Regular in
+            Some (img, c, inv, txt)
+          )
+        )
+      in
+      if ui.buffered then Draw.buffered ui.win buf;
+      let area' = if ui.buffered then (-1, 0, 0, w, h) else table_area in
+      grid' ui area' geo.gutter_w geo.img_h geo.text_h matrix;
+      if ui.buffered then Draw.unbuffered ui.win;
+      Table.clean tab;
+    );
+    if ui.buffered then Draw.buffer ui.win x y buf;
+    
+    let mx, my = Mouse.pos ui.win in
+    let i, j = (mx - x) / iw, (my - y) / ih in
+    let k = tab.vscroll + j * line + i in
+    let on_bg = i >= line || k >= min len (tab.vscroll + page) in
+
+    let _, status = widget ui table_area no_modkey in
+    (* Mirrors logic in grid *)
+    let left_mouse_used = (status = `Pressed || status = `Released) in
+
+    let result =
+      if not ui.modal && Mouse.is_pressed `Right then
+      (
+        if inside (mx, my) r then
+          `Menu (if on_bg then None else Some k)
+        else
+          `None
+      )
+      else if not left_mouse_used then
+        `None
+      else if not (shift || command) then
+      (
+        match drag_status ui r (iw, ih) with
+        | `None -> `None
+
+        | `Take ->
+          (* Click *)
+          if on_bg then
+          (
+            (* Click on empty space *)
+            Table.deselect_all tab;
+            `Click None
+          )
+          else
+          (
+            (* Click on entry *)
+            if not (Table.is_selected tab k) then
+              Table.deselect_all tab;
+            if not (Mouse.is_doubleclick `Left) then
+              Table.select tab k k;
+            `Click (Some k)
+          )
+
+        | `Click ->
+          (* Click-release: deselect all except for clicked entry *)
+          Table.deselect_all tab;
+          if on_bg then
+            `Click None
+          else
+          (
+            Table.select tab k k;
+            `Click (Some i)
+          )
+
+        | `Drag ((dx, dy), motion, traj) -> `Drag (dx + dy * line, motion, traj)
+
+        | `Drop -> `Drop
+      )
+      else if command && not ui.modal && Mouse.is_pressed `Left then
+      (
+        (* Cmd-click on entry: toggle selection of clicked entry *)
+        if on_bg then
+          `Click None
+        else
+        (
+          if Table.is_selected tab k then
+            Table.deselect tab k k
+          else
+            Table.select tab k k;
+          `Click (Some k);
+        )
+      )
+      else if shift && not ui.modal && Mouse.is_down `Left then
+      (
+        (* Shift-click/drag on playlist: adjust selection range *)
+        let default = if k < len then (k, k) else (0, 0) in
+        let pos1, pos2 = Option.value tab.sel_range ~default in
+        let k' = max 0 (min k (len - 1)) in
+        let old_selection = tab.selected in
+        if tab.sel_range = None || Table.is_selected tab pos1 then
+        (
+          (* Entry was already selected: deselect old range, select new range *)
+          Table.deselect tab pos2 k';
+          Table.select tab pos1 k'
+        )
+        else
+        (
+          (* Track was not selected: select old range, deselect new range *)
+          Table.select tab pos2 k';
+          Table.deselect tab pos1 k'
+        );
+        if not ui.modal && Mouse.is_pressed `Left then
+          `Click (if k < len then Some k else None)
+        else if Table.IntSet.equal tab.selected old_selection then
+          `None
+        else
+          `Select
+      )
+      else `None
+    in
+
+    (* Header *)
+    let result =
+      match header_opt with
+      | None -> result
+      | Some heading ->
+        let cols = Array.map (Fun.const (40, `Left)) (fst heading) in
+        match header ui header_area geo.gutter_w cols heading tab.hscroll with
+        | `Click i -> `Sort i
+        | `Resize ws -> `Resize ws
+        | `Reorder perm -> `Reorder perm
+        | `Menu i -> `HeadMenu i
+        | `None -> result
+    in
+
+    (* Vertical scrollbar *)
+    let ext = if len = 0 then 1.0 else min 1.0 (float page /. float len) in
+    let pos = if len = 0 then 0.0 else float tab.vscroll /. float len in
+    let coeff = max 1.0 (float line) /. float (len - page) in
+    let wheel = coeff *. snd (wheel_status ui r) in
+    let pos' = scroll_bar ui vscroll_area `Vertical pos ext -. wheel in
+    let result =
+      if result <> `None || pos = pos' then result else
+      (
+        Table.set_vscroll tab
+          (int_of_float (Float.round (pos' *. float len))) page;
+        `Scroll
+      )
+    in
+
+    (* Focus and mouse reflection *)
+    if tab.focus && len > 0 then focus ui table_area;
+    mouse_focus ui area geo.refl_r;
+
+    (* Keys *)
+    let result =
+      if result <> `None || not tab.focus then result else
+      (
+        let d =
+          if key_status' ui (`Arrow `Up) = `Pressed then -line else
+          if key_status' ui (`Arrow `Down) = `Pressed then +line else
+          if key_status' ui (`Page `Up) = `Pressed then -page else
+          if key_status' ui (`Page `Down) = `Pressed then +page else
+          if key_status' ui (`End `Up) = `Pressed then -len else
+          if key_status' ui (`End `Down) = `Pressed then +len else
+          0
+        in
+        if min len (abs d) > 0 then
+        (
+          (* Cursor movement *)
+          let has_sel = tab.sel_range <> None in
+          let default =
+            0, if not shift then tab.vscroll else if d < 0 then len else -1 in
+          let pos1, pos2 = Option.value tab.sel_range ~default in
+          let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
+
+          if not (shift || command) then
+          (
+            (* Plain cursor movement: deselect all, reselect relative to range end *)
+            if has_sel then
+            (
+              Table.deselect_all tab;
+              Table.select tab i i;
+              Table.adjust_vscroll tab i page;
+              `Select
+            )
+            else
+            (
+              Table.set_vscroll tab i page;
+              `Scroll
+            )
+          )
+          else if shift then
+          (
+            (* Shift-cursor movement: adjust selection range *)
+            if not has_sel then
+            (
+              (* No selection yet: range from end of playlist *)
+              Table.select tab (len - 1) i;
+            )
+            else if Table.is_selected tab pos1 then
+            (
+              (* Range start was already selected: deselect old range, select new *)
+              Table.deselect tab (max 0 pos2) i;
+              Table.select tab pos1 i;
+            )
+            else
+            (
+              (* Range start was not selected: select old range, deselect new *)
+              Table.select tab (max 0 pos2) i;
+              Table.deselect tab pos1 i;
+            );
+            Table.adjust_vscroll tab i page;
+            `Select
+          )
+          else if command && has_sel then
+          (
+            (* Cmd-cursor movement: move selection *)
+            Table.adjust_vscroll tab i page;
+            `Move d
+          )
+          else `None
+        )
+        else if command then
+        (
+          if key_status' ui (`Char 'A') = `Pressed then
+          (
+            (* Select-all key pressed: select all *)
+            Table.select_all tab;
+            `Select
+          )
+          else if key_status' ui (`Char 'N') = `Pressed then
+          (
+            (* Deselect-all key pressed: deselect all *)
+            Table.deselect_all tab;
+            `Select
+          )
+          else if key_status' ui (`Char 'I') = `Pressed then
+          (
+            (* Selection inversion key pressed: invert selection *)
+            Table.select_invert tab;
+            `Select
+          )
+          else `None
+        )
+        else
+        (
+          let ch = Key.char () in
+          if ch >= Uchar.of_int 32 then
+          (
+            (* Plain character pressed: scroll to first entry *)
+            let b = Bytes.make 8 '\000' in
+            let s = Bytes.sub_string b 0 (Bytes.set_utf_8_uchar b 0 ch) in
+            let rec find i =
+              if i = Table.length tab then i else
+              let _, _, txt = pp_cell i in  (* TODO: only pp relevant column *)
+              if Data.compare_utf_8 s txt <= 0 then i else find (i + 1)
+            in
+            let i = find 0 in
+            if i < len then
+            (
+              Table.adjust_vscroll tab ((i + line - 1) / line) page;
+              `Scroll
+            )
+            else `None
+          )
+          else `None
+        )
+      )
+    in
+    result
+  )
+
+
+(* Pop-up Menus *)
+
+type menu_entry =
+  [`Separator | `Entry of color * string * (modifier list * key) * bool]
+
+let menu_separator = String.concat "" (List.init 80 (Fun.const "·"))
+
+let menu ui x y bw gw ch items =
+  assert ui.modal;
+
+  let font = font ui ch in
+  let keys =
+    Array.map (function
+      | `Separator -> ""
+      | `Entry (_, _, (mods, key), _) ->
+        String.concat "+" Api.Key.(List.map modifier_name mods @ [key_name key])
+    ) items
+  in
+  let lw = 2 * gw +
+    Array.fold_left (fun w -> function
+      | `Separator -> w
+      | `Entry (_, s, _, _) -> max w (Draw.text_width ui.win ch font s + 1)
+    ) 0 items
+  and rw =
+    Array.fold_left (fun w s ->
+      max w (Draw.text_width ui.win ch font s + 1)
+    ) 0 keys
+  in
+  let ww, wh = Window.size ui.win in
+  let mw = (gw + 1)/2 in  (* inner width padding *)
+  let w = lw + gw + rw + 2 * mw in
+  let h = ch * Array.length items in
+  let x = max 0 (min x (ww - w - 2 * bw)) in
+  let y = max 0 (min y (wh - h - 2 * bw)) in
+
+  background ui x y (w + 2 * bw) (h + 2 * bw);
+
+  let mx, my = Mouse.pos ui.win in
+  let i =
+    if inside (mx, my) (x + bw, y + bw, w, h) then (my - y - bw)/ch else -1 in
+
+  let area = (-1, x + bw, y + bw, w, h) in
+  let cols = [|lw, `Left; rw, `Right|] in 
+  let c_sep = semilit_color (text_color ui) in
+  let rows =
+    Array.mapi (fun j -> function
+      | `Separator -> c_sep, `Regular, [|`Text menu_separator; `Text ""|]
+      | `Entry (c, txt, _, enabled) ->
+        let c' = if enabled then c else semilit_color c in
+        let inv = if enabled && i = j then `Inverted else `Regular in
+        c', inv, [|`Text txt; `Text keys.(j)|]
+    ) items
+  in
+
+  ui.mouse_owned <- true;
+  ui.modal <- false;
+  let released = Mouse.is_released `Left || Mouse.is_pressed `Right in
+  let enabled i = match items.(i) with `Entry (_, _, _, b) -> b | _ -> false in
+  match table ui area gw ch cols rows 0 with
+  | Some i when released && enabled i -> `Click i
+  | None when released -> `Close
+  | _ ->
+    let key_pressed = function
+      | `Entry (_, _, modkey, _) -> key ui modkey true
+      | `Separator -> false
+    in
+    match Array.find_index key_pressed items with
+    | Some i -> `Click i
+    | None -> ui.modal <- true; `None

@@ -113,7 +113,7 @@ let run (st : state) =
     (* Cmd-cursor movement: move selection *)
     Playlist.move_selected pl delta;
 
-  | `Drag (delta, way, motion) ->
+  | `Drag (delta, motion, traj) ->
     (* Drag: move selection if inside *)
     if Api.Key.are_modifiers_down [] then
     (
@@ -121,7 +121,7 @@ let run (st : state) =
       if Playlist.num_selected pl > 0 then
       (
         if motion <> `Unmoved then Run_view.set_drop_cursor st;
-        match way with
+        match traj with
         | `Inside | `Inward -> ()
         | `Outward | `Outside ->
           Run_view.drag_on_tracks st;
@@ -139,7 +139,7 @@ let run (st : state) =
         Table.push_undo pl.table;
       );
 
-      (match way with
+      (match traj with
       | `Outward ->
         (* Leaving area: snap back to original state *)
         Playlist.undo pl;
@@ -153,7 +153,7 @@ let run (st : state) =
       (* Positional movement *)
       if delta <> 0 && Playlist.num_selected pl > 0 then
       (
-        match way with
+        match traj with
         | `Inside | `Inward ->
           Playlist.move_selected pl delta;
           (* Erase intermediate new state *)
