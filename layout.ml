@@ -336,7 +336,7 @@ let mode_indicator_x g x = function
   | `Right -> x + mode_w - indicator_w g - 4
 
 let mode_indicator i al g = Ui.indicator g.ui `Green (cp, mode_indicator_x g (mode_x g i) al, mode_y g - indicator_w g - 1, indicator_w g, indicator_w g)
-let mode_button i key g = Ui.button g.ui (cp, mode_x g i, mode_y g, mode_w, mode_h) key true
+let mode_button i key g = Ui.button g.ui (cp, mode_x g i, mode_y g, mode_w, mode_h) key
 let mode_label i label g = Ui.label g.ui (cp, mode_x g i, mode_y g + mode_h + 1, mode_w, label_h g) `Center label
 
 let shuffle_indicator = mode_indicator 2 `Center

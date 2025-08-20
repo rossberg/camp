@@ -474,7 +474,7 @@ let run (st : state) =
   let shuffle = pl.shuffle <> None in
   Layout.shuffle_label lay;
   Layout.shuffle_indicator lay shuffle;
-  let shuffle' = Layout.shuffle_button lay (Some shuffle) in
+  let shuffle' = Layout.shuffle_button lay focus (Some shuffle) in
   if shuffle' <> shuffle then
   (
     (* Click on Shuffle button: toggle shuffle *)
@@ -491,7 +491,7 @@ let run (st : state) =
   Layout.repeat_label lay;
   Layout.repeat_indicator1 lay (ctl.repeat <> `None);
   Layout.repeat_indicator2 lay (ctl.repeat = `All);
-  if Layout.repeat_button lay (Some false) then
+  if Layout.repeat_button lay focus (Some false) then
   (
     (* Click on Repeat button: cycle repeat mode *)
     cycle_repeat st
@@ -510,7 +510,7 @@ let run (st : state) =
   Layout.loop_indicator1 lay (ctl.loop <> `None);
   Layout.loop_indicator2 lay
     (match ctl.loop with `AB _ -> true | _ -> false);
-  if Layout.loop_button lay (Some false) then
+  if Layout.loop_button lay focus (Some false) then
   (
     (* Click on Loop button: cycle loop mode *)
     cycle_loop st
