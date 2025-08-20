@@ -786,8 +786,8 @@ struct
   let free a sound =
     Mutex.protect a.mutex (fun () ->
       Raylib.stop_music_stream sound.music;
+      Raylib.unload_music_stream sound.music;
       Option.iter Storage.delete_temp sound.temp;
-      Raylib.unload_music_stream sound.music
     )
 
   let play a sound =
