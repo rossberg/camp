@@ -129,6 +129,7 @@ let remove ed i n =
     i (-n)
 
 let clear ed =
+  add_history ed;
   set' ed "" 0 0
 
 let set ed s =
