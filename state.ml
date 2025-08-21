@@ -113,7 +113,7 @@ let focus_prev st = focus_switch st (List.rev (foci st))
 
 let side_enum = ["left", `Left; "right", `Right]
 
-let print_layout lay =
+let print_layout ?(raw = false) lay =
   let open Layout in
   let open Text.Print in
   let win = Ui.window lay.ui in
@@ -129,17 +129,19 @@ let print_layout lay =
   in
   let dx = if x = 0 || x + w < rx - lx then 0 else rx - lx in
   let dy = if y = 0 || y + h < ry - ly then 0 else ry - ly in
+  let dw = if lay.library_shown || lay.filesel_shown then 0 else lay.library_width in
+  let dh = if lay.playlist_shown then 0 else lay.playlist_height in
   record (fun lay -> [
-    "win_pos", pair int int (x - dx, y - dy);
+    "win_pos", pair int int (if raw then Api.Window.pos win else x - dx, y - dy);
     "buffered", bool (Ui.is_buffered lay.ui);
     "color_palette", nat (Ui.get_palette lay.ui);
     "text_size", nat lay.text;
     "text_sdf", bool (Ui.font_is_sdf lay.ui);
     "play_open", bool lay.playlist_shown;
-    "play_height", int (if y + h <> sh then lay.playlist_height else -1);
+    "play_height", int (if y + h + dh <> sh || raw then lay.playlist_height else -1);
     "lib_open", bool lay.library_shown;
     "lib_side", enum side_enum lay.library_side;
-    "lib_width", int (if x + w <> sw then lay.library_width else -1);
+    "lib_width", int (if x + w + dw <> sw || raw then lay.library_width else -1);
     "browser_width", nat lay.browser_width;
     "upper_height", nat lay.upper_height;
     "left_width", nat lay.left_width;
@@ -221,7 +223,7 @@ let print_state st =
 let print_intern st =
   let open Text.Print in
   record (fun st -> [
-    "layout", print_layout st.layout;
+    "layout", print_layout ~raw: true st.layout;
     "config", Config.print_intern st.config;
     "control", Control.print_intern st.control;
     "playlist", Playlist.print_intern st.playlist;
@@ -261,7 +263,7 @@ let layout_ok layout =
     (layout.track_grid >= min_grid_size && layout.track_grid <= max_grid_size) @
   check "playlist height in range"
     (layout.playlist_height >= playlist_min layout) @
-  check "library width positive"
+  check "library width in range"
     (layout.library_width >= library_min layout) @
   check "browser width in range"
     ( layout.browser_width >= browser_min layout &&
