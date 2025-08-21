@@ -143,8 +143,8 @@ let print_layout lay =
     "upper_height", nat lay.upper_height;
     "left_width", nat lay.left_width;
     "directories_width", nat lay.directories_width;
-    "albums_grid", nat lay.albums_grid;
-    "tracks_grid", nat lay.tracks_grid;
+    "album_grid", nat lay.album_grid;
+    "track_grid", nat lay.track_grid;
   ]) lay
 
 let parse_layout lay pos =  (* assumes playlist and library already loaded *)
@@ -169,7 +169,7 @@ let parse_layout lay pos =  (* assumes playlist and library already loaded *)
       (fun b -> Ui.font_sdf lay.ui b);
     apply (r $? "color_palette") (num 0 (Ui.num_palette lay.ui - 1))
       (fun i -> Ui.set_palette lay.ui i);
-    apply (r $? "text_size") (num 10 64)  (* TODO: centralize bounds *)
+    apply (r $? "text_size") (num min_text_size max_text_size)
       (fun h -> lay.text <- h);
     apply (r $? "play_open") bool
       (fun b -> lay.playlist_shown <- b);
@@ -189,10 +189,10 @@ let parse_layout lay pos =  (* assumes playlist and library already loaded *)
       (fun h -> lay.upper_height <- h);
     apply (r $? "directories_width") (num (directories_min lay) (directories_max lay))
       (fun w -> lay.directories_width <- w);
-    apply (r $? "albums_grid") (num 20 1000)  (* TODO: centralize bounds *)
-      (fun w -> lay.albums_grid <- w);
-    apply (r $? "tracks_grid") (num 20 1000)  (* TODO: centralize bounds *)
-      (fun w -> lay.tracks_grid <- w);
+    apply (r $? "album_grid") (num min_grid_size max_grid_size)
+      (fun w -> lay.album_grid <- w);
+    apply (r $? "track_grid") (num min_grid_size max_grid_size)
+      (fun w -> lay.track_grid <- w);
   )
 
 
@@ -248,10 +248,28 @@ let check msg b = if b then [] else [msg]
 
 let layout_ok layout =
   let open Layout in
-  check "text size in range" (layout.text >= 6 && layout.text <= 64) @
-  check "playlist height positive" (layout.playlist_height > 0) @
-  check "library width positive" (layout.library_width > 0) @
-  check "browser width in range" (layout.browser_width <= layout.library_width - 40) @
+  check "text size in range"
+    (layout.text >= min_text_size && layout.text <= max_text_size) @
+  check "album grid size in range"
+    (layout.album_grid >= min_grid_size && layout.album_grid <= max_grid_size) @
+  check "track grid size in range"
+    (layout.track_grid >= min_grid_size && layout.track_grid <= max_grid_size) @
+  check "playlist height in range"
+    (layout.playlist_height >= playlist_min layout) @
+  check "library width positive"
+    (layout.library_width >= library_min layout) @
+  check "browser width in range"
+    ( layout.browser_width >= browser_min layout &&
+      layout.browser_width <= browser_max layout ) @
+  check "left view width in range"
+    ( layout.left_width >= left_min layout &&
+      layout.left_width <= left_max layout ) @
+  check "upper view height in range"
+    ( layout.upper_height >= upper_min layout &&
+      layout.upper_height <= upper_max layout ) @
+  check "directories width in range"
+    ( layout.directories_width >= directories_min layout &&
+      layout.directories_width <= directories_max layout ) @
   []
 
 let focus st =

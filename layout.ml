@@ -26,8 +26,8 @@ type t =
   mutable right_shown : bool;
   mutable upper_height : int;
   mutable lower_shown : bool;
-  mutable albums_grid : int;
-  mutable tracks_grid : int;
+  mutable album_grid : int;
+  mutable track_grid : int;
 }
 
 let make ui =
@@ -53,8 +53,8 @@ let make ui =
     right_shown = false;
     upper_height = 200;
     lower_shown = false;
-    albums_grid = 100;
-    tracks_grid = 100;
+    album_grid = 100;
+    track_grid = 100;
   }
 
 
@@ -616,6 +616,11 @@ let file_edit g = Ui.rich_edit_text g.ui (fp, file_label_w g + 2, footer_y g, - 
 
 
 (* Resizing limits *)
+
+let min_text_size = 8
+let max_text_size = 64
+let min_grid_size = 32
+let max_grid_size = 1024
 
 let browser_min _g = 160
 let directories_min _g = 150

@@ -1021,7 +1021,7 @@ let run (st : state) =
     in
 
     run_view st
-      Layout.(if lay.right_shown then right_view else left_view) lay.albums_grid
+      Layout.(if lay.right_shown then right_view else left_view) lay.album_grid
       lib.albums busy_albums busy_tracks
       Library.refresh_albums_busy Library.refresh_tracks
       Library.reorder_albums view.albums
@@ -1076,7 +1076,7 @@ let run (st : state) =
     in
 
     run_view st
-      Layout.(if lay.lower_shown then lower_view else left_view) lay.tracks_grid
+      Layout.(if lay.lower_shown then lower_view else left_view) lay.track_grid
       lib.tracks busy_tracks busy_tracks
       Library.refresh_tracks_busy ignore
       Library.reorder_tracks view.tracks

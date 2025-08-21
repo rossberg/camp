@@ -148,7 +148,7 @@ let library_drag (st : state) (lay : Layout.t) =
     if lay.right_shown then Layout.(right_drag, right_grid_drag) else
     Layout.(left_drag, left_grid_drag)
   in
-  if current_is_grid st then grid_drag lay lay.tracks_grid else drag lay
+  if current_is_grid st then grid_drag lay lay.track_grid else drag lay
 
 let drag_on_tracks (st : state) =
   if st.layout.library_shown && Library.current_is_shown_playlist st.library then
@@ -179,7 +179,7 @@ let library_mouse (st : state) (lay : Layout.t) =
     if lay.right_shown then Layout.(right_mouse, right_grid_mouse) else
     Layout.(left_mouse, left_grid_mouse)
   in
-  if current_is_grid st then grid_mouse lay lay.tracks_grid else mouse lay
+  if current_is_grid st then grid_mouse lay lay.track_grid else mouse lay
 
 let drop_on_tracks (st : state) tracks =
   if st.layout.library_shown && Library.current_is_shown_playlist st.library then

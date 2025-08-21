@@ -92,7 +92,7 @@ let cycle_color (st : state) d =
   Ui.set_palette lay.ui ((Ui.get_palette lay.ui + d + n) mod n);
   dirty_all st
 
-let clamp_text = Layout.clamp 10 64
+let clamp_text = Layout.(clamp min_text_size max_text_size)
 
 let resize_text_avail (st : state) delta =
   clamp_text (st.layout.text + delta) <> st.layout.text
@@ -100,7 +100,7 @@ let resize_text_avail (st : state) delta =
 let resize_text (st : state) delta =
   st.layout.text <- clamp_text (st.layout.text + delta)
 
-let clamp_grid = Layout.clamp 20 1000
+let clamp_grid = Layout.(clamp min_grid_size max_grid_size)
 
 let resize_grid_avail (st : state) delta =
   match st.library.current with
@@ -108,9 +108,9 @@ let resize_grid_avail (st : state) delta =
   | Some (dir : Library.dir) ->
     let lay = st.layout in
     dir.view.albums.shown = Some `Grid &&
-      clamp_grid (lay.albums_grid + delta) <> lay.albums_grid ||
+      clamp_grid (lay.album_grid + delta) <> lay.album_grid ||
     dir.view.tracks.shown = Some `Grid &&
-      clamp_grid (lay.tracks_grid + delta) <> lay.tracks_grid
+      clamp_grid (lay.track_grid + delta) <> lay.track_grid
 
 let resize_grid (st : state) delta =
   Option.iter (fun (dir : Library.dir) ->
@@ -123,9 +123,9 @@ let resize_grid (st : state) delta =
     in
     let lay = st.layout in
     if dir.view.albums.shown = Some `Grid then
-      lay.albums_grid <- clamp_grid (inc lay.albums_grid);
+      lay.album_grid <- clamp_grid (inc lay.album_grid);
     if dir.view.tracks.shown = Some `Grid then
-      lay.tracks_grid <- clamp_grid (inc lay.tracks_grid);
+      lay.track_grid <- clamp_grid (inc lay.track_grid);
   ) st.library.current
 
 
