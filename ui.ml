@@ -214,7 +214,7 @@ let font' ui h file min max fonts =
   match fonts.(h) with
   | Some f -> f
   | None ->
-    let f = Font.load ui.win file min max (2 * h) ui.font_sdf in
+    let f = Font.load ui.win file min max h ui.font_sdf in
     fonts.(h) <- Some f;
     f
 

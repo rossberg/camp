@@ -204,6 +204,7 @@ struct
   let shader_l = lazy (Raylib.load_shader vertex_fs File.(assets // "sdf_l.fs"))
 
   let load () path min max size sdf =
+    let size = size * int_of_float Raylib.(Vector2.y (get_window_scale_dpi ())) in
     if sdf then
     (
       (* https://github.com/raysan5/raylib/blob/master/examples/text/text_font_sdf.c *)
