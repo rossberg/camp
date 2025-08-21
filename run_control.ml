@@ -180,11 +180,11 @@ let run (st : state) =
     (Char.chr (Char.code '0' + seconds mod 60 / 10)),
     (Char.chr (Char.code '0' + seconds mod 10))
   in
-  Layout.lcd_minus lay sign;
-  Layout.lcd1 lay d1;
-  Layout.lcd2 lay d2;
-  Layout.lcd3 lay d3;
-  Layout.lcd4 lay d4;
+  Layout.lcd_sign lay sign;
+  Layout.lcd_min1 lay d1;
+  Layout.lcd_min2 lay d2;
+  Layout.lcd_sec1 lay d3;
+  Layout.lcd_sec2 lay d4;
 
   if Layout.lcd_button lay then
   (

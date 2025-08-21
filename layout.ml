@@ -269,12 +269,12 @@ let lcd_w = 14
 let lcd_h = 20
 let lcd_x g i = margin g + info_margin g + i*(lcd_w + lcd_space)
 let lcd_y g = margin g + info_margin g + 10
-let lcd_minus g = Ui.lcd g.ui (cp, lcd_x g 0, lcd_y g, lcd_w, lcd_h)
-let lcd1 g = Ui.lcd g.ui (cp, lcd_x g 1, lcd_y g, lcd_w, lcd_h)
-let lcd2 g = Ui.lcd g.ui (cp, lcd_x g 2, lcd_y g, lcd_w, lcd_h)
+let lcd_sign g = Ui.lcd g.ui (cp, lcd_x g 0, lcd_y g, lcd_w, lcd_h)
+let lcd_min1 g = Ui.lcd g.ui (cp, lcd_x g 1, lcd_y g, lcd_w, lcd_h)
+let lcd_min2 g = Ui.lcd g.ui (cp, lcd_x g 2, lcd_y g, lcd_w, lcd_h)
 let lcd_colon g = Ui.lcd g.ui (cp, lcd_x g 3, lcd_y g, colon_w, lcd_h)
-let lcd3 g = Ui.lcd g.ui (cp, lcd_x g 3 + colon_w + lcd_space, lcd_y g, lcd_w, lcd_h)
-let lcd4 g = Ui.lcd g.ui (cp, lcd_x g 4 + colon_w + lcd_space, lcd_y g, lcd_w, lcd_h)
+let lcd_sec1 g = Ui.lcd g.ui (cp, lcd_x g 3 + colon_w + lcd_space, lcd_y g, lcd_w, lcd_h)
+let lcd_sec2 g = Ui.lcd g.ui (cp, lcd_x g 4 + colon_w + lcd_space, lcd_y g, lcd_w, lcd_h)
 let lcd_button g = Ui.mouse g.ui (cp, lcd_x g 0, lcd_y g, colon_w + lcd_x g 4, lcd_h) `Left
 
 (* Cover *)
