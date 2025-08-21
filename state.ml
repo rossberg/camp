@@ -122,12 +122,13 @@ let print_layout lay =
   let sw, sh = Api.Window.max_size win in
   let lx, ly = Api.Window.min_pos win in
   let rx, ry = lx + sw, ly + sh in
+  let x, y = max lx x - lx, max ly y - ly in
   let x =
     if lay.library_shown || not lay.filesel_shown then x
     else x + lay.library_width
   in
-  let dx = if x = lx || x + w < rx then lx else rx in
-  let dy = if y = ly || y + h < ry then ly else ry in
+  let dx = if x = 0 || x + w < rx - lx then 0 else rx - lx in
+  let dy = if y = 0 || y + h < ry - ly then 0 else ry - ly in
   record (fun lay -> [
     "win_pos", pair int int (x - dx, y - dy);
     "buffered", bool (Ui.is_buffered lay.ui);
@@ -135,10 +136,10 @@ let print_layout lay =
     "text_size", nat lay.text;
     "text_sdf", bool (Ui.font_is_sdf lay.ui);
     "play_open", bool lay.playlist_shown;
-    "play_height", nat lay.playlist_height;
+    "play_height", int (if y + h <> sh then lay.playlist_height else -1);
     "lib_open", bool lay.library_shown;
     "lib_side", enum side_enum lay.library_side;
-    "lib_width", nat lay.library_width;
+    "lib_width", int (if x + w <> sw then lay.library_width else -1);
     "browser_width", nat lay.browser_width;
     "upper_height", nat lay.upper_height;
     "left_width", nat lay.left_width;
@@ -157,7 +158,7 @@ let parse_layout lay pos =  (* assumes playlist and library already loaded *)
   let rx, ry = lx + sw, ly + sh in
   record (fun r ->
     apply (r $? "win_pos")
-      (pair (num (lx - rx) (rx - lx + 20)) (num (ly - ry) (ry - ly - 20)))
+      (pair (num (lx - rx + ww) (rx - lx - ww)) (num (ly - ry + wh) (ry - ly - wh)))
       (fun (x, y) ->
         let dx = if x >= 0 then lx else rx in
         let dy = if y >= 0 then ly else ry in
@@ -173,14 +174,18 @@ let parse_layout lay pos =  (* assumes playlist and library already loaded *)
       (fun h -> lay.text <- h);
     apply (r $? "play_open") bool
       (fun b -> lay.playlist_shown <- b);
-    apply (r $? "play_height") (num (playlist_min lay) (sh - wh))
+    apply (r $? "play_height") (num (playlist_min lay) (sh - ly - wh))
       (fun h -> lay.playlist_height <- h);
+    apply (r $? "play_height") (num (-1) 0)
+      (fun h -> if h = -1 then lay.playlist_height <- ry - snd !pos - wh);
     apply (r $? "lib_open") bool
       (fun b -> lay.library_shown <- b);
     apply (r $? "lib_side") (enum side_enum)
       (fun s -> lay.library_side <- s);
-    apply (r $? "lib_width") (num (library_min lay) (sw - ww))
+    apply (r $? "lib_width") (num (library_min lay) (sw - lx - ww))
       (fun w -> lay.library_width <- w);
+    apply (r $? "lib_width") (num (-1) 0)
+      (fun w -> if w = -1 then lay.library_width <- rx - fst !pos - ww);
     apply (r $? "browser_width") (num (browser_min lay) (browser_max lay))
       (fun w -> lay.browser_width <- w);
     apply (r $? "left_width") (num (left_min lay) (left_max lay))
