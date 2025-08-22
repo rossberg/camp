@@ -141,7 +141,9 @@ let print_layout ?(raw = false) lay =
     "play_height", int (if y + h + dh <> sh || raw then lay.playlist_height else -1);
     "lib_open", bool lay.library_shown;
     "lib_side", enum side_enum lay.library_side;
-    "lib_width", int (if x + w + dw <> sw || raw then lay.library_width else -1);
+    "lib_width", int
+      (if lay.library_side = `Left || x + w + dw <> sw || raw
+       then lay.library_width else -1);
     "browser_width", nat lay.browser_width;
     "upper_height", nat lay.upper_height;
     "left_width", nat lay.left_width;
