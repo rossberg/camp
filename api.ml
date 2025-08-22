@@ -62,6 +62,7 @@ type icon = Raylib.Image.t
 
 module Window =
 struct
+  let scale = ref (1, 1)
   let min_pos = ref (0, 0)
   let max_size = ref (0, 0)
 
@@ -70,11 +71,21 @@ struct
   let next_pos = ref None        (* defer window changes to frame end *)
   let next_size = ref None
 
+  let sx x = x * fst !scale
+  let sy y = y * snd !scale
+  let ux x = x / fst !scale
+  let uy y = y / snd !scale
+  let ufx x = x /. float (fst !scale)
+  let ufy y = y /. float (snd !scale)
+  let sxy (x, y) = (sx x, sy y)
+  let uxy (x, y) = (ux x, uy y)
+  let ufxy (x, y) = (ufx x, ufy y)
+
   let update () =
     if not (Raylib.is_window_minimized ()) then
     (
-      current_pos := point_of_vec2 (Raylib.get_window_position ());
-      current_size := (Raylib.get_screen_width (), Raylib.get_screen_height ());
+      current_pos := uxy (point_of_vec2 (Raylib.get_window_position ()));
+      current_size := uxy ((Raylib.get_screen_width (), Raylib.get_screen_height ()));
     )
 
   (* We have to set the window position before events are processed,
@@ -82,12 +93,12 @@ struct
   let _ = after_frame_start := update :: !after_frame_start
   let _ = before_frame_finish :=
     (fun () ->
-      Option.iter (fun (x, y) -> Raylib.set_window_position x y) !next_pos;
+      Option.iter (fun (x, y) -> Raylib.set_window_position (sx x) (sy y)) !next_pos;
       next_pos := None;
     ) :: !before_frame_finish
   let _ = after_frame_finish :=
     (fun () ->
-      Option.iter (fun (w, h) -> Raylib.set_window_size w h) !next_size;
+      Option.iter (fun (w, h) -> Raylib.set_window_size (sx w) (sy h)) !next_size;
       next_size := None;
       Raylib.(set_exit_key Key.Null);  (* seems to be reset somehow? *)
     ) :: !after_frame_finish
@@ -102,6 +113,10 @@ struct
     Raylib.init_window 8000 4000 "";
     Raylib.maximize_window ();
     update ();
+    scale :=
+      if snd !current_size > 2880 then (4, 4) (* 8K *) else
+      if snd !current_size > 1440 then (2, 2) (* 4K *) else (1, 1);
+    if fst !scale > 1 then update ();
     Raylib.close_window ();
     min_pos := !current_pos;
     max_size := !current_size;
@@ -109,8 +124,8 @@ struct
     Raylib.(set_config_flags
       ConfigFlags.[Window_undecorated; Window_always_run;
         (*Window_transparent;*) Vsync_hint; Msaa_4x_hint]);
-    Raylib.init_window w h s;
-    Raylib.set_window_position x y;
+    Raylib.init_window (sx w) (sy h) s;
+    Raylib.set_window_position (sx x) (sy y);
     update ()
 
   let closed () = Raylib.window_should_close ()
@@ -136,7 +151,9 @@ struct
     let mon = Raylib.get_current_monitor () in
     Raylib.get_monitor_width mon, Raylib.get_monitor_height mon
 
-  let is_hires () = Raylib.(Vector2.y (get_window_scale_dpi ())) > 1.0
+  let is_hires () =
+    Raylib.(Vector2.y (get_window_scale_dpi ())) > 1.0 || snd !scale > 1
+
   let fps () = Raylib.get_fps ()
 end
 
@@ -204,7 +221,8 @@ struct
   let shader_l = lazy (Raylib.load_shader vertex_fs File.(assets // "sdf_l.fs"))
 
   let load () path min max size sdf =
-    let size = size * int_of_float Raylib.(Vector2.y (get_window_scale_dpi ())) in
+    let size =
+      Window.sy size * int_of_float Raylib.(Vector2.y (get_window_scale_dpi ())) in
     if sdf then
     (
       (* https://github.com/raysan5/raylib/blob/master/examples/text/text_font_sdf.c *)
@@ -283,7 +301,8 @@ type buffer = {texture : Raylib.RenderTexture.t; scale : size}
 module Buffer =
 struct
   let create w h =
-    let sx, sy = point_of_vec2 (Raylib.get_window_scale_dpi ()) in
+    let sx, sy =
+      mul !Window.scale (point_of_vec2 (Raylib.get_window_scale_dpi ())) in
     let w, h = w * sx, h * sy in
     let buf = Raylib.load_render_texture w h in
     (* Override texture format to not use alpha channel *)
@@ -308,7 +327,7 @@ end
 module Draw =
 struct
   let frame = ref 0
-  let current_scale = ref (1, 1)
+  let current_scale = ref (-1, -1)
   let current_clip = ref None
   let current_shader = ref None
 
@@ -338,6 +357,7 @@ struct
     current_shader := shader_opt
 
   let start () c =
+    if fst !current_scale = -1 then current_scale := !Window.scale;
     Raylib.begin_drawing ();
     Raylib.clear_background (color c);
 (* TODO: Raylib OCaml is missing set_blend_factors_separate
@@ -359,12 +379,12 @@ struct
     shader None;
     Raylib.begin_texture_mode buf.texture;
     (* Manual adjustment for High DPI scaling is needed *)
-    current_scale := point_of_vec2 (Raylib.get_window_scale_dpi ())
+    current_scale := Window.sxy (point_of_vec2 (Raylib.get_window_scale_dpi ()))
 
   let unbuffered () =
     shader None;
     Raylib.end_texture_mode ();
-    current_scale := (1, 1)
+    current_scale := !Window.scale
 
   let clip () x y w h =
     assert (!current_clip = None);
@@ -518,7 +538,7 @@ struct
 
   let pos () = !current_pos
   let delta () = sub !current_pos !last_pos
-  let wheel () = floats_of_vec2 (Raylib.get_mouse_wheel_move_v ())
+  let wheel () = Window.ufxy (floats_of_vec2 (Raylib.get_mouse_wheel_move_v ()))
 
   let screen_pos () = add (pos ()) (Window.pos ())
   let screen_delta () = sub (screen_pos ()) !last_screen_pos
@@ -560,9 +580,9 @@ struct
     (fun () ->
       (* Work around Raylib issue: if window was moved but mouse hasn't, then
        * mouse pos is off; detect and correct by adding window delta. *)
-      current_pos := point_of_vec2 (Raylib.get_mouse_position ());
-      let win_pos = point_of_vec2 (Raylib.get_window_position ()) in
-      let mouse_delta = point_of_vec2 (Raylib.get_mouse_delta ()) in
+      current_pos := Window.uxy (point_of_vec2 (Raylib.get_mouse_position ()));
+      let win_pos = Window.uxy (point_of_vec2 (Raylib.get_window_position ())) in
+      let mouse_delta = Window.uxy (point_of_vec2 (Raylib.get_mouse_delta ())) in
       let win_delta = sub win_pos !last_win_pos in
       if not is_mac || mouse_delta <> (0, 0) then
         last_win_pos := win_pos  (* true mouse location caught up *)
