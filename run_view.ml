@@ -35,6 +35,7 @@ sig
 
   val it : Ui.cached t
   val tab : table
+  val is_same : bool
   val focus : State.t -> unit
   val deselect_other : unit -> unit
   val refresh_deps : 'a Library.t -> unit
@@ -74,6 +75,7 @@ let playlist_view (st : state) : view =
     include Playlist
     module Select = Playlist
     type table = Ui.cached t
+    let is_same = true
     let it = st.playlist
     let tab = st.playlist
     let focus = State.focus_playlist
@@ -86,6 +88,7 @@ let tracks_view (st : state) : view =
     include Library
     module Select = Library
     type table = Ui.cached t
+    let is_same = true
     let it = st.library
     let tab = st.library
     let focus = State.focus_library st.library.tracks
@@ -98,6 +101,7 @@ let albums_view (st : state) : view =
     include Library
     module Select = Table
     type table = (Data.album, Ui.cached) Table.t
+    let is_same = false
     let it = st.library
     let tab = it.albums
     let focus = State.focus_library tab
@@ -110,6 +114,7 @@ let artists_view (st : state) : view =
     include Library
     module Select = Table
     type table = (Data.artist, Ui.cached) Table.t
+    let is_same = false
     let it = st.library
     let tab = it.artists
     let focus = State.focus_library tab
@@ -388,6 +393,14 @@ let save_view (st : state) _view =
   ) st.library.current
 
 
+let queue_avail _st (module View : View) =
+  View.(length it > 0)
+let queue (st : state) (module View : View) tracks =
+  Playlist.insert st.playlist (Playlist.length st.playlist) tracks;
+  Playlist.deselect_all st.playlist;
+  ignore (Control.switch_if_empty st.control (Some tracks.(0)))
+
+
 let rescan_avail _st (module View : View) =
   View.(length it > 0)
 let rescan (st : state) tracks =
@@ -457,21 +470,22 @@ let select_invert (st : state) (module View : View) =
 
 (* Initiate Menus *)
 
+let subject_tracks (module View : View) =
+  if View.(Select.num_selected tab) > 0
+  then false, "", fun () -> View.(if is_same then selected else tracks) View.it
+  else true, " All", fun () -> View.(tracks it)
+
 let list_menu (st : state) view =
   let lay = st.layout in
   let module View = (val view : View) in
 
   let c = Ui.text_color lay.ui in
-  let all, quant, tracks =
-    if View.(num_selected it) > 0
-    then false, "", View.selected
-    else true, " All", View.tracks
-  in
+  let all, quant, get_tracks = subject_tracks view in
   Run_menu.command_menu st [|
     `Entry (c, "Tag" ^ quant, Layout.key_tag, tag_avail st view),
-      (fun () -> tag st (tracks View.it) (not all));
+      (fun () -> tag st (get_tracks ()) (not all));
     `Entry (c, "Rescan" ^ quant, Layout.key_rescan, rescan_avail st view),
-      (fun () -> rescan st (tracks View.it));
+      (fun () -> rescan st (get_tracks ()));
     `Separator, ignore;
     `Entry (c, "Select All", Layout.key_all, select_all_avail st view),
       (fun () -> select_all st view);
@@ -487,6 +501,9 @@ let list_menu (st : state) view =
       (fun () -> save st view);
     `Entry (c, "Save as Viewlist...", Layout.key_save2, save_view_avail st view),
       (fun () -> save_view st view);
+    `Entry (c, "Queue" ^ quant ^ " to Playlist...", Layout.key_queue,
+      queue_avail st view),
+      (fun () -> queue st view (get_tracks ()));
   |]
 
 let edit_menu (st : state) view pos_opt =
@@ -495,19 +512,15 @@ let edit_menu (st : state) view pos_opt =
 
   let pos = Option.value pos_opt ~default: View.(length it) in
   let c = Ui.text_color lay.ui in
-  let all, quant, tracks =
-    if View.(num_selected it) > 0
-    then false, "", View.selected
-    else true, " All", View.tracks
-  in
+  let all, quant, get_tracks = subject_tracks view in
   Run_menu.command_menu st (Array.append [|
     `Entry (c, "Insert Separator", Layout.key_sep, separator_avail st view),
       (fun () -> separator st view pos);
     `Separator, ignore;
     `Entry (c, "Tag" ^ quant, Layout.key_tag, tag_avail st view),
-      (fun () -> tag st (tracks View.it) (not all));
+      (fun () -> tag st (get_tracks ()) (not all));
     `Entry (c, "Rescan" ^ quant, Layout.key_rescan, rescan_avail st view),
-      (fun () -> rescan st (tracks View.it));
+      (fun () -> rescan st (get_tracks ()));
     `Entry (c, "Remove" ^ quant, Layout.key_del,
       if all then clear_avail st view else remove_avail st view),
       (fun () -> (if all then clear else remove) st view);
@@ -547,6 +560,9 @@ let edit_menu (st : state) view pos_opt =
     [|
       `Entry (c, "Save View...", Layout.key_save2, save_view_avail st view),
         (fun () -> save_view st view);
+      `Entry (c, "Queue" ^ quant ^ " to Playlist...", Layout.key_queue,
+        queue_avail st view),
+        (fun () -> queue st view (get_tracks ()));
     |])
   )
 
@@ -566,10 +582,10 @@ let run_edit_panel (st : state) =
     | Some dir -> dir.view.tracks.shown <> None
   in
   let pl_focus = pl.table.focus in
-  let lib_focus = lib_shows_tracks &&
-    ( lib.tracks.focus || lib.albums.focus || lib.artists.focus ||
-      lib.browser.focus || lib.search.focus )
+  let lib_focus =
+    (lib.tracks.focus || lib.albums.focus || lib.artists.focus || lib.browser.focus)
   in
+  let focus = pl_focus || lib_focus && lib_shows_tracks in
 
   assert (not (pl_focus && lib_focus));
   assert (lay.playlist_shown || not pl_focus);
@@ -580,9 +596,7 @@ let run_edit_panel (st : state) =
   let view = if pl_focus then playlist else library in
   let module View = (val view) in
 
-  let active_if avail =
-    if (pl_focus || lib_focus) && avail st view then Some false else None
-  in
+  let active_if avail = if focus && avail st view then Some false else None in
 
   (* Separator button *)
   if Layout.sep_button lay (active_if separator_avail) then
@@ -618,26 +632,26 @@ let run_edit_panel (st : state) =
     undo st view
   );
 
-  if Layout.redo_button lay then
+  if focus && redo_avail st view && Layout.redo_button lay then
   (
     (* Redo key pressed or Shift-click on Undo button: pop redo *)
     redo st view
   );
 
   (* Edit keys *)
-  if cut_avail st view && Layout.cut_key lay then
+  if focus && cut_avail st view && Layout.cut_key lay then
   (
     (* Press of Cut key: remove selected tracks and write them to clipboard *)
     cut st view
   );
 
-  if copy_avail st view && Layout.copy_key lay then
+  if (focus || lib_focus) && copy_avail st view && Layout.copy_key lay then
   (
     (* Press of Copy key: write selected tracks to clipboard *)
     copy st view
   );
 
-  if paste_avail st view && Layout.paste_key lay then
+  if focus && paste_avail st view && Layout.paste_key lay then
   (
     (* Press of Paste key: insert tracks from clipboard *)
     paste st view
@@ -647,11 +661,10 @@ let run_edit_panel (st : state) =
   if Layout.tag_button lay (active_if tag_avail) then
   (
     (* Click on Tag button: execute tagging program *)
-    let tracks =
-      View.(if num_selected it > 0 then selected it else tracks it) in
+    let _, _, get_tracks = subject_tracks view in
     (* Command-click: add tracks to tagger if it's already open *)
     let additive = Api.Key.is_modifier_down `Command in
-    tag st tracks additive;
+    tag st (get_tracks ()) additive;
   );
 
   (* Load button *)
@@ -670,11 +683,19 @@ let run_edit_panel (st : state) =
   );
 
   (* Save Viewlist button *)
-  if Layout.save_view_button lay then
+  if lib_focus && Layout.save_view_button lay then
   (
-    (* Save-View key pressed or Shift-Click on Save button: save viewlist *)
+    (* Press of Save-View key or Shift-Click on Save button: save viewlist *)
     if save_view_avail st view then
       save_view st view
+  );
+
+  (* Queue key *)
+  if lib_focus && queue_avail st view && Layout.queue_key lay then
+  (
+    (* Press of Queue key: queue tracks *)
+    let _, _, get_tracks = subject_tracks view in
+    queue st view (get_tracks ())
   );
 
   (* Focus buttons *)

@@ -151,6 +151,7 @@ let key_invert = cmd 'I'
 let key_crop = cmd 'K'
 let key_lib = cmd 'L'
 let key_side = shiftcmd 'L'
+let key_queue = cmd 'M'
 let key_none = cmd 'N'
 let key_load = cmd 'O'
 let key_pl = cmd 'P'
@@ -558,6 +559,7 @@ let lower_spin g = Ui.text g.ui (lp, 4, divider_w g + text_h g + 4, -scrollbar_w
 let lower_view = lower_pane, lower_area, lower_table, lower_grid, lower_spin
 
 (* Keys *)
+let queue_key g = Ui.key g.ui key_queue true
 let lib_cover_key g = Ui.key g.ui key_libcover true
 
 

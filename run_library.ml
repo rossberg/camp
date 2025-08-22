@@ -1101,11 +1101,10 @@ let run (st : state) =
 
   (* Keys *)
 
-  if
-    Ui.key lay.ui Layout.key_copy
-      ( (lib.browser.focus || lib.artists.focus || lib.albums.focus) &&
-        lib.tracks.entries <> [||] )
-  then
+  let focus = lib.tracks.entries <> [||] &&
+    (lib.browser.focus || lib.artists.focus || lib.albums.focus) in
+
+  if Ui.key lay.ui Layout.key_copy focus then
   (
     (* Press of Copy key: write selected tracks to clipboard *)
     let s = Track.to_m3u lib.tracks.entries in
