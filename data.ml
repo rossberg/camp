@@ -415,8 +415,8 @@ let artist_attr_string (artist : artist) = function
   | `Albums -> fmt "%3d" artist.albums
 
 let album_attr_string' (album : album) = function
-  | `AlbumArtist -> artist_attr_string' `AlbumArtist album.path album.meta
-  | `AlbumTitle -> title_attr_string' `AlbumTitle album.path album.meta
+  | `AlbumArtist -> unknown meta_attr_string album.meta `AlbumArtist
+  | `AlbumTitle -> unknown meta_attr_string album.meta `AlbumTitle
   | `Length -> length_attr_string' album.format album.meta
   | #file_attr as attr -> file_attr_string album.path album.file attr
   | #format_attr as attr -> nonempty format_attr_string album.format attr
