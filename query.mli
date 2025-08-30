@@ -45,3 +45,14 @@ val string_of_key : key -> string
 val string_of_value : value -> string
 val string_of_expr : expr -> string
 val string_of_query : query -> string
+
+module AlbumKey :
+sig
+  type t = string * string * string * string
+  val compare : t -> t -> int
+end
+module AlbumSet : module type of Set.Make(AlbumKey)
+module AlbumMap : module type of Map.Make(AlbumKey)
+
+val album_key : Data.album -> AlbumKey.t
+val track_album_key : Data.track -> AlbumKey.t

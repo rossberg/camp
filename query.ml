@@ -325,15 +325,19 @@ struct
   type t = string * string * string * string
   let compare : t -> t -> int = compare
 end
+module AlbumSet = Set.Make(AlbumKey)
 module AlbumMap = Map.Make(AlbumKey)
 module ArtistMap = Map.Make(String)
 
-let album_key (track : track) : AlbumKey.t =
-  ( track_attr_string track `AlbumArtist,
-    track_attr_string track `AlbumTitle,
-    track_attr_string track `Codec,
-    track_attr_string track `Label
+let album_key' attr_string x : AlbumKey.t =
+  ( attr_string x `AlbumArtist,
+    attr_string x `AlbumTitle,
+    attr_string x `Codec,
+    attr_string x `Label
   )
+
+let album_key album = album_key' album_attr_string album
+let track_album_key track = album_key' track_attr_string track
 
 let new_album_of_track (track : track) : album =
   let meta = Option.value track.meta ~default: Meta.unknown in
@@ -424,8 +428,8 @@ let exec q p dir =
       if to_tracks then Dynarray.add_last tracks track;
       if to_albums || to_artists then
       (
-        let album_key = album_key track in
         let album = new_album_of_track track in
+        let album_key = album_key album in
         let is_new_album =
           match AlbumMap.find_opt album_key !album_map with
           | None ->

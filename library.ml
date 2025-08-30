@@ -1120,14 +1120,14 @@ let filter_artist lib =
     Set.mem (Data.track_attr_string track `Artist) artists ||
     Set.mem (Data.track_attr_string track `AlbumArtist) artists
 
-let filter_album lib  =
+let filter_album lib =
   let albums =
     Array.fold_left (fun s (album : album) ->
-      Set.add (Data.album_attr_string album `AlbumTitle) s
-    ) Set.empty (Table.selected lib.albums)
+      Query.AlbumSet.add (Query.album_key album) s
+    ) Query.AlbumSet.empty (Table.selected lib.albums)
   in fun (track : track) ->
-    albums = Set.empty ||
-    Set.mem (Data.track_attr_string track `AlbumTitle) albums
+    albums = Query.AlbumSet.empty ||
+    Query.AlbumSet.mem (Query.track_album_key track) albums
 
 let filter lib with_artists with_albums with_tracks with_seps =
   let filter_artist = filter_artist lib in
