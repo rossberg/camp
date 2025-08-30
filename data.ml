@@ -564,7 +564,10 @@ let attr_fold attr =
 
 let key_entry' e attr_string (attr, order) =
   let s = attr_fold attr (attr_string e attr) in
-  if order = `Asc then s else String.map Char.(fun c -> chr (255 - code c)) s
+  if order = `Asc then s else
+  let n = String.length s in
+  String.init (n + 1) Char.(fun i ->
+    if i = n then '\xff' else chr (255 - code s.[i]))
 
 let key_entry attr_string sorting e =
   List.map (key_entry' e attr_string) sorting
