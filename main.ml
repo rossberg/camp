@@ -1,11 +1,16 @@
 (* Main Program *)
 
+open Audio_file
+
+
 (* State *)
 
 type state = State.t
 
 
 (* Runner *)
+
+let queue_file = "queue.m3u"
 
 let rec run (st : state) =
   State.ok st;
@@ -16,6 +21,16 @@ and run' (st : state) =
   let lay = st.layout in
   let win = Ui.window lay.ui in
   if Api.Window.closed win then Run_control.quit st;
+
+  (* App invocation with arguments *)
+  let m3u = ref "" in
+  Storage.load_string queue_file ((:=) m3u);
+  if !m3u <> "" then
+  (
+    (* TODO: this could race, should lock the file *)
+    Storage.save_string queue_file (fun () -> "");
+    Run_view.external_queue_on_playlist st (M3u.parse !m3u);
+  );
 
   (* Start drawing *)
   Ui.start lay.ui;
@@ -123,17 +138,24 @@ let startup () =
   at_exit (fun () ->
     Api.Audio.pause st.control.audio;
     State.save st;
+    Storage.delete queue_file;
     Storage.clear_temp ();
   );
   st
 
 let _main =
   try
+    let paths = ref [] in
     Printexc.record_backtrace true;
-    Arg.parse ["--dperf", Arg.Set App.debug_perf, "Log times"] ignore "";
+    Arg.parse ["--dperf", Arg.Set App.debug_perf, "Log times"]
+      (fun path -> paths := path :: !paths) "";
+    let m3u = M3u.make (List.rev !paths) in
     (* Work around seeming bug in GC scheduler. *)
     Gc.(set {(get ()) with space_overhead = 10});
-    run (startup ())
+    let already_running = Storage.exists queue_file in
+    (* TODO: this could race, should lock the file *)
+    Storage.save_string_append queue_file (fun () -> m3u);
+    if not already_running then run (startup ())
   with exn ->
     Storage.log_exn "internal" exn "";
     Stdlib.exit 2

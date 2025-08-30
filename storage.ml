@@ -33,6 +33,10 @@ let _ = make_dir data_dir
 
 let temp_dir = File.(data_dir // "temp")
 
+let create_temp () =
+  if not (File.exists temp_dir) then File.create_dir temp_dir;
+  File.temp (Some temp_dir) "temp" ""
+
 let copy_to_temp path =
   if not (File.exists temp_dir) then File.create_dir temp_dir;
   let ext = File.extension path in
@@ -143,6 +147,16 @@ let save_string_append filename f =
 
 let _ = save_string_append_fwd := save_string_append
 
+let exists filename =
+  try
+    File.exists (path filename)
+  with Sys_error _ | Failure _ as exn ->
+    log_io_error "probing" filename exn;
+    false
+
 let delete filename =
   let path = path filename in
-  if File.exists path then File.delete path
+  try
+    if File.exists path then File.delete path
+  with Sys_error _ | Failure _ as exn ->
+    log_io_error "deleting" filename exn

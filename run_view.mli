@@ -1,5 +1,8 @@
 (* Generic Handling of Editable Track View UI *)
 
+open Audio_file
+
+type path = File.path
 type table = (Data.track, Ui.cached) Table.t
 
 (* Runner *)
@@ -30,5 +33,7 @@ val drop_on_tracks : State.t -> Data.track array -> unit
 
 val external_drop_on_playlist : State.t -> unit
 val external_drop_on_tracks : State.t -> unit
+
+val external_queue_on_playlist : State.t -> path list -> unit
 
 val set_drop_cursor : State.t -> unit

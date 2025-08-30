@@ -2,6 +2,7 @@
 
 open Audio_file
 
+type path = File.path
 type state = State.t
 type table = (Data.track, Ui.cached) Table.t
 
@@ -243,6 +244,11 @@ let external_drop drop_on (st : state) (module View : View) =
 
 let external_drop_on_playlist st = external_drop drop_on_playlist st (playlist_view st)
 let external_drop_on_tracks st = external_drop drop_on_tracks st (tracks_view st)
+
+let external_queue_on_playlist st paths =
+  let tracks = expand_paths st paths in
+  Playlist.insert st.playlist (Playlist.length st.playlist) tracks;
+  update_control st
 
 
 let set_drop_cursor (st : state) =

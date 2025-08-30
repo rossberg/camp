@@ -12,6 +12,7 @@ val make_dir : path -> unit
 
 (* Temporary Files *)
 
+val create_temp : unit -> path
 val copy_to_temp : path -> path
 val delete_temp : path -> unit
 val clear_temp : unit -> unit
@@ -35,4 +36,5 @@ val load_string_opt : file -> (string -> unit) -> unit
 val save_string : file -> (unit -> string) -> unit
 val save_string_append : file -> (unit -> string) -> unit
 
+val exists : file -> bool
 val delete : file -> unit
