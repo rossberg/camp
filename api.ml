@@ -215,10 +215,53 @@ end
 
 module Font =
 struct
-  let assets = File.(dir Sys.argv.(0) // "assets")
-  let vertex_fs = File.(assets // "vertex.fs")
-  let shader_s = lazy (Raylib.load_shader vertex_fs File.(assets // "sdf_s.fs"))
-  let shader_l = lazy (Raylib.load_shader vertex_fs File.(assets // "sdf_l.fs"))
+  let vertex_glsl =
+  {|
+    #version 330
+
+    in vec3 vertexPosition;
+    in vec2 vertexTexCoord;
+    in vec4 vertexColor;
+    out vec2 fragTexCoord;
+    out vec4 fragColor;
+
+    uniform mat4 mvp;
+    void main()
+    {
+      fragTexCoord = vertexTexCoord;
+      fragColor = vertexColor;
+      gl_Position = mvp*vec4(vertexPosition, 1.0);
+    }
+  |}
+
+  let frag_glsl = Printf.sprintf
+  {|
+    #version 330
+
+    // Input vertex attributes
+    in vec2 fragTexCoord;
+    in vec4 fragColor;
+
+    // Input uniform values
+    uniform sampler2D texture0;
+    uniform vec4 colDiffuse;
+
+    // Output fragment color
+    out vec4 finalColor;
+
+    void main()
+    {
+      float distOutline = texture(texture0, fragTexCoord).a - %.2f;
+      float distChange = length(vec2(dFdx(distOutline), dFdy(distOutline)));
+      float alpha = smoothstep(-distChange, distChange, distOutline);
+      finalColor = vec4(fragColor.rgb, fragColor.a * alpha);
+    }
+  |}
+
+  let shader dist =
+    lazy (Raylib.load_shader_from_memory vertex_glsl (frag_glsl dist))
+  let shader_s = shader 0.45
+  let shader_l = shader 0.47
 
   let load () path min max size sdf =
     let size =
