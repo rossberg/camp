@@ -283,7 +283,7 @@ let cover_x g = lcd_x g 5 + 30
 let cover_y g = margin g + info_margin g
 let cover_w = 80
 let cover_h = 40
-let cover_area g = (cp, cover_x g, cover_y g, cover_w, cover_h)
+let cover g = Ui.image g.ui (cp, cover_x g, cover_y g, cover_w, cover_h)
 let cover_key g = Ui.key g.ui key_cover true
 
 (* Info *)

@@ -87,6 +87,7 @@ type inversion = [`Regular | `Inverted]
 val label : t -> area -> align -> string -> unit
 val indicator : t -> color -> area -> bool -> unit
 val lcd : t -> area -> char -> unit
+val image : t -> area -> Api.image -> unit
 
 val box : t -> area -> color -> unit
 val text : t -> area -> align -> inversion -> bool -> string -> unit

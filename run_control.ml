@@ -209,14 +209,8 @@ let run (st : state) =
   if ctl.cover then
   (
     Option.iter (fun (track : Data.track) ->
-      Option.iter (fun img ->
-        let x, y, w, h = Ui.dim lay.ui (Layout.cover_area lay) in
-        let iw, ih = Api.Image.size img in
-        let q = float w /. float h in
-        let iq = float iw /. float ih in
-        let ih' = int_of_float (float ih *. iq /. q) in
-        Api.Draw.image_part win x y w h 0 0 iw ih' img;
-      ) (Library.load_cover st.library win track.path)
+      Option.iter (Layout.cover lay)
+        (Library.load_cover st.library win track.path)
     ) ctl.current
   );
   if Layout.cover_key lay then toggle_cover st;
@@ -312,14 +306,6 @@ let run (st : state) =
   in
   (* Seek key pressed: seek *)
   seek st seek_delta;
-
-(*
-  let s1 = fmt_time2 elapsed in
-  let s2 = "-" ^ fmt_time2 remaining in
-  let w2 = Api.Draw.text_width win 11 (Ui.font lay.ui 11) s2 in
-  Api.Draw.text win 14 91 11 `White (Ui.font lay.ui 11) s1;
-  Api.Draw.text win (278 - w2) 91 11 `White (Ui.font lay.ui 11) s2;
-*)
 
   (* Mouse reflection *)
   Layout.info_refl lay;

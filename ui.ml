@@ -554,6 +554,14 @@ let lcd ui area d =
     | _ -> []
     )
 
+let image ui area img =
+  let x, y, w, h = dim ui area in
+  let iw, ih = Image.size img in
+  let q = float w /. float h in
+  let iq = float iw /. float ih in
+  let ih' = int_of_float (float ih *. iq /. q) in
+  Draw.image_part ui.win x y w h 0 0 iw ih' img
+
 
 (* Passive Widgets *)
 
