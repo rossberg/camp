@@ -45,7 +45,17 @@ val volume : t -> float -> unit
 
 (* Track Control *)
 
+val pause : t -> unit
+val resume : t -> unit
+val stop : t -> unit
 val eject : t -> unit
 val switch : t -> track -> bool (* play *) -> unit
 val switch_if_empty : t -> track option -> bool
 val seek : t -> float (* fraction *) -> unit
+
+val status : t -> [`Ejected | `Stopped | `Paused | `Playing]
+val length : t -> time
+val elapsed : t -> time
+val bitrate : t -> float
+val rate : t -> int
+val channels : t -> int

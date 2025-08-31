@@ -49,9 +49,9 @@ let ok ctl =
   let playing = Api.Audio.is_playing ctl.audio in
   let paused = not playing && played > 0.0 in
   let stopped = not playing && not paused in
-  let silence = ctl.sound = Api.Audio.silence ctl.audio in
+  let silence = (ctl.sound = Api.Audio.silence ctl.audio) in
   check "volume in range" (ctl.volume >= 0.0 && ctl.volume <= 1.0) @
-  check "silence when no current track" (ctl.current <> None || silence) @
+  check "silence when no current track" ((ctl.current = None) = silence) @
   check "stopped when no current track" (ctl.current <> None || stopped) @
   check "no loop when no current track"
     (ctl.current <> None || ctl.loop = `None) @
@@ -84,11 +84,32 @@ let volume ctl v =
 
 (* Track Control *)
 
+let silent ctl = (ctl.sound = Api.Audio.silence ctl.audio)
+let length ctl = if silent ctl then 0.0 else Api.Audio.length ctl.audio
+let elapsed ctl = if silent ctl then 0.0 else Api.Audio.played ctl.audio
+let bitrate ctl = Api.Audio.bitrate ctl.audio ctl.sound
+let rate ctl = Api.Audio.rate ctl.audio ctl.sound
+let channels ctl = Api.Audio.channels ctl.audio ctl.sound
+
+let status ctl =
+  if silent ctl then
+    `Ejected
+  else if Api.Audio.is_playing ctl.audio then
+    `Playing
+  else if Api.Audio.played ctl.audio > 0.0 then
+    `Paused
+  else
+    `Stopped
+
+
+let pause ctl = Api.Audio.pause ctl.audio
+let resume ctl = Api.Audio.resume ctl.audio
+let stop ctl = Api.Audio.stop ctl.audio; ctl.progress <- 0.0
+
 let eject ctl =
-  Api.Audio.stop ctl.audio;
+  stop ctl;
   ctl.current <- None;
   ctl.loop <- `None;
-  ctl.progress <- 0.0;
   if ctl.sound <> Api.Audio.silence ctl.audio then
   (
     Api.Audio.free ctl.audio ctl.sound;

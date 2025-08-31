@@ -153,14 +153,18 @@ let run (st : state) =
   Layout.power_label lay;
 
   (* Current status *)
-  let silence = ctl.sound = Api.Audio.silence ctl.audio in
-  let length = Api.Audio.length ctl.audio in
-  let elapsed = Api.Audio.played ctl.audio in
+  let status = Control.status ctl in
+  let playing = (status = `Playing) in
+  let paused = (status = `Paused) in
+  let stopped = (status = `Stopped || status = `Ejected) in
+  let ejected = (status = `Ejected) in
+  let length = Control.length ctl in
+  let elapsed = Control.elapsed ctl in
   let remaining = length -. elapsed in
-  let playing = Api.Audio.is_playing ctl.audio in
-  let paused = not playing && elapsed > 0.0 in
-  let stopped = not playing && not paused in
-  let focus = pl.table.focus || not (lay.library_shown || lay.filesel_shown || lay.menu_shown) in
+  let focus =
+    pl.table.focus ||
+    not (lay.library_shown || lay.filesel_shown || lay.menu_shown)
+  in
 
   (* LCD *)
   Layout.info_box lay;
@@ -173,7 +177,7 @@ let run (st : state) =
       | `Remain -> '-', remaining
     in
     Layout.lcd_colon lay ':';
-    let seconds = int_of_float (Float.round (if silence then 0.0 else time)) in
+    let seconds = int_of_float (Float.round time) in
     sign,
     (Char.chr (Char.code '0' + seconds mod 6000 / 600)),
     (Char.chr (Char.code '0' + seconds mod 600 / 60)),
@@ -226,15 +230,15 @@ let run (st : state) =
   if Layout.sdf_key lay then toggle_sdf st;
 
   (* Audio properties *)
-  if not silence then
+  if not ejected then
   (
     let track = Option.get ctl.current in
     let ext = File.extension track.path in
     let format = if ext = "" || ext.[0] <> '.' then "???" else
       String.uppercase_ascii (String.sub ext 1 (String.length ext - 1)) in
-    let bitrate = Api.Audio.bitrate ctl.audio ctl.sound in
-    let rate = Api.Audio.rate ctl.audio ctl.sound in
-    let channels = Api.Audio.channels ctl.audio ctl.sound in
+    let bitrate = Control.bitrate ctl in
+    let rate = Control.rate ctl in
+    let channels = Control.channels ctl in
     let depth = bitrate /. float rate /. float channels in
     Layout.prop_text lay `Regular true
       (fmt "%s  %.0f KBPS  %.1f KHZ  %s BIT  %s"
@@ -294,11 +298,10 @@ let run (st : state) =
     if delta <> 0.0 then
       Control.seek st.control (st.control.progress +. 0.05 *. delta)
   in
-  let progress =
-    if length > 0.0 && not silence then elapsed /. length else 0.0 in
+  let progress = if length > 0.0 then elapsed /. length else 0.0 in
   let progress' = Layout.seek_bar lay progress in
   if (progress' <> ctl.progress || Api.Mouse.is_pressed `Left)
-  && progress' <> progress && not silence then
+  && progress' <> progress && length > 0.0 then
   (
     (* Click or drag on seek bar at new position: reposition audio *)
     Control.seek ctl progress'
@@ -368,9 +371,9 @@ let run (st : state) =
 
   let pause (_st : state) b =
     if playing' && b then
-      Api.Audio.pause ctl.audio
-    else if (not stopped && not b || stopped && b) && not silence then
-      Api.Audio.resume ctl.audio
+      Control.pause ctl
+    else if (not stopped && not b || stopped && b) && length > 0.0 then
+      Control.resume ctl
   in
   let paused' = Layout.pause_button lay focus (Some paused) in
   if paused <> paused' then
@@ -382,11 +385,9 @@ let run (st : state) =
   let stop (st : state) =
     if not stopped then
     (
-      let ctl = st.control in
-      Api.Audio.pause ctl.audio;
       (match Playlist.current_opt st.playlist with
-      | None -> Control.eject ctl
-      | Some track -> Control.switch ctl track false
+      | None -> Control.eject st.control
+      | Some track -> Control.switch st.control track false
       );
       Playlist.adjust_scroll st.playlist page;
       Table.dirty st.library.tracks;
@@ -414,9 +415,9 @@ let run (st : state) =
   let start_stop (st : state) =
     let ctl = st.control in
     if playing then
-      Api.Audio.pause ctl.audio
+      Control.pause ctl
     else if paused then
-      Api.Audio.resume ctl.audio
+      Control.resume ctl
     else if stopped && len > 0 then
     (
       Control.switch ctl (Playlist.current st.playlist) true;
@@ -432,9 +433,9 @@ let run (st : state) =
   );
 
   (* End of track *)
-  (* Check must occur after possible Audio.resume above,
+  (* Check must occur after possible Control.resume above,
    * otherwise the last track would be restarted. *)
-  if playing && (remaining < 0.2 || silence) then
+  if playing && remaining < 0.2 then
   (
     (* Close to end: switch to next track *)
     let more =
@@ -498,7 +499,7 @@ let run (st : state) =
   );
 
   let cycle_loop (st : state) =
-    let t = Api.Audio.played st.control.audio in
+    let t = Control.elapsed st.control in
     st.control.loop <-
       match st.control.loop with
       | `None -> `A t
@@ -531,7 +532,7 @@ let run (st : state) =
         (fun () -> start_stop st);
       `Entry (c, "Play", Layout.key_play, stopped && len > 0),
         (fun () -> play st);
-      `Entry (c, unpause (not playing), Layout.key_pause, playing || not silence),
+      `Entry (c, unpause (not playing), Layout.key_pause, playing || paused),
         (fun () -> pause st (not paused));
       `Entry (c, "Stop", Layout.key_stop, not stopped),
         (fun () -> stop st);
@@ -544,7 +545,7 @@ let run (st : state) =
       `Separator, ignore;
       `Entry (c, "Seek Backwards", Layout.key_rw, ctl.progress > 0.0),
         (fun () -> seek st (-1.0));
-      `Entry (c, "Seek Forwards", Layout.key_ff, not silence && ctl.progress < 1.0),
+      `Entry (c, "Seek Forwards", Layout.key_ff, length > 0.0 && ctl.progress < 1.0),
         (fun () -> seek st (+1.0));
       `Separator, ignore;
       `Entry (c, shuffle "Shuffle" pl.shuffle, Layout.key_shuffle, true),
