@@ -59,6 +59,7 @@ val refresh_total_selected : 'a t -> unit
 
 (* Navigation *)
 
+val jump : 'a t -> int -> unit
 val skip : 'a t -> int (* delta *) -> bool (* repeat *) -> bool
 
 val swap : 'a array -> int -> int -> unit
@@ -68,8 +69,6 @@ val swap : 'a array -> int -> int -> unit
 
 val shuffle : 'a t -> int option (* first track *) -> unit
 val unshuffle : 'a t -> unit
-
-val shuffle_next : 'a t -> int -> unit
 
 
 (* Selection *)

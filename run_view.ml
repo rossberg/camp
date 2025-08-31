@@ -247,8 +247,20 @@ let external_drop_on_tracks st = external_drop drop_on_tracks st (tracks_view st
 
 let external_queue_on_playlist st paths =
   let tracks = expand_paths st paths in
-  Playlist.insert st.playlist (Playlist.length st.playlist) tracks;
-  update_control st
+  if tracks <> [||] then
+  (
+    let len = Playlist.length st.playlist in
+    Playlist.insert st.playlist len tracks;
+    let status = Control.status st.control in
+    if status = `Stopped || status = `Ejected then
+    (
+      Playlist.jump st.playlist len;
+      Control.switch st.control tracks.(0) true;
+      Playlist.adjust_scroll st.playlist 4;
+      Table.dirty st.library.tracks;  (* current song has changed *)
+      Table.dirty st.library.browser;
+    )
+  )
 
 
 let set_drop_cursor (st : state) =

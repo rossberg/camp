@@ -103,32 +103,6 @@ let refresh_total_selected pl =
     ) pl.table.selected (0.0, 0)
 
 
-(* Navigation *)
-
-let modulo n m = let k = n mod m in if k < 0 then k + m else k
-
-let skip pl delta repeat =
-  let len = Array.length pl.table.entries in
-  len > 0 &&  (* implies pl.table.pos <> None *)
-  let up pos = if repeat then modulo (pos + delta) len else pos + delta in
-  match pl.shuffle with
-  | None ->
-    let pos = up (Option.get pl.table.pos) in
-    let valid = pos >= 0 && pos < len in
-    if valid then Table.set_pos pl.table (Some pos);
-    valid
-  | Some shuffle ->
-    let pos = up (Option.get shuffle.pos) in
-    let valid = pos >= 0 && pos < len in
-    if valid then
-    (
-      shuffle.pos <- Some pos;
-      shuffle.unobserved <- max shuffle.unobserved (pos + 1);
-      Table.set_pos pl.table (Some shuffle.tracks.(pos));
-    );
-    valid
-
-
 (* Shuffle *)
 
 let swap a i j =
@@ -164,18 +138,46 @@ let shuffle pl i_opt =
     shuffle.unobserved <- 1;
   )
 
-let shuffle_next pl i =
-  let sh = Option.get pl.shuffle in
-  let pos = Option.get (Array.find_index ((=) i) sh.tracks) in
-  if pos < sh.unobserved then
-    sh.pos <- Some pos
-  else
-  (
-    (* Minimise new observation to one *)
-    swap sh.tracks pos sh.unobserved;
-    sh.pos <- Some sh.unobserved;
-    sh.unobserved <- sh.unobserved + 1;
-  )
+
+(* Navigation *)
+
+let modulo n m = let k = n mod m in if k < 0 then k + m else k
+
+let jump pl i =
+  Table.set_pos pl.table (Some i);
+  Option.iter (fun shuffle ->
+    let pos = Option.get (Array.find_index ((=) i) shuffle.tracks) in
+    if pos < shuffle.unobserved then
+      shuffle.pos <- Some pos
+    else
+    (
+      (* Minimise new observation to one *)
+      swap shuffle.tracks pos shuffle.unobserved;
+      shuffle.pos <- Some shuffle.unobserved;
+      shuffle.unobserved <- shuffle.unobserved + 1;
+    )
+  ) pl.shuffle
+
+let skip pl delta repeat =
+  let len = Array.length pl.table.entries in
+  len > 0 &&  (* implies pl.table.pos <> None *)
+  let up pos = if repeat then modulo (pos + delta) len else pos + delta in
+  match pl.shuffle with
+  | None ->
+    let pos = up (Option.get pl.table.pos) in
+    let valid = pos >= 0 && pos < len in
+    if valid then Table.set_pos pl.table (Some pos);
+    valid
+  | Some shuffle ->
+    let pos = up (Option.get shuffle.pos) in
+    let valid = pos >= 0 && pos < len in
+    if valid then
+    (
+      shuffle.pos <- Some pos;
+      shuffle.unobserved <- max shuffle.unobserved (pos + 1);
+      Table.set_pos pl.table (Some shuffle.tracks.(pos));
+    );
+    valid
 
 
 (* Undo *)

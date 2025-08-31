@@ -97,12 +97,10 @@ let run (st : state) =
 
   | `Click (Some i) when Api.Mouse.is_doubleclick `Left ->
     (* Double-click on track: switch to track *)
-    Table.set_pos tab (Some i);
+    Playlist.jump pl i;
     Control.switch st.control tab.entries.(i) true;
     Table.dirty st.library.tracks;  (* redraw for current track *)
     Table.dirty st.library.browser;
-    if pl.shuffle <> None then
-      Playlist.shuffle_next pl i;
 
   | `Click _ ->
     (* Single-click: grab focus *)
