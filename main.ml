@@ -152,10 +152,21 @@ let _main =
     let m3u = M3u.make (List.rev !paths) in
     (* Work around seeming bug in GC scheduler. *)
     Gc.(set {(get ()) with space_overhead = 10});
-    let already_running = Storage.exists queue_file in
-    (* TODO: this could race, should lock the file *)
-    Storage.save_string_append queue_file (fun () -> m3u);
-    if not already_running then run (startup ())
+    if Storage.exists queue_file then
+    (
+      (* TODO: this could race, should lock the file *)
+      Storage.save_string_append queue_file (fun () -> m3u);
+      let t1 = Storage.time queue_file in
+      Unix.sleepf 1.0;
+      let t2 = Storage.time queue_file in
+      (* If file has not been modified after 1s, assume it's a zombie. *)
+      if t1 = t2 then run (startup ());
+    )
+    else
+    (
+      Storage.save_string queue_file (fun () -> m3u);
+      run (startup ());
+    )
   with exn ->
     Storage.log_exn "internal" exn "";
     Stdlib.exit 2

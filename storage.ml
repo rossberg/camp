@@ -7,6 +7,7 @@ open Audio_file
 
 type file = string
 type path = string
+type time = float
 
 module Dirs = Directories.Base_dirs ()
 
@@ -146,6 +147,13 @@ let save_string_append filename f =
   save_append filename (fun oc -> Out_channel.output_string oc (f ()))
 
 let _ = save_string_append_fwd := save_string_append
+
+let time filename =
+  try
+    Some (File.time (path filename))
+  with Sys_error _ | Failure _ as exn ->
+    log_io_error "stating" filename exn;
+    None
 
 let exists filename =
   try

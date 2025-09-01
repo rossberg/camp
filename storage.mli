@@ -2,6 +2,7 @@
 
 type file = string
 type path = string
+type time = float
 
 (* Path to local storage *)
 
@@ -36,5 +37,6 @@ val load_string_opt : file -> (string -> unit) -> unit
 val save_string : file -> (unit -> string) -> unit
 val save_string_append : file -> (unit -> string) -> unit
 
+val time : file -> float option
 val exists : file -> bool
 val delete : file -> unit
