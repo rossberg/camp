@@ -133,6 +133,7 @@ let print_layout ?(raw = false) lay =
   let dh = if lay.playlist_shown then 0 else lay.playlist_height in
   record (fun lay -> [
     "win_pos", pair int int (if raw then Api.Window.pos win else x - dx, y - dy);
+    "scaling", pair int int lay.scaling;
     "buffered", bool (Ui.is_buffered lay.ui);
     "color_palette", nat (Ui.get_palette lay.ui);
     "text_size", nat lay.text;
@@ -168,6 +169,8 @@ let parse_layout lay pos =  (* assumes playlist and library already loaded *)
         let dy = if y >= 0 then ly else ry in
         pos := x + dx, y + dy
       );
+    apply (r $? "scaling") (pair (num (-1) 8) (num (-1) 8))
+      (fun (dx, dy) -> Ui.rescale lay.ui dx dy; lay.scaling <- dx, dy);
     apply (r $? "buffered") bool
       (fun b -> Ui.buffered lay.ui b);
     apply (r $? "text_sdf") bool

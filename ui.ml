@@ -204,11 +204,14 @@ let mouse_focus ui area r =
 
 (* Fonts *)
 
+let font_purge ui =
+  Array.map_inplace (Fun.const None) ui.fonts
+
 let font_is_sdf ui = ui.font_sdf
 
 let font_sdf ui b =
   ui.font_sdf <- b;
-  Array.map_inplace (Fun.const None) ui.fonts
+  font_purge ui
 
 let font' ui h file min max fonts =
   match fonts.(h) with
@@ -249,7 +252,7 @@ let background ui x y w h =
     done
   done;
 
-  Draw.fill ui.win (x + 1) y 1 (h - 2) (`Gray 0x50);
+  Draw.fill ui.win x y 1 (h - 2) (`Gray 0x50);
   Draw.fill ui.win x y w 1 (`Gray 0x70);
   Draw.fill ui.win (x + 1) (y + h - 2) (w - 1) 2 (`Gray 0x10);
   Draw.fill ui.win (x + w - 1) y 1 (h - 2) (`Gray 0x10);
@@ -359,6 +362,13 @@ let finish ui margin (minw, minh) (maxw, maxh) =
 
   Draw.finish ui.win
 
+
+let rescale ui dx dy =
+  if dx <> 0 || dy <> 0 then
+  (
+    Window.rescale ui.win dx dy;
+    font_purge ui;
+  )
 
 let delay ui f =
   ui.delayed <- f :: ui.delayed
@@ -621,7 +631,7 @@ let button ui area ?(protrude = true) modkey focus active =
   Api.Draw.image_part ui.win x y w h sx sy w h img;
   if status <> `Pressed then
   (
-    Draw.fill ui.win (x + 2) (y + 1) 1 (h - 2) (`Gray 0x50);
+    Draw.fill ui.win (x + 1) (y + 1) 1 (h - 2) (`Gray 0x50);
     if protrude then Draw.fill ui.win (x + 1) (y + 1) (w - 3) 1 (`Gray 0x50);
   );
   Draw.rect ui.win x y w h (border ui status);
@@ -1307,9 +1317,10 @@ let rich_table_drag ui area geo style tab =
     let x, y, w, _ = dim ui area' in
     focus' ui x (y + (i - tab.vscroll) * geo.row_h) w geo.row_h `White style
 
-let adjust_cache tab w h =
+let adjust_cache ui tab w h =
   Option.iter (fun buf ->
-    if Buffer.size buf <> (w, h) then
+    if Buffer.size buf <> (w, h)
+    || Buffer.scale buf <> Buffer.needed_scale ui.win then
     (
       Table.uncache tab;
       Buffer.dispose buf;
@@ -1318,7 +1329,7 @@ let adjust_cache tab w h =
   match tab.cache with
   | Some buf -> buf
   | None ->
-    let buf = Buffer.create w h in
+    let buf = Buffer.create ui.win w h in
     Table.cache tab buf;
     buf
 
@@ -1346,7 +1357,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
     Table.adjust_vscroll tab tab.vscroll page;
 
     (* Body *)
-    let buf = adjust_cache tab w h in
+    let buf = adjust_cache ui tab w h in
     if not ui.buffered || tab.dirty || Draw.frame ui.win mod 10 = 7 then
     (
       let rows =
@@ -1867,7 +1878,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
     Table.adjust_vscroll tab tab.vscroll page;
 
     (* Body *)
-    let buf = adjust_cache tab w h in
+    let buf = adjust_cache ui tab w h in
     if not ui.buffered || tab.dirty then
     (
       let matrix =

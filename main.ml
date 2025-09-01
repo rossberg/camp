@@ -63,8 +63,8 @@ and run' (st : state) =
 
   (* Adjust font and grid size *)
   let text_delta =
-    Bool.to_int (Layout.enlarge_key lay) -
-    Bool.to_int (Layout.reduce_key lay)
+    Bool.to_int (Layout.enlarge_text_key lay) -
+    Bool.to_int (Layout.reduce_text_key lay)
   in
   Run_control.resize_text st text_delta;
 
@@ -73,6 +73,17 @@ and run' (st : state) =
     Bool.to_int (Layout.reduce_grid_key lay)
   in
   Run_control.resize_grid st grid_delta;
+
+  let scale_delta =
+    Bool.to_int (Layout.enlarge_scale_key lay) -
+    Bool.to_int (Layout.reduce_scale_key lay)
+  in
+  let scale_old = Api.Window.scale win in
+  Ui.rescale lay.ui scale_delta scale_delta;
+  let scale_new = Api.Window.scale win in
+  lay.scaling <-
+    snd lay.scaling + (fst scale_new - fst scale_old),
+    snd lay.scaling + (snd scale_new - snd scale_old);
 
   if Layout.lib_cover_key lay then
     Library.activate_covers st.library (not st.library.cover);

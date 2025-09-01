@@ -6,6 +6,7 @@
 type t =
 {
   ui : Ui.t;
+  mutable scaling : int * int;
   mutable margin : int;
   mutable text : int;
   mutable label : int;
@@ -33,6 +34,7 @@ type t =
 let make ui =
   {
     ui;
+    scaling = 0, 0;
     margin = 10;
     text = 13;
     label = 9;
@@ -175,6 +177,8 @@ let key_textup = cmd '+'
 let key_textdn = cmd '-'
 let key_gridup = shiftcmd '+'
 let key_griddn = shiftcmd '-'
+let key_scaleup = cmd ']'
+let key_scaledn = cmd '['
 
 let key_color = nokey
 
@@ -380,11 +384,14 @@ let total_y g = g.playlist_height + footer_y g  (* Hack: this is outside the pan
 let playlist_total_box g = Ui.box g.ui (pp, total_x g, total_y g, total_w g, text_h g) `Black
 let playlist_total_text g = Ui.text g.ui (pp, total_x g, total_y g, total_w g - (gutter_w g + 1)/2, text_h g) `Right
 
-let enlarge_key g = Ui.key g.ui key_textup true
-let reduce_key g = Ui.key g.ui key_textdn true
+let enlarge_text_key g = Ui.key g.ui key_textup true
+let reduce_text_key g = Ui.key g.ui key_textdn true
 
 let enlarge_grid_key g = Ui.key g.ui key_gridup true
 let reduce_grid_key g = Ui.key g.ui key_griddn true
+
+let enlarge_scale_key g = Ui.key g.ui key_scaleup true
+let reduce_scale_key g = Ui.key g.ui key_scaledn true
 
 
 (* Edit Pane *)

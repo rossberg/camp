@@ -61,6 +61,8 @@ sig
 
   val screen_size : window -> size
   val is_hires : window -> bool
+  val scale : window -> int * int
+  val rescale : window -> int -> int -> unit
   val fps : window -> int
 end
 
@@ -120,9 +122,11 @@ type buffer
 
 module Buffer :
 sig
-  val create : int -> int -> buffer
+  val create : window -> int -> int -> buffer
   val dispose : buffer -> unit
   val size : buffer -> size
+  val scale : buffer -> size
+  val needed_scale : window -> size
 end
 
 module Draw :

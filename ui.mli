@@ -77,6 +77,8 @@ val mouse_focus : t -> area -> int -> unit
 val start : t -> unit
 val finish : t -> int -> size -> size -> unit
 
+val rescale : t -> int -> int -> unit
+
 val delay : t -> (unit -> unit) -> unit
 
 (* Simple Widgets *)

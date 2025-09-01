@@ -154,6 +154,12 @@ struct
   let is_hires () =
     Raylib.(Vector2.y (get_window_scale_dpi ())) > 1.0 || snd !scale > 1
 
+  let rescale () dx dy =
+    let x, y = !scale in
+    scale := max 1 (x + dx), max 1 (y + dy)
+
+  let scale () = !scale
+
   let fps () = Raylib.get_fps ()
 end
 
@@ -343,9 +349,11 @@ type buffer = {texture : Raylib.RenderTexture.t; scale : size}
 
 module Buffer =
 struct
-  let create w h =
-    let sx, sy =
-      mul !Window.scale (point_of_vec2 (Raylib.get_window_scale_dpi ())) in
+  let needed_scale () =
+    mul (Window.scale ()) (point_of_vec2 (Raylib.get_window_scale_dpi ()))
+
+  let create () w h =
+    let sx, sy = needed_scale () in
     let w, h = w * sx, h * sy in
     let buf = Raylib.load_render_texture w h in
     (* Override texture format to not use alpha channel *)
@@ -361,9 +369,12 @@ struct
     {texture = buf; scale = sx, sy}
 
   let dispose buf = Raylib.unload_render_texture buf.texture
+
   let size buf =
     let w, h = Image.size (Raylib.RenderTexture.texture buf.texture) in
     w / fst buf.scale, h / snd buf.scale
+
+  let scale buf = buf.scale
 end
 
 
@@ -400,7 +411,7 @@ struct
     current_shader := shader_opt
 
   let start () c =
-    if fst !current_scale = -1 then current_scale := !Window.scale;
+    if fst !current_scale = -1 then current_scale := Window.scale ();
     Raylib.begin_drawing ();
     Raylib.clear_background (color c);
 (* TODO: Raylib OCaml is missing set_blend_factors_separate
@@ -427,7 +438,7 @@ struct
   let unbuffered () =
     shader None;
     Raylib.end_texture_mode ();
-    current_scale := !Window.scale
+    current_scale := Window.scale ()
 
   let clip () x y w h =
     assert (!current_clip = None);
