@@ -2,6 +2,8 @@
 
 open Audio_file
 
+module Set = Set.Make(String)
+
 type path = File.path
 type state = State.t
 type table = (Data.track, Ui.cached) Table.t
@@ -62,6 +64,7 @@ sig
   val remove_selected : Ui.cached t -> unit
   val remove_unselected : Ui.cached t -> unit
   val remove_invalid : Ui.cached t -> unit
+  val remove_duplicates : Ui.cached t -> unit
 (*  val move_selected : Ui.cached t -> int -> unit*)
   val reverse_selected : Ui.cached t -> unit
   val reverse_all : Ui.cached t -> unit
@@ -317,6 +320,15 @@ let wipe_avail st (module View : View) =
 let wipe _st (module View : View) =
   View.(remove_invalid it)
 
+let dedupe_avail st (module View : View) =
+  editable st (module View) &&
+  let mems = ref Set.empty in
+  Array.exists (fun (track : Data.track) ->
+    Set.mem track.path !mems || (mems := Set.add track.path !mems; false)
+  ) View.(tracks it)
+let dedupe _st (module View : View) =
+  View.(remove_duplicates it)
+
 let clear_avail st (module View : View) =
   editable st (module View) && View.(length it > 0)
 let clear _st (module View : View) =
@@ -545,8 +557,6 @@ let edit_menu (st : state) view pos_opt =
     `Entry (c, "Reverse" ^ quant, Layout.key_rev,
       if all then reverse_all_avail st view else reverse_avail st view),
       (fun () -> (if all then reverse_all else reverse) st view);
-    `Entry (c, "Wipe", Layout.key_wipe, wipe_avail st view),
-      (fun () -> wipe st view);
     `Separator, ignore;
     `Entry (c, "Cut", Layout.key_cut, cut_avail st view),
       (fun () -> cut st view);
@@ -563,6 +573,11 @@ let edit_menu (st : state) view pos_opt =
       (fun () -> select_none st view);
     `Entry (c, "Invert Selection", Layout.key_invert, select_invert_avail st view),
       (fun () -> select_invert st view);
+    `Separator, ignore;
+    `Entry (c, "Wipe", Layout.key_wipe, wipe_avail st view),
+      (fun () -> wipe st view);
+    `Entry (c, "Dedupe", Layout.key_dedupe, dedupe_avail st view),
+      (fun () -> dedupe st view);
     `Separator, ignore;
     `Entry (c, "Undo", Layout.key_undo, undo_avail st view),
       (fun () -> undo st view);
@@ -642,6 +657,12 @@ let run_edit_panel (st : state) =
   (
     (* Click on Wipe button: remove invalid tracks from playlist *)
     wipe st view
+  );
+
+  if focus && Layout.dedupe_button lay then
+  (
+    (* Dedupe key pressed or Shift-click on Wipe button: dedupe *)
+    dedupe st view
   );
 
   if Layout.undo_button lay (active_if undo_avail) then

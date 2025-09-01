@@ -97,6 +97,7 @@ val remove_all : 'a t -> unit
 val remove_selected : 'a t -> unit
 val remove_unselected : 'a t -> unit
 val remove_invalid : 'a t -> unit
+val remove_duplicates : 'a t -> unit
 
 val move_selected : 'a t -> int -> unit
 val reverse_selected : 'a t -> unit

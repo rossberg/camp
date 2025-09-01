@@ -3,6 +3,7 @@
 open Audio_file
 open Data
 
+module IntSet = Set.Make(Int)
 module Set = Set.Make(String)
 module Map = Map.Make(String)
 
@@ -1557,6 +1558,17 @@ let num_invalid lib =
 let remove_invalid lib =
   remove_if (fun i -> Data.is_invalid lib.tracks.entries.(i))
     lib (num_invalid lib)
+
+let remove_duplicates lib =
+  let mems = ref Set.empty in
+  let dups = ref IntSet.empty in
+  Array.iteri (fun i (track : track) ->
+    if Set.mem track.path !mems then
+      dups := IntSet.add i !dups
+    else
+      mems := Set.add track.path !mems
+  ) lib.tracks.entries;
+  remove_if (fun i -> IntSet.mem i !dups) lib (IntSet.cardinal !dups)
 
 
 let replace_all lib tracks =

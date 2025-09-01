@@ -1,5 +1,8 @@
 (* Playlist *)
 
+module IntSet = Set.Make(Int)
+module Set = Set.Make(String)
+
 type path = Data.path
 type time = Data.time
 type track = Data.track
@@ -353,6 +356,16 @@ let num_invalid pl =
 let remove_invalid pl =
   remove_if (fun i -> Data.is_invalid pl.table.entries.(i)) pl (num_invalid pl)
 
+let remove_duplicates pl =
+  let mems = ref Set.empty in
+  let dups = ref IntSet.empty in
+  Array.iteri (fun i (track : track) ->
+    if Set.mem track.path !mems then
+      dups := IntSet.add i !dups
+    else
+      mems := Set.add track.path !mems
+  ) pl.table.entries;
+  remove_if (fun i -> IntSet.mem i !dups) pl (IntSet.cardinal !dups)
 
 let replace_all pl tracks =
   if tracks <> [||] then
