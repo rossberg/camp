@@ -583,8 +583,8 @@ struct
   let last_press_pos = ref (min_int, min_int)
   let last_press_left = ref 0.0
   let last_press_right = ref 0.0
-  let is_double_left = ref false
-  let is_double_right = ref false
+  let multi_left = ref 0
+  let multi_right = ref 0
   let is_drag_left = ref false
   let is_drag_right = ref false
   let next_cursor = ref Raylib.MouseCursor.Default
@@ -606,8 +606,12 @@ struct
   let is_released but = Raylib.is_mouse_button_released (button but)
 
   let is_doubleclick = function
-    | `Left -> !is_double_left
-    | `Right -> !is_double_right
+    | `Left -> !multi_left = 2
+    | `Right -> !multi_right = 2
+
+  let is_tripleclick = function
+    | `Left -> !multi_left >= 3
+    | `Right -> !multi_right >= 3
 
   let is_drag = function
     | `Left -> !is_drag_left
@@ -643,24 +647,32 @@ struct
       else if is_mac && win_delta <> (0, 0) then
         current_pos := sub !current_pos win_delta;
 
-      (* Detect double click *)
+      (* Detect multi clicks *)
       let left = is_pressed `Left in
       let right = is_pressed `Right in
-      is_double_left := false;
-      is_double_right := false;
       if left || right then
       (
-        if left then last_press_right := 0.0;
-        if right then last_press_left := 0.0;
         let now = Unix.gettimeofday () in
         let mx, my = !last_press_pos in
-        let (mx', my') as m' = pos () in
-        let unmoved = abs (mx' - mx) < 16 && abs (my' - my) < 16 in
-        is_double_left := left && unmoved && now -. !last_press_left < 0.5;
-        is_double_right := right && unmoved && now -. !last_press_right < 0.5;
-        last_press_left := now;
-        last_press_right := now;
-        last_press_pos := m';
+        last_press_pos := pos ();
+        let mx', my' = !last_press_pos in
+        let unmoved = abs (mx' - mx) < 4 && abs (my' - my) < 4 in
+        if left then
+        (
+          if unmoved && now -. !last_press_left < 0.5 then
+            incr multi_left
+          else
+            multi_left := 1;
+          last_press_left := now;
+        );
+        if right then
+        (
+          if unmoved && now -. !last_press_right < 0.5 then
+            incr multi_right
+          else
+            multi_right := 1;
+          last_press_right := now;
+        )
       );
 
       (* Detect dragging *)

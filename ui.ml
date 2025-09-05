@@ -1062,7 +1062,9 @@ let edit_text ui area s scroll selection focus =
     let mx, _ = Mouse.pos ui.win in
     let i = find_pos ui (mx - x + scroll) h font s in
     if Key.are_modifiers_down [] then
-      if Mouse.is_doubleclick `Left then
+      if Mouse.is_tripleclick `Left then
+        Some (0, len)
+      else if Mouse.is_doubleclick `Left then
         let j = find_next_word s i in
         Some (find_prev_word s j, j)
       else if Mouse.is_pressed `Left then
