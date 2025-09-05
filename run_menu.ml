@@ -49,7 +49,8 @@ let header_menu (st : state) (view : _ Library.view) i current_attrs unused_attr
         | _ ->  (* separator *)
           attrs
       in
-      view.columns <- Array.of_list attrs'
+      view.columns <- Array.of_list attrs';
+      Option.iter (Library.save_dir st.library) st.library.current
     )
   )
 
