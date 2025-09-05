@@ -144,6 +144,7 @@ let parent_path path = File.(dir path // "")
 let is_dir_path path = String.ends_with ~suffix: File.sep path
 let is_playlist_path path = M3u.is_known_ext path
 let is_viewlist_path path = is_known_view_ext path
+let is_album_path path = Format.is_known_ext path (* assume album directory *)
 let is_track_path path = Format.is_known_ext path || M3u.is_separator path
 
 let is_all dir = dir.path = ""

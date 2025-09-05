@@ -106,6 +106,7 @@ let ok lib =
 
 (* Constructor *)
 
+let artists_sorting = [`Artist, `Asc]
 let artists_columns : artist_attr columns =
 [|
   `Artist, 150;
@@ -113,6 +114,7 @@ let artists_columns : artist_attr columns =
   `Tracks, 20;
 |]
 
+let albums_sorting = [`AlbumArtist, `Asc; `AlbumTitle, `Asc; `Codec, `Asc]
 let albums_columns : album_attr columns =
 [|
   `Cover, 30;
@@ -131,9 +133,9 @@ let albums_columns : album_attr columns =
   `FilePath, 400;
 |]
 
+let tracks_sorting = [`Artist, `Asc; `Title, `Asc; `Codec, `Asc]
 let tracks_columns : track_attr columns =
 [|
-  `Pos, 20;
   `Cover, 30;
   `FileTime, 70;
   `Rating, 30;
@@ -152,28 +154,27 @@ let tracks_columns : track_attr columns =
   `FilePath, 400;
 |]
 
+let playlist_sorting = [`Pos, `Asc]
+let playlist_columns : track_attr columns =
+  Array.append [|`Pos, 20|] tracks_columns
+
 let make_view shown columns sorting : _ view =
   { shown; columns; sorting }
 
-let make_views path : views =
+let make_views pth : views =
   {
     search = "";
     query = None;
     folded = true;
     divider_width = 100;
     divider_height = 100;
-    artists =
-      make_view None artists_columns [`Artist, `Asc];
-    albums =
-      make_view None albums_columns
-        [`AlbumArtist, `Asc; `AlbumTitle, `Asc; `Codec, `Asc];
+    artists = make_view None artists_columns artists_sorting;
+    albums = make_view None albums_columns albums_sorting;
     tracks =
-      make_view (Some `Table) tracks_columns
-        ( if is_playlist_path path
-          || is_viewlist_path path
-          || Format.is_known_ext path
-          then [`Pos, `Asc]
-          else [`Artist, `Asc; `Title, `Asc; `Codec, `Asc] );
+      if is_playlist_path pth || is_viewlist_path pth || is_album_path pth then
+        make_view (Some `Table) playlist_columns playlist_sorting
+      else
+        make_view (Some `Table) tracks_columns tracks_sorting;
   }
 
 let copy_view (view : _ view) =
