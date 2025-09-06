@@ -1061,19 +1061,39 @@ let edit_text ui area s scroll selection focus =
     if status <> `Pressed then selection else
     let mx, _ = Mouse.pos ui.win in
     let i = find_pos ui (mx - x + scroll) h font s in
+    let lprim, rprim, _ = Option.value selection ~default: (i, i, i) in
     if Key.are_modifiers_down [] then
-      if Mouse.is_tripleclick `Left then
-        Some (0, len)
-      else if Mouse.is_doubleclick `Left then
-        let j = find_next_word s i in
-        Some (find_prev_word s j, j)
-      else if Mouse.is_pressed `Left then
-        Some (i, i)
+      if Mouse.is_pressed `Left then
+        if Mouse.is_tripleclick `Left then
+          Some (0, 0, len)
+        else if Mouse.is_doubleclick `Left then
+          let j = find_next_word s i in
+          Some (find_prev_word s j, j, j)
+        else
+          Some (i, i, i)
+      else if Mouse.is_drag `Left then
+        if Mouse.is_doubleclick `Left then
+          if i > rprim then
+            Some (lprim, rprim, find_next_word s i)
+          else if i < lprim then
+            Some (lprim, rprim, find_prev_word s i)
+          else
+            Some (lprim, rprim, rprim)
+        else
+          Some (lprim, rprim, i)
       else selection
     else if Key.are_modifiers_down [`Shift] then
-      match selection with
-      | None -> Some (i, i)
-      | Some (prim, _) -> Some (prim, i)
+      if Mouse.is_tripleclick `Left then
+        Some (0, 0, len)
+      else if Mouse.is_doubleclick `Left then
+        if i > rprim then
+          Some (lprim, rprim, find_next_word s i)
+        else if i < lprim then
+          Some (lprim, rprim, find_prev_word s i)
+        else
+          Some (lprim, rprim, rprim)
+      else
+        Some (lprim, rprim, i)
     else
       selection
   in
@@ -1085,16 +1105,16 @@ let edit_text ui area s scroll selection focus =
     Draw.unclip ui.win;
     s, scroll, None, Uchar.of_int 0
 
-  | Some (prim, sec) ->
-    let prim, sec = min prim len, min sec len in
-    let l, r = min prim sec, max prim sec in
+  | Some (lprim, rprim, sec) ->
+    let lprim, rprim, sec = min lprim len, min rprim len, min sec len in
+    let l, r = min lprim sec, max rprim sec in
     let sl = String.sub s 0 l in
     let sm = String.sub s l (r - l) in
     let sr = String.sub s r (len - r) in
     let ws = Draw.text_spacing ui.win h font in
     let wl = Draw.text_width ui.win h font sl + ws in
     let wm = Draw.text_width ui.win h font sm + ws in
-    let wt = if prim >= sec then wl else wl + wm in
+    let wt = if lprim >= sec then wl else wl + wm in
     let wc = 1 in
     let scroll' =
       if wt < scroll then wt else
@@ -1131,98 +1151,98 @@ let edit_text ui area s scroll selection focus =
       Buffer.add_utf_8_uchar buf ch;
       Buffer.add_string buf sr;
       let l' = l + Uchar.utf_8_byte_length ch in
-      Buffer.contents buf, scroll', Some (l', l'), ch
+      Buffer.contents buf, scroll', Some (l', l', l'), ch
     )
     else if Key.are_modifiers_down [] then
     (
       if Key.is_pressed `Return || Key.is_pressed `Enter then
-        s, scroll', Some (sec, sec), Uchar.of_char '\n'
+        s, scroll', Some (sec, sec, sec), Uchar.of_char '\n'
       else if
         Key.is_pressed_or_repeated `Delete ||
         Key.is_pressed_or_repeated `Backspace
       then
       (
         if l <> r then
-          sl ^ sr, scroll', Some (l, l), ch
+          sl ^ sr, scroll', Some (l, l, l), ch
         else if r < len && Key.is_pressed_or_repeated `Delete then
           let n = find_next_char sr 0 in
-          sl ^ String.sub sr n (len - r - n), scroll', Some (l, l), ch
+          sl ^ String.sub sr n (len - r - n), scroll', Some (l, l, l), ch
         else if l > 0 && Key.is_pressed_or_repeated `Backspace then
           let n = find_prev_char sl l in
-          String.sub sl 0 n ^ sr, scroll', Some (n, n), ch
+          String.sub sl 0 n ^ sr, scroll', Some (n, n, n), ch
         else
-          s, scroll', Some (l, r), ch
+          s, scroll', Some (l, l, r), ch
       )
       else if Key.is_pressed_or_repeated (`Arrow `Left) && l > 0 then
         let l' = find_prev_char s l in
-        s, scroll', Some (l', l'), ch
+        s, scroll', Some (l', l', l'), ch
       else if Key.is_pressed_or_repeated (`Arrow `Right) && r < len then
         let r' = find_next_char s r in
-        s, scroll', Some (r', r'), ch
+        s, scroll', Some (r', r', r'), ch
       else if Key.is_pressed_or_repeated (`End `Up) then
-        s, scroll', Some (0, 0), ch
+        s, scroll', Some (0, 0, 0), ch
       else if Key.is_pressed_or_repeated (`End `Down) then
-        s, scroll', Some (len, len), ch
+        s, scroll', Some (len, len, len), ch
       else
-        s, scroll', Some (prim, sec), ch
+        s, scroll', Some (lprim, rprim, sec), ch
     )
     else if Key.are_modifiers_down [`Shift] then
     (
       if Key.is_pressed_or_repeated (`Arrow `Left) && sec > 0 then
         let sec' = find_prev_char s sec in
-        s, scroll', Some (prim, sec'), ch
+        s, scroll', Some (lprim, rprim, sec'), ch
       else if Key.is_pressed_or_repeated (`Arrow `Right) && sec < len then
         let sec' = find_next_char s sec in
-        s, scroll', Some (prim, sec'), ch
+        s, scroll', Some (lprim, rprim, sec'), ch
       else if Key.is_pressed_or_repeated (`End `Up) then
-        s, scroll', Some (prim, 0), ch
+        s, scroll', Some (lprim, rprim, 0), ch
       else if Key.is_pressed_or_repeated (`End `Down) then
-        s, scroll', Some (prim, len), ch
+        s, scroll', Some (lprim, rprim, len), ch
       else
-        s, scroll', Some (prim, sec), ch
+        s, scroll', Some (lprim, rprim, sec), ch
     )
     else if Key.are_modifiers_down [`Command] then
     (
       if Key.is_pressed_or_repeated (`Arrow `Left) && sec > 0 then
         let l' = find_prev_word s sec in
-        s, scroll', Some (l', l'), ch
+        s, scroll', Some (l', l', l'), ch
       else if Key.is_pressed_or_repeated (`Arrow `Right) && sec < len then
         let l' = find_next_word s sec in
-        s, scroll', Some (l', l'), ch
+        s, scroll', Some (l', l', l'), ch
       else if Key.is_pressed_or_repeated (`Char 'A') then
-        s, scroll', Some (0, len), ch
+        s, scroll', Some (0, 0, len), ch
       else if Key.is_pressed_or_repeated (`Char 'N') then
-        s, scroll', Some (prim, prim), ch
+        s, scroll', Some (sec, sec, sec), ch
       else if Key.is_pressed_or_repeated (`Char 'X') && l <> r then
         let sm = String.sub s l (r - l) in
         Clipboard.write ui.win sm;
-        sl ^ sr, scroll', Some (l, l), ch
+        sl ^ sr, scroll', Some (l, l, l), ch
       else if Key.is_pressed_or_repeated (`Char 'C') && l <> r then
         let sm = String.sub s l (r - l) in
         Clipboard.write ui.win sm;
-        s, scroll', Some (prim, sec), ch
+        s, scroll', Some (lprim, rprim, sec), ch
       else if Key.is_pressed_or_repeated (`Char 'V') then
         match Clipboard.read ui.win with
-        | None -> s, scroll', Some (prim, sec), ch
+        | None -> s, scroll', Some (lprim, rprim, sec), ch
         | Some sp ->
           let i = l + String.length sp in
-          sl ^ sp ^ sr, scroll', Some (i, i), ch
+          sl ^ sp ^ sr, scroll', Some (i, i, i), ch
       else
-        s, scroll', Some (prim, sec), ch
+        s, scroll', Some (lprim, rprim, sec), ch
     )
     else if Key.are_modifiers_down [`Command; `Shift] then
     (
       if Key.is_pressed_or_repeated (`Arrow `Left) && sec > 0 then
         let sec' = find_prev_word s sec in
-        s, scroll', Some (prim, sec'), ch
+        s, scroll', Some (lprim, rprim, sec'), ch
       else if Key.is_pressed_or_repeated (`Arrow `Right) && sec < len then
         let sec' = find_next_word s sec in
-        s, scroll', Some (prim, sec'), ch
+        s, scroll', Some (lprim, rprim, sec'), ch
       else
-        s, scroll', Some (prim, sec), ch
+        s, scroll', Some (lprim, rprim, sec), ch
     )
     else
-      s, scroll', Some (prim, sec), ch
+      s, scroll', Some (lprim, rprim, sec), ch
 
 
 let rich_edit_text ui area (edit : Edit.t) =

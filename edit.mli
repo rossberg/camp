@@ -9,7 +9,7 @@ type t = private
   mutable next : string list;
   mutable focus : bool;
   mutable scroll : int;
-  mutable sel_range : (int * int) option;  (* primary and secondary pos *)
+  mutable sel_range : (int * int * int) option;  (* primary l/r and secondary pos *)
   undos : undo list ref;
   redos : undo list ref;
   undo_depth : int;
@@ -27,7 +27,7 @@ val focus : t -> unit
 val defocus : t -> unit
 
 val scroll : t -> int -> unit
-val select : t -> (int * int) option -> unit
+val select : t -> (int * int * int) option -> unit
 
 
 (* Editing *)

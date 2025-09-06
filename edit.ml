@@ -4,7 +4,7 @@ type undo =
 {
   undo_text : string;
   undo_scroll : int;
-  undo_sel_range : (int * int) option;
+  undo_sel_range : (int * int * int) option;
 }
 
 type t =
@@ -14,7 +14,7 @@ type t =
   mutable next : string list;
   mutable focus : bool;
   mutable scroll : int;
-  mutable sel_range : (int * int) option;  (* primary and secondary pos *)
+  mutable sel_range : (int * int * int) option;  (* primary l/r and secondary pos *)
   undos : undo list ref;
   redos : undo list ref;
   undo_depth : int;
@@ -100,8 +100,8 @@ let clear_undo ed =
 
 (* Editing *)
 
-let move_begin ed = ed.sel_range <- Some (0, 0)
-let move_end ed = let i = String.length ed.text in ed.sel_range <- Some (i, i)
+let move_begin ed = ed.sel_range <- Some (0, 0, 0)
+let move_end ed = let i = String.length ed.text in ed.sel_range <- Some (i, i, i)
 
 let shift x i n = if x < i then x else max i (x + n)
 
@@ -110,9 +110,9 @@ let set' ed s i n =
   (
     push_undo ed;
     ed.text <- s;
-    match ed.sel_range with
-    | Some (a, b) -> ed.sel_range <- Some (shift a i n, shift b i n)
-    | None -> ()
+    Option.iter (fun (a, b, c) ->
+      ed.sel_range <- Some (shift a i n, shift b i n, shift c i n)
+    ) ed.sel_range
   )
 
 let update ed s =
