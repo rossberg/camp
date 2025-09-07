@@ -701,9 +701,14 @@ let run_edit_panel (st : state) =
   (
     (* Click on Tag button: execute tagging program *)
     let _, _, get_tracks = subject_tracks view in
-    (* Command-click: add tracks to tagger if it's already open *)
-    let additive = Api.Key.is_modifier_down `Command in
-    tag st (get_tracks ()) additive;
+    tag st (get_tracks ()) false;
+  );
+
+  if focus && tag_avail st view && Layout.tag_add_button lay then
+  (
+    (* Shift-click on Tag button: execute tagging program, additively *)
+    let _, _, get_tracks = subject_tracks view in
+    tag st (get_tracks ()) true;
   );
 
   (* Load button *)

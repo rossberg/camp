@@ -164,6 +164,7 @@ let key_rescan2 = shiftcmd 'R'
 let key_save = cmd 'S'
 let key_save2 = shiftcmd 'S'
 let key_tag = cmd 'T'
+let key_tag2 = shiftcmd 'T'
 let key_fps = cmd 'U'
 let key_sdf = shiftcmd 'U'
 let key_paste = cmd 'V'
@@ -407,6 +408,7 @@ let edit_area i j g = (ep, margin g + i*5 + j*edit_w, - edit_h, edit_w, edit_h)
 let edit_button i j label key g = Ui.labeled_button g.ui (edit_area i j g) (button_label_h g) (Ui.inactive_color g.ui) label key true
 
 let tag_button = edit_button 0 0 "TAG" key_tag
+let tag_add_button g = Ui.invisible_button g.ui (edit_area 0 0 g) [`Shift] key_tag2 true
 let sep_button = edit_button 1 1 "SEP" key_sep
 let del_button = edit_button 2 2 "DEL" key_del
 let crop_button = edit_button 2 3 "CROP" key_crop
