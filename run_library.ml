@@ -239,7 +239,7 @@ let run_view (st : state)
   let headings =
     Array.map (fun (attr, _) -> Library.attr_name attr) view.columns in
 
-  if mode = `Grid && Api.Draw.frame win mod refresh_delay = 11 then
+  if mode = `Grid && Api.Draw.frame win mod refresh_delay = 10 then
     Table.dirty tab;  (* to capture cover updates *)
 
   let entries = tab.entries in  (* could change concurrently *)
@@ -1050,8 +1050,12 @@ let run (st : state) =
       let left_width' = Layout.right_divider lay lay.left_width
         (Layout.left_min lay) (Layout.left_max lay) in
       (* Possible drag of divider: update pane width *)
-      lay.left_width <- left_width';
-      dir.view.divider_width <- left_width';
+      if left_width' <> lay.left_width then
+      (
+        lay.left_width <- left_width';
+        dir.view.divider_width <- left_width';
+        Library.save_dir lib dir;
+      )
     );
   );
 
@@ -1108,8 +1112,12 @@ let run (st : state) =
       let upper_height' = Layout.lower_divider lay lay.upper_height
         (Layout.upper_min lay) (Layout.upper_max lay) in
       (* Possible drag of divider: update pane width *)
-      lay.upper_height <- upper_height';
-      dir.view.divider_height <- upper_height';
+      if upper_height' <> lay.upper_height then
+      (
+        lay.upper_height <- upper_height';
+        dir.view.divider_height <- upper_height';
+        Library.save_dir lib dir;
+      )
     );
   );
 
