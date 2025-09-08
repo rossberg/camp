@@ -85,11 +85,13 @@ val delay : t -> (unit -> unit) -> unit
 
 type align = [`Left | `Center | `Right]
 type inversion = [`Regular | `Inverted]
+type adjustment = [`Crop of orientation | `Shrink]
 
 val label : t -> area -> align -> string -> unit
 val indicator : t -> color -> area -> bool -> unit
 val lcd : t -> area -> char -> unit
-val image : t -> area -> Api.image -> unit
+val image : t -> area -> adjustment -> Api.image -> unit
+val image_size : t -> area -> adjustment -> Api.image -> int * int
 
 val box : t -> area -> color -> unit
 val text : t -> area -> align -> inversion -> bool -> string -> unit

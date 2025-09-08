@@ -293,7 +293,7 @@ let cover_y g = margin g + info_margin g
 let cover_w = 80
 let cover_h = 40
 let cover_area g = (cp, cover_x g, cover_y g, cover_w, cover_h)
-let cover g = Ui.image g.ui (cover_area g)
+let cover g = Ui.image g.ui (cover_area g) (`Crop `Vertical)
 let cover_key g = Ui.key g.ui key_cover true
 
 (* Info *)
@@ -373,9 +373,10 @@ let control_context g = Ui.mouse g.ui (cp, margin g, ctl_y, - margin g, -1) `Rig
 
 let cover_popup_open g = Ui.mouse g.ui (cover_area g) `Left
 let cover_popup_w g = if g.playlist_shown then min 300 (control_h g + g.playlist_height - text_h g - margin g) else control_h g - text_h g - 2 * popup_margin g
-let cover_popup g x y = Ui.popup g.ui x y (cover_popup_w g) (cover_popup_w g + text_h g) (popup_margin g)
-let cover_popup_cover g (p, x, y, w, _) = Ui.image g.ui (p, x, y, w, w)
-let cover_popup_text g (p, x, y, w, _) = Ui.ticker g.ui (p, x, y + w, w, text_h g)
+let cover_popup_image_size g = Ui.image_size g.ui (-1, 0, 0, cover_popup_w g, cover_popup_w g) `Shrink
+let cover_popup g x y iw ih = Ui.popup g.ui x y iw (ih + text_h g) (popup_margin g)
+let cover_popup_image g (p, x, y, w, h) = Ui.image g.ui (p, x, y, w, h - text_h g) `Shrink
+let cover_popup_text g (p, x, y, w, _) ih = Ui.ticker g.ui (p, x, y + ih, w, text_h g)
 
 
 (* Playlist Pane *)

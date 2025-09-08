@@ -564,13 +564,34 @@ let lcd ui area d =
     | _ -> []
     )
 
-let image ui area img =
-  let x, y, w, h = dim ui area in
+type adjustment = [`Crop of orientation | `Shrink]
+
+let image_size' ui area adjust img =
+  let _, _, w, h = dim ui area in
   let iw, ih = Image.size img in
   let q = float w /. float h in
   let iq = float iw /. float ih in
-  let ih' = int_of_float (float ih *. iq /. q) in
-  Draw.image_part ui.win x y w h 0 0 iw ih' img
+  let iw', ih' =
+    match adjust with
+    | `Crop `Vertical -> iw, int_of_float (float ih *. iq /. q)
+    | `Crop `Horizontal -> int_of_float (float iw /. iq *. q), ih
+    | `Shrink -> iw, ih
+  in
+  let iq' = float iw' /. float ih' in
+  if iq' > q then
+    w, h - int_of_float (float h *. (1.0 -. q /. iq')), iw', ih'
+  else
+    w - int_of_float (float w *. (1.0 -. iq' /. q)), h, iw', ih'
+
+let image ui area adjust img =
+  let x, y, w, h = dim ui area in
+  let w', h', iw', ih' = image_size' ui area adjust img in
+  let dw, dh = w - w', h - h' in
+  Draw.image_part ui.win (x + dw/2) (y + dh/2) w' h' 0 0 iw' ih' img
+
+let image_size ui area adjust img =
+  let w, h, _, _ = image_size' ui area adjust img in
+  w, h
 
 
 (* Passive Widgets *)

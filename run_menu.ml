@@ -92,7 +92,7 @@ let run_popup (st : state) =
   let ctl = st.control in
 
   Option.iter (fun (x, y) ->
-    let popup_opt =
+    let popup =
       match st.popup with
       | `Track _ | `Album _ as popup -> Some popup
       | `Current -> Option.map (fun track -> `Track track) ctl.current
@@ -106,7 +106,7 @@ let run_popup (st : state) =
           let aartist = Data.track_attr_string track `AlbumArtist in
           let atitle = Data.track_attr_string track `AlbumTitle in
           let year = Data.track_attr_string track `Year in
-          let num = String.trim (Data.track_attr_string track `Track) in
+          let num = String.trim (Data.track_attr_string track `DiscTrack) in
           let extra =
             if aartist = artist && atitle = title then year else
             if year = "" && num = "" then "" else
@@ -121,14 +121,15 @@ let run_popup (st : state) =
           let year = Data.album_attr_string album `Year in
           album.path, artist ^ " - " ^ title ^ parens year
       in
-      let area = Layout.cover_popup lay x y in
-      Option.iter (Layout.cover_popup_cover lay area)
-        (Library.load_cover st.library (Ui.window lay.ui) path);
-      Layout.cover_popup_text lay area text;
-    ) popup_opt;
+      let img = Option.value ~default: (Ui.nocover lay.ui)
+        (Library.load_cover st.library (Ui.window lay.ui) path) in
+      let iw, ih = Layout.cover_popup_image_size lay img in
+      let area = Layout.cover_popup lay x y iw ih in
+      Layout.cover_popup_image lay area img;
+      Layout.cover_popup_text lay area ih text;
+    ) popup;
 
-    if popup_opt = None
-    || Api.Mouse.is_released `Left || Api.Mouse.is_pressed `Right then
+    if popup = None || Api.Mouse.(is_released `Left || is_pressed `Right) then
     (
       Ui.nonmodal lay.ui;
       lay.popup_shown <- None;
