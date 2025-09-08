@@ -21,6 +21,7 @@ type t =
   mutable library_side : Api.side;
   mutable filesel_shown : bool;
   mutable menu_shown : bool;
+  mutable popup_shown : (int * int) option;
   mutable browser_width : int;
   mutable directories_width : int;
   mutable left_width : int;
@@ -49,6 +50,7 @@ let make ui =
     library_side = `Left;
     filesel_shown = false;
     menu_shown = false;
+    popup_shown = None;
     browser_width = 100;
     directories_width = 120;
     left_width = 200;
@@ -61,6 +63,7 @@ let make ui =
 
 
 let margin g = g.margin
+let popup_margin g = g.margin / 2
 let divider_w g = g.margin
 
 let text_h g = g.text
@@ -203,7 +206,7 @@ let key_scandir = nokey
 
 (* Menu *)
 
-let menu g x y = Ui.menu g.ui x y g.gutter g.gutter g.text
+let menu g x y = Ui.menu g.ui x y (popup_margin g) (gutter_w g) (text_h g)
 
 
 (* Control Pane *)
@@ -262,7 +265,7 @@ let mute_area g = (cp, mute_x g, mute_y g, mute_w, mute_h)
 let volume_bar g = Ui.volume_bar g.ui (cp, volume_x g, volume_y g, volume_w, volume_h)
 let volume_wheel g = Ui.wheel g.ui (cp, 0, 0, control_w g, control_h g)
 
-let mute_text g = Ui.color_text g.ui (cp, mute_x g, mute_y g, mute_w, g.label) `Center
+let mute_text g = Ui.color_text g.ui (cp, mute_x g, mute_y g, mute_w, label_h g) `Center
 let mute_button g = Ui.invisible_button g.ui (mute_area g) [] key_mute true
 let mute_drag g = Ui.drag g.ui (mute_area g)
 
@@ -289,7 +292,8 @@ let cover_x g = lcd_x g 5 + 30
 let cover_y g = margin g + info_margin g
 let cover_w = 80
 let cover_h = 40
-let cover g = Ui.image g.ui (cp, cover_x g, cover_y g, cover_w, cover_h)
+let cover_area g = (cp, cover_x g, cover_y g, cover_w, cover_h)
+let cover g = Ui.image g.ui (cover_area g)
 let cover_key g = Ui.key g.ui key_cover true
 
 (* Info *)
@@ -305,7 +309,7 @@ let title_ticker g = Ui.ticker g.ui (cp, margin g + info_margin g, ticker_y g, i
 let seek_bar g = Ui.progress_bar g.ui (cp, margin g + info_margin g / 2, seek_y g, info_w g - info_margin g, seek_h g)
 
 (* Hidden mode buttons *)
-let color_y g = lcd_y g + lcd_h
+let color_y g = cover_y g + cover_h
 let color_button g = Ui.mouse g.ui (cp, margin g, color_y g, mute_x g, ticker_y g) `Left
 
 let fps_text g = Ui.text g.ui (cp, cover_x g + cover_w + 20, margin g + info_margin g, 40, 12) `Left
@@ -360,12 +364,18 @@ let loop_indicator2 = mode_indicator 0 `Right
 let loop_button = mode_button 0 key_loop
 let loop_label = mode_label 0 "LOOP"
 
-(* Context menus *)
+(* Pop-ups *)
 let info_context g = Ui.mouse g.ui (cp, margin g, margin g, margin g + info_w g - volume_w, info_h g - seek_h g) `Right
 let seek_context g = Ui.mouse g.ui (cp, margin g, seek_y g, info_w g - margin g, seek_h g) `Right
 let volume_context g = Ui.mouse g.ui (cp, volume_x g, volume_y g, volume_w, volume_h) `Right
 let shown_context g = Ui.mouse g.ui (cp, margin g + info_w g, margin g, - margin g, info_h g) `Right
 let control_context g = Ui.mouse g.ui (cp, margin g, ctl_y, - margin g, -1) `Right
+
+let cover_popup_open g = Ui.mouse g.ui (cover_area g) `Left
+let cover_popup_w g = if g.playlist_shown then min 300 (control_h g + g.playlist_height - text_h g - margin g) else control_h g - text_h g - 2 * popup_margin g
+let cover_popup g x y = Ui.popup g.ui x y (cover_popup_w g) (cover_popup_w g + text_h g) (popup_margin g)
+let cover_popup_cover g (p, x, y, w, _) = Ui.image g.ui (p, x, y, w, w)
+let cover_popup_text g (p, x, y, w, _) = Ui.ticker g.ui (p, x, y + w, w, text_h g)
 
 
 (* Playlist Pane *)

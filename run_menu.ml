@@ -62,7 +62,7 @@ let run (st : state) =
   let menu = st.menu in
   let x, y = menu.pos in
 
-  match Ui.menu lay.ui x y (lay.margin / 2) lay.gutter lay.text menu.items with
+  match Layout.menu lay x y menu.items with
   | `None -> ()
 
   | `Close ->
@@ -75,3 +75,44 @@ let run (st : state) =
     Ui.nonmodal lay.ui;
     lay.menu_shown <- false;
     Menu.clear menu
+
+
+let run_popup (st : state) =
+  let lay = st.layout in
+  let ctl = st.control in
+
+  Option.iter (fun (x, y) ->
+    match ctl.current with
+    | None ->
+      Ui.nonmodal lay.ui;
+      lay.popup_shown <- None;
+
+    | Some track ->
+      let area = Layout.cover_popup lay x y in
+      Option.iter (Layout.cover_popup_cover lay area)
+        (Library.load_cover st.library (Ui.window lay.ui) track.path);
+      let num = String.trim (Data.track_attr_string track `Track) in
+      let year = Data.track_attr_string track `Year in
+      let artist = Data.track_attr_string track `Artist in
+      let title = Data.track_attr_string track `Title in
+      let aartist = Data.track_attr_string track `AlbumArtist in
+      let atitle = Data.track_attr_string track `AlbumTitle in
+      let extra =
+        if aartist = artist && atitle = title then year else
+        if year = "" && num = "" then "" else
+        if num = "" then year else
+        if year = "" then "track " ^ num else
+        year ^ ", track " ^ num
+      in
+      let s =
+        aartist ^ " - " ^ atitle ^
+        (if extra = "" then "" else " (" ^ extra ^ ")")
+      in
+      Layout.cover_popup_text lay area s;
+
+      if Api.Mouse.is_released `Left || Api.Mouse.is_pressed `Right then
+      (
+        Ui.nonmodal lay.ui;
+        lay.popup_shown <- None;
+      )
+  ) lay.popup_shown

@@ -41,6 +41,7 @@ and run' (st : state) =
   let filesel_shown = lay.filesel_shown in
   let overlay_shown = library_shown || filesel_shown in
   let menu_shown = lay.menu_shown in
+  let popup_shown = lay.popup_shown <> None in
   let library_side = lay.library_side in
   let library_width = lay.library_width in
 
@@ -59,6 +60,7 @@ and run' (st : state) =
     if playlist_shown || overlay_shown then Run_view.run_edit_panel st;
     Run_control.run_toggle_panel st;
     if menu_shown then Run_menu.run st;
+    if popup_shown then Run_menu.run_popup st;
   );
 
   (* Adjust font and grid size *)

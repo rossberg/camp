@@ -219,7 +219,9 @@ val grid_table_mouse : t -> area -> grid_table -> ('a, cached) Table.t ->
 val grid_table_drag : t -> area -> grid_table ->
   [`Left | `Inside] -> ('a, cached) Table.t -> unit
 
-(* Pop-up Menu *)
+(* Pop-ups *)
+
+val popup : t -> int -> int -> int -> int -> int -> area
 
 type menu_entry =
   [`Separator | `Entry of color * string * (modifier list * key) * bool]

@@ -503,7 +503,7 @@ let run (st : state) =
     cycle_loop st
   );
 
-  (* Context menu *)
+  (* Pop-ups *)
 
   if Layout.(control_context lay || seek_context lay || volume_context lay) then
   (
@@ -548,6 +548,11 @@ let run (st : state) =
       `Entry (c, "Volume Down", Layout.key_voldn, ctl.volume > 0.0),
         (fun () -> shift_volume st (-1.0));
     |]
+  )
+  else if Layout.cover_popup_open lay then
+  (
+    st.layout.popup_shown <- Some (Api.Mouse.pos win);
+    Ui.modal st.layout.ui;
   )
 
 

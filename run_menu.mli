@@ -3,6 +3,7 @@
 (* Runner *)
 
 val run : State.t -> unit
+val run_popup : State.t -> unit
 
 (* Initiate Menus *)
 

@@ -2175,7 +2175,19 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
   )
 
 
-(* Pop-up Menus *)
+(* Pop-ups *)
+
+let popup ui x y w h bw =
+  assert ui.modal;
+  let ww, wh = Window.size ui.win in
+  let w' = w + 2 * bw in
+  let h' = h + 2 * bw in
+  let x' = max 0 (min x (ww - w')) in
+  let y' = max 0 (min y (wh - h')) in
+  background ui x' y' w' h';
+  ui.mouse_owned <- true;
+  (-1, x' + bw, y' + bw, w, h)
+
 
 type menu_entry =
   [`Separator | `Entry of color * string * (modifier list * key) * bool]
@@ -2203,20 +2215,15 @@ let menu ui x y bw gw ch items =
       max w (Draw.text_width ui.win ch font s + 1)
     ) 0 keys
   in
-  let ww, wh = Window.size ui.win in
+
   let mw = (gw + 1)/2 in  (* inner width padding *)
   let w = lw + gw + rw + 2 * mw in
   let h = ch * Array.length items in
-  let x = max 0 (min x (ww - w - 2 * bw)) in
-  let y = max 0 (min y (wh - h - 2 * bw)) in
+  let area = popup ui x y w h bw in
 
-  background ui x y (w + 2 * bw) (h + 2 * bw);
+  let _, my = Mouse.pos ui.win in
+  let i = if mouse_inside ui area then (my - y)/ch else -1 in
 
-  let mx, my = Mouse.pos ui.win in
-  let i =
-    if inside (mx, my) (x + bw, y + bw, w, h) then (my - y - bw)/ch else -1 in
-
-  let area = (-1, x + bw, y + bw, w, h) in
   let cols = [|lw, `Left; rw, `Right|] in 
   let c_sep = semilit_color (text_color ui) in
   let rows =
@@ -2229,7 +2236,6 @@ let menu ui x y bw gw ch items =
     ) items
   in
 
-  ui.mouse_owned <- true;
   ui.modal <- false;
   let released = Mouse.is_released `Left || Mouse.is_pressed `Right in
   let enabled i = match items.(i) with `Entry (_, _, _, b) -> b | _ -> false in
