@@ -742,7 +742,7 @@ let scroll_bar ui area orient v len =
   Draw.rect ui.win x y w h (border ui status);
   if status <> `Pressed then v else
   let (mx, my) as m = Mouse.pos ui.win in
-  let v0, mx0, my0, t, dragging =
+  let v0, mx0, my0, last_repeat, dragging =
     match ui.drag_extra with
     | No_drag -> v, mx, my, 0.0, false
     | Scroll_bar_page {last_repeat} -> v, mx, my, last_repeat, false
@@ -758,7 +758,7 @@ let scroll_bar ui area orient v len =
       | `Vertical -> v0 +. float (my - my0) /. float (h - 2)
       | `Horizontal -> v0 +. float (mx - mx0) /. float (w - 2)
     )
-    else if now -. t > 0.2 (* TODO: use config *) then
+    else if now -. last_repeat > 0.3 (* TODO: use config *) then
     (
       ui.drag_extra <- Scroll_bar_page {last_repeat = now};
       match orient with
