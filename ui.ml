@@ -812,212 +812,6 @@ let divider ui area orient v minv maxv =
   proj (vx'', vy'')
 
 
-(* Tables *)
-
-type align = [`Left | `Center | `Right]
-type inversion = [`Regular | `Inverted]
-type order = [`Asc | `Desc]
-type sorting = (int * order) list
-type column = int * align
-type cell = [`Text of string | `Image of image]
-type row = color * inversion * cell array
-type heading = string array * sorting
-
-let draw_table ui area gw ch cols rows hscroll =
-  let x, y, w, h = dim ui area in
-  Draw.fill ui.win x y w h `Black;
-  let mw = (gw + 1)/2 in  (* inner width padding *)
-  let flex = max 0
-    (w - Array.fold_left (fun w (cw, _) -> w + cw + gw) (2 * mw - gw + 1) cols) in
-  let font = font ui ch in
-  (* Draw row background first since it must be unclipped. *)
-  Array.iteri (fun j (fg, inv, _contents) ->
-    let cy = y + j * ch in
-    let bg = if j mod 2 = 0 then `Black else `Gray 0x10 in
-    let bg = if inv = `Inverted then fg else bg in
-    if bg <> `Black then Draw.fill ui.win x cy w ch bg
-  ) rows;
-  let cx = ref (x + mw - hscroll) in
-  Array.iteri (fun i (cw, align) ->
-    let cw = if cw < 0 then flex / (- cw) else cw in
-    let cw' = min cw (x + w - mw - !cx) in
-    let left = max !cx (x + mw) in
-    Draw.clip ui.win left y (cw' - max 0 (left - !cx)) h;
-    Array.iteri (fun j (fg, inv, contents) ->
-      let cy = y + j * ch in
-      let bg = if j mod 2 = 0 then `Black else `Gray 0x10 in
-      let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
-      (match contents.(i) with
-      | `Text text ->
-        let tw = Draw.text_width ui.win ch font text in
-        let dx =
-          match align with
-          | `Left -> 0
-          | `Center -> (cw - tw) / 2
-          | `Right ->
-            (* Add extra padding if back to back with a left-aligned column *)
-            cw - tw -
-              (if i + 1 < Array.length cols && snd cols.(i + 1) = `Left then 4 else 0)
-        in
-        Draw.text ui.win (!cx + max 0 dx) cy ch fg font text;
-        if tw >= cw then
-        (
-          let rw = min cw 16 in
-          Draw.gradient ui.win (!cx + cw - rw) cy rw ch
-            (`Trans (bg, 0)) `Horizontal bg;
-        )
-      | `Image img ->
-        let iw, ih = Api.Image.size img in
-        let q = float cw /. float ch in
-        let iq = float iw /. float ih in
-        let ih' = int_of_float (float ih *. iq /. q) in
-        Api.Draw.image_part ui.win !cx cy cw ch 0 0 iw ih' img;
-      )
-    ) rows;
-    Draw.unclip ui.win;
-    cx := !cx + cw + gw;
-  ) cols
-
-let table ui area gw ch cols rows hscroll =
-  let (_, y, _, _), status = widget ui area no_modkey in
-  draw_table ui area gw ch cols rows hscroll;
-  if status = `Pressed || status = `Released then
-    let _, my = Mouse.pos ui.win in
-    Some ((my - y) / ch)
-  else
-    None
-
-
-(* Table Headers *)
-
-let symbols_asc = [|"▲" (* "▴" *); "▲'" (* "△", "▵", "▵" *); "▲''"; "▲'''"|]
-let symbols_desc = [|"▼" (* "▾" *); "▼'" (* "▽", "▾", "▿" *); "▼''"; "▼'''"|]
-
-type drag += Header_resize of {mouse_x : int; col : int}
-type drag += Header_reorder of {mouse_x : int; col : int; moved : bool}
-
-let header ui area gw cols (titles, sorting) hscroll =
-  let (x, y, w, h) as r, status = widget ui area no_modkey in
-  let texts = Array.map (fun s -> `Text s) titles in
-  ignore (table ui area gw h cols [|text_color ui, `Inverted, texts|] hscroll);
-
-  let mw = (gw + 1)/2 in  (* match mw in table *)
-  Draw.clip ui.win x y w h;
-  ignore (
-    Array.fold_left (fun cx (cw, _) ->
-      Draw.fill ui.win (cx + cw + gw/2 - hscroll) y 1 h `Black;
-      cx + cw + gw;
-    ) (x + mw) cols - x - mw
-  );
-
-  List.iteri (fun k (i, order) ->
-    let rec find_header j cx =
-      let cw = fst cols.(j) in
-      if j < i then find_header (j + 1) (cx + cw + gw) else
-      cx, cw
-    in
-    let cx, cw = find_header 0 x in
-    let syms = match order with `Asc -> symbols_asc | `Desc -> symbols_desc in
-    if k < Array.length syms then
-      let font = font ui h in
-      let tw = Draw.text_width ui.win h font syms.(k) in
-      if cw > tw then
-        Draw.text ui.win (cx + cw - tw + 4 - hscroll) y h `Black font syms.(k)
-  ) sorting;
-  Draw.unclip ui.win;
-
-  let gutter_tolerance = 5 in
-  let rec find_gutter' cols mx i cx =
-    if i = Array.length cols then `None else
-    let cx' = cx + fst cols.(i) in
-    if abs (cx' + gw/2 - mx) < gutter_tolerance then `Gutter i else
-    if cx' + gw/2 < mx then find_gutter' cols mx (i + 1) (cx' + gw) else
-    `Header i
-  in
-  let find_gutter cols mx = find_gutter' cols mx 0 (x + mw - hscroll) in
-
-  let rec find_heading' mx i cx =
-    if i = Array.length cols then None else
-    let cx' = cx + fst cols.(i) in
-    if mx >= cx && mx < cx' then Some i else
-    if mx >= cx' then find_heading' mx (i + 1) (cx' + gw) else
-    None
-  in
-  let find_heading mx = find_heading' mx 0 (x + mw - hscroll) in
-
-  let mx, my = Mouse.pos ui.win in
-  match ui.drag_extra with
-  | No_drag ->
-    if not (inside (mx, my) r) then `None else
-    (match find_gutter cols mx with
-    | `None when status = `Released ->
-      (match find_heading mx with
-      | None -> `None
-      | Some i -> `Click i
-      )
-    | `None ->
-      if not ui.modal && Mouse.is_pressed `Right then
-        `Menu None
-      else
-        `None
-    | `Gutter col ->
-      Mouse.set_cursor ui.win (`Resize `E_W);
-      if status = `Pressed then
-        ui.drag_extra <- Header_resize {mouse_x = mx; col};
-      `None
-    | `Header col ->
-      if not ui.modal && Mouse.is_pressed `Right then
-        `Menu (Some col)
-      else if status = `Pressed then
-      (
-        ui.drag_extra <- Header_reorder {mouse_x = mx; col; moved = false};
-        `None
-      )
-      else `None
-    )
-
-  | Header_resize {mouse_x; col = i} when status = `Pressed ->
-    Mouse.set_cursor ui.win (`Resize `E_W);
-    let dx = mx - mouse_x in
-    if dx = 0 then `None else
-    let ws = Array.map fst cols in
-    ws.(i) <- max 0 (ws.(i) + dx);
-    if i + 1 < Array.length cols && Key.is_modifier_down `Shift then
-      ws.(i + 1) <- max 0 (ws.(i + 1) - dx);
-    ui.drag_extra <- Header_resize {mouse_x = mx; col = i};
-    `Resize ws
-
-  | Header_reorder {mouse_x; col = i; moved} when status = `Pressed ->
-    if moved then Mouse.set_cursor ui.win `Point;
-    let dx = mx - mouse_x in
-    if dx = 0 then `None else
-    let _ = ui.drag_extra <- Header_reorder {mouse_x; col = i; moved = true} in
-    (match find_gutter cols mx with
-    | `None | `Gutter _ -> `None
-    | `Header j ->
-      if i = j then `None else
-      let perm =
-        Array.init (Array.length cols) (fun k ->
-          if k = j then i else
-          if k >= min i j && k <= max i j then k + j - i else
-          k
-        )
-      in
-      let cols' = Array.mapi (fun i _ -> cols.(perm.(i))) cols in
-      (* Ignore change if new position is not stable. *)
-      match find_gutter cols' mx with
-      | `Header k when k = j ->
-        ui.drag_extra <- Header_reorder {mouse_x = mx; col = j; moved = true};
-        `Reorder perm
-      | _ -> `None
-    )
-
-  | Header_reorder {col = i; moved = false; _} when status = `Released ->
-    `Click i
-
-  | _ -> `None
-
-
 (* Text Input Field *)
 
 let find_next_char s i =
@@ -1278,6 +1072,212 @@ let rich_edit_text ui area (edit : Edit.t) =
   );
 
   ch
+
+
+(* Tables *)
+
+type align = [`Left | `Center | `Right]
+type inversion = [`Regular | `Inverted]
+type order = [`Asc | `Desc]
+type sorting = (int * order) list
+type column = int * align
+type cell = [`Text of string | `Image of image]
+type row = color * inversion * cell array
+type heading = string array * sorting
+
+let draw_table ui area gw ch cols rows hscroll =
+  let x, y, w, h = dim ui area in
+  Draw.fill ui.win x y w h `Black;
+  let mw = (gw + 1)/2 in  (* inner width padding *)
+  let flex = max 0
+    (w - Array.fold_left (fun w (cw, _) -> w + cw + gw) (2 * mw - gw + 1) cols) in
+  let font = font ui ch in
+  (* Draw row background first since it must be unclipped. *)
+  Array.iteri (fun j (fg, inv, _contents) ->
+    let cy = y + j * ch in
+    let bg = if j mod 2 = 0 then `Black else `Gray 0x10 in
+    let bg = if inv = `Inverted then fg else bg in
+    if bg <> `Black then Draw.fill ui.win x cy w ch bg
+  ) rows;
+  let cx = ref (x + mw - hscroll) in
+  Array.iteri (fun i (cw, align) ->
+    let cw = if cw < 0 then flex / (- cw) else cw in
+    let cw' = min cw (x + w - mw - !cx) in
+    let left = max !cx (x + mw) in
+    Draw.clip ui.win left y (cw' - max 0 (left - !cx)) h;
+    Array.iteri (fun j (fg, inv, contents) ->
+      let cy = y + j * ch in
+      let bg = if j mod 2 = 0 then `Black else `Gray 0x10 in
+      let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
+      (match contents.(i) with
+      | `Text text ->
+        let tw = Draw.text_width ui.win ch font text in
+        let dx =
+          match align with
+          | `Left -> 0
+          | `Center -> (cw - tw) / 2
+          | `Right ->
+            (* Add extra padding if back to back with a left-aligned column *)
+            cw - tw -
+              (if i + 1 < Array.length cols && snd cols.(i + 1) = `Left then 4 else 0)
+        in
+        Draw.text ui.win (!cx + max 0 dx) cy ch fg font text;
+        if tw >= cw then
+        (
+          let rw = min cw 16 in
+          Draw.gradient ui.win (!cx + cw - rw) cy rw ch
+            (`Trans (bg, 0)) `Horizontal bg;
+        )
+      | `Image img ->
+        let iw, ih = Api.Image.size img in
+        let q = float cw /. float ch in
+        let iq = float iw /. float ih in
+        let ih' = int_of_float (float ih *. iq /. q) in
+        Api.Draw.image_part ui.win !cx cy cw ch 0 0 iw ih' img;
+      )
+    ) rows;
+    Draw.unclip ui.win;
+    cx := !cx + cw + gw;
+  ) cols
+
+let table ui area gw ch cols rows hscroll =
+  let (_, y, _, _), status = widget ui area no_modkey in
+  draw_table ui area gw ch cols rows hscroll;
+  if status = `Pressed || status = `Released then
+    let _, my = Mouse.pos ui.win in
+    Some ((my - y) / ch)
+  else
+    None
+
+
+(* Table Headers *)
+
+let symbols_asc = [|"▲" (* "▴" *); "▲'" (* "△", "▵", "▵" *); "▲''"; "▲'''"|]
+let symbols_desc = [|"▼" (* "▾" *); "▼'" (* "▽", "▾", "▿" *); "▼''"; "▼'''"|]
+
+type drag += Header_resize of {mouse_x : int; col : int}
+type drag += Header_reorder of {mouse_x : int; col : int; moved : bool}
+
+let header ui area gw cols (titles, sorting) hscroll =
+  let (x, y, w, h) as r, status = widget ui area no_modkey in
+  let texts = Array.map (fun s -> `Text s) titles in
+  ignore (table ui area gw h cols [|text_color ui, `Inverted, texts|] hscroll);
+
+  let mw = (gw + 1)/2 in  (* match mw in table *)
+  Draw.clip ui.win x y w h;
+  ignore (
+    Array.fold_left (fun cx (cw, _) ->
+      Draw.fill ui.win (cx + cw + gw/2 - hscroll) y 1 h `Black;
+      cx + cw + gw;
+    ) (x + mw) cols - x - mw
+  );
+
+  List.iteri (fun k (i, order) ->
+    let rec find_header j cx =
+      let cw = fst cols.(j) in
+      if j < i then find_header (j + 1) (cx + cw + gw) else
+      cx, cw
+    in
+    let cx, cw = find_header 0 x in
+    let syms = match order with `Asc -> symbols_asc | `Desc -> symbols_desc in
+    if k < Array.length syms then
+      let font = font ui h in
+      let tw = Draw.text_width ui.win h font syms.(k) in
+      if cw > tw then
+        Draw.text ui.win (cx + cw - tw + 4 - hscroll) y h `Black font syms.(k)
+  ) sorting;
+  Draw.unclip ui.win;
+
+  let gutter_tolerance = 5 in
+  let rec find_gutter' cols mx i cx =
+    if i = Array.length cols then `None else
+    let cx' = cx + fst cols.(i) in
+    if abs (cx' + gw/2 - mx) < gutter_tolerance then `Gutter i else
+    if cx' + gw/2 < mx then find_gutter' cols mx (i + 1) (cx' + gw) else
+    `Header i
+  in
+  let find_gutter cols mx = find_gutter' cols mx 0 (x + mw - hscroll) in
+
+  let rec find_heading' mx i cx =
+    if i = Array.length cols then None else
+    let cx' = cx + fst cols.(i) in
+    if mx >= cx && mx < cx' then Some i else
+    if mx >= cx' then find_heading' mx (i + 1) (cx' + gw) else
+    None
+  in
+  let find_heading mx = find_heading' mx 0 (x + mw - hscroll) in
+
+  let mx, my = Mouse.pos ui.win in
+  match ui.drag_extra with
+  | No_drag ->
+    if not (inside (mx, my) r) then `None else
+    (match find_gutter cols mx with
+    | `None when status = `Released ->
+      (match find_heading mx with
+      | None -> `None
+      | Some i -> `Click i
+      )
+    | `None ->
+      if not ui.modal && Mouse.is_pressed `Right then
+        `Menu None
+      else
+        `None
+    | `Gutter col ->
+      Mouse.set_cursor ui.win (`Resize `E_W);
+      if status = `Pressed then
+        ui.drag_extra <- Header_resize {mouse_x = mx; col};
+      `None
+    | `Header col ->
+      if not ui.modal && Mouse.is_pressed `Right then
+        `Menu (Some col)
+      else if status = `Pressed then
+      (
+        ui.drag_extra <- Header_reorder {mouse_x = mx; col; moved = false};
+        `None
+      )
+      else `None
+    )
+
+  | Header_resize {mouse_x; col = i} when status = `Pressed ->
+    Mouse.set_cursor ui.win (`Resize `E_W);
+    let dx = mx - mouse_x in
+    if dx = 0 then `None else
+    let ws = Array.map fst cols in
+    ws.(i) <- max 0 (ws.(i) + dx);
+    if i + 1 < Array.length cols && Key.is_modifier_down `Shift then
+      ws.(i + 1) <- max 0 (ws.(i + 1) - dx);
+    ui.drag_extra <- Header_resize {mouse_x = mx; col = i};
+    `Resize ws
+
+  | Header_reorder {mouse_x; col = i; moved} when status = `Pressed ->
+    if moved then Mouse.set_cursor ui.win `Point;
+    let dx = mx - mouse_x in
+    if dx = 0 then `None else
+    let _ = ui.drag_extra <- Header_reorder {mouse_x; col = i; moved = true} in
+    (match find_gutter cols mx with
+    | `None | `Gutter _ -> `None
+    | `Header j ->
+      if i = j then `None else
+      let perm =
+        Array.init (Array.length cols) (fun k ->
+          if k = j then i else
+          if k >= min i j && k <= max i j then k + j - i else
+          k
+        )
+      in
+      let cols' = Array.mapi (fun i _ -> cols.(perm.(i))) cols in
+      (* Ignore change if new position is not stable. *)
+      match find_gutter cols' mx with
+      | `Header k when k = j ->
+        ui.drag_extra <- Header_reorder {mouse_x = mx; col = j; moved = true};
+        `Reorder perm
+      | _ -> `None
+    )
+
+  | Header_reorder {col = i; moved = false; _} when status = `Released ->
+    `Click i
+
+  | _ -> `None
 
 
 (* Rich Tables *)
