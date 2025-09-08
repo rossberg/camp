@@ -551,8 +551,7 @@ let run (st : state) =
   )
   else if Layout.cover_popup_open lay then
   (
-    st.layout.popup_shown <- Some (Api.Mouse.pos win);
-    Ui.modal st.layout.ui;
+    Run_menu.popup st `Current
   )
 
 

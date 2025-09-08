@@ -222,7 +222,7 @@ let run_view (st : state)
     attr_string prim_attr all_attrs
     path_of text_of color_of
     selected_tracks clicked_tracks
-    editable make_view =
+    editable popup make_view =
   let lib = st.library in
   let lay = st.layout in
   let win = Ui.window lay.ui in
@@ -232,14 +232,14 @@ let run_view (st : state)
 
   let busy = refresh_busy lib in
   let tab = if busy then busy_tab else tab in
+  let mode = Option.get view.shown in
   let old_selected = tab.selected in
   let cols =
     Array.map (fun (attr, cw) -> cw, Library.attr_align attr) view.columns in
   let headings =
     Array.map (fun (attr, _) -> Library.attr_name attr) view.columns in
 
-  if Option.get view.shown = `Grid
-  && Api.Draw.frame win mod refresh_delay = 5 then
+  if mode = `Grid && Api.Draw.frame win mod refresh_delay = 11 then
     Table.dirty tab;  (* to capture cover updates *)
 
   let entries = tab.entries in  (* could change concurrently *)
@@ -270,7 +270,7 @@ let run_view (st : state)
   let sorting = convert_sorting view.columns view.sorting in
   let header = Some (headings, sorting) in
   (match
-    match Option.get view.shown with
+    match mode with
     | `Table -> table lay cols header tab pp_row
     | `Grid -> grid lay grid_w header tab pp_cell
   with
@@ -303,7 +303,7 @@ let run_view (st : state)
     Data.permute perm view.columns;
     Option.iter (Library.save_dir lib) lib.current;
 
-  | `Click (Some i) when Api.Mouse.is_doubleclick `Left ->
+  | `Click (Some i, _) when Api.Mouse.is_doubleclick `Left ->
     (* Double-click on entry: clear playlist and send tracks to it *)
     let n = Table.num_selected dep_tab in
     if n <> 0 && n <> Table.length dep_tab then
@@ -329,9 +329,22 @@ let run_view (st : state)
       Table.dirty st.library.browser;
     )
 
-  | `Click _ ->
+  | `Click loc ->
     (* Single-click: grab focus, update filter *)
-    if Api.Mouse.is_pressed `Left then State.focus_library tab st;
+    if Api.Mouse.is_pressed `Left then
+    (
+      State.focus_library tab st;
+      match loc with
+      | Some i, Some j
+        when (fst view.columns.(j) :> Data.any_attr) = `Cover ->
+        (* Click on cover cell: open cover popup *)
+        Run_menu.popup st (popup entries.(i));
+      | Some i, None when mode = `Grid ->
+        (* Click on grid cell: open cover popup *)
+        Run_menu.popup st (popup entries.(i));
+      | _ -> ()
+    );
+
     if not (Table.IntSet.equal tab.selected old_selected) then
       refresh_deps lib;
 
@@ -515,7 +528,7 @@ let run (st : state) =
     let dir = browser.entries.(i) in
     Library.fold_dir st.library dir (not dir.view.folded)
 
-  | `Click (Some i) ->
+  | `Click (Some i, _) ->
     if Api.Mouse.is_pressed `Left then State.focus_library browser st;
     if Library.selected_dir lib <> dir then
     (
@@ -556,7 +569,7 @@ let run (st : state) =
       )
     )
 
-  | `Click None ->
+  | `Click (None, _) ->
     (* Click into empty space: deselect everything *)
     Library.deselect_dir lib;
     Library.deselect_all lib;
@@ -1006,7 +1019,7 @@ let run (st : state) =
       Data.artist_attr_string `Artist Data.artist_attrs
       (fun _ -> "") (fun _ -> "") (fun _ -> Ui.text_color lay.ui)
       (fun lib -> lib.tracks.entries) (fun lib _ -> lib.tracks.entries)
-      false Run_view.artists_view;
+      false (fun _ -> assert false) Run_view.artists_view;
   );
 
   (* Albums view *)
@@ -1029,7 +1042,7 @@ let run (st : state) =
       (fun (album : Data.album) -> album.path) text_of
       (fun _ -> Ui.text_color lay.ui)
       (fun lib -> lib.tracks.entries) (fun lib _ -> lib.tracks.entries)
-      false Run_view.albums_view;
+      false (fun album -> `Album album) Run_view.albums_view;
 
     (* Divider *)
     if lay.right_shown then
@@ -1083,7 +1096,8 @@ let run (st : state) =
       Data.track_attr_string prim_attr Data.track_attrs
       (fun (track : Data.track) -> track.path) text_of color_of
       Library.selected (fun lib i -> [|lib.tracks.entries.(i)|])
-      (Library.current_is_plain_playlist lib) Run_view.tracks_view;
+      (Library.current_is_plain_playlist lib)
+      (fun track -> `Track track) Run_view.tracks_view;
 
     (* Playlist file drag & drop *)
     Run_view.external_drop_on_tracks st;

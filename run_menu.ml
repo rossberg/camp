@@ -55,7 +55,15 @@ let header_menu (st : state) (view : _ Library.view) i current_attrs unused_attr
   )
 
 
-(* Runner *)
+(* Pop-up creation *)
+
+let popup (st : state) track_opt =
+  st.popup <- track_opt;
+  st.layout.popup_shown <- Some (Api.Mouse.pos (Ui.window st.layout.ui));
+  Ui.modal st.layout.ui
+
+
+(* Runners *)
 
 let run (st : state) =
   let lay = st.layout in
@@ -77,42 +85,52 @@ let run (st : state) =
     Menu.clear menu
 
 
+let parens = function "" -> "" | s -> " (" ^ s ^ ")"
+
 let run_popup (st : state) =
   let lay = st.layout in
   let ctl = st.control in
 
   Option.iter (fun (x, y) ->
-    match ctl.current with
-    | None ->
-      Ui.nonmodal lay.ui;
-      lay.popup_shown <- None;
+    let popup_opt =
+      match st.popup with
+      | `Track _ | `Album _ as popup -> Some popup
+      | `Current -> Option.map (fun track -> `Track track) ctl.current
+    in
+    Option.iter (fun popup ->
+      let path, text =
+        match popup with
+        | `Track track ->
+          let artist = Data.track_attr_string track `Artist in
+          let title = Data.track_attr_string track `Title in
+          let aartist = Data.track_attr_string track `AlbumArtist in
+          let atitle = Data.track_attr_string track `AlbumTitle in
+          let year = Data.track_attr_string track `Year in
+          let num = String.trim (Data.track_attr_string track `Track) in
+          let extra =
+            if aartist = artist && atitle = title then year else
+            if year = "" && num = "" then "" else
+            if num = "" then year else
+            if year = "" then "track " ^ num else
+            year ^ ", track " ^ num
+          in track.path, aartist ^ " - " ^ atitle ^ parens extra
 
-    | Some track ->
+        | `Album album ->
+          let artist = Data.album_attr_string album `AlbumArtist in
+          let title = Data.album_attr_string album `AlbumTitle in
+          let year = Data.album_attr_string album `Year in
+          album.path, artist ^ " - " ^ title ^ parens year
+      in
       let area = Layout.cover_popup lay x y in
       Option.iter (Layout.cover_popup_cover lay area)
-        (Library.load_cover st.library (Ui.window lay.ui) track.path);
-      let num = String.trim (Data.track_attr_string track `Track) in
-      let year = Data.track_attr_string track `Year in
-      let artist = Data.track_attr_string track `Artist in
-      let title = Data.track_attr_string track `Title in
-      let aartist = Data.track_attr_string track `AlbumArtist in
-      let atitle = Data.track_attr_string track `AlbumTitle in
-      let extra =
-        if aartist = artist && atitle = title then year else
-        if year = "" && num = "" then "" else
-        if num = "" then year else
-        if year = "" then "track " ^ num else
-        year ^ ", track " ^ num
-      in
-      let s =
-        aartist ^ " - " ^ atitle ^
-        (if extra = "" then "" else " (" ^ extra ^ ")")
-      in
-      Layout.cover_popup_text lay area s;
+        (Library.load_cover st.library (Ui.window lay.ui) path);
+      Layout.cover_popup_text lay area text;
+    ) popup_opt;
 
-      if Api.Mouse.is_released `Left || Api.Mouse.is_pressed `Right then
-      (
-        Ui.nonmodal lay.ui;
-        lay.popup_shown <- None;
-      )
+    if popup_opt = None
+    || Api.Mouse.is_released `Left || Api.Mouse.is_pressed `Right then
+    (
+      Ui.nonmodal lay.ui;
+      lay.popup_shown <- None;
+    )
   ) lay.popup_shown

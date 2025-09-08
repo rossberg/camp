@@ -119,7 +119,7 @@ type row = color * inversion * cell array
 type heading = string array * sorting
 
 val table : t -> area -> int -> int -> column array -> row array -> int ->
-  int option
+  int option * int option
 val header : t -> area -> int -> column array -> heading -> int ->
   [`Click of int | `Resize of int array | `Reorder of int array | `Menu of int option | `None]
 
@@ -135,7 +135,7 @@ type rich_table =
   }
 
 type table_action =
-  [ `Click of int option
+  [ `Click of int option * int option
   | `Select
   | `Scroll
   | `Move of int

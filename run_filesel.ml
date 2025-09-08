@@ -80,7 +80,7 @@ let run (st : state) =
     let dir = dirs.entries.(i) in
     Filesel.fold_dir fs dir (not dir.folded)
 
-  | `Click (Some i) ->
+  | `Click (Some i, _) ->
     (* Click on dir name: switch view *)
     if Api.Mouse.is_pressed `Left then
       State.focus_filesel dirs st;
@@ -90,7 +90,7 @@ let run (st : state) =
       let dir = dirs.entries.(i) in
       Filesel.set_dir_path fs dir.path;
 
-  | `Click None ->
+  | `Click (None, _) ->
     (* Click into empty space: focus *)
     State.focus_filesel dirs st;
     if Table.num_selected dirs = 0 then
@@ -121,14 +121,14 @@ let run (st : state) =
     match Layout.files_table lay cols (Some Filesel.heading) files pp_row with
     | `None | `Scroll | `Move _ | `Drag _ | `Drop -> false
 
-    | `Click (Some i) when Api.Mouse.is_doubleclick `Left ->
+    | `Click (Some i, _) when Api.Mouse.is_doubleclick `Left ->
       (* Double-click on file: change dir or copy to input and accept *)
       let file = files.entries.(i) in
       if not file.is_dir then
         Edit.set fs.input file.name;
       true
 
-    | `Select | `Click (Some _) ->
+    | `Select | `Click (Some _, _) ->
       State.focus_filesel files st;
       Option.iter (fun i ->
         let file = files.entries.(i) in
@@ -151,7 +151,7 @@ let run (st : state) =
       (* Column reordering: ignore *)
       false
 
-    | `Click None ->
+    | `Click (None, _) ->
       (* Click into empty space: focus *)
       State.focus_filesel files st;
       false

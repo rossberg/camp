@@ -1085,10 +1085,12 @@ type cell = [`Text of string | `Image of image]
 type row = color * inversion * cell array
 type heading = string array * sorting
 
+let table_pad gw = (gw + 1)/2
+
 let draw_table ui area gw ch cols rows hscroll =
   let x, y, w, h = dim ui area in
   Draw.fill ui.win x y w h `Black;
-  let mw = (gw + 1)/2 in  (* inner width padding *)
+  let mw = table_pad gw in  (* inner width padding *)
   let flex = max 0
     (w - Array.fold_left (fun w (cw, _) -> w + cw + gw) (2 * mw - gw + 1) cols) in
   let font = font ui ch in
@@ -1140,14 +1142,35 @@ let draw_table ui area gw ch cols rows hscroll =
     cx := !cx + cw + gw;
   ) cols
 
+let find_column gw cols hscroll dx =
+  let mw = table_pad gw in
+  let rec find i cx =
+    if i = Array.length cols then None else
+    let cx' = cx + fst cols.(i) in
+    if dx >= cx && dx < cx' then Some i else
+    if dx >= cx' then find (i + 1) (cx' + gw) else
+    None
+  in find 0 (mw - hscroll)
+
+let find_gutter gw cols hscroll dx =
+  let mw = table_pad gw in
+  let gutter_tolerance = 5 in
+  let rec find i cx =
+    if i = Array.length cols then `None else
+    let cx' = cx + fst cols.(i) in
+    if abs (cx' + gw/2 - dx) < gutter_tolerance then `Gutter i else
+    if cx' + gw/2 < dx then find (i + 1) (cx' + gw) else
+    `Header i
+  in find 0 (mw - hscroll)
+
 let table ui area gw ch cols rows hscroll =
-  let (_, y, _, _), status = widget ui area no_modkey in
+  let (x, y, _, _), status = widget ui area no_modkey in
   draw_table ui area gw ch cols rows hscroll;
   if status = `Pressed || status = `Released then
-    let _, my = Mouse.pos ui.win in
-    Some ((my - y) / ch)
+    let mx, my = Mouse.pos ui.win in
+    Some ((my - y) / ch), find_column gw cols hscroll (mx - x)
   else
-    None
+    None, None
 
 
 (* Table Headers *)
@@ -1163,7 +1186,7 @@ let header ui area gw cols (titles, sorting) hscroll =
   let texts = Array.map (fun s -> `Text s) titles in
   ignore (table ui area gw h cols [|text_color ui, `Inverted, texts|] hscroll);
 
-  let mw = (gw + 1)/2 in  (* match mw in table *)
+  let mw = table_pad gw in
   Draw.clip ui.win x y w h;
   ignore (
     Array.fold_left (fun cx (cw, _) ->
@@ -1188,24 +1211,8 @@ let header ui area gw cols (titles, sorting) hscroll =
   ) sorting;
   Draw.unclip ui.win;
 
-  let gutter_tolerance = 5 in
-  let rec find_gutter' cols mx i cx =
-    if i = Array.length cols then `None else
-    let cx' = cx + fst cols.(i) in
-    if abs (cx' + gw/2 - mx) < gutter_tolerance then `Gutter i else
-    if cx' + gw/2 < mx then find_gutter' cols mx (i + 1) (cx' + gw) else
-    `Header i
-  in
-  let find_gutter cols mx = find_gutter' cols mx 0 (x + mw - hscroll) in
-
-  let rec find_heading' mx i cx =
-    if i = Array.length cols then None else
-    let cx' = cx + fst cols.(i) in
-    if mx >= cx && mx < cx' then Some i else
-    if mx >= cx' then find_heading' mx (i + 1) (cx' + gw) else
-    None
-  in
-  let find_heading mx = find_heading' mx 0 (x + mw - hscroll) in
+  let find_gutter cols mx = find_gutter gw cols hscroll (mx - x) in
+  let find_column cols mx = find_column gw cols hscroll (mx - x) in
 
   let mx, my = Mouse.pos ui.win in
   match ui.drag_extra with
@@ -1213,7 +1220,7 @@ let header ui area gw cols (titles, sorting) hscroll =
     if not (inside (mx, my) r) then `None else
     (match find_gutter cols mx with
     | `None when status = `Released ->
-      (match find_heading mx with
+      (match find_column cols mx with
       | None -> `None
       | Some i -> `Click i
       )
@@ -1294,7 +1301,7 @@ type rich_table =
   }
 
 type table_action =
-  [ `Click of int option
+  [ `Click of int option * int option
   | `Select
   | `Scroll
   | `Move of int
@@ -1404,6 +1411,9 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
     (* Mirrors logic in table *)
     let left_mouse_used = (status = `Pressed || status = `Released) in
 
+    let find_column cols mx =
+      find_column geo.gutter_w cols tab.hscroll (mx - x) in
+
     let result =
       if not ui.modal && Mouse.is_pressed `Right then
       (
@@ -1421,11 +1431,12 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
 
         | `Take ->
           (* Click *)
+          let col = find_column cols mx in
           if i >= limit then
           (
             (* Click on empty space *)
             Table.deselect_all tab;
-            `Click None
+            `Click (None, col)
           )
           else
           (
@@ -1434,22 +1445,23 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
               Table.deselect_all tab;
             if not (Mouse.is_doubleclick `Left) then
               Table.select tab i i;
-            `Click (Some i)
+            `Click (Some i, col)
           )
 
         | `Click ->
           (* Click-release: deselect all except for clicked entry *)
           Table.deselect_all tab;
+          let col = find_column cols mx in
           if i >= limit then
           (
             (* Click on empty space *)
-            `Click None
+            `Click (None, col)
           )
           else
           (
             (* Click on entry *)
             Table.select tab i i;
-            `Click (Some i)
+            `Click (Some i, col)
           )
 
         | `Drag ((_, dy), motion, traj) -> `Drag (dy, motion, traj)
@@ -1459,15 +1471,16 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
       else if command && not ui.modal && Mouse.is_pressed `Left then
       (
         (* Cmd-click on entry: toggle selection of clicked entry *)
+        let col = find_column cols mx in
         if i >= limit then
-          `Click None
+          `Click (None, col)
         else
         (
           if Table.is_selected tab i then
             Table.deselect tab i i
           else
             Table.select tab i i;
-          `Click (Some i);
+          `Click (Some i, col);
         )
       )
       else if shift && not ui.modal && Mouse.is_down `Left then
@@ -1490,7 +1503,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
           Table.deselect tab pos1 i'
         );
         if not ui.modal && Mouse.is_pressed `Left then
-          `Click (if i < len then Some i else None)
+          `Click ((if i < len then Some i else None), find_column cols mx)
         else if Table.IntSet.equal tab.selected old_selection then
           `None
         else
@@ -1754,8 +1767,8 @@ let browser ui area geo (tab : _ Table.t) pp_entry =
       `None
     )
 
-  | `Click None -> `Click None
-  | `Click (Some i) ->
+  | `Click (None, _) -> `Click (None, None)
+  | `Click (Some i, _) ->
     (* Click on entry *)
     let mx, _ = Mouse.pos ui.win in
     let x, _, _, _ = dim ui area in
@@ -1779,7 +1792,7 @@ let browser ui area geo (tab : _ Table.t) pp_entry =
       (* TODO: allow multiple selections *)
       if Table.num_selected tab > 1 then
         Table.reset_selected tab selected;  (* override *)
-      `Click (Some i)
+      `Click (Some i, None)
     )
   )
 
@@ -1896,6 +1909,8 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
     let line = max 1 Float.(to_int (floor (float w /. float iw))) in
     let page =
       max 1 Float.(to_int (floor (float h /. float ih)) * line) in
+    let page_ceil =
+      max 1 Float.(to_int (ceil (float h /. float ih)) * line) in
     (* Correct scrolling position for possible resize *)
     Table.adjust_vscroll tab tab.vscroll page;
 
@@ -1904,7 +1919,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
     if not ui.buffered || tab.dirty then
     (
       let matrix =
-        Array.init page (fun j ->
+        Array.init (page_ceil / line) (fun j ->
           Array.init line (fun i ->
             let k = tab.vscroll + j * line + i in
             if k >= len then None else
@@ -1925,7 +1940,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
     let mx, my = Mouse.pos ui.win in
     let i, j = (mx - x) / iw, (my - y) / ih in
     let k = tab.vscroll + j * line + i in
-    let on_bg = i >= line || k >= min len (tab.vscroll + page) in
+    let on_bg = i >= line || k >= min len (tab.vscroll + page_ceil) in
 
     let _, status = widget ui table_area no_modkey in
     (* Mirrors logic in grid *)
@@ -1952,7 +1967,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
           (
             (* Click on empty space *)
             Table.deselect_all tab;
-            `Click None
+            `Click (None, None)
           )
           else
           (
@@ -1961,18 +1976,18 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
               Table.deselect_all tab;
             if not (Mouse.is_doubleclick `Left) then
               Table.select tab k k;
-            `Click (Some k)
+            `Click (Some k, None)
           )
 
         | `Click ->
           (* Click-release: deselect all except for clicked entry *)
           Table.deselect_all tab;
           if on_bg then
-            `Click None
+            `Click (None, None)
           else
           (
             Table.select tab k k;
-            `Click (Some i)
+            `Click (Some i, None)
           )
 
         | `Drag ((dx, dy), motion, traj) -> `Drag (dx + dy * line, motion, traj)
@@ -1983,14 +1998,14 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
       (
         (* Cmd-click on entry: toggle selection of clicked entry *)
         if on_bg then
-          `Click None
+          `Click (None, None)
         else
         (
           if Table.is_selected tab k then
             Table.deselect tab k k
           else
             Table.select tab k k;
-          `Click (Some k);
+          `Click (Some k, None);
         )
       )
       else if shift && not ui.modal && Mouse.is_down `Left then
@@ -2013,7 +2028,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
           Table.deselect tab pos1 k'
         );
         if not ui.modal && Mouse.is_pressed `Left then
-          `Click (if k < len then Some k else None)
+          `Click ((if k < len then Some k else None), None)
         else if Table.IntSet.equal tab.selected old_selection then
           `None
         else
@@ -2240,8 +2255,8 @@ let menu ui x y bw gw ch items =
   let released = Mouse.is_released `Left || Mouse.is_pressed `Right in
   let enabled i = match items.(i) with `Entry (_, _, _, b) -> b | _ -> false in
   match table ui area gw ch cols rows 0 with
-  | Some i when released && enabled i -> `Click i
-  | None when released -> `Close
+  | Some i, _ when released && enabled i -> `Click i
+  | None, _ when released -> `Close
   | _ ->
     let key_pressed = function
       | `Entry (_, _, modkey, _) -> key ui modkey true

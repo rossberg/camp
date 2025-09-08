@@ -21,6 +21,7 @@ type t =
   library : library;
   filesel : filesel;
   menu : menu;
+  mutable popup : [`Current | `Track of Data.track | `Album of Data.album];
   mutable saved : File.time;
 }
 
@@ -36,6 +37,7 @@ let make ui audio =
     library = Library.make ();
     filesel = Filesel.make ();
     menu = Menu.make ();
+    popup = `Current;
     saved = Unix.gettimeofday ();
   }
 
