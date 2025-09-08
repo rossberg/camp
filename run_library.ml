@@ -239,7 +239,7 @@ let run_view (st : state)
   let headings =
     Array.map (fun (attr, _) -> Library.attr_name attr) view.columns in
 
-  if mode = `Grid && Api.Draw.frame win mod refresh_delay = 10 then
+  if mode = `Grid && Api.Draw.frame win mod refresh_delay = 0 then
     Table.dirty tab;  (* to capture cover updates *)
 
   let entries = tab.entries in  (* could change concurrently *)
