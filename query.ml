@@ -9,9 +9,9 @@ type key = Data.query_attr
 
 type value =
   | BoolV of bool
-  | IntV of int
-  | TimeV of time
-  | DateV of date
+  | IntV of int * string option
+  | TimeV of time * string option
+  | DateV of date * string option
   | TextV of string
 
 
@@ -20,20 +20,20 @@ let file_value path (file : file) = function
   | `FileDir -> TextV (File.dir path)
   | `FileName -> TextV (File.name path)
   | `FileExt -> TextV (File.extension path)
-  | `FileSize -> IntV file.size
-  | `FileTime -> DateV file.time
+  | `FileSize -> IntV (file.size, None)
+  | `FileTime -> DateV (file.time, None)
 
 let format_value (format_opt : Format.t option) =
   let format = Option.value format_opt ~default: Format.unknown in
   function
-  | `Length -> TimeV format.time
+  | `Length -> TimeV (format.time, None)
   | `Codec -> TextV format.codec
-  | `Channels -> IntV format.channels
+  | `Channels -> IntV (format.channels, None)
   | `Depth ->
     let d = format.bitrate /. float format.rate /. float format.channels in
-    IntV (Float.to_int d)
-  | `SampleRate -> IntV format.rate
-  | `BitRate -> IntV (Float.to_int format.bitrate)
+    IntV (Float.to_int d, None)
+  | `SampleRate -> IntV (format.rate, None)
+  | `BitRate -> IntV (Float.to_int format.bitrate, None)
   | `Rate -> assert false
 
 let meta_value (meta_opt : Meta.t option) =
@@ -43,45 +43,51 @@ let meta_value (meta_opt : Meta.t option) =
   | `Title -> TextV meta.title
   | `AlbumArtist -> TextV meta.albumartist
   | `AlbumTitle -> TextV meta.albumtitle
-  | `Track -> IntV meta.track
-  | `Tracks -> IntV meta.tracks
-  | `Disc -> IntV meta.disc
-  | `Discs -> IntV meta.discs
+  | `Track -> IntV (meta.track, Some meta.track_txt)
+  | `Tracks -> IntV (meta.tracks, None)
+  | `Disc -> IntV (meta.disc, Some meta.disc_txt)
+  | `Discs -> IntV (meta.discs, None)
   | `DiscTrack when meta.disc = 0 -> TextV (Printf.sprintf "%3d" meta.track)
   | `DiscTrack -> TextV (Printf.sprintf "%d.%02d" meta.disc meta.track)
-  | `Date -> DateV meta.date
-  | `Year -> IntV meta.year
+  | `Date -> DateV (meta.date, Some meta.date_txt)
+  | `Year -> IntV (meta.year, None)
   | `Label -> TextV meta.label
   | `Country -> TextV meta.country
-  | `Length -> TimeV meta.length
-  | `Rating -> IntV meta.rating
+  | `Length -> TimeV (meta.length, None)
+  | `Rating -> IntV (meta.rating, None)
   | `Cover -> BoolV (meta.cover <> None)
 
 let value key (track : track) =
   match key with
   | `True -> BoolV true
   | `False -> BoolV false
-  | `Now -> TimeV (Unix.gettimeofday ())
-  | `Random -> IntV (Random.int 0x1_0000_0000)
-  | `Pos -> IntV (track.pos + 1)
+  | `Now -> TimeV (Unix.gettimeofday (), None)
+  | `Random -> IntV (Random.int 0x1_0000_0000, None)
+  | `Pos -> IntV (track.pos + 1, None)
   | `Length ->
-    let v = format_value track.format `Length in
-    if v <> TimeV 0.0 then v else meta_value track.meta `Length
+    (match format_value track.format `Length with
+    | TimeV (0.0, _) -> meta_value track.meta `Length
+    | v -> v
+    )
   | `Year ->
-    let v = meta_value track.meta `Year in
-    if v <> IntV 0 then v else
-    (match meta_value track.meta `Date with
-    | DateV 0.0 -> v
-    | DateV t -> IntV (year_of_date t)
-    | _ -> assert false
+    (match meta_value track.meta `Year with
+    | IntV (0, _) as v ->
+      (match meta_value track.meta `Date with
+      | DateV (0.0, _) -> v
+      | DateV (t, _) -> IntV (year_of_date t, None)
+      | _ -> assert false
+      )
+    | v -> v
     )
   | `Date ->
-    let v = meta_value track.meta `Date in
-    if v <> DateV 0.0 then v else
-    (match meta_value track.meta `Year with
-    | IntV 0 -> v
-    | IntV n -> DateV (date_of_year n)
-    | _ -> assert false
+    (match meta_value track.meta `Date with
+    | DateV (0.0, _) as v ->
+      (match meta_value track.meta `Year with
+      | IntV (0, _) -> v
+      | IntV (n, _) -> DateV (date_of_year n, None)
+      | _ -> assert false
+      )
+    | v -> v
     )
   | #file_attr as attr -> file_value track.path track.file attr
   | #format_attr as attr -> format_value track.format attr
@@ -90,9 +96,9 @@ let value key (track : track) =
 
 let string_of_value = function
   | BoolV b -> string_of_bool b
-  | IntV i -> string_of_int i
-  | TimeV t -> Data.string_of_time t
-  | DateV t -> Data.string_of_date_time t
+  | IntV (i, _) -> string_of_int i
+  | TimeV (t, _) -> Data.string_of_time t
+  | DateV (t, _) -> Data.string_of_date_time t
   | TextV s ->
     let buf = Buffer.create (String.length s) in
     String.iter (fun c ->
@@ -119,7 +125,7 @@ type expr =
   | Text of string
   | Int of int * string
   | Time of time * string
-  | Date of date
+  | Date of date * string
   | Key of key
   | Un of unop * expr
   | Bin of binop * expr * expr
@@ -188,7 +194,7 @@ let string_of_binop = function
 let rec string_of_expr = function
   | Int (_, s) -> s
   | Time (_, s) -> s
-  | Date t -> Data.string_of_date_time t
+  | Date (_, s) -> s
   | Text s -> "\"" ^ s ^ "\""
   | Key k -> "$" ^ string_of_key k
   | Un (op, e) -> "(" ^ string_of_unop op ^ " " ^ string_of_expr e ^ ")"
@@ -228,7 +234,7 @@ let rec validate q =
     (match op, validate q1, validate q2 with
     | (And | Or), BoolT, BoolT -> BoolT
     | (EQ | NE | LT | GT | LE | GE), t1, t2 when t1 = t2 -> BoolT
-    | (IN | NI), TextT, TextT -> BoolT
+    | (IN | NI), TextT, (TextT | IntT | TimeT | DateT) -> BoolT
     | (Add | Sub | Mul), IntT, IntT -> IntT
     | (Add | Sub), TimeT, TimeT -> TimeT
     | (Add | Sub), DateT, TimeT -> DateT
@@ -272,43 +278,58 @@ let string_contains_caseless ~inner s =
 
 (* Evaluation *)
 
+let lit = function
+  | IntV (i, Some _) -> IntV (i, None)
+  | TimeV (t, Some _) -> TimeV (t, None)
+  | DateV (t, Some _) -> DateV (t, None)
+  | v -> v
+
+let text = function
+  | BoolV b -> string_of_bool b
+  | IntV (_, Some s) | TimeV (_, Some s) | DateV (_, Some s) | TextV s -> s
+  | IntV (i, None) -> string_of_int i
+  | TimeV (t, None) -> Data.string_of_time t
+  | DateV (t, None) -> Data.string_of_date_time t
+
 let rec eval q track =
   match q with
   | Text s -> TextV s
-  | Int (i, _) -> IntV i
-  | Time (t, _) -> TimeV t
-  | Date t -> DateV t
+  | Int (i, s) -> IntV (i, Some s)
+  | Time (t, s) -> TimeV (t, Some s)
+  | Date (t, s) -> DateV (t, Some s)
   | Key key -> value key track
   | Un (Not, q1) -> BoolV (not (check q1 track))
   | Bin (And, q1, q2) -> BoolV (check q1 track && check q2 track)
   | Bin (Or, q1, q2) -> BoolV (check q1 track || check q2 track)
   | Un (op, q1) ->
     (match op, eval q1 track with
-    | Neg, IntV i -> IntV (- i)
-    | Neg, TimeV t -> TimeV (-. t)
+    | Neg, IntV (i, _) -> IntV (- i, None)
+    | Neg, TimeV (t, _) -> TimeV (-. t, None)
     | _ -> assert false
     )
   | Bin (op, q1, q2) ->
     (match op, eval q1 track, eval q2 track with
-    | EQ, v1, v2 -> BoolV (v1 = v2)
-    | NE, v1, v2 -> BoolV (v1 <> v2)
-    | LT, v1, v2 -> BoolV (v1 < v2)
-    | GT, v1, v2 -> BoolV (v1 > v2)
-    | LE, v1, v2 -> BoolV (v1 <= v2)
-    | GE, v1, v2 -> BoolV (v1 >= v2)
-    | IN, TextV t1, TextV t2 -> BoolV (string_contains_caseless ~inner: t1 t2)
-    | NI, TextV t1, TextV t2 -> BoolV (not (string_contains_caseless ~inner: t1 t2))
-    | Add, IntV i1, IntV i2 -> IntV (i1 + i2)
-    | Add, TimeV t1, TimeV t2 -> TimeV (t1 +. t2)
-    | Add, DateV t1, TimeV t2 -> DateV (t1 +. t2)
-    | Sub, IntV i1, IntV i2 -> IntV (i1 - i2)
-    | Sub, TimeV t1, TimeV t2 -> TimeV (t1 -. t2)
-    | Sub, DateV t1, DateV t2 -> TimeV (t1 -. t2)
-    | Sub, DateV t1, TimeV t2 -> DateV (t1 -. t2)
-    | Mul, IntV i1, IntV i2 -> IntV (i1 * i2)
-    | Mul, TimeV t1, IntV i2 -> TimeV (t1 *. float_of_int i2)
-    | Mul, IntV i1, TimeV t2 -> TimeV (float_of_int i1 *. t2)
-    | Cat, TextV s1, TextV s2 -> TextV (s1 ^ s2)
+    | EQ, v1, v2 -> BoolV (lit v1 = lit v2)
+    | NE, v1, v2 -> BoolV (lit v1 <> lit v2)
+    | LT, v1, v2 -> BoolV (lit v1 < lit v2)
+    | GT, v1, v2 -> BoolV (lit v1 > lit v2)
+    | LE, v1, v2 -> BoolV (lit v1 <= lit v2)
+    | GE, v1, v2 -> BoolV (lit v1 >= lit v2)
+    | IN, v1, v2 ->
+      BoolV (string_contains_caseless ~inner: (text v1) (text v2))
+    | NI, v1, v2 ->
+      BoolV (not (string_contains_caseless ~inner: (text v1) (text v2)))
+    | Add, IntV (i1, _), IntV (i2, _) -> IntV (i1 + i2, None)
+    | Add, TimeV (t1, _), TimeV (t2, _) -> TimeV (t1 +. t2, None)
+    | Add, DateV (t1, _), TimeV (t2, _) -> DateV (t1 +. t2, None)
+    | Sub, IntV (i1, _), IntV (i2, _) -> IntV (i1 - i2, None)
+    | Sub, TimeV (t1, _), TimeV (t2, _) -> TimeV (t1 -. t2, None)
+    | Sub, DateV (t1, _), DateV (t2, _) -> TimeV (t1 -. t2, None)
+    | Sub, DateV (t1, _), TimeV (t2, _) -> DateV (t1 -. t2, None)
+    | Mul, IntV (i1, _), IntV (i2, _) -> IntV (i1 * i2, None)
+    | Mul, TimeV (t1, _), IntV (i2, _) -> TimeV (t1 *. float_of_int i2, None)
+    | Mul, IntV (i1, _), TimeV (t2, _) -> TimeV (float_of_int i1 *. t2, None)
+    | Cat, v1, v2 -> TextV (text v1 ^ text v2)
     | _ -> assert false
     )
 
@@ -480,7 +501,7 @@ type token =
   | TextToken of string
   | IntToken of int * string
   | TimeToken of time * string
-  | DateToken of time
+  | DateToken of time * string
   | KeyToken of key
   | UnopToken of unop
   | BinopToken of binop
@@ -506,7 +527,7 @@ let string_of_token = function
 
 let is c s i = i < String.length s && s.[i] = c
 let is_letter = function
-  | '0'..'9' | 'A'..'Z' | 'a'..'z' | '_' | '.' | '-' -> true
+  | '0'..'9' | 'A'..'Z' | 'a'..'z' | '_' | '.' | '!' | '?' | '-' -> true
   | c -> c >= '\x80'
 
 let scan_word s i =
@@ -537,7 +558,7 @@ let scan_date s i =
   let s' = String.sub s (i + 1) (n - i) in
   if post = "" then
     let t = date (int_of_string y) (int_of_string m) (int_of_string d) in
-    DateToken t, n
+    DateToken (t, s'), n
   else
     TextToken s', n
 
@@ -610,7 +631,7 @@ let rec token s i =
         else
           TextToken s', k
     )
-  | 'a'..'z' | 'A'..'Z' | '_' | '.' ->
+  | 'a'..'z' | 'A'..'Z' | '_' | '.' | '!' | '?' ->
     let s', j = scan_word s i in
     TextToken s', j
   | '\"' ->
@@ -630,7 +651,8 @@ let rec token s i =
   | _ -> raise (SyntaxError i)
 
 
-let search_keys = [`Artist; `Title; `AlbumArtist; `AlbumTitle; `Label; `Country]
+let search_keys =
+  [`Artist; `Title; `AlbumArtist; `AlbumTitle; `Label; `Country; `Date]
 
 let rec coerce_bool = function
   | Key (`True | `False | `Cover) as q -> q
@@ -639,7 +661,7 @@ let rec coerce_bool = function
     List.fold_right (fun key q' ->
       Bin (Or, Bin (IN, q, Key key), q')
     ) search_keys (Key `False)
-  | Int (_, s) | Time (_, s) ->
+  | Int (_, s) | Time (_, s) | Date (_, s) ->
     (* Treat other literals in Boolean position as search terms as well *)
     coerce_bool (Text s)
   | Un (Neg, q) ->
@@ -661,7 +683,7 @@ let rec parse_prim s i =
   | TextToken s', j -> Text s', j
   | IntToken (n, s'), j -> Int (n, s'), j
   | TimeToken (t, s'), j -> Time (t, s'), j
-  | DateToken t, j -> Date t, j
+  | DateToken (t, s'), j -> Date (t, s'), j
   | KeyToken key, j -> Key key, j
   | _ -> raise (SyntaxError i)
 

@@ -14,16 +14,16 @@ type expr =
   | Text of string
   | Int of int * string
   | Time of Data.time * string
-  | Date of Data.date
+  | Date of Data.date * string
   | Key of key
   | Un of unop * expr
   | Bin of binop * expr * expr
 
 type value =
   | BoolV of bool
-  | IntV of int
-  | TimeV of Data.time
-  | DateV of Data.date
+  | IntV of int * string option
+  | TimeV of Data.time * string option
+  | DateV of Data.date * string option
   | TextV of string
 
 type query = {expr : expr; sort : sorting}
