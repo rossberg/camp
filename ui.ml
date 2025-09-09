@@ -1118,7 +1118,7 @@ let draw_table ui area gw ch cols rows hscroll =
   (* Draw row background first since it must be unclipped. *)
   Array.iteri (fun j (fg, inv, _contents) ->
     let cy = y + j * ch in
-    let bg = if j mod 2 = 0 then `Black else `Gray 0x10 in
+    let bg = if j mod 2 = 0 then `Black else `Gray 0x20 in
     let bg = if inv = `Inverted then fg else bg in
     if bg <> `Black then Draw.fill ui.win x cy w ch bg
   ) rows;
@@ -1130,7 +1130,7 @@ let draw_table ui area gw ch cols rows hscroll =
     Draw.clip ui.win left y (cw' - max 0 (left - !cx)) h;
     Array.iteri (fun j (fg, inv, contents) ->
       let cy = y + j * ch in
-      let bg = if j mod 2 = 0 then `Black else `Gray 0x10 in
+      let bg = if j mod 2 = 0 then `Black else `Gray 0x20 in
       let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
       (match contents.(i) with
       | `Text text ->
