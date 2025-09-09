@@ -85,8 +85,6 @@ let run (st : state) =
     Menu.clear menu
 
 
-let parens = function "" -> "" | s -> " (" ^ s ^ ")"
-
 let run_popup (st : state) =
   let lay = st.layout in
   let ctl = st.control in
@@ -98,33 +96,33 @@ let run_popup (st : state) =
       | `Current -> Option.map (fun track -> `Track track) ctl.current
     in
     Option.iter (fun popup ->
-      let path, text =
+      let path, artist, title, year, num =
         match popup with
         | `Track track ->
           let artist = Data.track_attr_string track `Artist in
           let title = Data.track_attr_string track `Title in
           let aartist = Data.track_attr_string track `AlbumArtist in
           let atitle = Data.track_attr_string track `AlbumTitle in
-          let year = Data.track_attr_string track `Year in
           let num = String.trim (Data.track_attr_string track `DiscTrack) in
-          let extra =
-            if aartist = artist && atitle = title then year else
-            if year = "" && num = "" then "" else
-            if num = "" then year else
-            if year = "" then "track " ^ num else
-            year ^ ", track " ^ num
-          in track.path, aartist ^ " - " ^ atitle ^ parens extra
+          track.path, aartist, atitle, Data.track_attr_string track `Year,
+          (if aartist = artist && atitle = title then "" else num)
 
-        | `Album album ->
-          let artist = Data.album_attr_string album `AlbumArtist in
-          let title = Data.album_attr_string album `AlbumTitle in
-          let year = Data.album_attr_string album `Year in
-          album.path, artist ^ " - " ^ title ^ parens year
+        | `Album (album : Data.album) ->
+          album.path,
+          Data.album_attr_string album `AlbumArtist,
+          Data.album_attr_string album `AlbumTitle,
+          Data.album_attr_string album `Year,
+          ""
       in
       let img = Option.value ~default: (Ui.nocover lay.ui)
         (Library.load_cover st.library (Ui.window lay.ui) path) in
       let iw, ih = Layout.cover_popup_image_size lay img in
       let area = Layout.cover_popup lay x y iw ih in
+      let text =
+        artist ^ " - " ^ title ^
+        (if year = "" then "" else " (" ^ year ^ ")") ^
+        (if num = "" then "" else ", track " ^ num)
+      in
       Layout.cover_popup_image lay area img;
       Layout.cover_popup_text lay area ih text;
     ) popup;
