@@ -127,7 +127,10 @@ let run_popup (st : state) =
       Layout.cover_popup_text lay area ih text;
     ) popup;
 
-    if popup = None || Api.Mouse.(is_released `Left || is_pressed `Right) then
+    if popup = None
+    || st.popup = `Current && Control.silent ctl &&
+        List.mem (Control.status ctl) [`Stopped; `Ejected]
+    || Api.Mouse.(is_released `Left || is_pressed `Right) then
     (
       Ui.nonmodal lay.ui;
       lay.popup_shown <- None;

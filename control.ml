@@ -92,12 +92,12 @@ let rate ctl = Api.Audio.rate ctl.audio ctl.sound
 let channels ctl = Api.Audio.channels ctl.audio ctl.sound
 
 let status ctl =
-  if silent ctl then
-    `Ejected
-  else if Api.Audio.is_playing ctl.audio then
+  if Api.Audio.is_playing ctl.audio then
     `Playing
   else if Api.Audio.played ctl.audio > 0.0 then
     `Paused
+  else if silent ctl then
+    `Ejected
   else
     `Stopped
 
@@ -132,7 +132,7 @@ let switch ctl (track : track) play =
   if not play then Api.Audio.pause ctl.audio
 
 let seek ctl percent =
-  if ctl.sound <> Api.Audio.silence ctl.audio then
+  if not (silent ctl) then
   (
     let percent' = max 0.0 (min 1.0 percent) in
     let length = Api.Audio.length ctl.audio in

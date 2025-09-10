@@ -54,6 +54,7 @@ val switch_if_empty : t -> track option -> bool
 val seek : t -> float (* fraction *) -> unit
 
 val status : t -> [`Ejected | `Stopped | `Paused | `Playing]
+val silent : t -> bool
 val length : t -> time
 val elapsed : t -> time
 val bitrate : t -> float

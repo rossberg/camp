@@ -549,7 +549,7 @@ let run (st : state) =
         (fun () -> shift_volume st (-1.0));
     |]
   )
-  else if Layout.cover_popup_open lay then
+  else if Layout.cover_popup_open lay && not (Control.silent ctl) then
   (
     Run_menu.popup st `Current
   )
