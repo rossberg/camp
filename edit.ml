@@ -105,7 +105,7 @@ let move_end ed = let i = String.length ed.text in ed.sel_range <- Some (i, i, i
 
 let shift x i n = if x < i then x else max i (x + n)
 
-let set' ed s i n =
+let update' ed s i n =
   if s <> ed.text then
   (
     push_undo ed;
@@ -117,24 +117,27 @@ let set' ed s i n =
 
 let update ed s =
   add_history ed;
-  set' ed s 0 0;
+  update' ed s 0 0;
   move_end ed
 
 let insert ed i s =
-  set' ed String.(sub ed.text 0 i ^ s ^ sub ed.text i (length s - i))
+  add_history ed;
+  update' ed String.(sub ed.text 0 i ^ s ^ sub ed.text i (length s - i))
     i (String.length s)
 
 let remove ed i n =
-  set' ed String.(sub ed.text 0 i ^ sub ed.text (i + n) (length ed.text - i - n))
-    i (-n)
-
-let clear ed =
   add_history ed;
-  set' ed "" 0 0
+  update' ed
+    String.(sub ed.text 0 i ^ sub ed.text (i + n) (length ed.text - i - n))
+    i (-n)
 
 let set ed s =
   if ed.next = [] then ed.next <- [""];
   update ed s
+
+let clear ed =
+  if ed.next <> [""] then add_history ed;
+  set ed ""
 
 
 (* History *)
@@ -145,7 +148,7 @@ let prev_history ed =
   | s::prev' ->
     ed.prev <- prev';
     ed.next <- ed.text::ed.next;
-    set' ed s 0 0;
+    update' ed s 0 0;
     move_end ed
 
 let next_history ed =
@@ -155,7 +158,7 @@ let next_history ed =
     | s::next' -> ed.next <- next'; s
   in
   ed.prev <- (if ed.text = "" then ed.prev else ed.text::ed.prev);
-  set' ed s 0 0;
+  update' ed s 0 0;
   move_end ed
 
 let clear_history ed =
