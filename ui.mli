@@ -143,7 +143,7 @@ type table_action =
   | `Move of int
   | `Drag of int * motion * trajectory
   | `Drop
-  | `Menu of int option
+  | `Menu of int option * int option
   | `None
   ]
 

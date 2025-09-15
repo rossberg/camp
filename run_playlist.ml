@@ -179,10 +179,16 @@ let run (st : state) =
       )
     );
 
-  | `Menu i_opt ->
+  | `Menu (i_opt, _) ->
     (* Right-click on content: context menu *)
     State.focus_playlist st;
-    Run_view.(edit_menu st (playlist_view st) i_opt)
+    let search =
+      match i_opt with
+      | Some i when not (Data.is_separator tab.entries.(i)) ->
+        List.map (Data.track_attr_string tab.entries.(i)) [`Artist; `Title]
+      | _ -> []
+    in
+    Run_view.(edit_menu st (playlist_view st) search i_opt)
   );
 
   (* Playlist file drag & drop *)

@@ -427,13 +427,20 @@ let run_view (st : state)
       )
     )
 
-  | `Menu i_opt ->
+  | `Menu (i_opt, j_opt) ->
     (* Right-click on content: context menu *)
     State.focus_library tab st;
+    let search =
+      match i_opt, j_opt with
+      | Some i, Some j ->
+        let s = attr_string entries.(i) (fst view.columns.(j)) in
+        if s = "" then [] else [s]
+      | _, _ -> []
+    in
     if editable then
-      Run_view.(edit_menu st (make_view st) i_opt)
+      Run_view.(edit_menu st (make_view st) search i_opt)
     else
-      Run_view.(list_menu st (make_view st))
+      Run_view.(list_menu st (make_view st) search)
 
   | `HeadMenu i_opt ->
     (* Right-click on header: header menu *)
@@ -652,7 +659,7 @@ let run (st : state) =
       ) (Layout.browser_mouse lay browser)
     )
 
-  | `Menu i_opt ->
+  | `Menu (i_opt, _) ->
     (* Right-click on browser: context menu *)
     State.focus_library browser st;
     let c = Ui.text_color lay.ui in

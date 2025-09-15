@@ -1328,7 +1328,7 @@ type table_action =
   | `Move of int
   | `Drag of int * motion * trajectory
   | `Drop
-  | `Menu of int option
+  | `Menu of int option * int option
   | `None
   ]
 
@@ -1439,7 +1439,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
       if not ui.modal && Mouse.is_pressed `Right then
       (
         if inside (mx, my) r then
-          `Menu (if i >= limit then None else Some i)
+          `Menu ((if i >= limit then None else Some i), find_column cols mx)
         else
           `None
       )
@@ -1777,7 +1777,7 @@ let browser ui area geo (tab : _ Table.t) pp_entry =
   | `Move i -> `Move i
   | `Drag (i, motion, traj) -> `Drag (i, motion, traj)
   | `Drop -> `Drop
-  | `Menu i -> `Menu i
+  | `Menu (i, _) -> `Menu (i, None)
   | `Sort _ | `Resize _ | `Reorder _ | `HeadMenu _ -> assert false
 
   | `Select ->
@@ -1971,7 +1971,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
       if not ui.modal && Mouse.is_pressed `Right then
       (
         if inside (mx, my) r then
-          `Menu (if on_bg then None else Some k)
+          `Menu ((if on_bg then None else Some k), None)
         else
           `None
       )

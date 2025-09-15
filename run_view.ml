@@ -482,6 +482,15 @@ let search_avail (st : state) =
 let search (st : state) =
   State.focus_edit st.library.search st
 
+let search_for_avail (st : state) =
+  st.layout.library_shown && st.library.current <> None
+
+let search_for (st : state) ss =
+  let s = String.concat " " (List.map (fun s -> "\"" ^ s ^ "\"") ss) in
+  Edit.set st.library.search s;
+  Library.set_search st.library s
+
+
 let select_all_avail _st (module View : View) =
   View.(Select.(num_selected tab < length tab))
 let select_all (st : state) (module View : View) =
@@ -505,99 +514,121 @@ let subject_tracks (module View : View) =
   then false, "", fun () -> View.(if is_same then selected else tracks) View.it
   else true, " All", fun () -> View.(tracks it)
 
-let list_menu (st : state) view =
+let list_menu (st : state) view searches =
   let lay = st.layout in
   let module View = (val view : View) in
 
   let c = Ui.text_color lay.ui in
   let all, quant, get_tracks = subject_tracks view in
-  Run_menu.command_menu st [|
-    `Entry (c, "Tag" ^ quant, Layout.key_tag, tag_avail st view),
-      (fun () -> tag st (get_tracks ()) (not all));
-    `Entry (c, "Rescan" ^ quant, Layout.key_rescan, rescan_avail st view),
-      (fun () -> rescan st (get_tracks ()));
-    `Separator, ignore;
-    `Entry (c, "Select All", Layout.key_all, select_all_avail st view),
-      (fun () -> select_all st view);
-    `Entry (c, "Select None", Layout.key_none, select_none_avail st view),
-      (fun () -> select_none st view);
-    `Entry (c, "Invert Selection", Layout.key_invert, select_invert_avail st view),
-      (fun () -> select_invert st view);
-    `Separator, ignore;
-    `Entry (c, "Search...", Layout.key_search, search_avail st),
-      (fun () -> search st);
-    `Separator, ignore;
-    `Entry (c, "Save as Playlist...", Layout.key_save, save_avail st view),
-      (fun () -> save st view);
-    `Entry (c, "Save as Viewlist...", Layout.key_save2, save_view_avail st view),
-      (fun () -> save_view st view);
-    `Entry (c, "Queue" ^ quant ^ " to Playlist...", Layout.key_queue,
-      queue_avail st view),
-      (fun () -> queue st view (get_tracks ()));
-  |]
+  Run_menu.command_menu st (Array.concat [
+    [|
+      `Entry (c, "Tag" ^ quant, Layout.key_tag, tag_avail st view),
+        (fun () -> tag st (get_tracks ()) (not all));
+      `Entry (c, "Rescan" ^ quant, Layout.key_rescan, rescan_avail st view),
+        (fun () -> rescan st (get_tracks ()));
+      `Separator, ignore;
+      `Entry (c, "Select All", Layout.key_all, select_all_avail st view),
+        (fun () -> select_all st view);
+      `Entry (c, "Select None", Layout.key_none, select_none_avail st view),
+        (fun () -> select_none st view);
+      `Entry (c, "Invert Selection", Layout.key_invert, select_invert_avail st view),
+        (fun () -> select_invert st view);
+      `Separator, ignore;
+      `Entry (c, "Search...", Layout.key_search, search_avail st),
+        (fun () -> search st);
+    |];
+    (if searches = [] then [||] else
+      let s = String.concat " " (List.map (fun s -> "\"" ^ s ^ "\"") searches) in
+      [|
+        `Entry (c, "Search for " ^ s, Layout.nokey, search_for_avail st),
+          (fun () -> search_for st searches)
+      |]
+    );
+    [|
+      `Separator, ignore;
+      `Entry (c, "Save as Playlist...", Layout.key_save, save_avail st view),
+        (fun () -> save st view);
+      `Entry (c, "Save as Viewlist...", Layout.key_save2, save_view_avail st view),
+        (fun () -> save_view st view);
+      `Entry (c, "Queue" ^ quant ^ " to Playlist...", Layout.key_queue,
+        queue_avail st view),
+        (fun () -> queue st view (get_tracks ()));
+    |];
+  ])
 
-let edit_menu (st : state) view pos_opt =
+let edit_menu (st : state) view searches pos_opt =
   let lay = st.layout in
   let module View = (val view : View) in 
 
   let pos = Option.value pos_opt ~default: View.(length it) in
   let c = Ui.text_color lay.ui in
   let all, quant, get_tracks = subject_tracks view in
-  Run_menu.command_menu st (Array.append [|
-    `Entry (c, "Insert Separator", Layout.key_sep, separator_avail st view),
-      (fun () -> separator st view pos);
-    `Separator, ignore;
-    `Entry (c, "Tag" ^ quant, Layout.key_tag, tag_avail st view),
-      (fun () -> tag st (get_tracks ()) (not all));
-    `Entry (c, "Rescan" ^ quant, Layout.key_rescan, rescan_avail st view),
-      (fun () -> rescan st (get_tracks ()));
-    `Entry (c, "Remove" ^ quant, Layout.key_del,
-      if all then clear_avail st view else remove_avail st view),
-      (fun () -> (if all then clear else remove) st view);
-    `Entry (c, "Reverse" ^ quant, Layout.key_rev,
-      if all then reverse_all_avail st view else reverse_avail st view),
-      (fun () -> (if all then reverse_all else reverse) st view);
-    `Separator, ignore;
-    `Entry (c, "Cut", Layout.key_cut, cut_avail st view),
-      (fun () -> cut st view);
-    `Entry (c, "Copy", Layout.key_copy, copy_avail st view),
-      (fun () -> copy st view);
-    `Entry (c, "Paste", Layout.key_paste, paste_avail st view),
-      (fun () -> paste st view);
-    `Entry (c, "Crop", Layout.key_crop, crop_avail st view),
-      (fun () -> crop st view);
-    `Separator, ignore;
-    `Entry (c, "Select All", Layout.key_all, select_all_avail st view),
-      (fun () -> select_all st view);
-    `Entry (c, "Select None", Layout.key_none, select_none_avail st view),
-      (fun () -> select_none st view);
-    `Entry (c, "Invert Selection", Layout.key_invert, select_invert_avail st view),
-      (fun () -> select_invert st view);
-    `Separator, ignore;
-    `Entry (c, "Wipe", Layout.key_wipe, wipe_avail st view),
-      (fun () -> wipe st view);
-    `Entry (c, "Dedupe", Layout.key_dedupe, dedupe_avail st view),
-      (fun () -> dedupe st view);
-    `Separator, ignore;
-    `Entry (c, "Undo", Layout.key_undo, undo_avail st view),
-      (fun () -> undo st view);
-    `Entry (c, "Redo", Layout.key_redo, redo_avail st view),
-      (fun () -> redo st view);
-    `Separator, ignore;
-    `Entry (c, "Load...", Layout.key_load, load_avail st view),
-      (fun () -> load st view);
-    `Entry (c, "Save...", Layout.key_save, save_avail st view),
-      (fun () -> save st view);
-  |] (
-    if View.(table it) == st.playlist.table then [||] else
+  Run_menu.command_menu st (Array.concat [
+    [|
+      `Entry (c, "Insert Separator", Layout.key_sep, separator_avail st view),
+        (fun () -> separator st view pos);
+      `Separator, ignore;
+      `Entry (c, "Tag" ^ quant, Layout.key_tag, tag_avail st view),
+        (fun () -> tag st (get_tracks ()) (not all));
+      `Entry (c, "Rescan" ^ quant, Layout.key_rescan, rescan_avail st view),
+        (fun () -> rescan st (get_tracks ()));
+      `Entry (c, "Remove" ^ quant, Layout.key_del,
+        if all then clear_avail st view else remove_avail st view),
+        (fun () -> (if all then clear else remove) st view);
+      `Entry (c, "Reverse" ^ quant, Layout.key_rev,
+        if all then reverse_all_avail st view else reverse_avail st view),
+        (fun () -> (if all then reverse_all else reverse) st view);
+      `Separator, ignore;
+      `Entry (c, "Cut", Layout.key_cut, cut_avail st view),
+        (fun () -> cut st view);
+      `Entry (c, "Copy", Layout.key_copy, copy_avail st view),
+        (fun () -> copy st view);
+      `Entry (c, "Paste", Layout.key_paste, paste_avail st view),
+        (fun () -> paste st view);
+      `Entry (c, "Crop", Layout.key_crop, crop_avail st view),
+        (fun () -> crop st view);
+      `Separator, ignore;
+      `Entry (c, "Select All", Layout.key_all, select_all_avail st view),
+        (fun () -> select_all st view);
+      `Entry (c, "Select None", Layout.key_none, select_none_avail st view),
+        (fun () -> select_none st view);
+      `Entry (c, "Invert Selection", Layout.key_invert, select_invert_avail st view),
+        (fun () -> select_invert st view);
+      `Separator, ignore;
+      `Entry (c, "Wipe", Layout.key_wipe, wipe_avail st view),
+        (fun () -> wipe st view);
+      `Entry (c, "Dedupe", Layout.key_dedupe, dedupe_avail st view),
+        (fun () -> dedupe st view);
+      `Separator, ignore;
+      `Entry (c, "Undo", Layout.key_undo, undo_avail st view),
+        (fun () -> undo st view);
+      `Entry (c, "Redo", Layout.key_redo, redo_avail st view),
+        (fun () -> redo st view);
+      `Separator, ignore;
+    |];
+    (if searches = [] then [||] else
+      let s = String.concat " " (List.map (fun s -> "\"" ^ s ^ "\"") searches) in
+      [|
+        `Entry (c, "Search for " ^ s, Layout.nokey, search_for_avail st),
+          (fun () -> search_for st searches);
+        `Separator, ignore;
+      |]
+    );
+    [|
+      `Entry (c, "Load...", Layout.key_load, load_avail st view),
+        (fun () -> load st view);
+      `Entry (c, "Save...", Layout.key_save, save_avail st view),
+        (fun () -> save st view);
+    |];
+    (if View.(table it) == st.playlist.table then [||] else
     [|
       `Entry (c, "Save View...", Layout.key_save2, save_view_avail st view),
         (fun () -> save_view st view);
       `Entry (c, "Queue" ^ quant ^ " to Playlist...", Layout.key_queue,
         queue_avail st view),
         (fun () -> queue st view (get_tracks ()));
-    |])
-  )
+    |]);
+  ])
 
 
 (* Runner *)
