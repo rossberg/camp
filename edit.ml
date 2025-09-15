@@ -100,8 +100,14 @@ let clear_undo ed =
 
 (* Editing *)
 
-let move_begin ed = ed.sel_range <- Some (0, 0, 0)
-let move_end ed = let i = String.length ed.text in ed.sel_range <- Some (i, i, i)
+let move_begin ed =
+  ed.sel_range <- Some (0, 0, 0);
+  ed.scroll <- 0
+
+let move_end ed =
+  let i = String.length ed.text in
+  ed.sel_range <- Some (i, i, i);
+  ed.scroll <- 0  (* depend on view adjustment to scroll rightmost *)
 
 let shift x i n = if x < i then x else max i (x + n)
 
