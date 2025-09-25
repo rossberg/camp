@@ -184,10 +184,10 @@ let key_textup = cmd '+'
 let key_textdn = cmd '-'
 let key_gridup = shiftcmd '+'
 let key_griddn = shiftcmd '-'
-let key_scaleup = cmd ']'
-let key_scaledn = cmd '['
-let key_popupup = shiftcmd ']'
-let key_popupdn = shiftcmd '['
+let key_popupup = cmd ']'
+let key_popupdn = cmd '['
+let key_scaleup = shiftcmd ']'
+let key_scaledn = shiftcmd '['
 
 let key_color = nokey
 

@@ -76,6 +76,16 @@ and run' (st : state) =
   in
   Run_control.resize_grid st grid_delta;
 
+  let is_modal = Ui.is_modal lay.ui in
+  if is_modal then Ui.nonmodal lay.ui;  (* temporarily enable keys *)
+  let popup_delta =
+    Bool.to_int (Layout.enlarge_popup_key lay) -
+    Bool.to_int (Layout.reduce_popup_key lay)
+  in
+  if is_modal then Ui.modal lay.ui;  (* reenable keys *)
+  lay.popup_size <- Layout.(clamp min_popup_size max_popup_size
+    (lay.popup_size + 100 * popup_delta));
+
   let scale_delta =
     Bool.to_int (Layout.enlarge_scale_key lay) -
     Bool.to_int (Layout.reduce_scale_key lay)
@@ -86,16 +96,6 @@ and run' (st : state) =
   lay.scaling <-
     snd lay.scaling + (fst scale_new - fst scale_old),
     snd lay.scaling + (snd scale_new - snd scale_old);
-
-  let is_modal = Ui.is_modal lay.ui in
-  if is_modal then Ui.nonmodal lay.ui;  (* temporarily enable keys *)
-  let popup_delta =
-    Bool.to_int (Layout.enlarge_popup_key lay) -
-    Bool.to_int (Layout.reduce_popup_key lay)
-  in
-  if is_modal then Ui.modal lay.ui;  (* reenable keys *)
-  lay.popup_size <- Layout.(clamp min_popup_size max_popup_size
-    (lay.popup_size + 100 * popup_delta));
 
   if Layout.lib_cover_key lay then
     Library.activate_covers st.library (not st.library.cover);
