@@ -974,25 +974,6 @@ let refresh_browser lib =
   Table.restore_selection lib.browser selection (fun dir -> dir.path)
 
 
-let rec fold_dir lib dir fold =
-  if fold <> dir.view.folded then
-  (
-    dir.view.folded <- fold;
-    save_dir lib dir;
-    save_browser lib;
-    refresh_browser lib;
-    if not fold && lib.current <> None then
-    (
-      Option.iter (fun parent ->
-        if parent <> "" then
-          fold_dir lib (Option.get (find_dir lib parent)) false
-      ) dir.parent;
-      (* If current dir was previously folded away, then reselect it. *)
-      Option.iter (fun i -> Table.select lib.browser i i)
-        (Array.find_index (fun dir -> lib.current = Some dir) lib.browser.entries)
-    );
-  )
-
 let insert_dir lib path =
   match find_dir lib File.(dir path // "") with
   | None ->
@@ -1313,6 +1294,43 @@ let reorder_albums lib =
 
 let reorder_tracks lib =
   reorder lib lib.tracks tracks_sorting track_attr_string (track_key lib)
+
+
+(* Folding directories *)
+
+let rec fold_dir lib dir fold =
+  if fold <> dir.view.folded then
+  (
+    dir.view.folded <- fold;
+    save_dir lib dir;
+    save_browser lib;
+    refresh_browser lib;
+    if lib.current <> None then
+    (
+      if fold then
+      (
+        (* If current dir was a sub directory, then deselect parent. *)
+        Option.iter (fun (current : dir) ->
+          if String.starts_with ~prefix: dir.path current.path then
+          (
+            Option.iter (select_dir lib)
+              (Array.find_index ((==) dir) lib.browser.entries);
+            refresh_artists_albums_tracks lib
+          )
+        ) lib.current;
+      )
+      else
+      (
+        Option.iter (fun parent ->
+          if parent <> "" then
+            fold_dir lib (Option.get (find_dir lib parent)) false
+        ) dir.parent;
+        (* If current dir was previously folded away, then reselect it. *)
+        Option.iter (fun i -> Table.select lib.browser i i)
+          (Array.find_index (fun dir -> lib.current = Some dir) lib.browser.entries)
+      )
+    );
+  )
 
 
 (* Roots *)
