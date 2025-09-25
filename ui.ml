@@ -391,7 +391,7 @@ let key_status' ui key =
     `Untouched
 
 let key_status ui (modifiers, key) focus =
-  if ui.modal || not (focus && Key.are_modifiers_down modifiers) then
+  if not (focus && Key.are_modifiers_down modifiers) then
     `Untouched
   else
     key_status' ui key

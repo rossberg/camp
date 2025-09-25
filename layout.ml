@@ -22,6 +22,7 @@ type t =
   mutable filesel_shown : bool;
   mutable menu_shown : bool;
   mutable popup_shown : (int * int) option;
+  mutable popup_size : int;
   mutable browser_width : int;
   mutable directories_width : int;
   mutable left_width : int;
@@ -51,6 +52,7 @@ let make ui =
     filesel_shown = false;
     menu_shown = false;
     popup_shown = None;
+    popup_size = 500;
     browser_width = 100;
     directories_width = 120;
     left_width = 200;
@@ -184,6 +186,8 @@ let key_gridup = shiftcmd '+'
 let key_griddn = shiftcmd '-'
 let key_scaleup = cmd ']'
 let key_scaledn = cmd '['
+let key_popupup = shiftcmd ']'
+let key_popupdn = shiftcmd '['
 
 let key_color = nokey
 
@@ -372,7 +376,7 @@ let shown_context g = Ui.mouse g.ui (cp, margin g + info_w g, margin g, - margin
 let control_context g = Ui.mouse g.ui (cp, margin g, ctl_y, - margin g, -1) `Right
 
 let cover_popup_open g = Ui.mouse g.ui (cover_area g) `Left
-let cover_popup_w g = if g.playlist_shown then min 300 (control_h g + g.playlist_height - text_h g - margin g) else control_h g - text_h g - 2 * popup_margin g
+let cover_popup_w g = if g.playlist_shown then min g.popup_size (control_h g + g.playlist_height - text_h g - margin g) else control_h g - text_h g - 2 * popup_margin g
 let cover_popup_image_size g = Ui.image_size g.ui (-1, 0, 0, cover_popup_w g, cover_popup_w g) `Shrink
 let cover_popup g x y iw ih = Ui.popup g.ui x y iw (ih + text_h g) (popup_margin g)
 let cover_popup_image g (p, x, y, w, h) = Ui.image g.ui (p, x, y, w, h - text_h g) `Shrink
@@ -405,6 +409,9 @@ let reduce_grid_key g = Ui.key g.ui key_griddn true
 
 let enlarge_scale_key g = Ui.key g.ui key_scaleup true
 let reduce_scale_key g = Ui.key g.ui key_scaledn true
+
+let enlarge_popup_key g = Ui.key g.ui key_popupup true
+let reduce_popup_key g = Ui.key g.ui key_popupdn true
 
 
 (* Edit Pane *)
@@ -648,6 +655,8 @@ let min_text_size = 8
 let max_text_size = 64
 let min_grid_size = 32
 let max_grid_size = 1024
+let min_popup_size = 100
+let max_popup_size = 1000
 
 let browser_min _g = 160
 let directories_min _g = 150

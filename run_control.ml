@@ -128,6 +128,14 @@ let resize_grid (st : state) delta =
       lay.track_grid <- clamp_grid (inc lay.track_grid);
   ) st.library.current
 
+let clamp_popup = Layout.(clamp min_popup_size max_popup_size)
+
+let resize_popup_avail (st : state) delta =
+  clamp_popup (st.layout.popup_size + 100 * delta) <> st.layout.popup_size
+
+let resize_popup (st : state) delta =
+  st.layout.popup_size <- st.layout.popup_size + 100 * delta
+
 
 (* Runner *)
 
@@ -622,9 +630,13 @@ let run_toggle_panel (st : state) =
         (fun () -> resize_text st (+1));
       `Entry (c, "Decrease Text Size", Layout.key_textdn, resize_text_avail st (-1)),
         (fun () -> resize_text st (-1));
-      `Entry (c, "Increase Cover Size", Layout.key_gridup, resize_grid_avail st (+1)),
+      `Entry (c, "Increase Grid Cover Size", Layout.key_gridup, resize_grid_avail st (+1)),
         (fun () -> resize_grid st (+1));
-      `Entry (c, "Decrease Cover Size", Layout.key_griddn, resize_grid_avail st (-1)),
+      `Entry (c, "Decrease Grid Cover Size", Layout.key_griddn, resize_grid_avail st (-1)),
         (fun () -> resize_grid st (-1));
+      `Entry (c, "Increase Popup Cover Size", Layout.key_popupup, resize_popup_avail st (+1)),
+        (fun () -> resize_popup st (+1));
+      `Entry (c, "Decrease Popup Cover Size", Layout.key_popupdn, resize_popup_avail st (-1)),
+        (fun () -> resize_popup st (-1));
     |]
   )

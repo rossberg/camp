@@ -153,6 +153,7 @@ let print_layout ?(raw = false) lay =
     "directories_width", nat lay.directories_width;
     "album_grid", nat lay.album_grid;
     "track_grid", nat lay.track_grid;
+    "popup_size", nat lay.popup_size;
   ]) lay
 
 let parse_layout lay pos =  (* assumes playlist and library already loaded *)
@@ -206,6 +207,8 @@ let parse_layout lay pos =  (* assumes playlist and library already loaded *)
       (fun w -> lay.album_grid <- w);
     apply (r $? "track_grid") (num min_grid_size max_grid_size)
       (fun w -> lay.track_grid <- w);
+    apply (r $? "popup_size") (num min_popup_size max_popup_size)
+      (fun w -> lay.popup_size <- w);
   )
 
 

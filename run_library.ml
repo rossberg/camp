@@ -465,14 +465,10 @@ let run_view (st : state)
       then grid_mouse lay grid_w tab
       else mouse lay cols tab
     with
-    | Some i, Some j
-      when (fst view.columns.(j) :> Data.any_attr) = `Cover ->
-      (* Drag over cover cell: change cover popup *)
+    | Some i, _ ->
+      (* Drag with active cover popup: update cover *)
       Run_menu.popup st (popup entries.(i));
-    | Some i, None when mode = `Grid ->
-      (* Drag over grid cell: change cover popup *)
-      Run_menu.popup st (popup entries.(i));
-    | _ -> ()
+    | None, _ -> ()
     )
   )
 
