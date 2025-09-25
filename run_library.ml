@@ -875,7 +875,12 @@ let run (st : state) =
     (* Click on Artists button: toggle artist pane *)
     view.artists.shown <- if artists' then Some `Table else None;
     if nothing_shown view then
-      view.tracks.shown <- Some `Table;  (* switch to tracks *)
+      view.artists.shown <- Some `Table;
+    if view.artists.shown = None && Table.has_selection lib.artists then
+    (
+      Table.deselect_all lib.artists;
+      Library.refresh_albums_tracks lib;
+    );
     Library.save_dir lib dir;
   );
 
@@ -891,6 +896,11 @@ let run (st : state) =
     view.albums.shown <- cycle_shown view.albums.shown;
     if nothing_shown view then
       view.albums.shown <- Some `Table;
+    if view.albums.shown = None && Table.has_selection lib.albums then
+    (
+      Table.deselect_all lib.albums;
+      Library.refresh_tracks lib;
+    );
     Library.save_dir lib dir;
   );
 
@@ -906,6 +916,10 @@ let run (st : state) =
     view.tracks.shown <- cycle_shown view.tracks.shown;
     if nothing_shown view then
       view.tracks.shown <- Some `Table;
+    if view.tracks.shown = None && Table.has_selection lib.tracks then
+    (
+      Table.deselect_all lib.tracks;
+    );
     Library.save_dir lib dir;
   );
 
