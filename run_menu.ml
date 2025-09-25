@@ -128,8 +128,7 @@ let run_popup (st : state) =
     ) popup;
 
     if popup = None
-    || st.popup = `Current && Control.silent ctl &&
-        List.mem (Control.status ctl) [`Stopped; `Ejected]
+    || st.popup = `Current && List.mem (Control.status ctl) [`Stopped; `Ejected]
     || Api.Mouse.(is_released `Left || is_pressed `Right) then
     (
       Ui.nonmodal lay.ui;

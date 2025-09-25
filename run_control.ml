@@ -165,7 +165,7 @@ let run (st : state) =
   let playing = (status = `Playing) in
   let paused = (status = `Paused) in
   let stopped = (status = `Stopped || status = `Ejected) in
-  let ejected = (status = `Ejected) in
+  let silent = Control.silent ctl in
   let length = Control.length ctl in
   let elapsed = Control.elapsed ctl in
   let remaining = length -. elapsed in
@@ -232,7 +232,7 @@ let run (st : state) =
   if Layout.sdf_key lay then toggle_sdf st;
 
   (* Audio properties *)
-  if not ejected then
+  if not silent then
   (
     let track = Option.get ctl.current in
     let ext = File.extension track.path in
@@ -331,15 +331,24 @@ let run (st : state) =
   let _, _, _, h = Ui.dim lay.ui (Layout.playlist_area lay) in
   let page = max 1 (int_of_float (Float.floor (float h /. float lay.text))) in
 
-  let skip (st : state) delta =
-    if delta <> 0 then
+  let last_pos = st.playlist.table.pos in
+  let rec skip (st : state) delta =
+    if delta <> 0 && st.playlist.table.pos <> None then
     (
       let ctl = st.control in
       let more = Playlist.skip st.playlist delta (ctl.repeat <> `None) in
       Control.switch ctl (Playlist.current st.playlist) more;
-      Playlist.adjust_scroll st.playlist page;
-      Table.dirty st.library.tracks;
-      Table.dirty st.library.browser;
+      (* Unless repeat mode is One, back-skip over silent tracks (separators,
+       * missing songs), but make sure not to loop infinitely. *)
+      if Control.silent ctl && delta < 0 && more && ctl.repeat <> `One
+      && st.playlist.table.pos <> last_pos then
+        skip st (delta / abs delta)
+      else
+      (
+        Playlist.adjust_scroll st.playlist page;
+        Table.dirty st.library.tracks;
+        Table.dirty st.library.browser;
+      )
     );
   in
   let bwd = Layout.bwd_button lay focus (Some false) in
@@ -347,10 +356,15 @@ let run (st : state) =
   skip st (Bool.to_int fwd - Bool.to_int bwd);
 
   let play (st : state) =
-    if stopped && len > 0 then
+    if stopped && (len > 0 || st.control.current <> None) then
     (
       (* Click on play button: start track *)
-      Control.switch st.control (Playlist.current st.playlist) true;
+      let track =
+        match Playlist.current_opt st.playlist with
+        | Some track -> track
+        | None -> Option.get st.control.current
+      in
+      Control.switch st.control track true;
       Playlist.adjust_scroll st.playlist page;
       Table.dirty st.library.tracks;
       Table.dirty st.library.browser;
@@ -379,10 +393,12 @@ let run (st : state) =
   let stop (st : state) =
     if not stopped then
     (
-      (match Playlist.current_opt st.playlist with
-      | None -> Control.eject st.control
-      | Some track -> Control.switch st.control track false
-      );
+      let track =
+        match Playlist.current_opt st.playlist with
+        | Some track -> track
+        | None -> Option.get st.control.current
+      in
+      Control.switch st.control track false;
       Playlist.adjust_scroll st.playlist page;
       Table.dirty st.library.tracks;
       Table.dirty st.library.browser;
@@ -391,7 +407,7 @@ let run (st : state) =
   if Layout.stop_button lay focus (Some false) then
   (
     (* Click on stop button when playing: stop track *)
-    stop st
+    stop st;
   );
 
   let eject (st : state) =
@@ -429,7 +445,7 @@ let run (st : state) =
   (* End of track *)
   (* Check must occur after possible Control.resume above,
    * otherwise the last track would be restarted. *)
-  if playing && remaining < 0.2 then
+  if Control.status ctl = `Playing && remaining < 0.2 then
   (
     (* Close to end: switch to next track *)
     let more =

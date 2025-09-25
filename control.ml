@@ -51,7 +51,7 @@ let ok ctl =
   let stopped = not playing && not paused in
   let silence = (ctl.sound = Api.Audio.silence ctl.audio) in
   check "volume in range" (ctl.volume >= 0.0 && ctl.volume <= 1.0) @
-  check "silence when no current track" ((ctl.current = None) = silence) @
+  check "silence when no current track" (ctl.current <> None || silence) @
   check "stopped when no current track" (ctl.current <> None || stopped) @
   check "no loop when no current track"
     (ctl.current <> None || ctl.loop = `None) @
@@ -92,12 +92,12 @@ let rate ctl = Api.Audio.rate ctl.audio ctl.sound
 let channels ctl = Api.Audio.channels ctl.audio ctl.sound
 
 let status ctl =
-  if Api.Audio.is_playing ctl.audio then
+  if ctl.current = None then
+    `Ejected
+  else if Api.Audio.is_playing ctl.audio then
     `Playing
   else if Api.Audio.played ctl.audio > 0.0 then
     `Paused
-  else if silent ctl then
-    `Ejected
   else
     `Stopped
 
