@@ -808,18 +808,15 @@ let run (st : state) =
     (* Click on Rescan (Scan) button: rescan directory, view, or files *)
     Option.iter (fun (dir : dir) ->
       let mode =
-        if Api.Key.is_modifier_down `Shift
-        || dir.view.tracks.shown <> None && Table.has_selection lib.tracks
-        || dir.view.albums.shown <> None && Table.has_selection lib.albums
-        || dir.view.artists.shown <> None && Table.has_selection lib.artists
-        then `Thorough else `Quick
-      in
-      if Table.has_selection lib.tracks then
-        Library.rescan_tracks lib mode (Library.selected lib)
+        if Api.Key.is_modifier_down `Shift then `Thorough else `Quick in
+      if dir.view.tracks.shown <> None && Table.has_selection lib.tracks then
+        Library.rescan_tracks lib `Thorough (Library.selected lib)
       else if
-        Table.has_selection lib.artists || Table.has_selection lib.albums ||
-        dir.view.search <> ""
+        dir.view.albums.shown <> None && Table.has_selection lib.artists ||
+        dir.view.artists.shown <> None && Table.has_selection lib.albums
       then
+        Library.rescan_tracks lib `Thorough lib.tracks.entries
+      else if dir.view.search <> "" then
         Library.rescan_tracks lib mode lib.tracks.entries
       else
         Library.rescan_dirs lib mode [|dir|]
