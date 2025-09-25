@@ -1350,19 +1350,20 @@ let rich_table_inner_area _ui area geo =
   in
   (p, ax, ty, aw - geo.scroll_w - 1, th)
 
-let rich_table_mouse ui area geo tab =
+let rich_table_mouse ui area geo cols tab =
   let area' = rich_table_inner_area ui area geo in
-  let (_, y, _, _) as r = dim ui area' in
-  let (_, my) as m = Mouse.pos ui.win in
+  let (x, y, _, _) as r = dim ui area' in
+  let (mx, my) as m = Mouse.pos ui.win in
   if inside m r then
-    Some (min (Table.length tab) ((my - y) / geo.row_h + tab.vscroll))
+    Some (min (Table.length tab) ((my - y) / geo.row_h + tab.vscroll)),
+    find_column geo.gutter_w cols tab.hscroll (mx - x)
   else
-    None
+    None, None
 
 let rich_table_drag ui area geo style tab =
-  match rich_table_mouse ui area geo tab with
-  | None -> ()
-  | Some i ->
+  match rich_table_mouse ui area geo [||] tab with
+  | None, _ -> ()
+  | Some i, _ ->
     let area' = rich_table_inner_area ui area geo in
     let x, y, w, _ = dim ui area' in
     focus' ui x (y + (i - tab.vscroll) * geo.row_h) w geo.row_h `White style
@@ -1893,14 +1894,14 @@ let grid_table_mouse ui area geo tab =
   let (mx, my) as m = Mouse.pos ui.win in
   if inside m r then
     let i, j = (mx - x) / iw, (my - y) / ih in
-    Some (min (Table.length tab) (j * line + i + tab.vscroll))
+    Some (min (Table.length tab) (j * line + i + tab.vscroll)), None
   else
-    None
+    None, None
 
 let grid_table_drag ui area geo style tab =
   match grid_table_mouse ui area geo tab with
-  | None -> ()
-  | Some i ->
+  | None, _ -> ()
+  | Some i, _ ->
     let area' = grid_table_inner_area ui area geo in
     let x, y, w, _ = dim ui area' in
     let iw = geo.gutter_w + geo.img_h in

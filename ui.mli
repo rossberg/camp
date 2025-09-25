@@ -166,10 +166,10 @@ val rich_table :
     rich_table_action
 
 val rich_table_inner_area : t -> area -> rich_table -> area
-val rich_table_mouse : t -> area -> rich_table -> ('a, cached) Table.t ->
-  int option
-val rich_table_drag : t -> area -> rich_table ->
-  [`Above | `Inside] -> ('a, cached) Table.t -> unit
+val rich_table_mouse : t -> area -> rich_table -> column array ->
+  ('a, cached) Table.t -> int option * int option
+val rich_table_drag : t -> area -> rich_table -> [`Above | `Inside] ->
+  ('a, cached) Table.t -> unit
 
 type browser_action =
   [ table_action
@@ -216,10 +216,10 @@ val grid_table :
     grid_table_action
 
 val grid_table_inner_area : t -> area -> grid_table -> area
-val grid_table_mouse : t -> area -> grid_table -> ('a, cached) Table.t ->
-  int option
-val grid_table_drag : t -> area -> grid_table ->
-  [`Left | `Inside] -> ('a, cached) Table.t -> unit
+val grid_table_mouse : t -> area -> grid_table ->
+  ('a, cached) Table.t -> int option * int option
+val grid_table_drag : t -> area -> grid_table -> [`Left | `Inside] ->
+  ('a, cached) Table.t -> unit
 
 (* Pop-ups *)
 

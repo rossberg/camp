@@ -166,7 +166,7 @@ let drag_on_browser (st : state) =
           Ui.delay lay.ui (fun () -> Layout.browser_drag lay `Inside browser)
         )
       )
-    ) (Layout.browser_mouse lay browser)
+    ) (fst (Layout.browser_mouse lay [||] browser))
   )
 
 let drop_on_browser (st : state) tracks =
@@ -199,7 +199,7 @@ let drop_on_browser (st : state) tracks =
           );
         )
       )
-    ) (Layout.browser_mouse lay browser)
+    ) (fst (Layout.browser_mouse lay [||] browser))
   )
 
 
@@ -227,7 +227,7 @@ let run_view (st : state)
   let lay = st.layout in
   let win = Ui.window lay.ui in
 
-  let pane, area, table, grid, spinner = layout in
+  let pane, area, table, grid, mouse, grid_mouse, spinner = layout in
   pane lay;
 
   let busy = refresh_busy lib in
@@ -456,7 +456,25 @@ let run_view (st : state)
   );
 
   if busy then
-    spinner lay (spin win)
+    spinner lay (spin win);
+
+  if lay.popup_shown <> None && Api.Mouse.is_down `Left then
+  (
+    (match
+      if mode = `Grid
+      then grid_mouse lay grid_w tab
+      else mouse lay cols tab
+    with
+    | Some i, Some j
+      when (fst view.columns.(j) :> Data.any_attr) = `Cover ->
+      (* Drag over cover cell: change cover popup *)
+      Run_menu.popup st (popup entries.(i));
+    | Some i, None when mode = `Grid ->
+      (* Drag over grid cell: change cover popup *)
+      Run_menu.popup st (popup entries.(i));
+    | _ -> ()
+    )
+  )
 
 
 (* Runner *)
@@ -616,7 +634,7 @@ let run (st : state) =
             )
           ) (Library.selected_dir lib)
         )
-      ) (Layout.browser_mouse lay browser)
+      ) (fst (Layout.browser_mouse lay [||] browser))
     )
 
   | `Drop ->
@@ -656,7 +674,7 @@ let run (st : state) =
             )
           ) (Library.selected_dir lib)
         )
-      ) (Layout.browser_mouse lay browser)
+      ) (fst (Layout.browser_mouse lay [||] browser))
     )
 
   | `Menu (i_opt, _) ->
@@ -753,7 +771,7 @@ let run (st : state) =
       in
       if not (Library.insert_roots lib dropped pos) then
         Layout.browser_error_box lay;  (* flash *)
-    ) (Layout.browser_mouse lay browser)
+    ) (fst (Layout.browser_mouse lay [||] browser))
   );
 
   (* Buttons *)

@@ -544,7 +544,8 @@ let left_grid_mouse g iw = Ui.grid_table_mouse g.ui (left_area g) (grid_table g 
 let left_grid_drag g iw = Ui.grid_table_drag g.ui (left_area g) (grid_table g iw true) `Left
 let left_spin g = Ui.text g.ui (lp, 4, margin g + text_h g + 4, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
 
-let left_view = left_pane, left_area, left_table, left_grid, left_spin
+let left_view =
+  left_pane, left_area, left_table, left_grid, left_mouse, left_grid_mouse, left_spin
 
 (* Upper right view (optional) *)
 let rp = lp + 1
@@ -561,7 +562,8 @@ let right_grid_mouse g iw = Ui.grid_table_mouse g.ui (right_area g) (grid_table 
 let right_grid_drag g iw = Ui.grid_table_drag g.ui (right_area g) (grid_table g iw true) `Left
 let right_spin g = Ui.text g.ui (rp, divider_w g + 4, margin g + text_h g + 4, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
 
-let right_view = right_pane, right_area, right_table, right_grid, right_spin
+let right_view =
+  right_pane, right_area, right_table, right_grid, right_mouse, right_grid_mouse, right_spin
 
 (* Lower view (optional) *)
 let lp = rp + 1
@@ -578,7 +580,8 @@ let lower_grid_mouse g iw = Ui.grid_table_mouse g.ui (lower_area g) (grid_table 
 let lower_grid_drag g iw = Ui.grid_table_drag g.ui (lower_area g) (grid_table g iw true) `Left
 let lower_spin g = Ui.text g.ui (lp, 4, divider_w g + text_h g + 4, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
 
-let lower_view = lower_pane, lower_area, lower_table, lower_grid, lower_spin
+let lower_view =
+  lower_pane, lower_area, lower_table, lower_grid, lower_mouse, lower_grid_mouse, lower_spin
 
 (* Keys *)
 let queue_key g = Ui.key g.ui key_queue true
