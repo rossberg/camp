@@ -201,8 +201,8 @@ let expand_paths (st : state) paths =
     tracks := track :: !tracks
   in
   let add_playlist path =
-    let s = File.load `Bin path in
-    List.iter (fun item -> add_track (Track.of_m3u_item item)) (M3u.parse_ext s)
+    let items = M3u.load path in
+    List.iter (fun item -> add_track (Track.of_m3u_item item)) items
   in
   let add_viewlist path =
     let s = File.load `Bin path in
@@ -390,7 +390,7 @@ let load_avail (st : state) (module View : View) =
   editable st (module View) && not st.layout.filesel_shown
 let load (st : state) (module View : View) =
   Run_filesel.filesel st `Read `File "" ".m3u" (fun path ->
-    let tracks = Track.of_m3u (File.load `Bin path) in
+    let tracks = Array.map Track.of_m3u_item (Array.of_list (M3u.load path)) in
     View.(replace_all it) tracks;
     View.(focus st);
     if View.(table it) == st.playlist.table then

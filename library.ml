@@ -729,11 +729,9 @@ let rescan_dir_tracks' lib mode (dir : dir) =
 
 let rescan_playlist' lib _mode (dir : dir) =
   try
-    let s = File.load `Bin dir.path in
-    let items = Array.of_list (M3u.parse_ext s) in
-    let items' = Array.map (M3u.resolve (File.dir dir.path)) items in
+    let items = Array.of_list (M3u.load dir.path) in
     dir.tracks <-
-      Array.mapi (fun pos item -> {(find_item lib item) with pos}) items';
+      Array.mapi (fun pos item -> {(find_item lib item) with pos}) items;
     true
   with
   | Sys_error _ -> true

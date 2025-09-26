@@ -111,3 +111,7 @@ let resolve dir item =
   let path =
     if Filename.is_relative ipath then Filename.concat dpath ipath else ipath in
   {item with path = drive ^ normalise path}
+
+let load path =
+  let s = File.load `Bin path in
+  List.map (resolve (File.dir path)) (parse_ext s)

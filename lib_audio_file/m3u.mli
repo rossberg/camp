@@ -17,4 +17,6 @@ val parse_ext : playlist -> item list
 
 val resolve : path -> item -> item
 
+val load : path -> item list
+
 val is_known_ext : path -> bool
