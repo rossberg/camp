@@ -86,24 +86,23 @@ let is_url path =
 
 let normalize path =
   if not Sys.win32 || String.length path < 256 then path else
+  let path' = String.map (function '/' -> '\\' | c -> c) path in
   "\\\\?\\" ^  (* Work around Windows MAX_PATH *)
-  if not (is_relative path) then path else
-  resolve (Sys.getcwd ()) path
+    if not (is_relative path') then path' else resolve (Sys.getcwd ()) path'
 
 
 (* Attributes *)
 
 let stat path =
-  if not Sys.win32 || String.length path < 256 then Unix.stat path else
   (* Unix.stat doesn't like Windows UNC prefix *)
   Unix.stat (normalize path)
 
 let exists path =
-  if not Sys.win32 || String.length path < 256 then Sys.file_exists path else
   (* Sys.file_exists doesn't like Windows UNC prefix *)
   try ignore (stat path); true with Unix.Unix_error _ -> false
 
 let is_dir path =
+  let path = normalize path in
   String.ends_with ~suffix: sep path ||
   if not Sys.win32 || String.length path < 256 then Sys.is_directory path else
   (* Sys.is_directory doesn't like Windows UNC prefix *)

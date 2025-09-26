@@ -54,12 +54,30 @@ let parse_info s =
   let title = String.sub s (com + 1) (String.length s - com - 1) in
   Some {time = max 0 time; title}
 
+let parse_path s =
+  if String.length File.sep = 1 then
+    String.map (function '/' | '\\' -> File.sep.[0] | c -> c) s
+  else
+    let buf = Buffer.create (2 * String.length s) in
+    let rec loop i j =
+      if j = String.length s then
+        Buffer.add_substring buf s i (j - i)
+      else
+        match s.[j] with
+        | '/' | '\\' ->
+          Buffer.add_substring buf s i (j - i);
+          Buffer.add_string buf File.sep;
+          loop (j + 1) (j + 1)
+        | _ -> loop i (j + 1)
+    in loop 0 0;
+    Buffer.contents buf
+
 let parse_ext s =
   List.fold_right
     (fun ln (items, info) ->
       if String.starts_with ~prefix: "#" ln
       then items, parse_info ln
-      else {path = ln; info}::items, None
+      else {path = parse_path ln; info}::items, None
     ) (List.rev (lines s)) ([], None) |> fst |> List.rev
 
 
