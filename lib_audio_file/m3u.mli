@@ -15,7 +15,8 @@ val make_ext : item list -> playlist
 val parse : playlist -> path list
 val parse_ext : playlist -> item list
 
-val resolve : path -> item -> item
+val resolve_item : path -> item -> item
+val resolve : path -> item list -> item list
 
 val load : path -> item list
 

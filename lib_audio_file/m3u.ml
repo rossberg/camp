@@ -55,22 +55,8 @@ let parse_info s =
   Some {time = max 0 time; title}
 
 let parse_path s =
-  if String.length File.sep = 1 then
-    String.map (function '/' | '\\' -> File.sep.[0] | c -> c) s
-  else
-    let buf = Buffer.create (2 * String.length s) in
-    let rec loop i j =
-      if j = String.length s then
-        Buffer.add_substring buf s i (j - i)
-      else
-        match s.[j] with
-        | '/' | '\\' ->
-          Buffer.add_substring buf s i (j - i);
-          Buffer.add_string buf File.sep;
-          loop (j + 1) (j + 1)
-        | _ -> loop i (j + 1)
-    in loop 0 0;
-    Buffer.contents buf
+  assert (String.length File.sep = 1);
+  String.map (function '/' | '\\' -> File.sep.[0] | c -> c) s
 
 let parse_ext s =
   List.fold_right
@@ -81,37 +67,16 @@ let parse_ext s =
     ) (List.rev (lines s)) ([], None) |> fst |> List.rev
 
 
-let split_drive path =
-  if Sys.win32 && String.length path >= 2 && path.[1] = ':' then
-    String.sub path 0 2, String.sub path 2 (String.length path - 2)
-  else
-    "", path
+let resolve_path dir path =
+  if is_separator path then path else File.normalize (File.resolve dir path)
 
-let normalise path =
-  let open Filename in
-  assert (String.length dir_sep = 1);
-  let arcs = String.split_on_char dir_sep.[0] path in
-  let rec iter ls rs =
-    match ls, rs with
-    | _, [] -> List.rev ls
-    | _, r1::rs' when r1 = current_dir_name -> iter ls rs'
-    | _::_, r1::rs' when r1 = "" -> iter ls rs'
-    | l1::l2::ls', r1::r2::rs'
-      when r1 = parent_dir_name && l1 <> parent_dir_name ->
-      iter (l2::ls') (r2::rs')
-    | _, r1::rs' -> iter (r1::ls) rs'
-  in
-  String.concat dir_sep (iter [] arcs)
+let resolve_item dir item =
+  {item with path = resolve_path dir item.path}
 
-let resolve dir item =
-  if is_separator item.path then item else
-  let ddrive, dpath = split_drive dir in
-  let idrive, ipath = split_drive item.path in
-  let drive = if idrive = "" && ddrive <> "" then ddrive else idrive in
-  let path =
-    if Filename.is_relative ipath then Filename.concat dpath ipath else ipath in
-  {item with path = drive ^ normalise path}
+let resolve dir items =
+  List.map (resolve_item dir) items
 
 let load path =
-  let s = File.load `Bin path in
-  List.map (resolve (File.dir path)) (parse_ext s)
+  let path' =
+    if File.is_relative path then File.(current_dir () // path) else path in
+  resolve (File.dir path') (parse_ext (File.load `Bin path'))

@@ -27,9 +27,10 @@ val remove_drive : path -> path
 val explode : path -> name list
 val implode : name list -> path
 
+val normalize : path -> path
+
 val is_relative : path -> bool
-val make_relative : dir -> path -> path
-val make_resolvable : dir -> path -> path
+val relative : dir -> path -> path
 val resolve : dir -> path -> path
 
 val is_url : path -> bool

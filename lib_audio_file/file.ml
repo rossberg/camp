@@ -20,61 +20,12 @@ let extension = Filename.extension
 let remove_extension = Filename.remove_extension
 let temp temp_dir ext = Filename.temp_file ?temp_dir ext
 
-let drive path =
-  if String.length path >= 2 && path.[1] = ':' then
-    String.sub path 0 2
-  else
-    ""
+let has_drive path = String.length path >= 2 && path.[1] = ':'
+let drive path = if has_drive path then String.sub path 0 2 else ""
+let remove_drive path =
+  if has_drive path then String.sub path 2 (String.length path - 2) else path
 
 let is_proper name = name <> "" && name.[0] <> '.' && name.[0] <> '$'
-
-let remove_drive path =
-  let drive = drive path in
-  if drive = "" then path else
-  let n = String.length drive in
-  String.sub path n (String.length path - n)
-
-
-let remove_suffix s1 s2 =
-  if String.ends_with ~suffix: s1 s2 then
-    String.(sub s2 0 (length s2 - length s1))
-  else s2
-
-let rec explode path =
-  let dir = Filename.dirname path in
-  if dir = path then
-    [dir]
-  else if dir = Filename.current_dir_name then
-    [remove_suffix sep path]
-  else
-    explode dir @ [Filename.basename path]
-
-let rec implode names =
-  match names with
-  | [] -> Filename.current_dir_name
-  | [name] -> name
-  | name::names -> name // implode names
-
-let is_relative = Filename.is_relative
-
-let rec make_relative' names1 names2 =
-  match names1, names2 with
-  | name1::names1', name2::names2' when name1 = name2 ->
-    make_relative' names1' names2'
-  | _, _ ->
-    List.init (List.length names1) (fun _ -> Filename.parent_dir_name) @ names2
-
-let make_relative dir path =
-  implode (make_relative' (explode dir) (explode path))
-
-let make_resolvable dir path =
-  if Filename.is_relative path then
-    make_relative dir path
-  else
-    path
-
-let resolve dir path =
-  if Filename.is_relative path then dir//path else path
 
 let is_url path =
   match String.index_opt path ':' with
@@ -82,9 +33,46 @@ let is_url path =
   | Some i -> String.length path >= i + 2 && path.[i+1] = '/' && path.[i+2] = '/'
 
 
-(* Path normalization (for Windows) *)
+let explode path = assert (String.length sep = 1); String.split_on_char sep.[0] path
+let implode names = if names = [] then current else String.concat sep names
 
 let normalize path =
+  let rec iter ls rs =
+    match ls, rs with
+    | _, [] -> List.rev ls
+    | _, r1::rs' when r1 = current -> iter ls rs'  (* remove "." *)
+    | _::_, r1::rs' when r1 = "" -> iter ls rs'  (* remove "", except for first *)
+    | l1::l2::ls', r1::r2::rs' when r1 = parent && l1 <> parent ->
+      iter (l2::ls') (r2::rs')  (* resolve "..", except after unresolved ".." *)
+    | _, r1::rs' -> iter (r1::ls) rs'
+  in implode (iter [] (explode path))
+
+
+let is_relative = Filename.is_relative
+
+let rec relative' names1 names2 =
+  match names1, names2 with
+  | name1::names1', name2::names2' when name1 = name2 ->
+    relative' names1' names2'
+  | _, _ ->
+    List.init (List.length names1) (fun _ -> parent) @ names2
+
+let relative dir path =
+  let ddrive, dpath = drive dir, remove_drive dir in
+  let idrive, ipath = drive path, remove_drive path in
+  if idrive <> ddrive then path else
+  ddrive ^ implode (relative' (explode dpath) (explode ipath))
+
+let resolve dir path =
+  let ddrive, dpath = drive dir, remove_drive dir in
+  let idrive, ipath = drive path, remove_drive path in
+  let drive = if idrive = "" && ddrive <> "" then ddrive else idrive in
+  drive ^ if is_relative ipath then dpath // ipath else ipath
+
+
+(* Path escaping (for Windows) *)
+
+let escape path =
   if not Sys.win32 || String.length path < 256 then path else
   let path' = String.map (function '/' -> '\\' | c -> c) path in
   "\\\\?\\" ^  (* Work around Windows MAX_PATH *)
@@ -95,14 +83,14 @@ let normalize path =
 
 let stat path =
   (* Unix.stat doesn't like Windows UNC prefix *)
-  Unix.stat (normalize path)
+  Unix.stat (escape path)
 
 let exists path =
   (* Sys.file_exists doesn't like Windows UNC prefix *)
   try ignore (stat path); true with Unix.Unix_error _ -> false
 
 let is_dir path =
-  let path = normalize path in
+  let path = escape path in
   String.ends_with ~suffix: sep path ||
   if not Sys.win32 || String.length path < 256 then Sys.is_directory path else
   (* Sys.is_directory doesn't like Windows UNC prefix *)
@@ -110,7 +98,7 @@ let is_dir path =
 
 let size path = (stat path).Unix.st_size
 let time path = (stat path).Unix.st_mtime
-let set_time path time = Unix.utimes (normalize path) (Unix.time ()) time
+let set_time path time = Unix.utimes (escape path) (Unix.time ()) time
 
 let run cmd =
   let inp = Unix.open_process_in cmd in
@@ -169,29 +157,29 @@ let check path =
 
 let open_in mode path =
   In_channel.(match mode with `Bin -> open_bin | `Text -> open_text)
-    (normalize path)
+    (escape path)
 
 let open_out mode path  =
   Out_channel.(match mode with `Bin -> open_bin | `Text -> open_text)
-    (normalize path)
+    (escape path)
 
 let open_append mode path  =
   let mode = Out_channel.(match mode with `Bin -> Open_binary | `Text -> Open_text) in
   Out_channel.(open_gen [mode; Open_creat; Open_append; Open_nonblock])
-    0o660 (normalize path)
+    0o660 (escape path)
 
 let with_open_in mode path  f =
   In_channel.(match mode with `Bin -> with_open_bin | `Text -> with_open_text)
-    (normalize path) f
+    (escape path) f
 
 let with_open_out mode path f =
   Out_channel.(match mode with `Bin -> with_open_bin | `Text -> with_open_text)
-    (normalize path) f
+    (escape path) f
 
 let with_open_append mode path f =
   let mode = Out_channel.(match mode with `Bin -> Open_binary | `Text -> Open_text) in
   Out_channel.(with_open_gen [mode; Open_creat; Open_append; Open_nonblock])
-    0o660 (normalize path) f
+    0o660 (escape path) f
 
 
 let load mode path = with_open_in mode path In_channel.input_all
@@ -208,8 +196,8 @@ let copy src_path dst_path =
   if !big_flag then
   (
     let perm = (Unix.stat src_path).Unix.st_perm in
-    let src = Unix.(openfile (normalize src_path) [O_RDONLY] 0) in
-    let dst = Unix.(openfile (normalize dst_path) [O_RDWR; O_CREAT; O_TRUNC] perm) in
+    let src = Unix.(openfile (escape src_path) [O_RDONLY] 0) in
+    let dst = Unix.(openfile (escape dst_path) [O_RDWR; O_CREAT; O_TRUNC] perm) in
     let src_a = Bigarray.(Unix.map_file src char c_layout false [|-1|]) in
     let dims = Bigarray.Genarray.dims src_a in
     let dst_a = Bigarray.(Unix.map_file dst char c_layout true dims) in
@@ -231,24 +219,26 @@ let copy src_path dst_path =
   );
   set_time dst_path (time src_path)
 
-let move src_path dst_path = Unix.rename (normalize src_path) (normalize dst_path)
+let move src_path dst_path = Unix.rename (escape src_path) (escape dst_path)
 
-let delete path = Sys.remove (normalize path)
+let delete path = Sys.remove (escape path)
 
-let make_writable path = Unix.chmod (normalize path) 0o660
+let make_writable path = Unix.chmod (escape path) 0o660
 
 
 (* Directories *)
 
 let current_dir () = Sys.getcwd ()
-let change_dir path = Sys.chdir (normalize path)
+let change_dir path = Sys.chdir (escape path)
 
-let normalize_dir path =
+let rec normalize_dir path =
   if not Sys.win32
   || String.length path = 3 && path.[1] = ':' && path.[2] = '\\' then
     path
+  else if String.ends_with ~suffix: sep path then
+    normalize_dir String.(sub path 0 (length path - length sep))
   else
-    remove_suffix sep path
+    path
 
 let check_dir path =
   let path' = normalize_dir path in
@@ -270,4 +260,4 @@ let delete_dir path = Unix.rmdir path
 
 let read_dir path =
   check_dir path;
-  try Sys.readdir (normalize path) with _ -> [||]
+  try Sys.readdir (escape path) with _ -> [||]
