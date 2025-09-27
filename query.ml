@@ -16,6 +16,7 @@ type value =
 
 
 let file_value path (file : file) = function
+  | `FileExists -> BoolV (M3u.is_separator path || File.exists path)
   | `FilePath -> TextV path
   | `FileDir -> TextV (File.dir path)
   | `FileName -> TextV (File.name path)
@@ -143,6 +144,7 @@ let keys =
   [
     "true", `True; "false", `False;
     "now", `Now; "random", `Random;
+    "fileexists", `FileExists;
     "filetime", `FileTime; "filesize", `FileSize;
     "filepath", `FilePath; "filedir", `FileDir;
     "filename", `FileName; "fileext", `FileExt;
@@ -196,7 +198,7 @@ let rec string_of_expr = function
   | Time (_, s) -> s
   | Date (_, s) -> s
   | Text s -> "\"" ^ s ^ "\""
-  | Key k -> "$" ^ string_of_key k
+  | Key k -> "#" ^ string_of_key k
   | Un (op, e) -> "(" ^ string_of_unop op ^ " " ^ string_of_expr e ^ ")"
   | Bin (op, e1, e2) ->
     "(" ^ string_of_expr e1 ^ " " ^ string_of_binop op ^ " " ^ string_of_expr e2 ^ ")"
@@ -213,7 +215,7 @@ exception TypeError
 
 let rec validate q =
   match q with
-  | Key (`True | `False | `Cover) -> BoolT
+  | Key (`FileExists | `True | `False | `Cover) -> BoolT
   | Int _
   | Key (`Random | `FileSize | `Disc | `Track | `Discs | `Tracks | `Pos | `Year)
   | Key (`Rating | `Channels | `Depth | `SampleRate | `BitRate | `Rate) -> IntT
@@ -655,7 +657,7 @@ let search_keys =
   [`Artist; `Title; `AlbumArtist; `AlbumTitle; `Label; `Country; `Date]
 
 let rec coerce_bool = function
-  | Key (`True | `False | `Cover) as q -> q
+  | Key (`FileExists | `True | `False | `Cover) as q -> q
   | Text _ | Bin (Cat, _, _) | Key _ as q ->
     (* Treat text literal in Boolean position as search term *)
     List.fold_right (fun key q' ->
@@ -777,7 +779,7 @@ let rec parse_sort s i =
 let parse_query s : (query, string) result =
   try
     let q, j = parse_disj s 0 in
-    let q'= coerce_bool q in
+    let q' = coerce_bool q in
     if validate q' <> BoolT then raise TypeError;
     let ks =
       match token s j with

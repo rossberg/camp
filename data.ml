@@ -13,7 +13,7 @@ type id = int64
 
 type file_attr =
 [
-  | `FilePath | `FileDir | `FileName | `FileExt | `FileSize | `FileTime
+  | `FileExists | `FilePath | `FileDir | `FileName | `FileExt | `FileSize | `FileTime
 ]
 
 type format_attr =
@@ -39,7 +39,7 @@ type 'attr columns = ('attr * int) array
 
 
 let file_attrs =
-  [ `FilePath; `FileDir; `FileName; `FileExt; `FileSize; `FileTime ]
+  [ `FileExists; `FilePath; `FileDir; `FileName; `FileExt; `FileSize; `FileTime ]
 let format_attrs =
   [ `Length; `Codec; `Channels; `Depth; `SampleRate; `BitRate; `Rate ]
 let meta_attrs =
@@ -343,6 +343,7 @@ let nonempty f x attr = match x with None -> "" | Some x -> f x attr
 let unknown f x attr = match nonempty f x attr with "" -> "[unknown]" | s -> s
 
 let file_attr_string path (file : file) = function
+  | `FileExists -> string_of_bool (M3u.is_separator path || File.exists path)
   | `FilePath -> path
   | `FileDir -> File.dir path
   | `FileName -> File.name path
@@ -438,7 +439,7 @@ let track_attr_string' (track : track) = function
 
 let attr_string' get_memo set_memo f x attr =
   match (attr :> track_attr) with
-  | `FilePath | `FileDir | `FileName | `FileExt
+  | `FileExists | `FilePath | `FileDir | `FileName | `FileExt
   | `Codec | `Label | `Country | `Cover | `Pos ->
     f x attr
   | _ ->
@@ -508,7 +509,7 @@ let attr_string' get_memo set_memo f x attr =
     | `Rating ->
       if memo.rating <> "" then memo.rating else
       let s = f x attr in memo.rating <- s; s
-    | `FilePath | `FileDir | `FileName | `FileExt
+    | `FileExists | `FilePath | `FileDir | `FileName | `FileExt
     | `Codec | `Label | `Country | `Cover | `Pos ->
       assert false
 
@@ -520,7 +521,7 @@ let set_track_memo (track : track) memo = track.memo <- memo
 let album_attr_string (album : album) (attr : album_attr) =
   attr_string' get_album_memo set_album_memo album_attr_string' album attr
 
-let track_attr_string (track : track) attr =
+let track_attr_string (track : track) (attr : track_attr) =
   attr_string' get_track_memo set_track_memo track_attr_string' track attr
 
 let query_attr_string (track : track) = function
@@ -550,7 +551,7 @@ let contains_utf_8 s1 s2 =
 
 let attr_fold attr =
   match (attr :> _) with
-  | `FileSize | `FileTime
+  | `FileExists | `FileSize | `FileTime
   | `Length | `Channels | `Depth | `SampleRate | `BitRate | `Rate
   | `Track | `Tracks | `Disc | `Discs | `DiscTrack | `Date | `Year
   | `Rating | `Cover

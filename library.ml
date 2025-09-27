@@ -294,6 +294,7 @@ let error lib msg =
 
 let attr_prop = function
   | `Pos -> "#   ", `Right
+  | `FileExists -> "File Exists", `Left
   | `FilePath -> "File Path", `Left
   | `FileDir -> "File Location", `Left
   | `FileName -> "File Name", `Left
@@ -406,6 +407,7 @@ struct
   let attr_enum =
   [
     "POS", `Pos;
+    "EXS", `FileExists;
     "PTH", `FilePath;
     "DIR", `FileDir;
     "NAM", `FileName;
