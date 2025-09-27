@@ -14,6 +14,8 @@ let clamp = Layout.clamp
 
 let fmt = Printf.sprintf
 
+module Map = Map.Make(String)
+
 
 (* Commands *)
 
@@ -179,6 +181,63 @@ let local_playlist =
 
 let resolve_playlist_avail = playlist_avail
 let resolve_playlist = modify_playlist M3u.resolve
+
+
+(*
+let path_distance path1 path2 =
+  let rec dist names1 names2 =
+    match names1, names2 with
+    | name1::names1', name2::names2' when name1 = name2 -> dist names1' names2'
+    | _, _ -> List.length names1 + List.length names2
+  in dist (File.explode path1) (File.explode path2)
+*)
+
+let repair_playlist_avail = playlist_avail
+let repair_playlist (st : state) =
+  let map = ref Map.empty in
+  Data.iter_dir (fun dir ->
+    if Data.is_dir dir then
+    (
+      Array.iter (fun (track : Data.track) ->
+        map := Map.add_to_list (File.name track.path) track !map
+      ) dir.tracks
+    )
+  ) st.library.root;
+  let success, fail, fuzzy = ref 0, ref 0, ref 0 in
+  modify_playlist (fun path items ->
+    List.map (fun item ->
+      let item = M3u.resolve_item path item in
+      if File.exists item.path then item else
+      match Map.find_opt (File.name item.path) !map with
+      | None -> incr fail; item
+      | Some [track] -> incr success; {item with path = track.path}
+      | Some _ -> incr fuzzy; item
+(*
+        let score (track : track) =
+          let path_score = path_distance item.path track.path in
+          let time_item =
+            match item.info with Some info -> float info.time | None -> 0.0
+          and track_time =
+            match track.format with Some format -> format.time | None ->
+            match track.meta with Some meta -> meta.length | None -> 0.0
+          in
+          let time_score = abs (int_of_float (track_time - item_time)) in
+          path_score, time_score
+        in
+        let cmp track1 track2 = compare (score track1) (score track2) in
+        let tracks' = List.sort cmp tracks in
+        incr success; incr fuzzy; {item with path = (List.hd tracks').path}
+*)
+    ) items
+  ) st;
+  if !fail + !fuzzy > 0 then
+    let s1 =
+      if !fail = 0 then [] else [fmt "%d entries not found" !fail] in
+    let s2 =
+      if !fuzzy = 0 then [] else [fmt "%d entries found multiple times" !fuzzy] in
+    Library.error st.library (String.concat ", " (s1 @ s2))
+  else if !success = 0 then
+    Library.error st.library "no entries needed repair"
 
 
 (* Drag & Drop *)
@@ -739,6 +798,8 @@ let run (st : state) =
           Layout.key_deldir, remove_list_avail st),
           (fun () -> remove_list st);
         `Separator, ignore;
+        `Entry (c, "Repair Playlist" ^ pls, Layout.nokey, repair_playlist_avail st),
+          (fun () -> repair_playlist st);
         `Entry (c, "Make Playlist" ^ pls ^ " Relative", Layout.nokey, relative_playlist_avail st),
           (fun () -> relative_playlist st);
       |];
