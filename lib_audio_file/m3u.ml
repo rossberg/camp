@@ -67,16 +67,29 @@ let parse_ext s =
     ) (List.rev (lines s)) ([], None) |> fst |> List.rev
 
 
+let local_path drive path =
+  if File.drive path = drive then File.remove_drive path else path
+
 let resolve_path dir path =
   if is_separator path then path else File.normalize (File.resolve dir path)
 
-let resolve_item dir item =
-  {item with path = resolve_path dir item.path}
+let relative_path dir path =
+  if is_separator path then path else File.normalize (File.relative dir path)
 
-let resolve dir items =
-  List.map (resolve_item dir) items
+let local_item drive item = {item with path = local_path drive item.path}
+let resolve_item dir item = {item with path = resolve_path dir item.path}
+let relative_item dir item = {item with path = relative_path dir item.path}
+
+let local drive items = List.map (local_item drive) items
+let resolve dir items = List.map (resolve_item dir) items
+let relative dir items = List.map (relative_item dir) items
 
 let load path =
   let path' =
     if File.is_relative path then File.(current_dir () // path) else path in
   resolve (File.dir path') (parse_ext (File.load `Bin path'))
+
+let save path items : unit =
+  let path' =
+    if File.is_relative path then File.(current_dir () // path) else path in
+  File.save `Bin path (make_ext (relative (File.dir path') items))

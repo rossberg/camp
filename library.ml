@@ -557,7 +557,7 @@ let save_dir _lib dir =
   Storage.save_string (dir_name dir) (fun () ->
     Text.print (Print.dir dir)
   );
-  if is_viewlist dir then File.store `Bin dir.path dir.view.search
+  if is_viewlist dir then File.save `Bin dir.path dir.view.search
 
 let load_dir _lib dir =
   Storage.load_string_opt (dir_name dir) (fun s ->
@@ -1446,7 +1446,7 @@ let save_playlist lib =
   try
     let items = Array.to_list (Array.map (Track.to_m3u_item) tracks) in
     let s = M3u.make_ext items in
-    File.store `Bin dir.path s;
+    File.save `Bin dir.path s;
   with exn ->
     Storage.log_exn "file" exn ("writing playlist " ^ dir.path)
 

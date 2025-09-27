@@ -607,8 +607,13 @@ let remove_sorting attr = insert_sorting `None attr (-1) max_int
 (* Iteration *)
 
 let rec iter_dir f (dir : _ dir) =
-  f dir;
-  Array.iter (iter_dir f) dir.children
+  f dir; Array.iter (iter_dir f) dir.children
+
+let rec exists_dir f (dir : _ dir) =
+  f dir || Array.exists (exists_dir f) dir.children
+
+let rec for_all_dir f (dir : _ dir) =
+  f dir && Array.for_all (for_all_dir f) dir.children
 
 
 (* Persistence *)

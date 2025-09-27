@@ -109,7 +109,7 @@ let create_list (st : state) ext s view_opt path =
       then path
       else path ^ ext
     in
-    File.store `Bin path s;
+    File.save `Bin path s;
     match Library.insert_dir lib path with
     | None -> raise (Sys_error "library is out of sync")
     | Some dir ->
@@ -146,6 +146,39 @@ let create_viewlist (st : state) =
     Run_filesel.filesel st `Write `File path ".m3v"
       (create_list st ".m3v" query (Some view));
   ) st.library.current
+
+
+let playlist_avail (st : state) =
+  match st.library.current with
+  | None -> false
+  | Some dir -> Data.exists_dir Data.is_playlist dir
+
+let modify_playlist f (st : state) =
+  Option.iter (fun dir ->
+    Data.iter_dir (fun dir ->
+      if Data.is_playlist dir then
+      (
+        try
+          let items = M3u.parse_ext (File.load `Bin dir.path) in
+          let items' = f (File.dir dir.path) items in
+          File.save `Bin dir.path (M3u.make_ext items');
+          Library.refresh_artists_albums_tracks st.library;
+        with exn ->
+          Storage.log_exn "file" exn ("modifying playlist " ^ dir.path)
+      )
+    ) dir
+  ) st.library.current
+
+let relative_playlist_avail = playlist_avail
+let relative_playlist = modify_playlist M3u.relative
+
+let local_playlist_avail = playlist_avail
+let local_playlist =
+  modify_playlist (fun path items ->
+    M3u.(local (File.drive path) (resolve path items)))
+
+let resolve_playlist_avail = playlist_avail
+let resolve_playlist = modify_playlist M3u.resolve
 
 
 (* Drag & Drop *)
@@ -187,7 +220,7 @@ let drop_on_browser (st : state) tracks =
           (try
             let s = File.load `Bin dir.path in
             let s' = Track.to_m3u (Array.append (Track.of_m3u s) tracks) in
-            File.store `Bin dir.path s'
+            File.save `Bin dir.path s'
           with exn ->
             Storage.log_exn "file" exn ("modifying playlist " ^ dir.path)
           );
@@ -673,39 +706,61 @@ let run (st : state) =
       ) (fst (Layout.browser_mouse lay [||] browser))
     )
 
-  | `Menu (i_opt, _) ->
+  | `Menu _ ->
     (* Right-click on browser: context menu *)
     State.focus_library browser st;
     let c = Ui.text_color lay.ui in
     let all, quant =
       if lib.current = None then true, " All" else false, "" in
-    Run_menu.command_menu st [|
-      `Entry (c, "Rescan" ^ quant ^ " Quick", Layout.key_rescan,
-        if all then rescan_all_avail st else rescan_one_avail st),
-        (fun () -> (if all then rescan_all else rescan_one) st `Quick);
-      `Entry (c, "Rescan" ^ quant ^ " Thorough", Layout.key_rescan2,
-        if all then rescan_all_avail st else rescan_one_avail st),
-        (fun () -> (if all then rescan_all else rescan_one) st `Thorough);
-      `Separator, ignore;
-      `Entry (c, "Create Playlist...", Layout.key_newdir, create_playlist_avail st),
-        (fun () -> create_playlist st);
-      `Entry (c, "Create Viewlist...", Layout.key_viewdir, create_viewlist_avail st),
-        (fun () -> create_playlist st);
-      `Entry (c, "Rename", Layout.key_namedir, rename_avail st i_opt),
-        (fun () -> rename st i_opt);
-      `Entry (c, "Remove " ^
-        (if Library.current_is_viewlist lib then "Viewlist" else "Playlist"),
-        Layout.key_deldir, remove_list_avail st),
-        (fun () -> remove_list st);
-      `Separator, ignore;
-      `Entry (c, "Add Root...", Layout.key_adddir, insert_avail st),
-        (fun () -> insert st);
-      `Entry (c, "Remove Root", Layout.key_deldir, remove_avail st),
-        (fun () -> remove st);
-      `Separator, ignore;
-      `Entry (c, "Search...", Layout.key_search, lib.current <> None),
-        (fun () -> State.focus_edit lib.search st);
-    |]
+    let pls =
+      if lib.current = None || Library.current_is_playlist lib then "" else "s" in
+    Run_menu.command_menu st (Array.concat [
+      [|
+        `Entry (c, "Rescan" ^ quant ^ " Quick", Layout.key_rescan,
+          if all then rescan_all_avail st else rescan_one_avail st),
+          (fun () -> (if all then rescan_all else rescan_one) st `Quick);
+        `Entry (c, "Rescan" ^ quant ^ " Thorough", Layout.key_rescan2,
+          if all then rescan_all_avail st else rescan_one_avail st),
+          (fun () -> (if all then rescan_all else rescan_one) st `Thorough);
+        `Separator, ignore;
+        `Entry (c, "Add Root...", Layout.key_adddir, insert_avail st),
+          (fun () -> insert st);
+        `Entry (c, "Remove Root", Layout.key_deldir, remove_avail st),
+          (fun () -> remove st);
+        `Separator, ignore;
+        `Entry (c, "Create Playlist...", Layout.key_newdir, create_playlist_avail st),
+          (fun () -> create_playlist st);
+        `Entry (c, "Create Viewlist...", Layout.key_viewdir, create_viewlist_avail st),
+          (fun () -> create_playlist st);
+        `Entry (c, "Rename", Layout.key_namedir, rename_avail st (Library.selected_dir lib)),
+          (fun () -> rename st (Library.selected_dir lib));
+        `Entry (c, "Remove " ^
+          (if Library.current_is_viewlist lib then "Viewlist" else "Playlist"),
+          Layout.key_deldir, remove_list_avail st),
+          (fun () -> remove_list st);
+        `Separator, ignore;
+        `Entry (c, "Make Playlist" ^ pls ^ " Relative", Layout.nokey, relative_playlist_avail st),
+          (fun () -> relative_playlist st);
+      |];
+      (if Sys.win32 || Sys.cygwin then
+        [|
+          `Entry (c, "Make Playlist" ^ pls ^ " Local", Layout.nokey, local_playlist_avail st),
+            (fun () -> local_playlist st);
+          `Entry (c, "Make Playlist" ^ pls ^ " Global", Layout.nokey, resolve_playlist_avail st),
+            (fun () -> resolve_playlist st);
+        |]
+      else
+        [|
+          `Entry (c, "Make Playlist" ^ pls ^ " Absolute", Layout.nokey, resolve_playlist_avail st),
+            (fun () -> resolve_playlist st);
+        |]
+      );
+      [|
+        `Separator, ignore;
+        `Entry (c, "Search...", Layout.key_search, lib.current <> None),
+          (fun () -> State.focus_edit lib.search st);
+      |]
+    ])
   );
 
   let entries = browser.entries in  (* might have changed from un/folding *)

@@ -65,7 +65,7 @@ let log_mutex = Mutex.create ()
 let save_string_append_fwd = ref (fun _ -> assert false)
 
 let log_clear () =
-  Mutex.protect log_mutex (fun () -> File.store `Bin (path log_file) "")
+  Mutex.protect log_mutex (fun () -> File.save `Bin (path log_file) "")
 
 let log msg =
   Mutex.protect log_mutex (fun () ->

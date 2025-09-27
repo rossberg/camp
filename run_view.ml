@@ -406,7 +406,7 @@ let save_avail (st : state) _view =
   not st.layout.filesel_shown
 let save (st : state) (module View : View) =
   Run_filesel.filesel st `Write `File "" ".m3u" (fun path ->
-    File.store `Bin path (Track.to_m3u View.(table it).entries)
+    File.save `Bin path (Track.to_m3u View.(table it).entries)
   )
 
 let save_view_avail (st : state) _view =
@@ -418,7 +418,7 @@ let save_view_avail (st : state) _view =
 let save_view (st : state) _view =
   Option.iter (fun dir ->
     Run_filesel.filesel st `Write `File "" ".m3v" (fun path ->
-      File.store `Bin path (Library.make_viewlist dir ^ "\n")
+      File.save `Bin path (Library.make_viewlist dir ^ "\n")
     )
   ) st.library.current
 

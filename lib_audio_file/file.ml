@@ -60,8 +60,8 @@ let rec relative' names1 names2 =
 let relative dir path =
   let ddrive, dpath = drive dir, remove_drive dir in
   let idrive, ipath = drive path, remove_drive path in
-  if idrive <> ddrive then path else
-  ddrive ^ implode (relative' (explode dpath) (explode ipath))
+  if idrive <> ddrive && idrive <> "" then path else
+  implode (relative' (explode dpath) (explode ipath))
 
 let resolve dir path =
   let ddrive, dpath = drive dir, remove_drive dir in
@@ -184,7 +184,7 @@ let with_open_append mode path f =
 
 let load mode path = with_open_in mode path In_channel.input_all
 
-let store mode path s =
+let save mode path s =
   with_open_out mode path (fun file -> Out_channel.output_string file s)
 
 
