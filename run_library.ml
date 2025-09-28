@@ -203,7 +203,7 @@ let repairer (st : state) (log : _ Log.t) cancel dir_opt () =
     if Data.is_dir dir then
     (
       Array.iter (fun (track : Data.track) ->
-        map := Map.add_to_list (File.name track.path) track !map
+        map := Map.add_to_list (Data.UCase.lowercase (File.name track.path)) track !map
       ) dir.tracks
     )
   ) st.library.root;
@@ -225,7 +225,7 @@ let repairer (st : state) (log : _ Log.t) cancel dir_opt () =
       let item = M3u.resolve_item path item in
       if M3u.is_separator item.path || File.exists item.path then item else
       let item', color, text =
-        match Map.find_opt (File.name item.path) !map with
+        match Map.find_opt (Data.UCase.lowercase (File.name item.path)) !map with
         | None -> incr fail; item, `Red, "(not found)"
         | Some [track] ->
           incr success; {item with path = track.path}, `Green, track.path
@@ -1368,7 +1368,7 @@ let run_log_buttons (st : state) =
   let lib = st.library in
   let log = Option.get lib.log in
 
-  let ok = Layout.log_ok_button lay (if log.completed then Some true else None) in
+  let ok = Layout.log_ok_button lay (if log.completed then Some false else None) in
   let cancel = Layout.log_cancel_button lay (Some false) in
 
   if ok then

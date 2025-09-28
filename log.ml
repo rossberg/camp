@@ -1,8 +1,10 @@
 (* Log state *)
 
+type entry = Ui.color * Ui.cell array
+
 type 'cache t =
 {
-  table : (Ui.color * Ui.cell array, 'cache) Table.t;
+  table : (entry, 'cache) Table.t;
   columns : Ui.column array;
   mutable heading : Ui.heading option;
   mutable info : string;
