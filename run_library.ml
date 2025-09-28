@@ -17,6 +17,13 @@ let fmt = Printf.sprintf
 module Map = Map.Make(String)
 
 
+(* Spinner *)
+
+let spin_delay = 3
+let spins = [|"|"; "/"; "-"; "\\"|]
+let spin win = spins.(Api.Draw.frame win / spin_delay mod Array.length spins)
+
+
 (* Commands *)
 
 let rescan_all_avail (st : state) =
@@ -157,15 +164,16 @@ let playlist_avail (st : state) =
 
 exception Cancel
 
-let modify_playlist f (st : state) dir_opt =
+let modify_playlist f g (st : state) dir_opt =
   Option.iter (fun dir ->
     try
       Data.iter_dir (fun dir ->
+        f dir;
         if Data.is_playlist dir then
         (
           try
             let items = M3u.parse_ext (File.load `Bin dir.path) in
-            let items' = f dir (File.dir dir.path) items in
+            let items' = g dir (File.dir dir.path) items in
             File.save `Bin dir.path (M3u.make_ext items');
             Library.refresh_artists_albums_tracks st.library;
           with
@@ -177,15 +185,15 @@ let modify_playlist f (st : state) dir_opt =
   ) dir_opt
 
 let relative_playlist_avail = playlist_avail
-let relative_playlist = modify_playlist (fun _dir -> M3u.relative)
+let relative_playlist = modify_playlist ignore (fun _dir -> M3u.relative)
 
 let local_playlist_avail = playlist_avail
 let local_playlist =
-  modify_playlist (fun _dir path items ->
+  modify_playlist ignore (fun _dir path items ->
     M3u.(local (File.drive path) (resolve path items)))
 
 let resolve_playlist_avail = playlist_avail
-let resolve_playlist = modify_playlist (fun _dir -> M3u.resolve)
+let resolve_playlist = modify_playlist ignore (fun _dir -> M3u.resolve)
 
 
 (*
@@ -198,8 +206,11 @@ let path_distance path1 path2 =
 *)
 
 let repairer (st : state) (log : _ Log.t) cancel dir_opt () =
+  let win = Ui.window st.layout.ui in
+
   let map = ref Map.empty in
   Data.iter_dir (fun dir ->
+    (snd log.table.entries.(Log.length log - 1)).(0) <- `Text (spin win);
     if Data.is_dir dir then
     (
       Array.iter (fun (track : Data.track) ->
@@ -207,56 +218,67 @@ let repairer (st : state) (log : _ Log.t) cancel dir_opt () =
       ) dir.tracks
     )
   ) st.library.root;
+
   let success, fail, fuzzy = ref 0, ref 0, ref 0 in
-  modify_playlist (fun dir path items ->
-    if !cancel then (Library.error st.library "Playlist Repair aborted"; raise Cancel);
+  modify_playlist
+    (fun (dir : dir) ->
+      (snd log.table.entries.(Log.length log - 1)).(0) <-
+        `Text (spin win ^ " " ^ dir.path)
+    )
+    (fun dir path items ->
+      if !cancel then (Library.error st.library "Playlist Repair aborted"; raise Cancel);
 (*
-    let rec playlist_names (dir : dir) =
-      match dir.parent with
-      | None -> []
-      | Some parent ->
-        dir.name ::
-        playlist_names (Option.get (Library.find_dir st.library parent))
-    in
-    let playlist = String.concat "/" (List.rev (playlist_names dir)) in
+      let rec playlist_names (dir : dir) =
+        match dir.parent with
+        | None -> []
+        | Some parent ->
+          dir.name ::
+          playlist_names (Option.get (Library.find_dir st.library parent))
+      in
+      let playlist = String.concat "/" (List.rev (playlist_names dir)) in
 *)
-    let playlist = dir.path in
-    List.map (fun item ->
-      let item = M3u.resolve_item path item in
-      if M3u.is_separator item.path || File.exists item.path then item else
-      let item', color, text =
-        match Map.find_opt (Data.UCase.lowercase (File.name item.path)) !map with
-        | None -> incr fail; item, `Red, "(not found)"
-        | Some [track] ->
-          incr success; {item with path = track.path}, `Green, track.path
-        | Some _ -> incr fuzzy; item, `Orange, "(multiple found)"
+      let playlist = dir.path in
+      List.map (fun item ->
+        let item = M3u.resolve_item path item in
+        if M3u.is_separator item.path || File.exists item.path then item else
+        let item', color, text =
+          match Map.find_opt (Data.UCase.lowercase (File.name item.path)) !map with
+          | None -> incr fail; item, `Red, "(not found)"
+          | Some [track] ->
+            incr success; {item with path = track.path}, `Green, track.path
+          | Some _ -> incr fuzzy; item, `Orange, "(multiple found)"
 (*
-          let score (track : track) =
-            let path_score = path_distance item.path track.path in
-            let time_item =
-              match item.info with Some info -> float info.time | None -> 0.0
-            and track_time =
-              match track.format with Some format -> format.time | None ->
-              match track.meta with Some meta -> meta.length | None -> 0.0
+            let score (track : track) =
+              let path_score = path_distance item.path track.path in
+              let time_item =
+                match item.info with Some info -> float info.time | None -> 0.0
+              and track_time =
+                match track.format with Some format -> format.time | None ->
+                match track.meta with Some meta -> meta.length | None -> 0.0
+              in
+              let time_score = abs (int_of_float (track_time - item_time)) in
+              path_score, time_score
             in
-            let time_score = abs (int_of_float (track_time - item_time)) in
-            path_score, time_score
-          in
-          let cmp track1 track2 = compare (score track1) (score track2) in
-          let tracks' = List.sort cmp tracks in
-          incr success; incr fuzzy; {item with path = (List.hd tracks').path}
+            let cmp track1 track2 = compare (score track1) (score track2) in
+            let tracks' = List.sort cmp tracks in
+            incr success; incr fuzzy; {item with path = (List.hd tracks').path}
 *)
-      in
-      let ss =
-        (if !success = 0 then [] else [fmt "%d entries repaired" !fail]) @
-        (if !fail = 0 then [] else [fmt "%d entries not found" !fail]) @
-        (if !fuzzy = 0 then [] else [fmt "%d entries ambiguous" !fuzzy])
-      in
-      log.info <- (String.concat ", " ss);
-      Log.add log [|color, [|`Text playlist; `Text item.path; `Text text|]|];
-      item'
-    ) items
-  ) st dir_opt;
+        in
+        let ss =
+          (if !success = 0 then [] else [fmt "%d entries repaired" !fail]) @
+          (if !fail = 0 then [] else [fmt "%d entries not found" !fail]) @
+          (if !fuzzy = 0 then [] else [fmt "%d entries ambiguous" !fuzzy])
+        in
+        log.info <- (String.concat ", " ss);
+        Mutex.protect log.table.mutex (fun () ->
+          Log.insert log (Log.length log - 1)
+            [|color, [|`Text playlist; `Text item.path; `Text text|]|];
+          Log.adjust_vscroll log;
+        );
+        item'
+      ) items
+    ) st dir_opt;
+  (snd log.table.entries.(Log.length log - 1)).(0) <- `Text "";
   if log.info = "" then log.info <- "No entries needed repair";
   log.completed <- true
 
@@ -271,6 +293,8 @@ let repair_playlist (st : state) dir_opt =
       Library.end_log st.library
     )
   in
+  let c = Ui.text_color st.layout.ui in
+  Log.append log [|c, [|`Text ""; `Text ""; `Text ""|]|];  (* room for spinner *)
   Library.start_log st.library log;
   ignore (Domain.spawn (repairer st log cancel dir_opt))
 
@@ -331,10 +355,6 @@ let drop_on_browser (st : state) tracks =
 
 
 (* Browser *)
-
-let spin_delay = 3
-let spins = [|"|"; "/"; "-"; "\\"|]
-let spin win = spins.(Api.Draw.frame win / spin_delay mod Array.length spins)
 
 let run_browser (st : state) =
   let pl = st.playlist in

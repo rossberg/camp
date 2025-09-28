@@ -26,8 +26,13 @@ let make heading columns on_completion =
   }
 
 
-let add log entries =
-  Table.insert log.table (Table.length log.table) entries
+(* Manipulation *)
+
+let length log = Table.length log.table
+let insert log i entries = Table.insert log.table i entries
+let append log entries = insert log (length log) entries
+
+let adjust_vscroll log = Table.adjust_vscroll log.table (length log) 4
 
 
 (* Validation *)

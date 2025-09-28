@@ -18,7 +18,14 @@ type 'cache t =
 val make : Ui.heading option -> Ui.column array ->
   ('a t -> [`Ok | `Cancel] -> unit) -> 'a t
 
-val add : 'a t -> entry array -> unit
+
+(* Manipulation *)
+
+val length : 'a t -> int
+val append : 'a t -> entry array -> unit
+val insert : 'a t -> int -> entry array -> unit
+
+val adjust_vscroll : 'a t -> unit
 
 
 (* Validation *)
