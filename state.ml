@@ -2,14 +2,12 @@ open Audio_file
 
 (* Program State *)
 
-type fileop = [`Write | `Read] * [`File | `Dir] * (File.path -> unit)
-
 type config = Config.t
 type layout = Layout.t
 type control = Control.t
 type playlist = Ui.cached Playlist.t
 type library = Ui.cached Library.t
-type filesel = (fileop, Ui.cached) Filesel.t
+type filesel = Ui.cached Filesel.t
 type menu = (int -> unit) Menu.t
 
 type t =

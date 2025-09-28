@@ -24,9 +24,16 @@ type dir =
   mutable files : file array;
 }
 
-type ('op, 'cache) t =
+type op =
 {
-  mutable op : 'op option;
+  kind : [`File | `Dir];
+  access : [`Write | `Read];
+  run : path -> unit;
+}
+
+type 'cache t =
+{
+  mutable op : op option;
   mutable path : path;
   roots : dir array;
   dirs : (dir, 'cache) Table.t;

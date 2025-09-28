@@ -7,15 +7,15 @@ type state = State.t
 
 (* Initiate *)
 
-let filesel (st : state) rw df path ext f =
-  let f' path =
+let filesel (st : state) kind access path ext f =
+  let run path =
     try f path with Sys_error msg ->
-      let op = match rw with `Read -> "reading" | `Write -> "writing" in
+      let op = match access with `Read -> "reading" | `Write -> "writing" in
       Library.error st.library ("Error " ^ op ^ " file " ^ path ^ ", " ^ msg);
       Layout.browser_error_box st.layout;  (* flash *)
   in
   if path <> "" then Filesel.set_dir_path st.filesel path;
-  st.filesel.op <- Some (rw, df, f');
+  st.filesel.op <- Some Filesel.{kind; access; run};
   st.layout.filesel_shown <- true;
   Filesel.init st.filesel;
   Edit.set st.filesel.input ext;
@@ -29,7 +29,7 @@ let filesel (st : state) rw df path ext f =
 let run (st : state) =
   let fs = st.filesel in
   let lay = st.layout in
-  let rw, ty, f = Option.get fs.op in
+  let op = Option.get fs.op in
 
   (* Update after possible window resize *)
   lay.directories_width <-
@@ -132,7 +132,7 @@ let run (st : state) =
       State.focus_filesel files st;
       Option.iter (fun i ->
         let file = files.entries.(i) in
-        if not file.is_dir || ty = `Dir then
+        if not file.is_dir || op.kind = `Dir then
           Edit.set fs.input file.name
       ) (Filesel.selected_file fs);
       false
@@ -189,13 +189,13 @@ let run (st : state) =
 
   (* Buttons *)
 
-  let is_write = (rw = `Write) in
+  let is_write = (op.access = `Write) in
   let is_valid = fs.input.text <> "" && fs.input.text.[0] <> '.' in
   let dir_avail =
     fs.dirs.focus || fs.files.focus && Filesel.current_sel_is_dir fs in
   let file_avail = not dir_avail && Filesel.current_file_exists fs in
   let dir_file_avail =
-    ty = `Dir && fs.files.focus && Filesel.current_sel_is_dir fs in
+    op.kind = `Dir && fs.files.focus && Filesel.current_sel_is_dir fs in
   let overwrite_avail = file_avail && is_write in
   let ok_avail = dir_file_avail ||
     not (dir_avail || overwrite_avail) && (file_avail || is_write && is_valid)
@@ -230,7 +230,7 @@ let run (st : state) =
     else
     (
       (* Return, double-click, or OK button on regular file *)
-      f (Option.get (Filesel.current_file_path fs));
+      op.run (Option.get (Filesel.current_file_path fs));
       Filesel.reset fs;
       lay.filesel_shown <- false;
     )

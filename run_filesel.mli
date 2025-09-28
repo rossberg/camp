@@ -9,5 +9,5 @@ val run : State.t -> unit
 (* Initiate File Selection *)
 
 val filesel : State.t ->
-  [`Write | `Read] -> [`File | `Dir] -> File.path -> string ->
+  [`File | `Dir] -> [`Write | `Read] -> File.path -> string ->
   (File.path -> unit) -> unit

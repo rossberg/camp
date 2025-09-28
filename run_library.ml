@@ -36,7 +36,7 @@ let rescan_one (st : state) mode =
 let insert_avail (st : state) =
   not st.layout.filesel_shown
 let insert (st : state) =
-  Run_filesel.filesel st `Read `Dir "" "" (fun path ->
+  Run_filesel.filesel st `Dir `Read "" "" (fun path ->
     let roots = st.library.root.children in
     if not (Library.insert_roots st.library [path] (Array.length roots)) then
       Layout.browser_error_box st.layout;  (* flash *)
@@ -129,7 +129,7 @@ let create_playlist_avail (st : state) =
 let create_playlist (st : state) =
   Option.iter (fun (dir : dir) ->
     let path = if Data.is_dir dir then dir.path else File.dir dir.path in
-    Run_filesel.filesel st `Write `File path ".m3u"
+    Run_filesel.filesel st `File `Write path ".m3u"
       (create_list st ".m3u" "" None);
   ) st.library.current
 
@@ -145,7 +145,7 @@ let create_viewlist (st : state) =
     let view = Library.copy_views dir.view in
     view.search <- "";
     let path = if Data.is_dir dir then dir.path else File.dir dir.path in
-    Run_filesel.filesel st `Write `File path ".m3v"
+    Run_filesel.filesel st `File `Write path ".m3v"
       (create_list st ".m3v" query (Some view));
   ) st.library.current
 

@@ -389,7 +389,7 @@ let reverse_all _st (module View : View) =
 let load_avail (st : state) (module View : View) =
   editable st (module View) && not st.layout.filesel_shown
 let load (st : state) (module View : View) =
-  Run_filesel.filesel st `Read `File "" ".m3u" (fun path ->
+  Run_filesel.filesel st `File `Read "" ".m3u" (fun path ->
     let tracks = Array.map Track.of_m3u_item (Array.of_list (M3u.load path)) in
     View.(replace_all it) tracks;
     View.(focus st);
@@ -405,7 +405,7 @@ let load (st : state) (module View : View) =
 let save_avail (st : state) _view =
   not st.layout.filesel_shown
 let save (st : state) (module View : View) =
-  Run_filesel.filesel st `Write `File "" ".m3u" (fun path ->
+  Run_filesel.filesel st `File `Write "" ".m3u" (fun path ->
     File.save `Bin path (Track.to_m3u View.(table it).entries)
   )
 
@@ -417,7 +417,7 @@ let save_view_avail (st : state) _view =
     Table.num_selected st.library.albums > 0 )
 let save_view (st : state) _view =
   Option.iter (fun dir ->
-    Run_filesel.filesel st `Write `File "" ".m3v" (fun path ->
+    Run_filesel.filesel st `File `Write "" ".m3v" (fun path ->
       File.save `Bin path (Library.make_viewlist dir ^ "\n")
     )
   ) st.library.current
