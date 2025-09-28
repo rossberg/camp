@@ -8,7 +8,7 @@ type control = Control.t
 type playlist = Ui.cached Playlist.t
 type library = Ui.cached Library.t
 type filesel = Ui.cached Filesel.t
-type menu = (int -> unit) Menu.t
+type menu = Menu.t
 
 type t =
 {
@@ -78,9 +78,8 @@ let foci_playlist (pl : _ Playlist.t) =
 let foci_library (lib : _ Library.t) =
   let f = focus_library in
   [foci_edit lib.search; foci_table f lib.browser] @
-  match lib.current with
-  | None -> []
-  | Some dir ->
+  match lib.current, lib.log with
+  | Some dir, None ->
     let view = dir.view in
     (if view.artists.shown <> None && not (Library.refresh_artists_busy lib) then
       [foci_table f lib.artists] else []) @
@@ -88,6 +87,7 @@ let foci_library (lib : _ Library.t) =
       [foci_table f lib.albums] else []) @
     (if view.tracks.shown <> None && not (Library.refresh_tracks_busy lib) then
       [foci_table f lib.tracks] else [])
+  | _, _ -> []
 
 let foci_filesel (fs : _ Filesel.t) =
   let f = focus_filesel in
@@ -151,6 +151,7 @@ let print_layout ?(raw = false) lay =
     "directories_width", nat lay.directories_width;
     "album_grid", nat lay.album_grid;
     "track_grid", nat lay.track_grid;
+    "repair_cols", array nat lay.repair_log_columns;
     "popup_size", nat lay.popup_size;
   ]) lay
 
@@ -205,6 +206,8 @@ let parse_layout lay pos =  (* assumes playlist and library already loaded *)
       (fun w -> lay.album_grid <- w);
     apply (r $? "track_grid") (num min_grid_size max_grid_size)
       (fun w -> lay.track_grid <- w);
+    apply (r $? "repair_cols") (array (num 10 1000))
+      (fun ws -> if Array.length ws = 3 then lay.repair_log_columns <- ws);
     apply (r $? "popup_size") (num min_popup_size max_popup_size)
       (fun w -> lay.popup_size <- w);
   )

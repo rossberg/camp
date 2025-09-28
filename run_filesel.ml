@@ -202,10 +202,10 @@ let run (st : state) =
   in
 
   let ok_button lay =
-    ok_avail && not (Layout.ok_button lay (Some true)) ||
-    not ok_avail && Layout.ok_button lay None
+    ok_avail && not (Layout.select_ok_button lay (Some true)) ||
+    not ok_avail && Layout.select_ok_button lay None
   and overwrite_button lay =
-    not (Layout.overwrite_button lay (Some true))
+    not (Layout.select_overwrite_button lay (Some true))
   in
 
   if
@@ -236,7 +236,7 @@ let run (st : state) =
     )
   );
 
-  if Layout.cancel_button lay (Some false) && not ok then
+  if Layout.select_cancel_button lay (Some false) && not ok then
   (
     Filesel.reset fs;
     lay.filesel_shown <- false;

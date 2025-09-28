@@ -1,9 +1,11 @@
 (* Pop-uup Menu *)
 
-type 'op t =
+type op = int -> unit
+
+type t =
 {
   mutable pos : int * int;
-  mutable op : 'op option;
+  mutable op : op option;
   mutable items : Ui.menu_entry array;
 }
 

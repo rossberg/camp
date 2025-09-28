@@ -19,6 +19,7 @@ type t =
   mutable library_shown : bool;
   mutable library_width : int;
   mutable library_side : Api.side;
+  mutable repair_log_columns : int array;
   mutable filesel_shown : bool;
   mutable menu_shown : bool;
   mutable popup_shown : (int * int) option;
@@ -49,6 +50,7 @@ let make ui =
     library_shown = false;
     library_width = 600;
     library_side = `Left;
+    repair_log_columns = [|200; 300; 300|];
     filesel_shown = false;
     menu_shown = false;
     popup_shown = None;
@@ -595,6 +597,23 @@ let queue_key g = Ui.key g.ui key_queue true
 let lib_cover_key g = Ui.key g.ui key_libcover true
 
 
+(* Log Pane *)
+
+let log_x g = library_x g + g.browser_width
+let log_w g = library_w g - g.browser_width
+let log_pane g = Ui.pane g.ui lp (log_x g, 0, log_w g, - bottom_h g)
+
+let log_area g = (lp, 0, margin g, -1, -1)
+let log_table g = Ui.rich_table g.ui (log_area g) (rich_table g 1 true)
+
+let log_button_w g = (g.browser_width - margin g - divider_w g) / 2
+let log_button_h = edit_h
+let log_button i c label key g = Ui.labeled_button g.ui (bp, margin g + i * log_button_w g, - log_button_h, log_button_w g, log_button_h) (button_label_h g) (c g.ui) label key true
+
+let log_ok_button = log_button 0 Ui.active_color "OK" key_ok
+let log_cancel_button = log_button 1 Ui.inactive_color "CANCEL" key_cancel
+
+
 (* Message Pane *)
 
 let mp = lp + 1
@@ -620,13 +639,13 @@ let directories_table g = Ui.browser g.ui (directories_area g) (rich_table g 1 f
 let directories_mouse g = Ui.rich_table_mouse g.ui (directories_area g) (rich_table g 1 false)
 
 (* Buttons *)
-let select_w g = (g.directories_width - margin g - divider_w g) / 2
-let select_h = edit_h
-let select_button i c label key g = Ui.labeled_button g.ui (dp, margin g + i * select_w g, - select_h, select_w g, select_h) (button_label_h g) (c g.ui) label key true
+let select_button_w g = (g.directories_width - margin g - divider_w g) / 2
+let select_button_h = edit_h
+let select_button i c label key g = Ui.labeled_button g.ui (dp, margin g + i * select_button_w g, - select_button_h, select_button_w g, select_button_h) (button_label_h g) (c g.ui) label key true
 
-let ok_button = select_button 0 Ui.active_color "OK" key_ok
-let overwrite_button = select_button 0 Ui.error_color "OVERWRITE" key_overwrite
-let cancel_button = select_button 1 Ui.inactive_color "CANCEL" key_cancel
+let select_ok_button = select_button 0 Ui.active_color "OK" key_ok
+let select_overwrite_button = select_button 0 Ui.error_color "OVERWRITE" key_overwrite
+let select_cancel_button = select_button 1 Ui.inactive_color "CANCEL" key_cancel
 
 let return_key g = Ui.key g.ui key_ok true
 

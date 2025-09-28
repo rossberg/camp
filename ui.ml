@@ -129,6 +129,7 @@ let clamp min max v =
 
 (* Colors *)
 
+type color = Api.color
 type palette = {text : color; warn : color; error : color; hover : color}
 
 let palettes =

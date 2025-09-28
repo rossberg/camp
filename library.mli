@@ -34,8 +34,9 @@ type 'cache t = private
   mutable error : string;
   mutable error_time : time;
   mutable refresh_time : time;
-  mutable cover : bool;
+  mutable covers_shown : bool;
   mutable renaming : int option;
+  mutable log : 'cache Log.t option;
   search : Edit.t;
   rename : Edit.t;
   browser : (dir, 'cache) Table.t;
@@ -132,6 +133,8 @@ val has_track : 'a t -> track -> bool
 
 val start_rename : 'a t -> int -> unit
 val end_rename : 'a t -> bool -> unit
+val start_log : 'a t -> 'a Log.t -> unit
+val end_log : 'a t -> unit
 
 
 (* Views *)

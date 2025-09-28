@@ -32,6 +32,8 @@ val mouse_inside : t -> area -> bool
 
 (* Colors *)
 
+type color = Api.color
+
 val num_palette : t -> int
 val get_palette : t -> int
 val set_palette : t -> int -> unit

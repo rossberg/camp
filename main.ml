@@ -98,7 +98,7 @@ and run' (st : state) =
     snd lay.scaling + (snd scale_new - snd scale_old);
 
   if Layout.lib_cover_key lay then
-    Library.activate_covers st.library (not st.library.cover);
+    Library.activate_covers st.library (not st.library.covers_shown);
 
   (* Adjust window size *)
   let overlay_shown' = lay.library_shown || lay.filesel_shown in

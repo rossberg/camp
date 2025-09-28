@@ -64,8 +64,9 @@ type 'cache t =
   mutable error : string;
   mutable error_time : time;
   mutable refresh_time : time;
-  mutable cover : bool;
+  mutable covers_shown : bool;
   mutable renaming : int option;
+  mutable log : 'cache Log.t option;
   search : Edit.t;
   rename : Edit.t;
   browser : (dir, 'cache) Table.t;
@@ -82,16 +83,21 @@ let end_rename lib changed =
   lib.renaming <- None;
   if changed then Atomic.set lib.scan.changed true
 
+let start_log lib log = lib.log <- Some log
+let end_log lib = lib.log <- None
+
 
 (* Validation *)
 
 type error = string
 
 let check msg b = if b then [] else [msg]
+let check_opt opt f = Option.value (Option.map f opt) ~default: []
 
 let ok lib =
   Table.ok "browser" lib.browser @
   Table.ok "tracks" lib.tracks @
+  check_opt lib.log Log.ok @
   check "root unfolded" (not lib.root.view.folded) @
   check "browser nonempty" (Table.length lib.browser > 0) @
   check "artists pos unset" (lib.artists.pos = None || lib.artists.pos = Some 0) @
@@ -267,8 +273,9 @@ let make () =
       error = "";
       error_time = 0.0;
       refresh_time = 0.0;
-      cover = true;
+      covers_shown = true;
       renaming = None;
+      log = None;
       search = Edit.make 100;
       rename = Edit.make 100;
       browser = Table.make 0;
@@ -635,7 +642,7 @@ let purge_covers lib =
   Atomic.set lib.covers Map.empty
 
 let activate_covers lib b =
-  lib.cover <- b;
+  lib.covers_shown <- b;
   if not b then purge_covers lib
 
 
@@ -1659,7 +1666,7 @@ let print_state lib =
   record (fun lib -> [
     "browser_scroll", int lib.browser.vscroll;
     "browser_current", option string (Option.map (fun dir -> dir.path) lib.current);
-    "lib_cover", bool lib.cover;
+    "lib_cover", bool lib.covers_shown;
   ]) lib
 
 let print_intern lib =
@@ -1694,6 +1701,6 @@ let parse_state lib =
         if lib.current = None then lib.current <- find_dir lib i;
       );
     apply (r $? "lib_cover") bool
-      (fun b -> lib.cover <- b);
+      (fun b -> lib.covers_shown <- b);
     refresh_artists_albums_tracks lib;
   )
