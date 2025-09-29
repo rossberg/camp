@@ -226,6 +226,15 @@ let delete path = Sys.remove (escape path)
 let make_writable path = Unix.chmod (escape path) 0o660
 
 
+let save_safe mode path s =
+  let old_path = path ^ ".old" in
+  let new_path = path ^ ".new" in
+  save mode new_path s;
+  if exists path then move path old_path;
+  move new_path path;
+  if exists old_path then delete old_path
+
+
 (* Directories *)
 
 let current_dir () = Sys.getcwd ()

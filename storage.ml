@@ -120,7 +120,7 @@ let save filename f =
     let old_path = path ^ ".old" in
     let new_path = path ^ ".new" in
     if File.exists new_path then File.delete new_path;
-    File.with_open_out `Bin (path ^ ".new") f;
+    File.with_open_out `Bin new_path f;
     if File.exists path then File.move path old_path;
     File.move new_path path;
     if File.exists old_path then File.delete old_path;

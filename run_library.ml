@@ -181,7 +181,7 @@ let modify_playlist on_start on_dir on_pl on_finish on_cancel (st : state) dir_o
               let path_of (item : M3u.item) = item.path in
               if List.map path_of items <> List.map path_of items' then
               (
-                File.save `Bin dir.path (M3u.make_ext items');
+                File.save_safe `Bin dir.path (M3u.make_ext items');
                 Library.refresh_artists_albums_tracks st.library;
               )
             with

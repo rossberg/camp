@@ -66,6 +66,7 @@ val with_open_append : mode -> path -> (out_channel -> 'a) -> 'a
 
 val load : mode -> path -> string
 val save : mode -> path -> string -> unit
+val save_safe : mode -> path -> string -> unit
 val copy : path -> path -> unit
 val move : path -> path -> unit
 val delete : path -> unit
