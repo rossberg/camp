@@ -8,8 +8,9 @@ type 'cache t =
   columns : Ui.column array;
   mutable heading : Ui.heading option;
   mutable info : string;
+  mutable cancel : bool;
   mutable completed : bool;
-  mutable on_completion : 'cache t -> [`Ok | `Cancel] -> unit;
+  mutable on_completion : 'cache t -> unit;
 }
 
 
@@ -21,6 +22,7 @@ let make heading columns on_completion =
     columns;
     heading;
     info = "";
+    cancel = false;
     completed = false;
     on_completion;
   }
@@ -29,10 +31,11 @@ let make heading columns on_completion =
 (* Manipulation *)
 
 let length log = Table.length log.table
-let insert log i entries = Table.insert log.table i entries
-let append log entries = insert log (length log) entries
 
-let adjust_vscroll log = Table.adjust_vscroll log.table (length log) 4
+let insert log i entries =
+  Mutex.protect log.table.mutex (fun () -> Table.insert log.table i entries)
+
+let append log entries = insert log (length log) entries
 
 
 (* Validation *)
