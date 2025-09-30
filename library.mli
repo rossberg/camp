@@ -116,6 +116,7 @@ val remove_dir : 'a t -> path -> bool
 val move_dir : 'a t -> dir -> int -> int -> unit
 val save_dir : 'a t -> dir -> unit
 val fold_dir : 'a t -> dir -> bool -> unit
+val find_entry_dir : 'a t -> dir -> int option
 
 val find_parent : 'a t -> dir -> dir option
 val find_parent_pos : 'a t -> dir -> int

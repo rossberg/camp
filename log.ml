@@ -11,12 +11,13 @@ type 'cache t =
   mutable cancel : bool;
   mutable completed : bool;
   mutable on_completion : 'cache t -> unit;
+  mutable on_menu : 'cache t -> int option * int option -> unit;
 }
 
 
 (* Constructor *)
 
-let make heading columns on_completion =
+let make heading columns on_completion on_menu =
   {
     table = Table.make 0;
     columns;
@@ -25,6 +26,7 @@ let make heading columns on_completion =
     cancel = false;
     completed = false;
     on_completion;
+    on_menu;
   }
 
 
@@ -36,6 +38,11 @@ let insert log i entries =
   Mutex.protect log.table.mutex (fun () -> Table.insert log.table i entries)
 
 let append log entries = insert log (length log) entries
+
+let text log i j =
+  match (snd log.table.entries.(i)).(j) with
+  | `Text s -> s
+  | `Image _ -> raise (Invalid_argument "Log.text")
 
 
 (* Validation *)

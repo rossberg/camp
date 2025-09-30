@@ -173,9 +173,54 @@ let modify_playlist (st : state) dir_opt on_start on_pl =
       let win = Ui.window st.layout.ui in
       let heading = [|"Playlist"; "Entry"; "Replacement"|], [] in
       let columns = Array.map (fun w -> (w, `Left)) st.layout.repair_log_columns in
-      let log = Log.make (Some heading) columns (fun log ->
+      let log = Log.make (Some heading) columns
+        (fun log ->
           st.layout.repair_log_columns <- Array.map fst log.columns;
           Library.end_log st.library
+        )
+        (fun log (i_opt, _) ->
+          Option.iter (fun i ->
+            (* Right-click on log entry: open context menu *)
+            let lib = st.library in
+            let c = Ui.text_color st.layout.ui in
+            let re = Str.regexp "[][(){}',;:&?!$%@_*+-]" in
+            let search =
+              File.(remove_extension (name (Log.text log i 1))) |>
+              Str.global_replace re " " |>
+              String.split_on_char ' ' |> List.filter ((<>) "") |>
+              List.map Query.quote |> String.concat " "
+            in
+            Table.select log.table i i;
+            Run_menu.command_menu st (Array.append
+              [|
+                `Entry (c, "Show Playlist", Layout.nokey, true),
+                (fun () ->
+                  Table.deselect_all log.table;
+                  let dir_opt = Library.find_dir lib (Log.text log i 0) in
+                  Option.iter (fun dir ->
+                    Library.fold_dir lib dir false;
+                    Option.iter (Library.select_dir lib)
+                      (Library.find_entry_dir lib dir);
+                  ) dir_opt;
+                  st.layout.repair_log_columns <- Array.map fst log.columns;
+                  Library.end_log st.library;
+                );
+                `Separator, ignore;
+              |]
+              (Array.init (Array.length lib.root.children + 1) (fun j ->
+                let dir = if j = 0 then lib.root else lib.root.children.(j - 1) in
+                `Entry (c, "Search for Song in " ^ dir.name, Layout.nokey, true),
+                fun () ->
+                  Table.deselect_all log.table;
+                  Option.iter (Library.select_dir lib)
+                    (Library.find_entry_dir lib dir);
+                  Edit.set lib.search search;
+                  Library.set_search lib search;
+                  st.layout.repair_log_columns <- Array.map fst log.columns;
+                  Library.end_log st.library;
+              ))
+            )
+          ) i_opt
         )
       in
       Library.start_log st.library log;
@@ -1318,12 +1363,14 @@ let run_log (st : state) =
 
   Layout.log_pane lay;
 
+  if not lay.menu_shown then Table.deselect_all log.table;
+
   let entries = log.table.entries in  (* could change concurrently *)
   let pp_row i = entries.(i) in
   (match Layout.log_table lay log.columns log.heading log.table pp_row with
   | `None | `Scroll | `Move _ | `Drag _ | `Drop | `Reorder _ | `HeadMenu _ -> ()
 
-  | `Select | `Click _ | `Menu _ ->
+  | `Select | `Click _ ->
     (* New selection: ignore *)
     Table.deselect_all log.table;
 
@@ -1344,6 +1391,11 @@ let run_log (st : state) =
   | `Resize ws ->
     (* Column resizing: update column widths *)
     Array.mapi_inplace (fun i (_, align) -> ws.(i), align) log.columns;
+
+  | `Menu loc ->
+    (* Right-click: run menu handler; ignore possible selection change *)
+    Table.deselect_all log.table;
+    log.on_menu log loc;
   )
 
 

@@ -350,6 +350,9 @@ and find_dir'' path (dir : dir) =
   else
     None
 
+let find_entry_dir lib (dir : _ Data.dir) =
+  Array.find_index ((==) dir) lib.browser.entries
+
 let find_parent lib (dir : _ Data.dir) =
   match dir.parent with
   | None -> None

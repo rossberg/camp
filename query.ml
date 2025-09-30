@@ -797,3 +797,10 @@ let parse_expr s : (expr, string) result =
   | Ok {expr; sort = []} -> Ok expr
   | Ok _ -> Error "Syntax error"
   | Error s -> Error s
+
+
+let quote_re = Str.regexp "\""
+
+let quote s =
+  if s <> "" && s.[0] <> '-' && String.for_all is_letter s then s else
+  "\"" ^ Str.global_replace quote_re "\\\"" s ^ "\""

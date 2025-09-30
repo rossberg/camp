@@ -31,6 +31,8 @@ type query = {expr : expr; sort : sorting}
 val empty_query : query
 val full_query : query
 
+val quote : string -> string
+
 val parse_expr : string -> (expr, string) result
 val parse_query : string -> (query, string) result
 
