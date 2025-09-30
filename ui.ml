@@ -1351,12 +1351,13 @@ let rich_table_inner_area _ui area geo =
   in
   (p, ax, ty, aw - geo.scroll_w - 1, th)
 
-let rich_table_mouse ui area geo cols tab =
+let rich_table_mouse ui area geo cols (tab : _ Table.t) =
   let area' = rich_table_inner_area ui area geo in
   let (x, y, _, _) as r = dim ui area' in
   let (mx, my) as m = Mouse.pos ui.win in
   if inside m r then
-    Some (min (Table.length tab) ((my - y) / geo.row_h + tab.vscroll)),
+    let row = (my - y) / geo.row_h + tab.vscroll in
+    (if row < Table.length tab then Some row else None),
     find_column geo.gutter_w cols tab.hscroll (mx - x)
   else
     None, None
@@ -1895,7 +1896,7 @@ let grid_table_inner_area _ui area geo =
   let th = ah - (if ah < 0 then 0 else ty - ay) in
   (p, ax, ty, tw, th)
 
-let grid_table_mouse ui area geo tab =
+let grid_table_mouse ui area geo (tab : _ Table.t) =
   let area' = grid_table_inner_area ui area geo in
   let (x, y, w, _) as r = dim ui area' in
   let iw = geo.gutter_w + geo.img_h in
@@ -1903,8 +1904,8 @@ let grid_table_mouse ui area geo tab =
   let line = max 1 Float.(to_int (floor (float w /. float iw))) in
   let (mx, my) as m = Mouse.pos ui.win in
   if inside m r then
-    let i, j = (mx - x) / iw, (my - y) / ih in
-    Some (min (Table.length tab) (j * line + i + tab.vscroll)), None
+    let row = (my - y) / ih * line + (mx - x) / iw + tab.vscroll in
+    (if row < Table.length tab then Some row else None), None
   else
     None, None
 

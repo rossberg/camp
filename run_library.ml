@@ -923,7 +923,7 @@ let run_view (st : state)
   let lay = st.layout in
   let win = Ui.window lay.ui in
 
-  let pane, area, table, grid, mouse, grid_mouse, spinner = layout in
+  let pane, area, table, grid, mouse, _grid_mouse, spinner = layout in
   pane lay;
 
   let busy = refresh_busy lib in
@@ -1032,12 +1032,14 @@ let run_view (st : state)
       State.focus_library tab st;
       match loc with
       | Some i, Some j
-        when (fst view.columns.(j) :> Data.any_attr) = `Cover ->
+        when mode = `Table && (fst view.columns.(j) :> Data.any_attr) = `Cover ->
         (* Click on cover cell: open cover popup *)
         Run_menu.popup st (popup entries.(i));
+      (* Don't do cover pop-up on grid, since that interferes with drag & drop
       | Some i, None when mode = `Grid ->
         (* Click on grid cell: open cover popup *)
         Run_menu.popup st (popup entries.(i));
+      *)
       | _ -> ()
     );
 
@@ -1156,18 +1158,20 @@ let run_view (st : state)
   if busy then
     spinner lay (spin win);
 
-  if lay.popup_shown <> None && Api.Mouse.is_down `Left then
+  if lay.popup_shown <> None && Api.Mouse.is_down `Left && mode = `Table then
   (
-    (match
+    (*
+    match
       if mode = `Grid
       then grid_mouse lay grid_w tab
       else mouse lay cols tab
     with
+    *)
+    match mouse lay cols tab with
     | Some i, _ ->
       (* Drag with active cover popup: update cover *)
       Run_menu.popup st (popup entries.(i));
     | None, _ -> ()
-    )
   )
 
 
