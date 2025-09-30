@@ -217,16 +217,20 @@ let path_distance path1 path2 =
   in dist (File.explode path1) (File.explode path2)
 *)
 
+let key_subst = List.map (fun (re, s) -> Str.regexp re, s)
+  [
+    "  +", " ";
+    "[?!]", "";
+    "[´`]", "'";
+    "[[{]", "(";
+    "[]}]", ")";
+    "\\u{2026}", "...";
+    "\\(-\\|\u{2012}\\|\u{2013}\\|\u{2014}\\)+", "-";
+  ]
+
 let file_key path =
-  let open Str in
   Data.UCase.lowercase (File.name path) |>
-  global_replace (regexp "  +") " " |>
-  global_replace (regexp "[?!]") "" |>
-  global_replace (regexp "[´`]") "'" |>
-  global_replace (regexp "[[{]") "(" |>
-  global_replace (regexp "[]}]") ")" |>
-  global_replace (regexp "\\u{2026}") "..." |>
-  global_replace (regexp "\\(-\\|\u{2012}\\|\u{2013}\\|\u{2014}\\)+") "-"
+  List.fold_right (fun (re, s) -> Str.global_replace re s) key_subst
 
 let repair_playlist_avail = playlist_avail
 let repair_playlist (st : state) dir_opt =
