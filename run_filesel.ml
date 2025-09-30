@@ -80,8 +80,8 @@ let run (st : state) =
     let dir = dirs.entries.(i) in
     Filesel.fold_dir fs dir (not dir.folded)
 
-  | `Click (Some i, _) ->
-    (* Click on dir name: switch view *)
+  | `Click (Some i, _) | `Menu (Some i, _) ->
+    (* Click on dir name: switch view; ignore context menu *)
     if Api.Mouse.is_pressed `Left then
       State.focus_filesel dirs st;
     if Table.num_selected dirs = 0 then
@@ -90,15 +90,11 @@ let run (st : state) =
       let dir = dirs.entries.(i) in
       Filesel.set_dir_path fs dir.path;
 
-  | `Click (None, _) ->
-    (* Click into empty space: focus *)
+  | `Click (None, _) | `Menu (None, _) ->
+    (* Click into empty space: focus; ignore context menu *)
     State.focus_filesel dirs st;
     if Table.num_selected dirs = 0 then
       Filesel.select_dir fs dir;  (* override *)
-
-  | `Menu _ ->
-    (* Right-click on dir: ignore *)
-    State.focus_filesel dirs st;
   );
 
 
@@ -129,6 +125,7 @@ let run (st : state) =
       true
 
     | `Select | `Click (Some _, _) ->
+      (* Selection change: adjust edit name; ignore context menu *)
       State.focus_filesel files st;
       Option.iter (fun i ->
         let file = files.entries.(i) in
@@ -157,7 +154,7 @@ let run (st : state) =
       false
 
     | `Menu _ ->
-      (* Right-click on dir: ignore *)
+      (* Right-click on content: ignore *)
       State.focus_filesel files st;
       false
 

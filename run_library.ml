@@ -431,7 +431,11 @@ let run_browser (st : state) =
     (
       (match Library.selected_dir lib with
       | None -> Library.deselect_dir lib
-      | Some i -> Library.select_dir lib i  (* do bureaucracy *)
+      | Some i ->
+        Library.select_dir lib i;  (* do bureaucracy *)
+        let dir' = entries.(i) in
+        lay.left_width <- dir'.view.divider_width;
+        lay.upper_height <- dir'.view.divider_height;
       );
       Library.deselect_all lib;
       Library.refresh_artists_albums_tracks lib;
@@ -448,11 +452,11 @@ let run_browser (st : state) =
     (
       (* Click on different dir name: switch view *)
       Library.select_dir lib i;  (* do bureaucracy *)
-      Library.deselect_all lib;
-      Library.refresh_artists_albums_tracks lib;
       let dir' = entries.(i) in
       lay.left_width <- dir'.view.divider_width;
       lay.upper_height <- dir'.view.divider_height;
+      Library.deselect_all lib;
+      Library.refresh_artists_albums_tracks lib;
     );
     if Api.Mouse.is_pressed `Left && Api.Key.are_modifiers_down [`Shift] then
     (
@@ -569,6 +573,20 @@ let run_browser (st : state) =
   | `Menu _ ->
     (* Right-click on browser: context menu *)
     State.focus_library browser st;
+    if Library.selected_dir lib <> dir then
+    (
+      (* Click on different dir name: switch view *)
+      (match Library.selected_dir lib with
+      | None -> Library.deselect_dir lib
+      | Some i ->
+        Library.select_dir lib i;  (* do bureaucracy *)
+        let dir' = entries.(i) in
+        lay.left_width <- dir'.view.divider_width;
+        lay.upper_height <- dir'.view.divider_height;
+      );
+      Library.deselect_all lib;
+      Library.refresh_artists_albums_tracks lib;
+    );
     let c = Ui.text_color lay.ui in
     let all, quant =
       if lib.current = None then true, " All" else false, "" in
@@ -1081,6 +1099,8 @@ let run_view (st : state)
   | `Menu (i_opt, j_opt) ->
     (* Right-click on content: context menu *)
     State.focus_library tab st;
+    if not (Table.IntSet.equal tab.selected old_selected) then
+      refresh_deps lib;
     let search =
       match i_opt, j_opt with
       | Some i, Some j ->
@@ -1274,10 +1294,9 @@ let run_log (st : state) =
   let entries = log.table.entries in  (* could change concurrently *)
   let pp_row i = entries.(i) in
   (match Layout.log_table lay log.columns log.heading log.table pp_row with
-  | `None | `Scroll | `Move _ | `Drag _ | `Drop | `Menu _
-  | `Reorder _ | `HeadMenu _ -> ()
+  | `None | `Scroll | `Move _ | `Drag _ | `Drop | `Reorder _ | `HeadMenu _ -> ()
 
-  | `Select | `Click _ ->
+  | `Select | `Click _ | `Menu _ ->
     (* New selection: ignore *)
     Table.deselect_all log.table;
 

@@ -1441,7 +1441,16 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
       if not ui.modal && Mouse.is_pressed `Right then
       (
         if inside (mx, my) r then
-          `Menu ((if i >= limit then None else Some i), find_column cols mx)
+        (
+          let row = if i >= limit then None else Some i in
+          if Table.has_selection tab
+          && (row = None || not (Table.is_selected tab i)) then
+          (
+            Table.deselect_all tab;
+            if row <> None then Table.select tab i i;
+          );
+          `Menu (row, find_column cols mx)
+        )
         else
           `None
       )
@@ -1973,7 +1982,16 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
       if not ui.modal && Mouse.is_pressed `Right then
       (
         if inside (mx, my) r then
-          `Menu ((if on_bg then None else Some k), None)
+        (
+          let row = if on_bg then None else Some k in
+          if Table.has_selection tab
+          && (row = None || not (Table.is_selected tab k)) then
+          (
+            Table.deselect_all tab;
+            if row <> None then Table.select tab k k;
+          );
+          `Menu (row, None)
+        )
         else
           `None
       )

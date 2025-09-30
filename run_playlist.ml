@@ -182,6 +182,7 @@ let run (st : state) =
   | `Menu (i_opt, _) ->
     (* Right-click on content: context menu *)
     State.focus_playlist st;
+    Playlist.refresh_total_selected pl;
     let search =
       match i_opt with
       | Some i when not (Data.is_separator tab.entries.(i)) ->
