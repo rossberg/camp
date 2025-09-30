@@ -178,8 +178,6 @@ let modify_playlist (st : state) dir_opt on_start on_pl =
           Library.end_log st.library
         )
       in
-      let c = Ui.text_color st.layout.ui in
-      Log.append log [|c, [|`Text ""; `Text ""; `Text ""|]|];  (* room for spinner *)
       Library.start_log st.library log;
 
 (*
@@ -196,19 +194,18 @@ let modify_playlist (st : state) dir_opt on_start on_pl =
         on_start log;
 
         let modifications = ref [] in
+        let info = ref "" in
         Data.iter_dir (fun dir ->
           if log.cancel then raise Cancel;
-          (snd log.table.entries.(Log.length log - 1)).(0) <-
-            `Text (spin win ^ " " ^ dir.path);
+          log.info <- !info ^ " " ^ spin win ^ " " ^ dir.path;
           if Data.is_playlist dir then
           (
             try
               let extend_log c s1 s2 =
-                Log.insert log (Log.length log - 1)
-                  [|c, [|`Text dir.path; `Text s1; `Text s2|]|];
+                Log.append log [|c, [|`Text dir.path; `Text s1; `Text s2|]|];
               in
               let items = M3u.parse_ext (File.load `Bin dir.path) in
-              let items' = on_pl log extend_log (File.dir dir.path) items in
+              let items' = on_pl extend_log ((:=) info) (File.dir dir.path) items in
               let path_of (item : M3u.item) = item.path in
               if List.map path_of items <> List.map path_of items' then
                 modifications := (dir.path, M3u.make_ext items') :: !modifications
@@ -217,7 +214,7 @@ let modify_playlist (st : state) dir_opt on_start on_pl =
             | exn -> Storage.log_exn "file" exn ("modifying playlist " ^ dir.path)
           )
         ) dir;
-        (snd log.table.entries.(Log.length log - 1)).(0) <- `Text "";
+        log.info <- !info;
 
         if !modifications = [] then
         (
@@ -252,7 +249,7 @@ let modify_playlist (st : state) dir_opt on_start on_pl =
 let modify_playlist_simple f (st : state) dir_opt =
   let count = ref 0 in
   modify_playlist st dir_opt ignore
-    (fun log extend_log path items ->
+    (fun extend_log update_info path items ->
       let items' = f path items in
       List.iter2 (fun (item : M3u.item) (item': M3u.item) ->
         if item.path <> item'.path then
@@ -261,7 +258,7 @@ let modify_playlist_simple f (st : state) dir_opt =
           extend_log (Ui.text_color st.layout.ui) item.path item'.path;
         )
       ) items items';
-      log.info <- fmt "%d entries can be updated" !count;
+      update_info (fmt "%d entries to be updated" !count);
       items'
     )
 
@@ -308,16 +305,17 @@ let repair_playlist (st : state) dir_opt =
       let win = Ui.window st.layout.ui in
       Data.iter_dir (fun dir ->
         if log.cancel then raise Cancel;
-        (snd log.table.entries.(Log.length log - 1)).(0) <- `Text (spin win);
+        log.info <- spin win;
         if Data.is_dir dir then
         (
           Array.iter (fun (track : Data.track) ->
             map := Map.add_to_list (file_key track.path) track !map
           ) dir.tracks
         )
-      ) st.library.root
+      ) st.library.root;
+      log.info <- "";
     )
-    (fun log extend_log path items ->
+    (fun extend_log update_info path items ->
       List.map (fun item ->
         let item = M3u.resolve_item path item in
         if M3u.is_separator item.path || File.exists item.path then item else
@@ -349,7 +347,7 @@ let repair_playlist (st : state) dir_opt =
           (if !fail = 0 then [] else [fmt "%d entries not found" !fail]) @
           (if !fuzzy = 0 then [] else [fmt "%d entries ambiguous" !fuzzy])
         in
-        log.info <- String.concat ", " ss;
+        update_info (String.concat ", " ss);
         extend_log (color st.layout.ui) item.path path';
         item'
       ) items
