@@ -199,8 +199,11 @@ let modify_playlist (st : state) dir_opt on_start on_pl =
                   let dir_opt = Library.find_dir lib (Log.text log i 0) in
                   Option.iter (fun dir ->
                     Library.fold_dir lib dir false;
-                    Option.iter (Library.select_dir lib)
-                      (Library.find_entry_dir lib dir);
+                    Option.iter (fun i ->
+                      Library.select_dir lib i;
+                      st.layout.left_width <- dir.view.divider_width;
+                      st.layout.upper_height <- dir.view.divider_height;
+                    ) (Library.find_entry_dir lib dir);
                   ) dir_opt;
                   st.layout.repair_log_columns <- Array.map fst log.columns;
                   Library.end_log st.library;
@@ -212,8 +215,11 @@ let modify_playlist (st : state) dir_opt on_start on_pl =
                 `Entry (c, "Search for Song in " ^ dir.name, Layout.nokey, true),
                 fun () ->
                   Table.deselect_all log.table;
-                  Option.iter (Library.select_dir lib)
-                    (Library.find_entry_dir lib dir);
+                  Option.iter (fun i ->
+                    Library.select_dir lib i;
+                    st.layout.left_width <- dir.view.divider_width;
+                    st.layout.upper_height <- dir.view.divider_height;
+                  ) (Library.find_entry_dir lib dir);
                   Edit.set lib.search search;
                   Library.set_search lib search;
                   st.layout.repair_log_columns <- Array.map fst log.columns;
