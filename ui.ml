@@ -1356,8 +1356,9 @@ let rich_table_mouse ui area geo cols (tab : _ Table.t) =
   let (x, y, _, _) as r = dim ui area' in
   let (mx, my) as m = Mouse.pos ui.win in
   if inside m r then
+    (* Returns table length for empty row! *)
     let row = (my - y) / geo.row_h + tab.vscroll in
-    (if row < Table.length tab then Some row else None),
+    Some (min row (Table.length tab)),
     find_column geo.gutter_w cols tab.hscroll (mx - x)
   else
     None, None
@@ -1904,8 +1905,9 @@ let grid_table_mouse ui area geo (tab : _ Table.t) =
   let line = max 1 Float.(to_int (floor (float w /. float iw))) in
   let (mx, my) as m = Mouse.pos ui.win in
   if inside m r then
+    (* Returns table length for empty space! *)
     let row = (my - y) / ih * line + (mx - x) / iw + tab.vscroll in
-    (if row < Table.length tab then Some row else None), None
+    Some (min row (Table.length tab)), None
   else
     None, None
 

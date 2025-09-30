@@ -166,16 +166,16 @@ let drag_on_tracks (st : state) =
 let drop (st : state) tracks table_mouse (module View : View) =
   if tracks <> [||] then
   (
+    (* Drop onto table: send tracks there *)
     let lay = st.layout in
     let view = View.it in
     let tab = View.table view in
-    Option.iter (fun pos ->
-      (* Drop onto table: send tracks there *)
-      View.insert view pos tracks;
-      State.defocus_all st;
-      View.focus st;
-      update_control st;
-    ) (fst (table_mouse lay tab))
+    let len = Table.length tab in
+    let pos = Option.value (fst (table_mouse lay tab)) ~default: len in
+    View.insert view pos tracks;
+    State.defocus_all st;
+    View.focus st;
+    update_control st;
   )
 
 let drop_on_playlist (st : state) tracks =

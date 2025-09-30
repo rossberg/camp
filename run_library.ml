@@ -1168,10 +1168,10 @@ let run_view (st : state)
     with
     *)
     match mouse lay cols tab with
-    | Some i, _ ->
+    | Some i, _ when i < Table.length tab ->
       (* Drag with active cover popup: update cover *)
       Run_menu.popup st (popup entries.(i));
-    | None, _ -> ()
+    | _, _ -> ()
   )
 
 
