@@ -378,7 +378,10 @@ let shown_context g = Ui.mouse g.ui (cp, margin g + info_w g, margin g, - margin
 let control_context g = Ui.mouse g.ui (cp, margin g, ctl_y, - margin g, -1) `Right
 
 let cover_popup_open g = Ui.mouse g.ui (cover_area g) `Left
-let cover_popup_w g = if g.playlist_shown then min g.popup_size (control_h g + g.playlist_height - text_h g - margin g) else control_h g - text_h g - 2 * popup_margin g
+
+let cover_popup_w g = g.popup_size |>
+  min (control_w g + Bool.to_int g.library_shown * g.library_width - 2 * popup_margin g) |>
+  min (control_h g + Bool.to_int g.playlist_shown * g.playlist_height - text_h g - 2 * popup_margin g)
 let cover_popup_image_size g = Ui.image_size g.ui (-1, 0, 0, cover_popup_w g, cover_popup_w g) `Shrink
 let cover_popup g x y iw ih = Ui.popup g.ui x y iw (ih + text_h g) (popup_margin g)
 let cover_popup_image g (p, x, y, w, h) = Ui.image g.ui (p, x, y, w, h - text_h g) `Shrink
