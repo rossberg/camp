@@ -166,16 +166,17 @@ let drag_on_tracks (st : state) =
 let drop (st : state) tracks table_mouse (module View : View) =
   if tracks <> [||] then
   (
-    (* Drop onto table: send tracks there *)
     let lay = st.layout in
     let view = View.it in
     let tab = View.table view in
-    let len = Table.length tab in
-    let pos = Option.value (fst (table_mouse lay tab)) ~default: len in
-    View.insert view pos tracks;
-    State.defocus_all st;
-    View.focus st;
-    update_control st;
+    Option.iter (fun (pos_opt, _) ->
+      (* Drop onto table: send tracks there *)
+      let pos = Option.value pos_opt ~default: (Table.length tab) in
+      View.insert view pos tracks;
+      State.defocus_all st;
+      View.focus st;
+      update_control st;
+    ) (table_mouse lay tab)
   )
 
 let drop_on_playlist (st : state) tracks =
@@ -273,18 +274,16 @@ let set_drop_cursor (st : state) =
   let droppable =
     lay.playlist_shown &&
       (* over playlist *)
-      fst (Layout.playlist_mouse lay [||] pl.table) <> None
+      Layout.playlist_mouse lay [||] pl.table <> None
     ||
     lay.library_shown && (
       (* over library playlist view? *)
-      Library.current_is_playlist lib &&
-        fst (library_mouse st lay lib.tracks) <> None
+      Library.current_is_playlist lib && library_mouse st lay lib.tracks <> None
       ||
       (* over browser entry that is a playlist? *)
       match Layout.browser_mouse lay [||] lib.browser with
-      | None, _ -> false
-      | Some i, _ ->
-        i < Table.length lib.browser && Data.is_playlist lib.browser.entries.(i)
+      | Some (Some i, _) -> Data.is_playlist lib.browser.entries.(i)
+      | _ -> false
     )
   in
   Api.Mouse.set_cursor (Ui.window lay.ui)

@@ -362,17 +362,16 @@ let drag_on_browser (st : state) =
   let browser = lib.browser in
   if st.layout.library_shown then
   (
-    Option.iter (fun i ->
-      if i < Array.length browser.entries then
-      (
+    Option.iter (function
+      | (Some i, _)->
         let dir = browser.entries.(i) in
         if Data.is_playlist dir then
         (
           (* Drag over playlist browser entry: highlight target entry *)
           Ui.delay lay.ui (fun () -> Layout.browser_drag lay `Inside browser)
         )
-      )
-    ) (fst (Layout.browser_mouse lay [||] browser))
+      | _ -> ()
+    ) (Layout.browser_mouse lay [||] browser)
   )
 
 let drop_on_browser (st : state) tracks =
@@ -381,9 +380,8 @@ let drop_on_browser (st : state) tracks =
   let browser = lib.browser in
   if st.layout.library_shown then
   (
-    Option.iter (fun i ->
-      if i < Array.length browser.entries then
-      (
+    Option.iter (function
+      | (Some i, _) ->
         let dir = browser.entries.(i) in
         if Data.is_playlist dir then
         (
@@ -404,8 +402,8 @@ let drop_on_browser (st : state) tracks =
             Library.refresh_artists_albums_tracks lib;
           );
         )
-      )
-    ) (fst (Layout.browser_mouse lay [||] browser))
+      | _ -> ()
+    ) (Layout.browser_mouse lay [||] browser)
   )
 
 
@@ -533,9 +531,8 @@ let run_browser (st : state) =
       );
 
       (* Intra-browser drag *)
-      Option.iter (fun i ->
-        if Library.selected_dir lib <> Some i then
-        (
+      Option.iter (function
+        | (Some i, _) when Library.selected_dir lib <> Some i ->
           Option.iter (fun j ->
             let dir = browser.entries.(j) in
             if
@@ -553,8 +550,8 @@ let run_browser (st : state) =
               drag_on_browser st;
             )
           ) (Library.selected_dir lib)
-        )
-      ) (fst (Layout.browser_mouse lay [||] browser))
+        | _ -> ()
+      ) (Layout.browser_mouse lay [||] browser)
     )
 
   | `Drop ->
@@ -566,9 +563,8 @@ let run_browser (st : state) =
       Run_view.drop_on_playlist st tracks;
 
       (* Intra-browser drop *)
-      Option.iter (fun i ->
-        if Library.selected_dir lib <> Some i then
-        (
+      Option.iter (function
+        | (Some i, _) when Library.selected_dir lib <> Some i ->
           Option.iter (fun j ->
             let dir = browser.entries.(j) in
             if
@@ -593,8 +589,8 @@ let run_browser (st : state) =
               drop_on_browser st tracks;
             )
           ) (Library.selected_dir lib)
-        )
-      ) (fst (Layout.browser_mouse lay [||] browser))
+        | _ -> ()
+      ) (Layout.browser_mouse lay [||] browser)
     )
 
   | `Menu _ ->
@@ -721,15 +717,15 @@ let run_browser (st : state) =
   let dropped = Api.Files.dropped win in
   if dropped <> [] then
   (
-    Option.iter (fun i ->
+    Option.iter (function (pos_opt, _) ->
       let pos =
-        if i = Array.length entries
-        then Array.length lib.root.children
-        else Library.find_parent_pos lib entries.(i)
+        match pos_opt with
+        | None -> Array.length lib.root.children
+        | Some i -> Library.find_parent_pos lib entries.(i)
       in
       if not (Library.insert_roots lib dropped pos) then
         Layout.browser_error_box lay;  (* flash *)
-    ) (fst (Layout.browser_mouse lay [||] browser))
+    ) (Layout.browser_mouse lay [||] browser)
   );
 
   (* Scanning indicator *)
@@ -1168,10 +1164,10 @@ let run_view (st : state)
     with
     *)
     match mouse lay cols tab with
-    | Some i, _ when i < Table.length tab ->
+    | Some (Some i, _) ->
       (* Drag with active cover popup: update cover *)
       Run_menu.popup st (popup entries.(i));
-    | _, _ -> ()
+    | _ -> ()
   )
 
 

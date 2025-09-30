@@ -1356,20 +1356,22 @@ let rich_table_mouse ui area geo cols (tab : _ Table.t) =
   let (x, y, _, _) as r = dim ui area' in
   let (mx, my) as m = Mouse.pos ui.win in
   if inside m r then
-    (* Returns table length for empty row! *)
     let row = (my - y) / geo.row_h + tab.vscroll in
-    Some (min row (Table.length tab)),
-    find_column geo.gutter_w cols tab.hscroll (mx - x)
+    Some (
+      (if row < Table.length tab then Some row else None),
+      find_column geo.gutter_w cols tab.hscroll (mx - x)
+    )
   else
-    None, None
+    None
 
 let rich_table_drag ui area geo style tab =
   match rich_table_mouse ui area geo [||] tab with
-  | None, _ -> ()
-  | Some i, _ ->
+  | Some (i_opt, _) ->
     let area' = rich_table_inner_area ui area geo in
     let x, y, w, _ = dim ui area' in
-    focus' ui x (y + (i - tab.vscroll) * geo.row_h) w geo.row_h `White style
+    let i' = Option.value i_opt ~default: (Table.length tab) - tab.vscroll in
+    focus' ui x (y + i' * geo.row_h) w geo.row_h `White style
+  | _ -> ()
 
 let adjust_cache ui tab w h =
   Option.iter (fun buf ->
@@ -1905,23 +1907,22 @@ let grid_table_mouse ui area geo (tab : _ Table.t) =
   let line = max 1 Float.(to_int (floor (float w /. float iw))) in
   let (mx, my) as m = Mouse.pos ui.win in
   if inside m r then
-    (* Returns table length for empty space! *)
     let row = (my - y) / ih * line + (mx - x) / iw + tab.vscroll in
-    Some (min row (Table.length tab)), None
+    Some ((if row < Table.length tab then Some row else None), None)
   else
-    None, None
+    None
 
 let grid_table_drag ui area geo style tab =
   match grid_table_mouse ui area geo tab with
-  | None, _ -> ()
-  | Some i, _ ->
+  | Some (i_opt, _) ->
     let area' = grid_table_inner_area ui area geo in
     let x, y, w, _ = dim ui area' in
     let iw = geo.gutter_w + geo.img_h in
     let ih = iw + geo.text_h in
     let line = max 1 Float.(to_int (floor (float w /. float iw))) in
-    let i' = i - tab.vscroll in
+    let i' = Option.value i_opt ~default: (Table.length tab) - tab.vscroll in
     focus' ui (x + i' mod line * iw) (y + i' / line * ih) iw ih `White style
+  | _ -> ()
 
 let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
   assert (geo.has_heading = Option.is_some header_opt);
