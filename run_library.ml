@@ -211,7 +211,7 @@ let modify_playlist (st : state) dir_opt on_start on_pl =
               let items' = on_pl log extend_log (File.dir dir.path) items in
               let path_of (item : M3u.item) = item.path in
               if List.map path_of items <> List.map path_of items' then
-                modifications := (dir.path, items') :: !modifications
+                modifications := (dir.path, M3u.make_ext items') :: !modifications
             with
             | Cancel -> raise Cancel  (* propagate *)
             | exn -> Storage.log_exn "file" exn ("modifying playlist " ^ dir.path)
@@ -220,17 +220,24 @@ let modify_playlist (st : state) dir_opt on_start on_pl =
         (snd log.table.entries.(Log.length log - 1)).(0) <- `Text "";
 
         if !modifications = [] then
-          log.info <- "No playlist modifications"
+        (
+          log.info <- "No playlist modifications required";
+          Library.error st.library "";
+        )
         else
         (
           log.on_completion <- (fun log ->
+            log.on_completion <- ignore;
+            log.completed <- false;
+            Library.error st.library "";
             (try
-              List.iter (fun (path, items') ->
+              List.iter (fun (path, s) ->
                 if log.cancel then raise Cancel;
-                File.save_safe `Bin path (M3u.make_ext items')
+                File.save_safe `Bin path s
               ) (List.rev !modifications);
-            with Cancel ->
-              Library.error st.library "Playlist modifications aborted"
+            with
+            | Cancel -> Library.error st.library "Playlist modifications aborted"
+            | exn -> Storage.log_exn "file" exn ("modifying playlist " ^ dir.path)
             );
             Library.refresh_artists_albums_tracks st.library;
             st.layout.repair_log_columns <- Array.map fst log.columns;
@@ -262,8 +269,7 @@ let relative_playlist_avail = playlist_avail
 let relative_playlist = modify_playlist_simple M3u.relative
 
 let local_playlist_avail = playlist_avail
-let local_playlist = modify_playlist_simple (fun path items ->
-    M3u.(local (File.drive path) (resolve path items)))
+let local_playlist = modify_playlist_simple M3u.local
 
 let resolve_playlist_avail = playlist_avail
 let resolve_playlist = modify_playlist_simple M3u.resolve

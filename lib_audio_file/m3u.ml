@@ -67,20 +67,22 @@ let parse_ext s =
     ) (List.rev (lines s)) ([], None) |> fst |> List.rev
 
 
-let local_path drive path =
-  if File.drive path = drive then File.remove_drive path else path
+let local_path dir path =
+  let path' = File.resolve dir path in
+  if File.drive path' = File.drive dir then File.remove_drive path' else path'
 
 let resolve_path dir path =
   if is_separator path then path else File.normalize (File.resolve dir path)
 
 let relative_path dir path =
-  if is_separator path then path else File.normalize (File.relative dir path)
+  if is_separator path then path else
+  File.normalize (File.relative dir (File.resolve dir path))
 
-let local_item drive item = {item with path = local_path drive item.path}
+let local_item dir item = {item with path = local_path dir item.path}
 let resolve_item dir item = {item with path = resolve_path dir item.path}
 let relative_item dir item = {item with path = relative_path dir item.path}
 
-let local drive items = List.map (local_item drive) items
+let local dir items = List.map (local_item dir) items
 let resolve dir items = List.map (resolve_item dir) items
 let relative dir items = List.map (relative_item dir) items
 
