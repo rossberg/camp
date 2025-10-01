@@ -658,7 +658,8 @@ let is_very_quick = function
   | _ -> false
 
 let rescan_track' lib mode (track : track) =
-  let old = {track with memo = None} in
+  let file = {track.file with time = track.file.time} in
+  let old = {track with file; memo = None} in
   try
     if not (File.exists track.path) then
     (
