@@ -344,7 +344,7 @@ let key_subst = List.map (fun (re, s) -> Str.regexp re, s)
   ]
 
 let file_key path =
-  Data.UCase.lowercase (File.name path) |>
+  Data.UCase.casefolding (File.name path) |> Data.UNorm.nfc |>
   List.fold_right (fun (re, s) -> Str.global_replace re s) key_subst
 
 let repair_playlist_avail = playlist_avail
@@ -394,7 +394,7 @@ let repair_playlist (st : state) dir_opt =
 *)
         in
         let ss =
-          (if !success = 0 then [] else [fmt "%d entries can be repaired" !fail]) @
+          (if !success = 0 then [] else [fmt "%d entries can be repaired" !success]) @
           (if !fail = 0 then [] else [fmt "%d entries not found" !fail]) @
           (if !fuzzy = 0 then [] else [fmt "%d entries ambiguous" !fuzzy])
         in
@@ -1371,8 +1371,7 @@ let run_log (st : state) =
 
   if not lay.menu_shown then Table.deselect_all log.table;
 
-  let entries = log.table.entries in  (* could change concurrently *)
-  let pp_row i = entries.(i) in
+  let pp_row i = log.table.entries.(i) in
   (match Layout.log_table lay log.columns log.heading log.table pp_row with
   | `None | `Scroll | `Move _ | `Drag _ | `Drop | `Reorder _ | `HeadMenu _ -> ()
 

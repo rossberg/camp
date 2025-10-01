@@ -537,6 +537,7 @@ let query_attr_string (track : track) = function
 
 module UCol = Camomile.UCol.Make (Camomile.UTF8)
 module UCase = Camomile.CaseMap.Make (Camomile.UTF8)
+module UNorm = Camomile.UNF.Make (Camomile.UTF8)
 
 let compare_utf_8 s1 s2 = UCol.compare ~prec: `Primary s1 s2
 let compare_length s1 s2 = compare (String.length s1) (String.length s2)
