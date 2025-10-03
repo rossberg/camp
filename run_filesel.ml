@@ -40,6 +40,9 @@ let run (st : state) =
 
   Layout.directories_pane lay;
 
+  (* Refresh drive list every 5 seconds *)
+  if int_of_float (Unix.gettimeofday () *. 50.0) mod 50 = 0 then
+    Filesel.refresh_roots fs;
   let dirs = fs.dirs in
 
   let pp_entry i =

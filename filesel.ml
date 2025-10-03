@@ -35,7 +35,7 @@ type 'cache t =
 {
   mutable op : op option;
   mutable path : path;
-  roots : dir array;
+  mutable roots : dir array;
   dirs : (dir, 'cache) Table.t;
   files : (file, 'cache) Table.t;
   input : Edit.t;
@@ -116,7 +116,7 @@ let dir_of_file path nest file =
 
 
 let roots () =
-  if not Sys.win32 then [make_dir File.sep 0] else
+  if not Sys.win32 then [|make_dir File.sep 0|] else
   let rec detect c =
     if c > 'Z' then [] else
     let drive = String.make 1 c ^ ":\\" in
@@ -125,7 +125,8 @@ let roots () =
       (make_dir drive 0)::roots'
     else
       roots'
-  in detect 'A'
+  in Array.of_list (detect 'A')
+
 
 let scan_dir (dir : dir) =
   try
@@ -166,8 +167,9 @@ let scan_path fs =
       (* Fall back to parent if child does not exist; first root if no parent *)
   in climb fs.path
 
+
 let make () =
-  let roots = Array.of_list (roots ()) in
+  let roots = roots () in
   let fs =
     {
       op = None;
@@ -294,6 +296,18 @@ let reset fs =
   fs.op <- None;
   deselect_file fs;
   Edit.clear fs.input
+
+let refresh_roots fs =
+  let roots = roots () in
+  Array.iteri (fun i (dir : dir) ->
+    Array.find_opt (fun (dir' : dir) -> dir'.path = dir.path) fs.roots |>
+      Option.iter (fun (dir' : dir) -> roots.(i) <- dir')
+  ) roots;
+  fs.roots <- roots;
+  if File.exists fs.path then
+    refresh_dirs fs
+  else
+    set_dir_path fs Storage.home_dir
 
 
 (* Formatting *)

@@ -33,7 +33,7 @@ type 'cache t =
 {
   mutable op : op option;
   mutable path : path;
-  roots : dir array;
+  mutable roots : dir array;
   dirs : (dir, 'cache) Table.t;
   files : (file, 'cache) Table.t;
   input : Edit.t;
@@ -72,6 +72,7 @@ val focus_input : 'a t -> unit
 
 val refresh_files : 'a t -> unit
 val refresh_dirs : 'a t -> unit
+val refresh_roots : 'a t -> unit
 
 
 (* Navigation *)
