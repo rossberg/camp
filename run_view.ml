@@ -249,8 +249,7 @@ let external_drop drop_on (st : state) (module View : View) =
 let external_drop_on_playlist st = external_drop drop_on_playlist st (playlist_view st)
 let external_drop_on_tracks st = external_drop drop_on_tracks st (tracks_view st)
 
-let external_queue_on_playlist st paths =
-  let tracks = expand_paths st paths in
+let queue_on_playlist (st : state) tracks =
   if tracks <> [||] then
   (
     let len = Playlist.length st.playlist in
@@ -265,6 +264,9 @@ let external_queue_on_playlist st paths =
       Table.dirty st.library.browser;
     )
   )
+
+let external_queue_on_playlist st paths =
+  queue_on_playlist st (expand_paths st paths)
 
 
 let set_drop_cursor (st : state) =

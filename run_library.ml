@@ -461,7 +461,6 @@ let drop_on_browser (st : state) tracks =
 (* Browser *)
 
 let run_browser (st : state) =
-  let pl = st.playlist in
   let lib = st.library in
   let lay = st.layout in
   let win = Ui.window lay.ui in
@@ -539,7 +538,7 @@ let run_browser (st : state) =
       (* Shift-Click on dir name: rename *)
       rename st (Some i)
     );
-    if Api.Mouse.is_doubleclick `Left then
+    if Api.Mouse.(is_pressed `Left && is_doubleclick `Left) then
     (
       (* Double-click on directory name: send track view to playlist *)
       let n_artists = Table.num_selected lib.artists in
@@ -551,16 +550,7 @@ let run_browser (st : state) =
         Table.deselect_all lib.albums;
         Library.refresh_albums_tracks_sync lib;  (* could be slow... *)
       );
-      let tracks = lib.tracks.entries in
-      if tracks <> [||] then
-      (
-        Playlist.replace_all pl (Array.copy tracks);
-        State.focus_playlist st;
-        Control.eject st.control;
-        Control.switch st.control tracks.(0) true;
-        Table.dirty st.library.tracks;  (* redraw for current track *)
-        Table.dirty st.library.browser;
-      )
+      Run_view.queue_on_playlist st (Array.copy lib.tracks.entries);
     )
 
   | `Click (None, _) ->
@@ -1046,7 +1036,8 @@ let run_view (st : state)
     Data.permute perm view.columns;
     Option.iter (Library.save_dir lib) lib.current;
 
-  | `Click (Some i, _) when Api.Mouse.is_doubleclick `Left ->
+  | `Click (Some i, _)
+    when Api.Mouse.(is_pressed `Left && is_doubleclick `Left) ->
     (* Double-click on entry: clear playlist and send tracks to it *)
     let n = Table.num_selected dep_tab in
     if n <> 0 && n <> Table.length dep_tab then
@@ -1059,18 +1050,7 @@ let run_view (st : state)
       then selected_tracks lib
       else clicked_tracks lib i
     in
-    if tracks <> [||] then
-    (
-      Playlist.replace_all st.playlist (Array.copy tracks);
-      (*
-      Playlist.select_all st.playlist;
-      State.focus_playlist st;
-      *)
-      Control.eject st.control;
-      Control.switch st.control tracks.(0) true;
-      Table.dirty st.library.tracks;  (* redraw for current track *)
-      Table.dirty st.library.browser;
-    )
+    Run_view.queue_on_playlist st (Array.copy tracks);
 
   | `Click loc ->
     (* Single-click: grab focus, update filter *)

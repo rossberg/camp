@@ -120,7 +120,8 @@ let run (st : state) =
     match Layout.files_table lay cols (Some Filesel.heading) files pp_row with
     | `None | `Scroll | `Move _ | `Drag _ | `Drop -> false
 
-    | `Click (Some i, _) when Api.Mouse.is_doubleclick `Left ->
+    | `Click (Some i, _)
+      when Api.Mouse.(is_pressed `Left && is_doubleclick `Left) ->
       (* Double-click on file: change dir or copy to input and accept *)
       let file = files.entries.(i) in
       if not file.is_dir then
