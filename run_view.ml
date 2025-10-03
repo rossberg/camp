@@ -252,17 +252,28 @@ let external_drop_on_tracks st = external_drop drop_on_tracks st (tracks_view st
 let queue_on_playlist (st : state) tracks =
   if tracks <> [||] then
   (
-    let len = Playlist.length st.playlist in
-    Playlist.insert st.playlist len tracks;
-    let status = Control.status st.control in
-    if status = `Stopped || status = `Ejected then
+    if Api.Key.is_modifier_down `Shift then
     (
-      Playlist.jump st.playlist len;
+      (* Shift-double-click: replace playlist *)
+      Playlist.replace_all st.playlist (Array.copy tracks);
+      Control.eject st.control;
       Control.switch st.control tracks.(0) true;
-      Playlist.adjust_scroll st.playlist 4;
-      Table.dirty st.library.tracks;  (* current song has changed *)
-      Table.dirty st.library.browser;
     )
+    else
+    (
+      (* Double-click: replace playlist *)
+      let len = Playlist.length st.playlist in
+      Playlist.insert st.playlist len tracks;
+      let status = Control.status st.control in
+      if status = `Stopped || status = `Ejected then
+      (
+        Playlist.jump st.playlist len;
+        Control.switch st.control tracks.(0) true;
+        Playlist.adjust_scroll st.playlist 4;
+      )
+    );
+    Table.dirty st.library.tracks;  (* current song has changed *)
+    Table.dirty st.library.browser;
   )
 
 let external_queue_on_playlist st paths =
