@@ -753,8 +753,7 @@ let tag_avail (st : state) (module View : View) =
 let tag (st : state) tracks additive =
   let paths = Array.map (fun (track : Data.track) -> track.path) tracks in
   Domain.spawn (fun () ->
-    let paths' =
-      List.filter (fun p -> not (M3u.is_separator p)) (Array.to_list paths) in
+    let paths' = List.filter File.exists (Array.to_list paths) in
     if st.config.exec_tag_max_len = 0 && not additive then
       exec st.config.exec_tag paths'
     else
