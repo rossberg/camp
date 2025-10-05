@@ -389,6 +389,7 @@ let replace_all pl tracks =
   )
 
 let replace_map pl map all =
+  Table.push_undo pl.table;
   let entries = pl.table.entries in
   Array.iteri (fun i (track : track) ->
     if all || is_selected pl i then

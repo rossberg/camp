@@ -1616,6 +1616,7 @@ let replace_all lib tracks =
   )
 
 let replace_map lib map all =
+  Table.push_undo lib.tracks;
   let entries = lib.tracks.entries in
   Array.iteri (fun i (track : track) ->
     if all || is_selected lib i then
