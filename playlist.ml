@@ -2,6 +2,7 @@
 
 module IntSet = Set.Make(Int)
 module Set = Set.Make(String)
+module Map = Map.Make(String)
 
 type path = Data.path
 type time = Data.time
@@ -348,24 +349,30 @@ let remove_unselected pl =
   remove_if (fun i -> not (Table.is_selected pl.table i)) pl
     (Table.length pl.table - Table.num_selected pl.table)
 
-let num_invalid pl =
+let num_invalid entries =
   Array.fold_left (fun n track ->
     n + Bool.to_int (Data.is_invalid track)
-  ) 0 pl.table.entries
+  ) 0 entries
 
-let remove_invalid pl =
-  remove_if (fun i -> Data.is_invalid pl.table.entries.(i)) pl (num_invalid pl)
+let remove_invalid pl all =
+  remove_if (fun i ->
+    (all || is_selected pl i) && Data.is_invalid pl.table.entries.(i)
+  ) pl (num_invalid (if all then pl.table.entries else selected pl))
 
-let remove_duplicates pl =
+let remove_duplicates pl all =
   let mems = ref Set.empty in
   let dups = ref IntSet.empty in
   Array.iteri (fun i (track : track) ->
-    if Set.mem track.path !mems then
-      dups := IntSet.add i !dups
-    else
-      mems := Set.add track.path !mems
+    if all || is_selected pl i then
+    (
+      if Set.mem track.path !mems then
+        dups := IntSet.add i !dups
+      else
+        mems := Set.add track.path !mems
+    )
   ) pl.table.entries;
   remove_if (fun i -> IntSet.mem i !dups) pl (IntSet.cardinal !dups)
+
 
 let replace_all pl tracks =
   if tracks <> [||] then
@@ -380,6 +387,15 @@ let replace_all pl tracks =
       Table.drop_undo pl.table;
     )
   )
+
+let replace_map pl map all =
+  let entries = pl.table.entries in
+  Array.iteri (fun i (track : track) ->
+    if all || is_selected pl i then
+      Option.iter (fun track' ->
+        entries.(i) <- {track' with pos = track.pos}
+      ) (Map.find_opt track.path map)
+  ) entries
 
 
 let move_selected pl d =

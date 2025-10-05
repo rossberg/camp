@@ -3,6 +3,7 @@
 open Audio_file
 
 module Set = Set.Make(String)
+module Map = Map.Make(String)
 
 type path = File.path
 type dir = Library.dir
@@ -69,6 +70,7 @@ sig
 
   val num_selected : Ui.cached t -> int
   val first_selected : Ui.cached t -> int option
+  val is_selected : Ui.cached t -> int -> bool
   val selected : Ui.cached t -> track array
   val select_all : Ui.cached t -> unit
   val deselect_all : Ui.cached t -> unit
@@ -78,11 +80,12 @@ sig
 
   val insert : Ui.cached t -> int -> track array -> unit
   val replace_all : Ui.cached t -> track array -> unit
+  val replace_map : Ui.cached t -> track Map.t -> bool -> unit
   val remove_all : Ui.cached t -> unit
   val remove_selected : Ui.cached t -> unit
   val remove_unselected : Ui.cached t -> unit
-  val remove_invalid : Ui.cached t -> unit
-  val remove_duplicates : Ui.cached t -> unit
+  val remove_invalid : Ui.cached t -> bool -> unit
+  val remove_duplicates : Ui.cached t -> bool -> unit
 (*  val move_selected : Ui.cached t -> int -> unit*)
   val reverse_selected : Ui.cached t -> unit
   val reverse_all : Ui.cached t -> unit
@@ -330,7 +333,7 @@ type ('dir, 'pl, 'item) pl_ops =
   show_path : bool;
   dir_path : 'dir -> path;
   load : 'dir -> 'pl;
-  save : 'dir -> 'pl -> unit;
+  save : 'dir -> 'pl -> 'pl -> unit;
   map_items : ('item -> 'item) -> 'pl -> 'pl;
   exists2_items : ('item -> 'item -> bool) -> 'pl -> 'pl -> bool;
   item_path : 'item -> path;
@@ -453,7 +456,7 @@ let modify ops (st : state) dir on_start on_pl =
               ) items items'
             then
               modifications := (fun () ->
-                protect (fun () -> ops.save dir items')
+                protect (fun () -> ops.save dir items items')
               ) :: !modifications
           )
         )
@@ -547,6 +550,7 @@ let modify_repair ops (st : state) dir =
       ) items
     )
 
+
 let modify_dir modify =
   modify
   {
@@ -555,7 +559,7 @@ let modify_dir modify =
     show_path = false;
     dir_path = (fun (dir : dir) -> dir.path);
     load = (fun (dir : dir) -> M3u.parse_ext (File.load `Bin dir.path));
-    save = (fun (dir : dir) items -> File.save_safe `Bin dir.path (M3u.make_ext items));
+    save = (fun (dir : dir) _ items' -> File.save_safe `Bin dir.path (M3u.make_ext items'));
     map_items = List.map;
     exists2_items = List.exists2;
     item_path = (fun (item : M3u.item) -> item.path);
@@ -569,7 +573,7 @@ let local_dir = modify_dir modify_local
 let resolve_dir = modify_dir modify_resolve
 let repair_dir = modify_dir modify_repair
 
-let modify_view modify (st : state) =
+let modify_view modify (st : state) view all =
   let lib_shown = st.layout.library_shown in
   if not lib_shown then Run_control.toggle_library st;
   modify
@@ -578,15 +582,22 @@ let modify_view modify (st : state) =
     is_pl = Fun.const true;
     show_path = false;
     dir_path = Fun.const "";
-    load = (fun (module View : View) -> View.(tracks it));
-    save = (fun (module View : View) tracks' -> View.(replace_all it tracks'));
+    load = (fun (module View : View) -> View.(if all then tracks it else selected it));
+    save = (fun (module View : View) tracks tracks' ->
+      if all then View.(replace_all it tracks') else
+        let map = ref Map.empty in
+        Array.iter2 (fun (track : Data.track) track' ->
+          map := Map.add track.path track' !map
+        ) tracks tracks';
+        View.(replace_map it !map all)
+    );
     map_items = Array.map;
     exists2_items = Array.exists2;
     item_path = (fun (track : Data.track) -> track.path);
     set_item_path = (fun (track : Data.track) path -> {track with path});
     set_item = (fun (track : Data.track) track' -> {track' with pos = track.pos});
     final = (fun () -> if not lib_shown then Run_control.toggle_library st);
-  } st
+  } st view
 
 let _relative_view = modify_view modify_relative
 let _local_view = modify_view modify_local
@@ -595,6 +606,10 @@ let repair_view = modify_view modify_repair
 
 
 (* Edit Operations *)
+
+let rec array_existsi f a = array_existsi' f a 0
+and array_existsi' f a i =
+  i <> Array.length a && (f i a.(i) || array_existsi' f a (i + 1))
 
 let editable (st : state) (module View : View) =
   View.(table it) == st.playlist.table ||
@@ -617,25 +632,28 @@ let crop_avail st (module View : View) =
 let crop _st (module View : View) =
   View.(remove_unselected it)
 
-let wipe_avail st (module View : View) =
+let wipe_avail all st (module View : View) =
   editable st (module View) &&
-  Array.exists (fun track -> track.Data.status = `Absent) View.(table it).entries
-let wipe _st (module View : View) =
-  View.(remove_invalid it)
+  array_existsi (fun i (track : Data.track) ->
+    (all || View.(is_selected it i)) && track.status = `Absent
+  ) View.(tracks it)
+let wipe all _st (module View : View) =
+  View.(remove_invalid it all)
 
-let dedupe_avail st (module View : View) =
+let dedupe_avail all st (module View : View) =
   editable st (module View) &&
   let mems = ref Set.empty in
-  Array.exists (fun (track : Data.track) ->
+  array_existsi (fun i (track : Data.track) ->
+    (all || View.(is_selected it i)) &&
     Set.mem track.path !mems || (mems := Set.add track.path !mems; false)
   ) View.(tracks it)
-let dedupe _st (module View : View) =
-  View.(remove_duplicates it)
+let dedupe all _st (module View : View) =
+  View.(remove_duplicates it all)
 
-let repair_avail (st : state) view =
-  editable st view && st.library.log = None && not st.layout.filesel_shown
-let repair st view =
-  repair_view st view
+let repair_avail all (st : state) view =
+  wipe_avail all st view && st.library.log = None && not st.layout.filesel_shown
+let repair all st view =
+  repair_view st view all
 
 let clear_avail st (module View : View) =
   editable st (module View) && View.(length it > 0)
@@ -903,12 +921,12 @@ let edit_menu (st : state) view searches pos_opt =
       `Entry (c, "Invert Selection", Layout.key_invert, select_invert_avail st view),
         (fun () -> select_invert st view);
       `Separator, ignore;
-      `Entry (c, "Wipe", Layout.key_wipe, wipe_avail st view),
-        (fun () -> wipe st view);
-      `Entry (c, "Dedupe", Layout.key_dedupe, dedupe_avail st view),
-        (fun () -> dedupe st view);
-      `Entry (c, "Repair...", Layout.nokey, repair_avail st view),
-        (fun () -> repair st view);
+      `Entry (c, "Wipe" ^ quant, Layout.key_wipe, wipe_avail all st view),
+        (fun () -> wipe all st view);
+      `Entry (c, "Dedupe" ^ quant, Layout.key_dedupe, dedupe_avail all st view),
+        (fun () -> dedupe all st view);
+      `Entry (c, "Repair" ^ quant ^ "...", Layout.nokey, repair_avail all st view),
+        (fun () -> repair all st view);
       `Separator, ignore;
       `Entry (c, "Undo", Layout.key_undo, undo_avail st view),
         (fun () -> undo st view);
@@ -969,6 +987,7 @@ let run_edit_panel (st : state) =
   let library = tracks_view st in
   let view = if pl_focus then playlist else library in
   let module View = (val view) in
+  let all = not View.(num_selected it > 0) in
 
   let active_if avail = if focus && avail st view then Some false else None in
 
@@ -994,16 +1013,16 @@ let run_edit_panel (st : state) =
     crop st view
   );
 
-  if Layout.wipe_button lay (active_if wipe_avail) then
+  if Layout.wipe_button lay (active_if (wipe_avail all)) then
   (
-    (* Click on Wipe button: remove invalid tracks from playlist *)
-    wipe st view
+    (* Click on Wipe button: remove invalid tracks *)
+    wipe all st view
   );
 
   if focus && Layout.dedupe_button lay then
   (
     (* Dedupe key pressed or Shift-click on Wipe button: dedupe *)
-    dedupe st view
+    dedupe all st view
   );
 
   if Layout.undo_button lay (active_if undo_avail) then

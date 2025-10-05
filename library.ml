@@ -1580,23 +1580,27 @@ let remove_unselected lib =
   remove_if (fun i -> not (Table.is_selected lib.tracks i)) lib
     (Table.length lib.tracks - Table.num_selected lib.tracks)
 
-let num_invalid lib =
+let num_invalid entries =
   Array.fold_left (fun n track ->
     n + Bool.to_int (Data.is_invalid track)
-  ) 0 lib.tracks.entries
+  ) 0 entries
 
-let remove_invalid lib =
-  remove_if (fun i -> Data.is_invalid lib.tracks.entries.(i))
-    lib (num_invalid lib)
+let remove_invalid lib all =
+  remove_if (fun i ->
+    (all || is_selected lib i) && Data.is_invalid lib.tracks.entries.(i)
+  ) lib (num_invalid (if all then lib.tracks.entries else selected lib))
 
-let remove_duplicates lib =
+let remove_duplicates lib all =
   let mems = ref Set.empty in
   let dups = ref IntSet.empty in
   Array.iteri (fun i (track : track) ->
-    if Set.mem track.path !mems then
-      dups := IntSet.add i !dups
-    else
-      mems := Set.add track.path !mems
+    if all || is_selected lib i then
+    (
+      if Set.mem track.path !mems then
+        dups := IntSet.add i !dups
+      else
+        mems := Set.add track.path !mems
+    )
   ) lib.tracks.entries;
   remove_if (fun i -> IntSet.mem i !dups) lib (IntSet.cardinal !dups)
 
@@ -1610,6 +1614,15 @@ let replace_all lib tracks =
     insert lib 0 tracks;
     Table.drop_undo lib.tracks;
   )
+
+let replace_map lib map all =
+  let entries = lib.tracks.entries in
+  Array.iteri (fun i (track : track) ->
+    if all || is_selected lib i then
+      Option.iter (fun track' ->
+        entries.(i) <- {track' with pos = track.pos}
+      ) (Map.find_opt track.path map)
+  ) entries
 
 
 let move_selected lib d =
