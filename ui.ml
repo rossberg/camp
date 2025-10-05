@@ -2282,7 +2282,8 @@ let menu ui x y bw gw ch items =
   let area = popup ui x y w h bw in
 
   let _, my = Mouse.pos ui.win in
-  let i = if mouse_inside ui area then (my - y)/ch else -1 in
+  let _, y', _, _ = dim ui area in
+  let i = if mouse_inside ui area then (my - y')/ch else -1 in
 
   let cols = [|lw, `Left; rw, `Right|] in 
   let c_sep = semilit_color (text_color ui) in

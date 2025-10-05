@@ -11,3 +11,4 @@ val quit : State.t -> unit
 
 val resize_text : State.t -> int -> unit
 val resize_grid : State.t -> int -> unit
+val toggle_library : State.t -> unit

@@ -206,6 +206,16 @@ val undo : 'a t -> unit
 val redo : 'a t -> unit
 
 
+(* Playlist Repair *)
+
+type repair_map = track list Map.Make(String).t
+
+val repair_key : path -> string
+val repair_map : 'a t -> (dir -> unit) -> repair_map
+val repair_path : repair_map -> path -> path ->
+  [`Ok | `Replace of track | `Ambiguous | `Missing]
+
+
 (* Covers *)
 
 val load_cover : 'a t -> Api.window -> path -> Api.image option

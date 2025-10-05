@@ -15,11 +15,14 @@ val make_ext : item list -> playlist
 val parse : playlist -> path list
 val parse_ext : playlist -> item list
 
+val local_path : path -> path -> path
 val local_item : path -> item -> item
-val resolve_item : path -> item -> item
-val relative_item : path -> item -> item
 val local : path -> item list -> item list
+val resolve_path : path -> path -> path
+val resolve_item : path -> item -> item
 val resolve : path -> item list -> item list
+val relative_path : path -> path -> path
+val relative_item : path -> item -> item
 val relative : path -> item list -> item list
 
 val load : path -> item list

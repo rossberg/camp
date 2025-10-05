@@ -5,6 +5,7 @@ open Audio_file
 module Set = Set.Make(String)
 
 type path = File.path
+type dir = Library.dir
 type state = State.t
 type table = (Data.track, Ui.cached) Table.t
 
@@ -16,6 +17,23 @@ let exec prog args =
   let cmd' = if not Sys.win32 then cmd else
     "\"start /b ^\"^\" " ^ String.sub cmd 1 (String.length cmd - 1) in
   ignore (Sys.command cmd')
+
+let fmt = Printf.sprintf
+
+
+(* Spinner *)
+
+let spin_delay = 3
+let spins = [|"|"; "/"; "-"; "\\"|]
+
+let spin (st : state) =
+  let win = Ui.window st.layout.ui in
+  spins.(Api.Draw.frame win / spin_delay mod Array.length spins)
+
+let spin_changed (st : state) =
+  let win = Ui.window st.layout.ui in
+  Api.Draw.frame win mod spin_delay = 0
+
 
 
 (* Generic abstraction *)
@@ -303,6 +321,279 @@ let set_drop_cursor (st : state) =
     (if droppable then `Point else `Blocked)
 
 
+(* Playlist modification *)
+
+type ('dir, 'pl, 'item) pl_ops =
+{
+  iter_dir : ('dir -> unit) -> 'dir -> unit;
+  is_pl : 'dir -> bool;
+  show_path : bool;
+  dir_path : 'dir -> path;
+  load : 'dir -> 'pl;
+  save : 'dir -> 'pl -> unit;
+  map_items : ('item -> 'item) -> 'pl -> 'pl;
+  exists2_items : ('item -> 'item -> bool) -> 'pl -> 'pl -> bool;
+  item_path : 'item -> path;
+  set_item_path : 'item -> path -> 'item;
+  set_item : 'item -> Data.track -> 'item;
+  final : unit -> unit;
+}
+
+exception Cancel
+
+let punct_re = Str.regexp "[][(){}',;:&?!$%@_0-9*+-]"
+
+let modify ops (st : state) dir on_start on_pl =
+  ignore (Domain.spawn (fun () ->
+    let header1 = if ops.show_path then [|"Playlist"|] else [||] in
+    let heading = Array.append header1 [|"Entry"; "Replacement"|], [] in
+    let columns = Array.map (fun w -> (w, `Left)) st.layout.repair_log_columns in
+    let columns, mk_columns =
+      if ops.show_path then columns, Fun.id else
+      Array.sub columns 1 2, Array.append [|st.layout.repair_log_columns.(0)|]
+    in
+    let log = Log.make (Some heading) columns
+      (fun log ->
+        st.layout.repair_log_columns <- mk_columns (Array.map fst log.columns);
+        Library.end_log st.library;
+        ops.final ();
+      )
+      (fun log (i_opt, _) ->
+        Option.iter (fun i ->
+          (* Right-click on log entry: open context menu *)
+          let lib = st.library in
+          let c = Ui.text_color st.layout.ui in
+          let search =
+            File.(remove_extension (name (Log.text log i 1))) |>
+            Str.global_replace punct_re " " |>
+            String.split_on_char ' ' |> List.filter ((<>) "") |>
+            List.map Query.quote |> String.concat " "
+          in
+          Table.select log.table i i;
+          Run_menu.command_menu st (Array.append
+            (if not ops.show_path then [||] else
+            [|
+              `Entry (c, "Show Playlist", Layout.nokey, true),
+              (fun () ->
+                Table.deselect_all log.table;
+                let dir_opt = Library.find_dir lib (Log.text log i 0) in
+                Option.iter (fun dir ->
+                  Library.fold_dir lib dir false;
+                  Option.iter (fun i ->
+                    Library.select_dir lib i;
+                    st.layout.left_width <- dir.view.divider_width;
+                    st.layout.upper_height <- dir.view.divider_height;
+                  ) (Library.find_entry_dir lib dir);
+                ) dir_opt;
+                st.layout.repair_log_columns <-
+                  mk_columns (Array.map fst log.columns);
+                Library.end_log st.library;
+              );
+              `Separator, ignore;
+            |])
+            (Array.init (Array.length lib.root.children + 1) (fun j ->
+              let dir = if j = 0 then lib.root else lib.root.children.(j - 1) in
+              `Entry (c, "Search for Song in " ^ dir.name, Layout.nokey, true),
+              fun () ->
+                Table.deselect_all log.table;
+                Option.iter (fun i ->
+                  Library.select_dir lib i;
+                  st.layout.left_width <- dir.view.divider_width;
+                  st.layout.upper_height <- dir.view.divider_height;
+                ) (Library.find_entry_dir lib dir);
+                Edit.set lib.search search;
+                Library.set_search lib search;
+                st.layout.repair_log_columns <-
+                  mk_columns (Array.map fst log.columns);
+                Library.end_log st.library;
+            ))
+          )
+        ) i_opt
+      )
+    in
+    Library.start_log st.library log;
+
+(*
+    let rec playlist_names (dir : dir) =
+      match dir.parent with
+      | None -> []
+      | Some parent ->
+        dir.name ::
+        playlist_names (Option.get (Library.find_dir st.library parent))
+    in
+    let playlist = String.concat "/" (List.rev (playlist_names dir)) in
+*)
+    try
+      let started = on_start log in
+
+      let modifications = ref [] in
+      let info = ref "" in
+      ops.iter_dir (fun dir ->
+        if log.cancel then raise Cancel;
+        let path = ops.dir_path dir in
+        log.info <- !info ^ " " ^ spin st ^ " " ^ path;
+        if ops.is_pl dir then
+        (
+          let protect f =
+            try f ()  with
+            | Cancel -> raise Cancel  (* propagate *)
+            | exn -> Storage.log_exn "file" exn ("modifying playlist " ^ path)
+          in
+          protect (fun () ->
+            let cell1 = if ops.show_path then [|`Text path|] else [||] in
+            let extend_log c s1 s2 =
+              Log.append log [|c, Array.append cell1 [|`Text s1; `Text s2|]|];
+            in
+            let items = ops.load dir in
+            let items' =
+              on_pl extend_log ((:=) info) started (File.dir path) items in
+            if
+              ops.exists2_items (fun item item' ->
+                ops.item_path item <> ops.item_path item'
+              ) items items'
+            then
+              modifications := (fun () ->
+                protect (fun () -> ops.save dir items')
+              ) :: !modifications
+          )
+        )
+      ) dir;
+      log.info <- !info;
+
+      if !modifications = [] then
+      (
+        log.info <- "No playlist modifications needed or applicable";
+        Library.error st.library "";
+      )
+      else
+      (
+        log.on_completion <- (fun log ->
+          try
+            log.on_completion <- ignore;
+            log.completed <- false;
+            Library.error st.library "";
+            List.iter (fun f -> if log.cancel then raise Cancel; f ())
+              (List.rev !modifications);
+            Library.refresh_artists_albums_tracks st.library;
+            st.layout.repair_log_columns <-
+              mk_columns (Array.map fst log.columns);
+            Library.end_log st.library;
+            ops.final ();
+          with Cancel ->
+            Library.error st.library "Playlist modifications aborted"
+        );
+        log.completed <- true;
+      )
+    with Cancel -> Library.error st.library "Playlist modifications aborted"
+  ))
+
+let modify_simple f ops (st : state) dir =
+  let count = ref 0 in
+  modify ops st dir ignore
+    (fun extend_log update_info () base_path items ->
+      let items' =
+        ops.map_items (fun item ->
+          let path = ops.item_path item in
+          let path' = f base_path path in
+          if path = path' then item else
+          (
+            incr count;
+            extend_log (Ui.text_color st.layout.ui) path path';
+            ops.set_item_path item path'
+          )
+        ) items
+      in
+      update_info (fmt "%d entries to be updated" !count);
+      items'
+    )
+
+let modify_relative st = modify_simple M3u.relative_path st
+let modify_local st = modify_simple M3u.local_path st
+let modify_resolve st = modify_simple M3u.resolve_path st
+
+let modify_repair ops (st : state) dir =
+  let success, fail, fuzzy = ref 0, ref 0, ref 0 in
+  modify ops st dir
+    (fun log ->
+      let map = Library.repair_map st.library (fun _ ->
+        if log.cancel then raise Cancel;
+        log.info <- spin st;
+      ) in
+      log.info <- "";
+      map
+    )
+    (fun extend_log update_info map path items ->
+      ops.map_items (fun item ->
+        let item_path = ops.item_path item in
+        let item', color, path' =
+          match Library.repair_path map path item_path with
+          | `Ok -> item, Ui.text_color, item_path
+          | `Replace track ->
+            incr success; ops.set_item item track, Ui.text_color, track.path
+          | `Missing -> incr fail; item, Ui.error_color, "(not found)"
+          | `Ambiguous -> incr fuzzy; item, Ui.warn_color, "(multiple found)"
+        in
+        if path' <> item_path then
+        (
+          let ss =
+            (if !success = 0 then [] else [fmt "%d entries can be repaired" !success]) @
+            (if !fail = 0 then [] else [fmt "%d entries not found" !fail]) @
+            (if !fuzzy = 0 then [] else [fmt "%d entries ambiguous" !fuzzy])
+          in
+          update_info (String.concat ", " ss);
+          extend_log (color st.layout.ui) item_path path';
+        );
+        item'
+      ) items
+    )
+
+let modify_dir modify =
+  modify
+  {
+    iter_dir = Data.iter_dir;
+    is_pl = Data.is_playlist;
+    show_path = false;
+    dir_path = (fun (dir : dir) -> dir.path);
+    load = (fun (dir : dir) -> M3u.parse_ext (File.load `Bin dir.path));
+    save = (fun (dir : dir) items -> File.save_safe `Bin dir.path (M3u.make_ext items));
+    map_items = List.map;
+    exists2_items = List.exists2;
+    item_path = (fun (item : M3u.item) -> item.path);
+    set_item_path = (fun (item : M3u.item) path -> {item with path});
+    set_item = (fun (item : M3u.item) track -> {item with path = track.path});
+    final = ignore;
+  }
+
+let relative_dir = modify_dir modify_relative
+let local_dir = modify_dir modify_local
+let resolve_dir = modify_dir modify_resolve
+let repair_dir = modify_dir modify_repair
+
+let modify_view modify (st : state) =
+  let lib_shown = st.layout.library_shown in
+  if not lib_shown then Run_control.toggle_library st;
+  modify
+  {
+    iter_dir = (@@);
+    is_pl = Fun.const true;
+    show_path = false;
+    dir_path = Fun.const "";
+    load = (fun (module View : View) -> View.(tracks it));
+    save = (fun (module View : View) tracks' -> View.(replace_all it tracks'));
+    map_items = Array.map;
+    exists2_items = Array.exists2;
+    item_path = (fun (track : Data.track) -> track.path);
+    set_item_path = (fun (track : Data.track) path -> {track with path});
+    set_item = (fun (track : Data.track) track' -> {track' with pos = track.pos});
+    final = (fun () -> if not lib_shown then Run_control.toggle_library st);
+  } st
+
+let _relative_view = modify_view modify_relative
+let _local_view = modify_view modify_local
+let _resolve_view = modify_view modify_resolve
+let repair_view = modify_view modify_repair
+
+
 (* Edit Operations *)
 
 let editable (st : state) (module View : View) =
@@ -340,6 +631,11 @@ let dedupe_avail st (module View : View) =
   ) View.(tracks it)
 let dedupe _st (module View : View) =
   View.(remove_duplicates it)
+
+let repair_avail (st : state) view =
+  editable st view && st.library.log = None && not st.layout.filesel_shown
+let repair st view =
+  repair_view st view
 
 let clear_avail st (module View : View) =
   editable st (module View) && View.(length it > 0)
@@ -399,7 +695,8 @@ let reverse_all _st (module View : View) =
   View.(reverse_all it)
 
 let load_avail (st : state) (module View : View) =
-  editable st (module View) && not st.layout.filesel_shown
+  editable st (module View) &&
+  not st.layout.filesel_shown && st.library.log = None
 let load (st : state) (module View : View) =
   Run_filesel.filesel st `File `Read "" ".m3u" (fun path ->
     let tracks = Array.map Track.of_m3u_item (Array.of_list (M3u.load path)) in
@@ -415,7 +712,7 @@ let load (st : state) (module View : View) =
   )
 
 let save_avail (st : state) _view =
-  not st.layout.filesel_shown
+  not st.layout.filesel_shown && st.library.log = None
 let save (st : state) (module View : View) =
   Run_filesel.filesel st `File `Write "" ".m3u" (fun path ->
     File.save `Bin path (Track.to_m3u View.(table it).entries)
@@ -423,7 +720,7 @@ let save (st : state) (module View : View) =
 
 let save_view_avail (st : state) _view =
   not st.layout.filesel_shown && st.layout.library_shown &&
-  not st.playlist.table.focus &&
+  not st.playlist.table.focus && st.library.log = None &&
   ( st.library.search.text <> "" ||
     Table.num_selected st.library.artists > 0 ||
     Table.num_selected st.library.albums > 0 )
@@ -611,6 +908,8 @@ let edit_menu (st : state) view searches pos_opt =
         (fun () -> wipe st view);
       `Entry (c, "Dedupe", Layout.key_dedupe, dedupe_avail st view),
         (fun () -> dedupe st view);
+      `Entry (c, "Repair...", Layout.nokey, repair_avail st view),
+        (fun () -> repair st view);
       `Separator, ignore;
       `Entry (c, "Undo", Layout.key_undo, undo_avail st view),
         (fun () -> undo st view);

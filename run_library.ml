@@ -17,13 +17,6 @@ let fmt = Printf.sprintf
 module Map = Map.Make(String)
 
 
-(* Spinner *)
-
-let spin_delay = 3
-let spins = [|"|"; "/"; "-"; "\\"|]
-let spin win = spins.(Api.Draw.frame win / spin_delay mod Array.length spins)
-
-
 (* Commands *)
 
 let rescan_all_avail (st : state) =
@@ -157,252 +150,25 @@ let create_viewlist (st : state) =
   ) st.library.current
 
 
-(* Playlist modification *)
-
-let playlist_avail (st : state) =
+let playlists_avail (st : state) =
   st.library.log = None &&
   match st.library.current with
   | None -> false
   | Some dir -> Data.exists_dir Data.is_playlist dir
 
-exception Cancel
+let playlists_modify f st dir_opt = Option.iter (f st) dir_opt
 
-let modify_playlist (st : state) dir_opt on_start on_pl =
-  Option.iter (fun dir ->
-    ignore (Domain.spawn (fun () ->
-      let win = Ui.window st.layout.ui in
-      let heading = [|"Playlist"; "Entry"; "Replacement"|], [] in
-      let columns = Array.map (fun w -> (w, `Left)) st.layout.repair_log_columns in
-      let log = Log.make (Some heading) columns
-        (fun log ->
-          st.layout.repair_log_columns <- Array.map fst log.columns;
-          Library.end_log st.library
-        )
-        (fun log (i_opt, _) ->
-          Option.iter (fun i ->
-            (* Right-click on log entry: open context menu *)
-            let lib = st.library in
-            let c = Ui.text_color st.layout.ui in
-            let re = Str.regexp "[][(){}',;:&?!$%@_*+-]" in
-            let search =
-              File.(remove_extension (name (Log.text log i 1))) |>
-              Str.global_replace re " " |>
-              String.split_on_char ' ' |> List.filter ((<>) "") |>
-              List.map Query.quote |> String.concat " "
-            in
-            Table.select log.table i i;
-            Run_menu.command_menu st (Array.append
-              [|
-                `Entry (c, "Show Playlist", Layout.nokey, true),
-                (fun () ->
-                  Table.deselect_all log.table;
-                  let dir_opt = Library.find_dir lib (Log.text log i 0) in
-                  Option.iter (fun dir ->
-                    Library.fold_dir lib dir false;
-                    Option.iter (fun i ->
-                      Library.select_dir lib i;
-                      st.layout.left_width <- dir.view.divider_width;
-                      st.layout.upper_height <- dir.view.divider_height;
-                    ) (Library.find_entry_dir lib dir);
-                  ) dir_opt;
-                  st.layout.repair_log_columns <- Array.map fst log.columns;
-                  Library.end_log st.library;
-                );
-                `Separator, ignore;
-              |]
-              (Array.init (Array.length lib.root.children + 1) (fun j ->
-                let dir = if j = 0 then lib.root else lib.root.children.(j - 1) in
-                `Entry (c, "Search for Song in " ^ dir.name, Layout.nokey, true),
-                fun () ->
-                  Table.deselect_all log.table;
-                  Option.iter (fun i ->
-                    Library.select_dir lib i;
-                    st.layout.left_width <- dir.view.divider_width;
-                    st.layout.upper_height <- dir.view.divider_height;
-                  ) (Library.find_entry_dir lib dir);
-                  Edit.set lib.search search;
-                  Library.set_search lib search;
-                  st.layout.repair_log_columns <- Array.map fst log.columns;
-                  Library.end_log st.library;
-              ))
-            )
-          ) i_opt
-        )
-      in
-      Library.start_log st.library log;
+let relative_playlist_avail = playlists_avail
+let relative_playlist = playlists_modify Run_view.relative_dir
 
-(*
-      let rec playlist_names (dir : dir) =
-        match dir.parent with
-        | None -> []
-        | Some parent ->
-          dir.name ::
-          playlist_names (Option.get (Library.find_dir st.library parent))
-      in
-      let playlist = String.concat "/" (List.rev (playlist_names dir)) in
-*)
-      try
-        on_start log;
+let local_playlist_avail = playlists_avail
+let local_playlist = playlists_modify Run_view.local_dir
 
-        let modifications = ref [] in
-        let info = ref "" in
-        Data.iter_dir (fun dir ->
-          if log.cancel then raise Cancel;
-          log.info <- !info ^ " " ^ spin win ^ " " ^ dir.path;
-          if Data.is_playlist dir then
-          (
-            try
-              let extend_log c s1 s2 =
-                Log.append log [|c, [|`Text dir.path; `Text s1; `Text s2|]|];
-              in
-              let items = M3u.parse_ext (File.load `Bin dir.path) in
-              let items' = on_pl extend_log ((:=) info) (File.dir dir.path) items in
-              let path_of (item : M3u.item) = item.path in
-              if List.map path_of items <> List.map path_of items' then
-                modifications := (dir.path, M3u.make_ext items') :: !modifications
-            with
-            | Cancel -> raise Cancel  (* propagate *)
-            | exn -> Storage.log_exn "file" exn ("modifying playlist " ^ dir.path)
-          )
-        ) dir;
-        log.info <- !info;
+let resolve_playlist_avail = playlists_avail
+let resolve_playlist = playlists_modify Run_view.resolve_dir
 
-        if !modifications = [] then
-        (
-          log.info <- "No playlist modifications required";
-          Library.error st.library "";
-        )
-        else
-        (
-          log.on_completion <- (fun log ->
-            log.on_completion <- ignore;
-            log.completed <- false;
-            Library.error st.library "";
-            (try
-              List.iter (fun (path, s) ->
-                if log.cancel then raise Cancel;
-                File.save_safe `Bin path s
-              ) (List.rev !modifications);
-            with
-            | Cancel -> Library.error st.library "Playlist modifications aborted"
-            | exn -> Storage.log_exn "file" exn ("modifying playlist " ^ dir.path)
-            );
-            Library.refresh_artists_albums_tracks st.library;
-            st.layout.repair_log_columns <- Array.map fst log.columns;
-            Library.end_log st.library;
-          );
-          log.completed <- true;
-        )
-      with Cancel -> Library.error st.library "Playlist modifications aborted"
-    ))
-  ) dir_opt
-
-let modify_playlist_simple f (st : state) dir_opt =
-  let count = ref 0 in
-  modify_playlist st dir_opt ignore
-    (fun extend_log update_info path items ->
-      let items' = f path items in
-      List.iter2 (fun (item : M3u.item) (item': M3u.item) ->
-        if item.path <> item'.path then
-        (
-          incr count;
-          extend_log (Ui.text_color st.layout.ui) item.path item'.path;
-        )
-      ) items items';
-      update_info (fmt "%d entries to be updated" !count);
-      items'
-    )
-
-let relative_playlist_avail = playlist_avail
-let relative_playlist = modify_playlist_simple M3u.relative
-
-let local_playlist_avail = playlist_avail
-let local_playlist = modify_playlist_simple M3u.local
-
-let resolve_playlist_avail = playlist_avail
-let resolve_playlist = modify_playlist_simple M3u.resolve
-
-
-(*
-let path_distance path1 path2 =
-  let rec dist names1 names2 =
-    match names1, names2 with
-    | name1::names1', name2::names2' when name1 = name2 -> dist names1' names2'
-    | _, _ -> List.length names1 + List.length names2
-  in dist (File.explode path1) (File.explode path2)
-*)
-
-let key_subst = List.map (fun (re, s) -> Str.regexp re, s)
-  [
-    "  +", " ";
-    "[?!]", "";
-    "[´`]", "'";
-    "[[{]", "(";
-    "[]}]", ")";
-    "\\u{2026}", "...";
-    "\\(-\\|\u{2012}\\|\u{2013}\\|\u{2014}\\)+", "-";
-  ]
-
-let file_key path =
-  Data.UCase.casefolding (File.name path) |> Data.UNorm.nfc |>
-  List.fold_right (fun (re, s) -> Str.global_replace re s) key_subst
-
-let repair_playlist_avail = playlist_avail
-let repair_playlist (st : state) dir_opt =
-  let map = ref Map.empty in
-  let success, fail, fuzzy = ref 0, ref 0, ref 0 in
-  modify_playlist st dir_opt
-    (fun log ->
-      let win = Ui.window st.layout.ui in
-      Data.iter_dir (fun dir ->
-        if log.cancel then raise Cancel;
-        log.info <- spin win;
-        if Data.is_dir dir then
-        (
-          Array.iter (fun (track : Data.track) ->
-            map := Map.add_to_list (file_key track.path) track !map
-          ) dir.tracks
-        )
-      ) st.library.root;
-      log.info <- "";
-    )
-    (fun extend_log update_info path items ->
-      List.map (fun item ->
-        let item = M3u.resolve_item path item in
-        if M3u.is_separator item.path || File.exists item.path then item else
-        let item', color, path' =
-          match Map.find_opt (file_key item.path) !map with
-          | None -> incr fail; item, Ui.error_color, "(not found)"
-          | Some [track] ->
-            incr success; {item with path = track.path}, Ui.text_color, track.path
-          | Some _ -> incr fuzzy; item, Ui.warn_color, "(multiple found)"
-(*
-            let score (track : track) =
-              let path_score = path_distance item.path track.path in
-              let time_item =
-                match item.info with Some info -> float info.time | None -> 0.0
-              and track_time =
-                match track.format with Some format -> format.time | None ->
-                match track.meta with Some meta -> meta.length | None -> 0.0
-              in
-              let time_score = abs (int_of_float (track_time - item_time)) in
-              path_score, time_score
-            in
-            let cmp track1 track2 = compare (score track1) (score track2) in
-            let tracks' = List.sort cmp tracks in
-            incr success; incr fuzzy; {item with path = (List.hd tracks').path}
-*)
-        in
-        let ss =
-          (if !success = 0 then [] else [fmt "%d entries can be repaired" !success]) @
-          (if !fail = 0 then [] else [fmt "%d entries not found" !fail]) @
-          (if !fuzzy = 0 then [] else [fmt "%d entries ambiguous" !fuzzy])
-        in
-        update_info (String.concat ", " ss);
-        extend_log (color st.layout.ui) item.path path';
-        item'
-      ) items
-    )
+let repair_playlist_avail = playlists_avail
+let repair_playlist = playlists_modify Run_view.repair_dir
 
 
 (* Drag & Drop *)
@@ -470,8 +236,7 @@ let run_browser (st : state) =
   let browser = lib.browser in
   let entries = browser.entries in  (* could change concurrently *)
 
-  if Library.rescan_busy lib <> None
-  && Api.Draw.frame win mod spin_delay = 0 then
+  if Library.rescan_busy lib <> None && Run_view.spin_changed st then
     Table.dirty browser;   (* to draw spinner *)
 
   let playing_path =
@@ -485,7 +250,7 @@ let run_browser (st : state) =
         path = dir.path ||
         dir.view.folded && String.starts_with ~prefix: dir.path path
     in
-    let spin = if not spinning then "" else " " ^ spin win
+    let spin = if not spinning then "" else " " ^ Run_view.spin st
     and folded = if dir.children = [||] then None else Some dir.view.folded
     and c =
       if dir.path = File.(dir playing_path // "")
@@ -1183,7 +948,7 @@ let run_view (st : state)
   );
 
   if busy then
-    spinner lay (spin win);
+    spinner lay (Run_view.spin st);
 
   if lay.popup_shown <> None && Api.Mouse.is_down `Left && mode = `Table then
   (

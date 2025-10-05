@@ -1647,6 +1647,73 @@ let reverse_all lib =
   )
 
 
+(* Playlist Repair *)
+
+type repair_map = track list Map.t
+
+let key_subst = List.map (fun (re, s) -> Str.regexp re, s)
+  [
+    "  +", " ";
+    "[?!]", "";
+    "[´`]", "'";
+    "[[{]", "(";
+    "[]}]", ")";
+    "\\u{2026}", "...";
+    "\\(-\\|\u{2012}\\|\u{2013}\\|\u{2014}\\)+", "-";
+  ]
+
+let repair_key path =
+  Data.UCase.casefolding (File.name path) |> Data.UNorm.nfc |>
+  List.fold_right (fun (re, s) -> Str.global_replace re s) key_subst
+
+let repair_map lib on_busy =
+  let map = ref Map.empty in
+  Data.iter_dir (fun dir ->
+    on_busy dir;
+    if Data.is_dir dir then
+    (
+      Array.iter (fun (track : Data.track) ->
+        map := Map.add_to_list (repair_key track.path) track !map
+      ) dir.tracks
+    )
+  ) lib.root;
+  !map
+
+
+(*
+let path_distance path1 path2 =
+  let rec dist names1 names2 =
+    match names1, names2 with
+    | name1::names1', name2::names2' when name1 = name2 -> dist names1' names2'
+    | _, _ -> List.length names1 + List.length names2
+  in dist (File.explode path1) (File.explode path2)
+*)
+
+let repair_path (map : repair_map) base_path path =
+  let path' = M3u.resolve_path base_path path in
+  if M3u.is_separator path || File.exists path' then `Ok else
+  match Map.find_opt (repair_key path') map with
+  | None -> `Missing 
+  | Some [track] -> `Replace track
+  | Some _ -> `Ambiguous
+(*
+    let score (track : track) =
+      let path_score = path_distance item.path track.path in
+      let time_item =
+        match item.info with Some info -> float info.time | None -> 0.0
+      and track_time =
+        match track.format with Some format -> format.time | None ->
+        match track.meta with Some meta -> meta.length | None -> 0.0
+      in
+      let time_score = abs (int_of_float (track_time - item_time)) in
+      path_score, time_score
+    in
+    let cmp track1 track2 = compare (score track1) (score track2) in
+    let tracks' = List.sort cmp tracks in
+    `Success (List.hd tracks').path
+*)
+
+
 (* Undo *)
 
 let unredo lib f list =

@@ -7,6 +7,7 @@ type info = {time : int; title : string}
 type item = {path : path; info : info option}
 
 
+(* Auxiliaries *)
 let exts = [".m3u"; ".m3u8"]
 
 let is_known_ext path =
@@ -17,6 +18,8 @@ let separator = "separator://"
 
 let is_separator path = String.starts_with ~prefix: "separator:" path
 
+
+(* Constructors *)
 
 let string_of_item {path; info} =
   match info with
@@ -30,6 +33,8 @@ let make_ext items =
 let make paths =
   String.concat "\n" paths ^ "\n"
 
+
+(* Parsing *)
 
 let bom = "\xef\xbb\xbf"
 
@@ -66,6 +71,8 @@ let parse_ext s =
       else {path = parse_path ln; info}::items, None
     ) (List.rev (lines s)) ([], None) |> fst |> List.rev
 
+
+(* Loading & Saving *)
 
 let local_path dir path =
   let path' = File.resolve dir path in
