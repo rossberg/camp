@@ -29,6 +29,8 @@ val insert : 'a t -> int -> entry array -> unit
 
 val text : 'a t -> int -> int -> string
 
+val complete : 'a t -> unit
+
 
 (* Validation *)
 

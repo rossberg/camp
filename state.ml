@@ -21,6 +21,7 @@ type t =
   menu : menu;
   mutable popup : [`Current | `Track of Data.track | `Album of Data.album];
   mutable saved : File.time;
+  mutable delayed : (unit -> unit) list;
 }
 
 
@@ -37,7 +38,10 @@ let make ui audio =
     menu = Menu.make ();
     popup = `Current;
     saved = Unix.gettimeofday ();
+    delayed = [];
   }
+
+let delay st f = st.delayed <- f :: st.delayed
 
 
 (* Focus *)

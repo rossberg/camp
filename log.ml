@@ -44,6 +44,11 @@ let text log i j =
   | `Text s -> s
   | `Image _ -> raise (Invalid_argument "Log.text")
 
+let complete log =
+  let on_completion = log.on_completion in
+  log.on_completion <- ignore;
+  on_completion log
+
 
 (* Validation *)
 

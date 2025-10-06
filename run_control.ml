@@ -28,45 +28,55 @@ let quit _st =
   exit 0
 
 let minimize (st : state) =
-  Api.Window.minimize (Ui.window st.layout.ui)
+  State.delay st (fun () ->
+    Api.Window.minimize (Ui.window st.layout.ui)
+  )
 
 let toggle_playlist (st : state) =
-  let lay = st.layout in
-  lay.playlist_shown <- not lay.playlist_shown;
-  if not lay.playlist_shown then Playlist.defocus st.playlist
+  State.delay st (fun () ->
+    let lay = st.layout in
+    lay.playlist_shown <- not lay.playlist_shown;
+    if not lay.playlist_shown then Playlist.defocus st.playlist
+  )
 
 let toggle_library (st : state) =
-  let lay = st.layout in
-  if lay.library_shown then
-  (
-    lay.library_shown <- false;
-    Library.defocus st.library;
-  )
-  else
-  (
-    lay.library_shown <- true;
-    (* Switch side if window exceeds respective border *)
-    if not lay.filesel_shown then
+  State.delay st (fun () ->
+    let lay = st.layout in
+    if lay.library_shown then
     (
-      let win = Ui.window lay.ui in
-      let wx, _ = Api.Window.pos win in
-      let sx, _ = Api.Window.min_pos win in
-      let sw, _ = Api.Window.max_size win in
-      if lay.library_side = `Left && wx <= sx then
-        lay.library_side <- `Right;
-      if lay.library_side = `Right && wx + Layout.control_w lay >= sx + sw then
-        lay.library_side <- `Left;
+      lay.library_shown <- false;
+      Library.defocus st.library;
     )
-  );
-  if not (lay.library_shown || lay.filesel_shown) then State.focus_playlist st
+    else
+    (
+      lay.library_shown <- true;
+      (* Switch side if window exceeds respective border *)
+      if not lay.filesel_shown then
+      (
+        let win = Ui.window lay.ui in
+        let wx, _ = Api.Window.pos win in
+        let sx, _ = Api.Window.min_pos win in
+        let sw, _ = Api.Window.max_size win in
+        if lay.library_side = `Left && wx <= sx then
+          lay.library_side <- `Right;
+        if lay.library_side = `Right && wx + Layout.control_w lay >= sx + sw then
+          lay.library_side <- `Left;
+      )
+    );
+    if not (lay.library_shown || lay.filesel_shown) then State.focus_playlist st
+  )
 
 let toggle_side (st : state) =
-  let lay = st.layout in
-  lay.library_side <- if lay.library_side = `Left then `Right else `Left
+  State.delay st (fun () ->
+    let lay = st.layout in
+    lay.library_side <- if lay.library_side = `Left then `Right else `Left
+  )
 
 let toggle_cover (st : state) =
-  let ctl = st.control in
-  ctl.cover <- not ctl.cover
+  State.delay st (fun () ->
+    let ctl = st.control in
+    ctl.cover <- not ctl.cover
+  )
 
 let toggle_fps (st : state) =
   let ctl = st.control in

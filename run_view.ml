@@ -339,7 +339,7 @@ type ('dir, 'pl, 'item) pl_ops =
   item_path : 'item -> path;
   set_item_path : 'item -> path -> 'item;
   set_item : 'item -> Data.track -> 'item;
-  final : unit -> unit;
+  final : bool -> unit;
 }
 
 exception Cancel
@@ -355,12 +355,12 @@ let modify ops (st : state) dir on_start on_pl =
       if ops.show_path then columns, Fun.id else
       Array.sub columns 1 2, Array.append [|st.layout.repair_log_columns.(0)|]
     in
-    let log = Log.make (Some heading) columns
-      (fun log ->
-        st.layout.repair_log_columns <- mk_columns (Array.map fst log.columns);
-        Library.end_log st.library;
-        ops.final ();
-      )
+    let close b (log : _ Log.t) =
+      st.layout.repair_log_columns <- mk_columns (Array.map fst log.columns);
+      Library.end_log st.library;
+      ops.final b;
+    in
+    let log = Log.make (Some heading) columns (close true)
       (fun log (i_opt, _) ->
         Option.iter (fun i ->
           (* Right-click on log entry: open context menu *)
@@ -388,9 +388,7 @@ let modify ops (st : state) dir on_start on_pl =
                     st.layout.upper_height <- dir.view.divider_height;
                   ) (Library.find_entry_dir lib dir);
                 ) dir_opt;
-                st.layout.repair_log_columns <-
-                  mk_columns (Array.map fst log.columns);
-                Library.end_log st.library;
+                close false log;
               );
               `Separator, ignore;
             |])
@@ -406,9 +404,7 @@ let modify ops (st : state) dir on_start on_pl =
                 ) (Library.find_entry_dir lib dir);
                 Edit.set lib.search search;
                 Library.set_search lib search;
-                st.layout.repair_log_columns <-
-                  mk_columns (Array.map fst log.columns);
-                Library.end_log st.library;
+                close false log;
             ))
           )
         ) i_opt
@@ -471,19 +467,16 @@ let modify ops (st : state) dir on_start on_pl =
       else
       (
         log.on_completion <- (fun log ->
-          try
-            log.on_completion <- ignore;
-            log.completed <- false;
-            Library.error st.library "";
+          log.completed <- false;
+          Library.error st.library "";
+          (try
             List.iter (fun f -> if log.cancel then raise Cancel; f ())
               (List.rev !modifications);
-            Library.refresh_artists_albums_tracks st.library;
-            st.layout.repair_log_columns <-
-              mk_columns (Array.map fst log.columns);
-            Library.end_log st.library;
-            ops.final ();
           with Cancel ->
             Library.error st.library "Playlist modifications aborted"
+          );
+          Library.refresh_artists_albums_tracks st.library;
+          close true log;
         );
         log.completed <- true;
       )
@@ -596,7 +589,7 @@ let modify_view modify (st : state) view all =
     item_path = (fun (track : Data.track) -> track.path);
     set_item_path = (fun (track : Data.track) path -> {track with path});
     set_item = (fun (track : Data.track) track' -> {track' with pos = track.pos});
-    final = (fun () -> if not lib_shown then Run_control.toggle_library st);
+    final = (fun b -> if b && not lib_shown then Run_control.toggle_library st);
   } st view
 
 let _relative_view = modify_view modify_relative

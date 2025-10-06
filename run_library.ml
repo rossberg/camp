@@ -1264,11 +1264,12 @@ let run_log_buttons (st : state) =
   let lib = st.library in
   let log = Option.get lib.log in
 
-  let ok = Layout.log_ok_button lay (if log.completed then Some true else None) in
+  let ok = log.completed in
+  let ok' = Layout.log_ok_button lay (if ok then Some true else None) in
   let cancel = Layout.log_cancel_button lay (Some false) in
 
   if cancel then log.cancel <- true;
-  if ok <> log.completed || cancel then log.on_completion log
+  if ok <> ok' || cancel then Log.complete log
 
 
 (* Runner *)

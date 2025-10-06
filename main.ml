@@ -62,6 +62,8 @@ and run' (st : state) =
     if menu_shown then Run_menu.run st;
     if popup_shown then Run_menu.run_popup st;
   );
+  List.iter (fun f -> f ()) st.delayed;
+  st.delayed <- [];
 
   (* Adjust font and grid size *)
   let text_delta =
