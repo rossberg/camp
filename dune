@@ -11,7 +11,7 @@
     run_menu run_filesel run_control run_view run_library run_playlist
     main
   )
-  (libraries unix directories raylib sqlite3 camomile audio_file)
+  (libraries unix directories camomile audio_file raylib)
   (link_deps (include link_deps.sexp))
   (link_flags (:include link_flags.sexp))
 )

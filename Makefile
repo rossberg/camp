@@ -3,9 +3,15 @@ APPNAME = Kamp
 VERSION = 0.2
 
 ASSETS = $(glob assets/*)
-WIN_DLLS = libwinpthread-1 libsqlite3-0
+OPAM_DEPS = dune camomile directories raylib
+WIN_DLLS = libwinpthread-1
 
-default:
+default: deps exe
+
+deps:
+	opam install $(OPAM_DEPS)
+
+exe:
 	dune build main.exe
 	ln -f _build/default/main.exe $(NAME).exe
 
