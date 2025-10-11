@@ -761,12 +761,14 @@ let queue (st : state) (module View : View) tracks =
 
 let export_avail _st (module View : View) =
   View.(length it > 0)
-let export st tracks =
+let export with_pos st tracks =
   let paths = Array.map (fun (track : Data.track) -> track.path) tracks in
   Run_filesel.filesel st `Dir `Write "" "" (fun dir_path ->
     Domain.spawn (fun () ->
-      Array.iter (fun src ->
-        let dst = File.(dir_path // name src) in
+      let w = int_of_float (Float.log10 (float (Array.length paths))) + 1 in
+      Array.iteri (fun i src ->
+        let pos = if with_pos then fmt "%0*d - " w i else "" in
+        let dst = File.(dir_path // pos ^ name src) in
         try File.copy src dst with (Sys_error _ | Unix.Unix_error _) as exn ->
           Storage.log_exn "file" exn ("while exporting " ^ dst);
           Library.error st.library ("Write error exporting file " ^ dst);
@@ -976,7 +978,9 @@ let edit_menu (st : state) view searches pos_opt =
     [|
       `Separator, ignore;
       `Entry (c, "Export" ^ quant ^ " Files...", Layout.key_export, export_avail st view),
-        (fun () -> export st (get_tracks ()));
+        (fun () -> export false st (get_tracks ()));
+      `Entry (c, "Export" ^ quant ^ " Files with Position...", Layout.key_export, export_avail st view),
+        (fun () -> export true st (get_tracks ()));
     |];
   ])
 
