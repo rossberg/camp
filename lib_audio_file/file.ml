@@ -193,9 +193,10 @@ let buf = Bytes.create chunk_size
 let big_flag = ref true
 
 let copy src_path dst_path =
-  if !big_flag then
+  let stat = Unix.stat src_path in
+  if !big_flag && stat.Unix.st_size > chunk_size then
   (
-    let perm = (Unix.stat src_path).Unix.st_perm in
+    let perm = stat.Unix.st_perm in
     let src = Unix.(openfile (escape src_path) [O_RDONLY] 0) in
     let dst = Unix.(openfile (escape dst_path) [O_RDWR; O_CREAT; O_TRUNC] perm) in
     let src_a = Bigarray.(Unix.map_file src char c_layout false [|-1|]) in

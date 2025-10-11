@@ -759,6 +759,21 @@ let queue (st : state) (module View : View) tracks =
   Playlist.deselect_all st.playlist;
   ignore (Control.switch_if_empty st.control (Some tracks.(0)))
 
+let export_avail _st (module View : View) =
+  View.(length it > 0)
+let export st tracks =
+  let paths = Array.map (fun (track : Data.track) -> track.path) tracks in
+  Run_filesel.filesel st `Dir `Write "" "" (fun dir_path ->
+    Domain.spawn (fun () ->
+      Array.iter (fun src ->
+        let dst = File.(dir_path // name src) in
+        try File.copy src dst with (Sys_error _ | Unix.Unix_error _) as exn ->
+          Storage.log_exn "file" exn ("while exporting " ^ dst);
+          Library.error st.library ("Write error exporting file " ^ dst);
+      ) paths
+    ) |> ignore
+  )
+
 
 let rescan_avail _st (module View : View) =
   View.(length it > 0)
@@ -958,6 +973,11 @@ let edit_menu (st : state) view searches pos_opt =
         queue_avail st view),
         (fun () -> queue st view (get_tracks ()));
     |]);
+    [|
+      `Separator, ignore;
+      `Entry (c, "Export" ^ quant ^ " Files...", Layout.key_export, export_avail st view),
+        (fun () -> export st (get_tracks ()));
+    |];
   ])
 
 
