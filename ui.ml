@@ -357,7 +357,7 @@ let finish ui margin (minw, minh) (maxw, maxh) =
         ui.drag_extra <- Resize {overshoot = ww' - ww'', wh' - wh''};
         ui.drag_origin <- add ui.drag_origin (dmx, dmy);  (* adjust for resize *)
 
-      | _ -> assert false
+      | _ -> ()
     )
   );
 
