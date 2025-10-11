@@ -475,7 +475,16 @@ let modify ops (st : state) dir on_start on_pl =
           with Cancel ->
             Library.error st.library "Playlist modifications aborted"
           );
-          Library.refresh_artists_albums_tracks st.library;
+
+          (*Library.refresh_artists_albums_tracks st.library;*)
+          let path = ops.dir_path dir in
+          if path <> "" then
+          (
+            Option.iter (fun dir ->
+              Library.rescan_dirs st.library `Quick [|dir|];
+            ) (Library.find_dir st.library path)
+          );
+
           close true log;
         );
         log.completed <- true;

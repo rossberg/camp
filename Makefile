@@ -16,7 +16,7 @@ exe:
 	ln -f _build/default/main.exe $(NAME).exe
 
 
-mac: $(NAME).exe $(ASSETS)
+mac: exe $(ASSETS)
 	mkdir -p $(NAME).app/Contents
 	cp -rf platform/mac/* assets $(NAME).exe $(NAME).app/Contents
 	chmod +x $(NAME).app/Contents/MacOS/run.sh
@@ -31,7 +31,7 @@ win: dir $(WIN_DLLS:%=$(APPNAME)/%.dll)
 
 linux: dir
 
-dir: $(NAME).exe $(ASSETS)
+dir: exe $(ASSETS)
 	mkdir -p $(APPNAME)
 	cp -rf $(NAME).exe assets $(APPNAME)
 
