@@ -142,13 +142,12 @@ and run' (st : state) =
   (* Save state regularly every second *)
   State.save_after st 1.0;
 
-  (* Trigger major GC all 600 frames (GC pacing doesn't keep up otherwise) *)
-  if Api.Draw.frame win mod 600 = 0 then
+  (* Trigger major GC all 60 frames (GC pacing doesn't keep up otherwise) *)
+  if Control.status st.control <> `Playing && Api.Draw.frame win mod 60 = 0 then
   (
     let gc = Gc.stat () in  (* triggers GC *)
     (* Trigger GC compaction if worthwhile (metric suggested by KC) *)
-    if Control.status st.control <> `Playing
-    && gc.live_words > 1024 * 1024 * 16
+    if gc.live_words > 1024 * 1024 * 16
     && gc.free_words / gc.live_words > 4 then
       Gc.compact ();
   )
