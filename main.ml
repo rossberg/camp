@@ -12,9 +12,25 @@ type state = State.t
 
 let queue_file = "queue.m3u"
 
+let t_start = Unix.gettimeofday ()
+let t_last = ref 0.0
+
 let rec run (st : state) =
   State.ok st;
   (try run' st with exn -> Storage.log_exn "internal" exn ""; exit 0);
+  if !App.debug_perf then
+  (
+    let t = Unix.gettimeofday () -. t_start in
+    if t >= !t_last +. 10.0 then
+    (
+      t_last := t;
+      let gc = Gc.quick_stat () in
+      Printf.printf
+        "[%s] GC memory %#d live, %#d total, %d collections, %d compactions\n%!"
+        (Data.string_of_time t)
+        gc.live_words gc.heap_words gc.major_collections gc.compactions;
+    )
+  );
   run st
 
 and run' (st : state) =
@@ -140,17 +156,7 @@ and run' (st : state) =
     Api.Window.reveal win;
 
   (* Save state regularly every second *)
-  State.save_after st 1.0;
-
-  (* Trigger major GC all 60 frames (GC pacing doesn't keep up otherwise) *)
-  if Control.status st.control <> `Playing && Api.Draw.frame win mod 60 = 0 then
-  (
-    let gc = Gc.stat () in  (* triggers GC *)
-    (* Trigger GC compaction if worthwhile (metric suggested by KC) *)
-    if gc.live_words > 1024 * 1024 * 16
-    && gc.free_words / gc.live_words > 4 then
-      Gc.compact ();
-  )
+  State.save_after st 1.0
 
 
 (* Startup *)
@@ -185,8 +191,14 @@ let _main =
     Arg.parse ["--dperf", Arg.Set App.debug_perf, "Log times"]
       (fun path -> paths := path :: !paths) "";
     let m3u = M3u.make (List.rev !paths) in
-    (* Work around seeming bug in GC scheduler. *)
+    (* Configure GC very aggressive to avoid giga bytes of memory usage *)
     Gc.(set {(get ()) with space_overhead = 10});
+    (* Trigger GC compaction if worthwhile *)
+    Domain.spawn (fun () ->
+      Unix.sleepf 3600.0;  (* roughly once a minute, assuming 60 fps *)
+      let gc = Gc.quick_stat () in
+      if gc.free_words > gc.live_words then Gc.compact ()
+    ) |> ignore;
     if Storage.exists queue_file then
     (
       (* TODO: this could race, should lock the file *)
