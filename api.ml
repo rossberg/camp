@@ -316,10 +316,10 @@ struct
   type raw = Raylib.Image.t
   type prepared = image
 
-  let load_raw path = Raylib.load_image path
+  let load_raw' path = Raylib.load_image path
 
   let mime_prefix = "image/"
-  let load_raw_from_memory mime data =
+  let load_raw_from_memory' mime data =
     if not (String.starts_with ~prefix: mime_prefix mime) then
       failwith "Image.load_from_memory";
     let n = String.length mime_prefix in
@@ -330,14 +330,26 @@ struct
     Raylib.image_from_image img
       (Raylib.Rectangle.create (float x) (float y) (float w) (float h))
 
+  let finalise raw =
+    Gc.finalise Raylib.unload_image raw;
+    raw
+
   let prepare () raw =
     let img = Raylib.load_texture_from_image raw in
     Raylib.set_texture_filter img Raylib.TextureFilter.Bilinear;
+    Gc.finalise Raylib.unload_texture img;
     img
 
-  let load () path = prepare () (load_raw path)
-  let load_from_memory () mime data =
-    prepare () (load_raw_from_memory mime data)
+  let prepare' raw' =
+    let img = prepare () raw' in
+    Raylib.unload_image raw';
+    img
+
+  let load_raw path = finalise (load_raw' path)
+  let load_raw_from_memory mime data = finalise (load_raw_from_memory' mime data)
+
+  let load () path = prepare' (load_raw' path)
+  let load_from_memory () mime data = prepare' (load_raw_from_memory' mime data)
 
   let size img = Raylib.Texture.(width img, height img)
 end
