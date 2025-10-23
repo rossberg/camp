@@ -55,7 +55,7 @@ type cover =
   | NoCover
   | ScanCover
   | ScannedCover of Meta.picture
-  | Cover of Api.image
+  | Cover of {image : Api.image; mutable last_use : int}
 
 type 'cache t =
 {
@@ -74,6 +74,7 @@ type 'cache t =
   albums : (album, 'cache) Table.t;
   tracks : (track, 'cache) Table.t;
   covers : cover Map.t Atomic.t;
+  mutable age_covers : (path * cover) Seq.t;
   scan : scan;
 }
 
@@ -283,6 +284,7 @@ let make () =
       albums = Table.make 0;
       tracks = Table.make 100;
       covers = Atomic.make Map.empty;
+      age_covers = Seq.empty;
       scan = make_scan ();
     }
   in
@@ -600,11 +602,33 @@ let load_browser lib =
 
 (* Covers *)
 
-let rec update_cover lib path cover =
+let rec update_cover lib f =
   let covers = Atomic.get lib.covers in
-  let covers' = Map.add path cover covers in
+  let covers' = f covers in
   if not (Atomic.compare_and_set lib.covers covers covers') then
-    update_cover lib path cover
+    update_cover lib f
+
+let rec collect_covers lib win =
+  let now = Api.Draw.frame win in
+  let rec progress n =
+    if n > 0 && Safe_queue.length lib.scan.cover_queue = 0 then
+      match Unix.sleepf 0.02; Seq.uncons lib.age_covers with
+      | None -> lib.age_covers <- Map.to_seq (Atomic.get lib.covers)
+      | Some ((path, cover), tail) ->
+        lib.age_covers <- tail;
+        (match cover with
+        | Cover {last_use; _} when now - last_use > 3600 * 5 (* ~5 min *) ->
+          update_cover lib (Map.remove path)
+        | _ -> ()
+        );
+        progress (n - 1)
+  in
+  progress 20;
+  collect_covers_cont lib win;
+  false
+
+and collect_covers_cont lib win =
+  Safe_queue.add (false, "", fun () -> collect_covers lib win) lib.scan.cover_queue
 
 let rescan_cover' lib path =
   try
@@ -616,14 +640,14 @@ let rescan_cover' lib path =
         | Some pic -> ScannedCover pic
       with Sys_error _ -> NoCover
     in
-    update_cover lib path cover;
+    update_cover lib (Map.add path cover);
     false
   with exn ->
     Storage.log_exn "file" exn ("scanning cover " ^ path);
     false
 
 let rescan_cover lib path =
-  update_cover lib path ScanCover;
+  update_cover lib (Map.add path ScanCover);
   Safe_queue.add (false, path, fun () -> rescan_cover' lib path)
     lib.scan.cover_queue
 
@@ -631,14 +655,18 @@ let load_cover lib win path =
   if M3u.is_separator path then None else
   match Map.find_opt path (Atomic.get lib.covers) with
   | Some (NoCover | ScanCover) -> None
-  | Some (Cover image) -> Some image
+  | Some (Cover cover) -> cover.last_use <- Api.Draw.frame win; Some cover.image
   | Some (ScannedCover pic) ->
     let cover, result =
       match Api.Image.load_from_memory win pic.mime pic.data with
       | exception _ -> NoCover, None
-      | image -> Cover image, Some image
-    in update_cover lib path cover; result
-  | None -> rescan_cover lib path; None
+      | image -> Cover {image; last_use = Api.Draw.frame win}, Some image
+    in update_cover lib (Map.add path cover); result
+  | None ->
+    (* Start collector job if this is the first cover loaded. *)
+    if Map.is_empty (Atomic.get lib.covers) then
+      collect_covers_cont lib win;
+    rescan_cover lib path; None
 
 
 let purge_covers lib =
@@ -691,7 +719,7 @@ let rescan_track' lib mode (track : track) =
         track.meta <- Some {meta with cover = None};
         track.status <- `Det;
         Option.iter (fun cover ->
-          update_cover lib track.path (ScannedCover cover)
+          update_cover lib (Map.add track.path (ScannedCover cover))
         ) meta.cover;
       )
     );

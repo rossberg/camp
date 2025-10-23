@@ -44,6 +44,7 @@ type 'cache t = private
   albums : (album, 'cache) Table.t;
   tracks : (track, 'cache) Table.t;
   covers : cover Map.Make(String).t Atomic.t;
+  mutable age_covers : (path * cover) Seq.t;
   scan : scan;
 }
 
