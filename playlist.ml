@@ -430,6 +430,10 @@ let reverse_all pl =
     save_playlist pl;
   )
 
+let reorder_all pl =
+  Array.iteri (fun i (track : track) -> track.pos <- i) pl.table.entries;
+  save_playlist pl
+
 
 (* Persistence *)
 

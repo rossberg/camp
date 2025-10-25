@@ -89,6 +89,7 @@ sig
 (*  val move_selected : Ui.cached t -> int -> unit*)
   val reverse_selected : Ui.cached t -> unit
   val reverse_all : Ui.cached t -> unit
+  val reorder_all : Ui.cached t -> unit
   val undo : Ui.cached t -> unit
   val redo : Ui.cached t -> unit
 end
@@ -617,8 +618,15 @@ let editable (st : state) (module View : View) =
   View.(table it) == st.playlist.table ||
   Library.current_is_playlist st.library
 
+let all_editable (st : state) (module View : View) =
+  View.(table it) == st.playlist.table ||
+  Library.current_is_playlist st.library &&
+  not (Table.has_selection st.library.artists) &&
+  not (Table.has_selection st.library.albums) &&
+  st.library.search.text = ""
+
 let separator_avail st view =
-  editable st view
+  all_editable st view
 let separator _st (module View : View) pos =
   View.(insert it) pos [|Data.make_separator ()|];
   View.deselect_other ()
@@ -629,7 +637,7 @@ let remove _st (module View : View) =
   View.(remove_selected it)
 
 let crop_avail st (module View : View) =
-  editable st (module View) &&
+  all_editable st (module View) &&
   View.(num_selected it > 0 && num_selected it < length it)
 let crop _st (module View : View) =
   View.(remove_unselected it)
@@ -658,7 +666,7 @@ let repair all st view =
   repair_view st view all
 
 let clear_avail st (module View : View) =
-  editable st (module View) && View.(length it > 0)
+  all_editable st (module View) && View.(length it > 0)
 let clear _st (module View : View) =
   View.(remove_all it)
 
@@ -687,7 +695,7 @@ let cut st view =
   remove st view
 
 let paste_avail (st : state) view =
-  editable st view && Api.Clipboard.read (Ui.window st.layout.ui) <> None
+  all_editable st view && Api.Clipboard.read (Ui.window st.layout.ui) <> None
 let paste (st : state) (module View : View) =
   let s = Option.value (Api.Clipboard.read (Ui.window st.layout.ui)) ~default: "" in
   let tracks = Track.of_m3u s in
@@ -703,6 +711,16 @@ let paste (st : state) (module View : View) =
     View.deselect_other ();
     update_control st;
   )
+
+
+let rec tracks_ordered (a : Data.track array) i =
+  i = Array.length a || a.(i).pos = i && tracks_ordered a (i + 1)
+
+let reorder_avail st (module View : View) =
+  all_editable st (module View) && not (tracks_ordered View.(tracks it) 0)
+let reorder _st (module View : View) =
+  View.(reorder_all it)
+
 
 let reverse_avail _st (module View : View) =
   View.(num_selected it > 1)
@@ -878,6 +896,14 @@ let list_menu (st : state) view searches =
         (fun () -> select_none st view);
       `Entry (c, "Invert Selection", Layout.key_invert, select_invert_avail st view),
         (fun () -> select_invert st view);
+    |];
+    (if View.(table it) == st.playlist.table then [||] else
+    [|
+      `Separator, ignore;
+      `Entry (c, "Reorder as Sorted", Layout.key_reorder, reorder_avail st view),
+        (fun () -> reorder st view);
+    |]);
+    [|
       `Separator, ignore;
       `Entry (c, "Search...", Layout.key_search, search_avail st),
         (fun () -> search st);

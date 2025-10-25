@@ -1695,6 +1695,11 @@ let reverse_all lib =
     save_playlist lib;
   )
 
+let reorder_all lib =
+  assert (current_is_playlist lib);
+  Array.iteri (fun i (track : track) -> track.pos <- i) lib.tracks.entries;
+  save_playlist lib
+
 
 (* Playlist Repair *)
 

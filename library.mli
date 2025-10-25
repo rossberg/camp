@@ -204,6 +204,7 @@ val remove_duplicates : 'a t -> bool -> unit
 val move_selected : 'a t -> int -> unit
 val reverse_selected : 'a t -> unit
 val reverse_all : 'a t -> unit
+val reorder_all : 'a t -> unit
 
 val undo : 'a t -> unit
 val redo : 'a t -> unit

@@ -65,7 +65,7 @@ let rename (st : state) i_opt =
 let reverse_avail (st : state) =
   match st.library.current with
   | None -> false
-  | Some dir -> Array.length dir.children > 1
+  | Some dir -> not dir.view.folded && Array.length dir.children > 1
 
 let reverse (st : state) =
   Option.iter (fun (dir : dir) ->
@@ -456,7 +456,7 @@ let run_browser (st : state) =
           (if Library.current_is_viewlist lib then "Viewlist" else "Playlist"),
           Layout.key_deldir, remove_list_avail st),
           (fun () -> remove_list st);
-        `Entry (c, "Reverse", Layout.key_revdir, reverse_avail st),
+        `Entry (c, "Reverse Children", Layout.key_revdir, reverse_avail st),
           (fun () -> reverse st);
         `Separator, ignore;
         `Entry (c, "Repair Playlist" ^ pls ^ "...", Layout.nokey, repair_playlist_avail st),

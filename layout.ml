@@ -193,6 +193,7 @@ let key_scaledn = shiftcmd '['
 
 let key_color = nokey
 
+let key_reorder = nokey
 let key_export = nokey
 
 let key_clear_search = nokey
