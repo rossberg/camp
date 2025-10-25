@@ -208,6 +208,7 @@ let key_namedir2 = ([], `Enter)
 let key_adddir = nokey
 let key_deldir = nokey
 let key_newdir = nokey
+let key_revdir = nokey
 let key_viewdir = nokey
 let key_scandir = nokey
 

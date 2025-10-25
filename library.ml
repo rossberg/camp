@@ -641,6 +641,7 @@ let rescan_cover' lib path =
       with Sys_error _ -> NoCover
     in
     update_cover lib (Map.add path cover);
+    (*Unix.sleepf 0.001;  (* avoid too much load *)*)
     false
   with exn ->
     Storage.log_exn "file" exn ("scanning cover " ^ path);
@@ -1054,6 +1055,12 @@ let move_dir lib dir pos pos' =
     Atomic.set lib.scan.changed true;
     refresh_browser lib
   )
+
+let reverse_dir lib dir =
+  let n = Array.length dir.children in
+  dir.children <- Array.init n (fun i -> dir.children.(n - i - 1));
+  save_dir lib dir;
+  refresh_browser lib
 
 
 let current_is p lib =

@@ -114,6 +114,7 @@ val remove_roots : 'a t -> path list -> bool
 val find_dir : 'a t -> path -> dir option
 val insert_dir : 'a t -> path -> dir option
 val remove_dir : 'a t -> path -> bool
+val reverse_dir : 'a t -> dir -> unit
 val move_dir : 'a t -> dir -> int -> int -> unit
 val save_dir : 'a t -> dir -> unit
 val fold_dir : 'a t -> dir -> bool -> unit
