@@ -836,31 +836,20 @@ struct
 
     audio
 
-  let retain = ref []
-
   let load _ path =
     if not (File.exists path) then silence () else
     (* Raylib can't handle UTF-8 file paths, so copy those to temp file. *)
-    (* Also, FLAC codec appears to keep files locked indefinitely on Windows. *)
+    (* Also, Raylib <= 5.5 keeps FLAC files locked indefinitely on Windows *)
+    (* (see https://github.com/raysan5/raylib/issues/5131). *)
     (* (Raylib.load_music_stream_from_memory is broken and segfaults.) *)
     let path' =
-      if String.uppercase_ascii (File.extension path) = ".FLAC"
+      if String.lowercase_ascii (File.extension path) = ".flac"
       || not (Unicode.is_ascii path)
       then Storage.copy_to_temp path
       else path
     in
     let format = try Format.read path' with _ -> Format.unknown in
     let music = Raylib.load_music_stream path' in
-    (* TODO: This is a work-around for a bug in Raylib < 5.5.
-     * We intentionally leak failed streams in order to avoid a double free
-     * segfault in Raylib. (See https://github.com/raysan5/raylib/issues/3889
-     * and https://github.com/raysan5/raylib/pull/3966). *)
-    if not (Raylib.Music.looping music) (* test failure in Raylib < 5.5 *) then
-    (
-      Raylib.Music.set_ctx_type music 0;  (* failure in Raylib >= 5.5 *)
-      retain := music :: !retain;
-    );
-    (* End of work-around. *)
     if Raylib.Music.ctx_type music = 0 then silence () else
     (
       (*Raylib.Music.set_looping music false;*)  (* TODO *)

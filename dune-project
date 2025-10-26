@@ -10,5 +10,5 @@
   (name kamp)
   (synopsis "Kamp")
   (description "A minimal KekeAmp")
-  (depends ocaml dune raylib)
+  (depends ocaml dune (raylib (>= 1.5.1)) camomile directories)
 )
