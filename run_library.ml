@@ -434,7 +434,7 @@ let run_browser (st : state) =
       if lib.current = None then true, " All" else false, "" in
     let pls =
       if lib.current = None || Library.current_is_playlist lib then "" else "s" in
-    Run_menu.command_menu st (Array.concat [
+    Run_menu.command_menu st (Iarray.concat [
       [|
         `Entry (c, "Rescan" ^ quant ^ " Quick", Layout.key_rescan,
           if all then rescan_all_avail st else rescan_one_avail st),
@@ -715,7 +715,7 @@ let run_browser (st : state) =
         `Entry (c, "Search for " ^ s, Layout.nokey, true),
           (fun () -> Edit.set lib.search s; Library.set_search lib s;
             State.focus_edit lib.search st)
-      ) history' |> Array.of_list)
+      ) history' |> Iarray.of_list)
     )
   )
 

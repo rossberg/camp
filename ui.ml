@@ -1117,7 +1117,7 @@ let draw_table ui area gw ch cols rows hscroll =
     (w - Iarray.fold_left (fun w (cw, _) -> w + cw + gw) (2 * mw - gw + 1) cols) in
   let font = font ui ch in
   (* Draw row background first since it must be unclipped. *)
-  Array.iteri (fun j (fg, inv, _contents) ->
+  Iarray.iteri (fun j (fg, inv, _contents) ->
     let cy = y + j * ch in
     let bg = if j mod 2 = 0 then `Black else `Gray 0x20 in
     let bg = if inv = `Inverted then fg else bg in
@@ -1129,7 +1129,7 @@ let draw_table ui area gw ch cols rows hscroll =
     let cw' = min cw (x + w - mw - !cx) in
     let left = max !cx (x + mw) in
     Draw.clip ui.win left y (cw' - max 0 (left - !cx)) h;
-    Array.iteri (fun j (fg, inv, contents) ->
+    Iarray.iteri (fun j (fg, inv, contents) ->
       let cy = y + j * ch in
       let bg = if j mod 2 = 0 then `Black else `Gray 0x20 in
       let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
@@ -1419,7 +1419,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
     if not ui.buffered || tab.dirty || Draw.frame ui.win mod 10 = 7 then
     (
       let rows =
-        Array.init (min page len) (fun i ->
+        Iarray.init (min page len) (fun i ->
           let i = tab.vscroll + i in
           let c, cols = pp_row i in
           let inv = if Table.is_selected tab i then `Inverted else `Regular in
@@ -1842,8 +1842,9 @@ let draw_grid ui area gw iw ch matrix =
   Draw.fill ui.win x y w h `Black;
   let mw = (gw + 1)/2 in
   let font = font ui ch in
-  let nrows = Array.length matrix in
-  let ncols = if nrows = 0 then 0 else Array.length matrix.(0) in
+  let nrows = Iarray.length matrix in
+  let ncols =
+    if nrows = 0 then 0 else Iarray.length (Iarray.get matrix 0) in
   for i = 0 to ncols - 1 do
     let cx = x + mw + i * (iw + gw) in
     Draw.clip ui.win (cx - 1) y (iw + 2) h;
@@ -1867,7 +1868,7 @@ let draw_grid ui area gw iw ch matrix =
           Draw.gradient ui.win (cx + iw - rw + 1) (cy + iw) rw ch
             (`Trans (bg, 0)) `Horizontal bg;
         );
-      ) matrix.(j).(i)
+      ) (Iarray.get (Iarray.get matrix j) i)
     done;
     Draw.unclip ui.win
   done
@@ -1957,8 +1958,8 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
     if not ui.buffered || tab.dirty then
     (
       let matrix =
-        Array.init (page_ceil / line) (fun j ->
-          Array.init line (fun i ->
+        Iarray.init (page_ceil / line) (fun j ->
+          Iarray.init line (fun i ->
             let k = tab.vscroll + j * line + i in
             if k >= len then None else
             let img, c, txt = pp_cell k in
@@ -2261,26 +2262,26 @@ let menu ui x y bw gw ch items =
 
   let font = font ui ch in
   let keys =
-    Array.map (function
+    Iarray.map (function
       | `Separator -> ""
       | `Entry (_, _, (mods, key), _) ->
         String.concat "+" Api.Key.(List.map modifier_name mods @ [key_name key])
     ) items
   in
   let lw = 2 * gw +
-    Array.fold_left (fun w -> function
+    Iarray.fold_left (fun w -> function
       | `Separator -> w
       | `Entry (_, s, _, _) -> max w (Draw.text_width ui.win ch font s + 1)
     ) 0 items
   and rw =
-    Array.fold_left (fun w s ->
+    Iarray.fold_left (fun w s ->
       max w (Draw.text_width ui.win ch font s + 1)
     ) 0 keys
   in
 
   let mw = (gw + 1)/2 in  (* inner width padding *)
   let w = lw + gw + rw + 2 * mw in
-  let h = ch * Array.length items in
+  let h = ch * Iarray.length items in
   let area = popup ui x y w h bw in
 
   let _, my = Mouse.pos ui.win in
@@ -2290,20 +2291,21 @@ let menu ui x y bw gw ch items =
   let cols : _ iarray = [|lw, `Left; rw, `Right|] in
   let c_sep = semilit_color (text_color ui) in
   let rows =
-    Array.mapi (fun j entry ->
+    Iarray.mapi (fun j entry ->
       (match entry with
       | `Separator -> c_sep, `Regular, [|`Text menu_separator; `Text ""|]
       | `Entry (c, txt, _, enabled) ->
         let c' = if enabled then c else semilit_color c in
         let inv = if enabled && i = j then `Inverted else `Regular in
-        c', inv, [|`Text txt; `Text keys.(j)|]
+        c', inv, [|`Text txt; `Text (Iarray.get keys j)|]
       : _ * _ * _ iarray)
     ) items
   in
 
   ui.modal <- false;
   let released = Mouse.is_released `Left || Mouse.is_pressed `Right in
-  let enabled i = match items.(i) with `Entry (_, _, _, b) -> b | _ -> false in
+  let enabled i =
+    match Iarray.get items i with `Entry (_, _, _, b) -> b | _ -> false in
   match table ui area gw ch cols rows 0 with
   | Some i, _ when released && enabled i -> `Click i
   | None, _ when released -> `Close
@@ -2312,6 +2314,6 @@ let menu ui x y bw gw ch items =
       | `Entry (_, _, modkey, _) -> key ui modkey true
       | `Separator -> false
     in
-    match Array.find_index key_pressed items with
+    match Iarray.find_index key_pressed items with
     | Some i -> `Click i
     | None -> ui.modal <- true; `None

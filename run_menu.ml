@@ -12,7 +12,7 @@ let menu' (st : state) items op =
 
 
 let command_menu st cmds =
-  menu' st (Array.map fst cmds) (fun k -> snd cmds.(k) ())
+  menu' st (Iarray.map fst cmds) (fun k -> snd (Iarray.get cmds k) ())
 
 
 let header_menu (st : state) (view : _ Library.view) i current_attrs unused_attrs =
@@ -32,7 +32,7 @@ let header_menu (st : state) (view : _ Library.view) i current_attrs unused_attr
         `Entry (c, "Add " ^ Library.attr_name a, Layout.nokey, true), a)
       |> List.sort compare in
     let sep = if removes = [] || adds = [] then [] else [`Separator] in
-    let items = Array.of_list List.(map fst removes @ sep @ map fst adds) in
+    let items = Iarray.of_list List.(map fst removes @ sep @ map fst adds) in
     menu' st items (fun k ->
       let n = if removes = [] then -1 (* no sep! *) else List.length removes in
       let attrs = Iarray.to_list view.columns in

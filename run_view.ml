@@ -370,7 +370,7 @@ let modify ops (st : state) dir on_start on_pl =
             List.map Query.quote |> String.concat " "
           in
           Table.select log.table i i;
-          Run_menu.command_menu st (Array.append
+          Run_menu.command_menu st (Iarray.append
             (if not ops.show_path then [||] else
             [|
               `Entry (c, "Show Playlist", Layout.nokey, true),
@@ -389,7 +389,7 @@ let modify ops (st : state) dir on_start on_pl =
               );
               `Separator, ignore;
             |])
-            (Array.init (Iarray.length lib.root.children + 1) (fun j ->
+            (Iarray.init (Iarray.length lib.root.children + 1) (fun j ->
               let dir =
                 if j = 0 then lib.root else Iarray.get lib.root.children (j - 1) in
               `Entry (c, "Search for Song in " ^ dir.name, Layout.nokey, true),
@@ -880,7 +880,7 @@ let list_menu (st : state) view searches =
 
   let c = Ui.text_color lay.ui in
   let all, quant, get_tracks = subject_tracks view in
-  Run_menu.command_menu st (Array.concat [
+  Run_menu.command_menu st (Iarray.concat [
     [|
       `Entry (c, "Tag" ^ quant, Layout.key_tag, tag_avail st view),
         (fun () -> tag st (get_tracks ()) (not all));
@@ -931,7 +931,7 @@ let edit_menu (st : state) view searches pos_opt =
   let pos = Option.value pos_opt ~default: View.(length it) in
   let c = Ui.text_color lay.ui in
   let all, quant, get_tracks = subject_tracks view in
-  Run_menu.command_menu st (Array.concat [
+  Run_menu.command_menu st (Iarray.concat [
     [|
       `Entry (c, "Insert Separator", Layout.key_sep, separator_avail st view),
         (fun () -> separator st view pos);

@@ -122,7 +122,7 @@ type cell = [`Text of string | `Image of Api.image]
 type row = color * inversion * cell iarray
 type heading = string iarray * sorting
 
-val table : t -> area -> int -> int -> column iarray -> row array -> int ->
+val table : t -> area -> int -> int -> column iarray -> row iarray -> int ->
   int option * int option
 val header : t -> area -> int -> column iarray -> heading -> int ->
   [`Click of int | `Resize of int iarray | `Reorder of int iarray | `Menu of int option | `None]
@@ -189,13 +189,15 @@ val browser :
     browser_action
 
 val browser_entry_text_area :
-  t -> area -> rich_table -> ('a, cached) Table.t -> int -> int -> bool option -> area
+  t -> area -> rich_table -> ('a, cached) Table.t -> int -> int ->
+  bool option -> area
 
 (* Grid *)
 
 val grid :
   t -> area -> int -> int -> int ->
-  (image * color * inversion * string) option array array -> (int * int) option
+  (image * color * inversion * string) option iarray iarray ->
+    (int * int) option
 
 type grid_table =
   { gutter_w : int;
@@ -230,5 +232,5 @@ val popup : t -> int -> int -> int -> int -> int -> area
 type menu_entry =
   [`Separator | `Entry of color * string * (modifier list * key) * bool]
 
-val menu : t -> int -> int -> int -> int -> int -> menu_entry array ->
+val menu : t -> int -> int -> int -> int -> int -> menu_entry iarray ->
   [`None | `Close | `Click of int]

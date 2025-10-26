@@ -6,7 +6,7 @@ type t =
 {
   mutable pos : int * int;
   mutable op : op option;
-  mutable items : Ui.menu_entry array;
+  mutable items : Ui.menu_entry iarray;
 }
 
 
@@ -37,7 +37,8 @@ type error = string
 let check msg b = if b then [] else [msg]
 
 let ok menu =
-  check "menu items when op" ((menu.op <> None) = (Array.length menu.items > 0)) @
+  check "menu items when op"
+    ((menu.op <> None) = (Iarray.length menu.items > 0)) @
   []
 
 
@@ -53,7 +54,7 @@ let print_intern menu =
   record (fun menu -> [
     "pos", pair nat nat menu.pos;
     "op", bool (menu.op <> None);
-    "items", nat (Array.length menu.items);
+    "items", nat (Iarray.length menu.items);
   ]) menu
 
 let parse_state _menu =

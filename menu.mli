@@ -6,7 +6,7 @@ type t = private
 {
   mutable pos : int * int;
   mutable op : op option;
-  mutable items : Ui.menu_entry array;
+  mutable items : Ui.menu_entry iarray;
 }
 
 
@@ -14,7 +14,7 @@ type t = private
 
 val make : unit -> t
 
-val set : t -> int * int -> op -> Ui.menu_entry array -> unit
+val set : t -> int * int -> op -> Ui.menu_entry iarray -> unit
 val clear : t -> unit
 
 
