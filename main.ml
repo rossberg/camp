@@ -192,7 +192,7 @@ let _main =
       (fun path -> paths := path :: !paths) "";
     let m3u = M3u.make (List.rev !paths) in
     (* Configure GC very aggressive to avoid giga bytes of memory usage *)
-    Gc.(set {(get ()) with space_overhead = 10});
+    Gc.(set {(get ()) with space_overhead = 20});
     (* Trigger GC compaction if worthwhile *)
     Domain.spawn (fun () ->
       Unix.sleepf 3600.0;  (* roughly once a minute, assuming 60 fps *)

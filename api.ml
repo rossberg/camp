@@ -207,18 +207,6 @@ end
 
 type font = {font : Raylib.Font.t; shader : Raylib.Shader.t option}
 
-(* Nasty hack to work around Raylib bindings bug
- * https://github.com/tjammer/raylib-ocaml/issues/63 *)
-module RaylibFont =
-struct
-  open Ctypes
-  type t
-  let t : t structure typ = structure "Font"
-  let _base_size = field t "baseSize" int
-  let glyph_count = field t "glyphCount" int
-  let () = seal t
-end
-
 module Font =
 struct
   let vertex_glsl =
@@ -281,9 +269,6 @@ struct
       let glyphs = Raylib.load_font_data data (String.length data) size
         Ctypes.(from_voidp int null) max Raylib.FontType.(to_int Sdf) in
       Raylib.Font.set_glyphs font (Ctypes.CArray.from_ptr glyphs (max - min));
-      (* Nasty hack to work around Raylib set_glyphs bug! *)
-      Ctypes.setf (Obj.magic font) RaylibFont.glyph_count (max - min);
-      assert (Ctypes.CArray.length (Raylib.Font.glyphs font) = max - min);
 
       let recs' = Ctypes.allocate (Ctypes.ptr Raylib.Rectangle.t) (Raylib.Font.recs font) in
       let atlas = Raylib.gen_image_font_atlas glyphs recs' max size 0 1 in
