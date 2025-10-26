@@ -39,7 +39,7 @@ type 'cache t =
   dirs : (dir, 'cache) Table.t;
   files : (file, 'cache) Table.t;
   input : Edit.t;
-  mutable columns : int array;
+  mutable columns : int iarray;
 }
 
 
@@ -312,11 +312,12 @@ let refresh_roots fs =
 
 (* Formatting *)
 
-let columns fs =
-  let w = fs.columns in
-  [|w.(0), `Left; w.(1), `Left; w.(2), `Right; w.(3), `Right|]
+let columns fs : _ iarray =
+  let w = Iarray.get fs.columns in
+  [|w 0, `Left; w 1, `Left; w 2, `Right; w 3, `Right|]
 
-let heading = [|""; "File Name"; "File Size"; "File Date"|], [1, `Asc]
+let heading : _ iarray * _ =
+  [|""; "File Name"; "File Size"; "File Date"|], [1, `Asc]
 
 let string_of_mode is_dir = if is_dir then "►" else "   "
 let string_of_size size = Data.fmt "%3.2f MB" (float size /. 2.0 ** 20.0)
@@ -328,7 +329,7 @@ let string_of_col file = function
   | 3 -> Data.string_of_date_time file.time
   | _ -> ""
 
-let row file = Array.init 4 (string_of_col file)
+let row file = Iarray.init 4 (string_of_col file)
 
 
 (* Ordering *)
@@ -365,7 +366,7 @@ let print_state fs =
   let open Text.Print in
   record (fun fs -> [
     "path", string fs.path;
-    "columns", array nat fs.columns;
+    "columns", iarray nat fs.columns;
   ]) fs
 
 let print_intern fs =
@@ -387,6 +388,6 @@ let parse_state fs =
   record (fun r ->
     apply (r $? "path") string
       (fun s -> set_dir_path fs s);
-    apply (r $? "columns") (array nat)
+    apply (r $? "columns") (iarray nat)
       (fun ws -> fs.columns <- ws);
   )

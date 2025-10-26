@@ -113,7 +113,7 @@ let run (st : state) =
     let c =
       if file.name = fs.input.text then `White else Ui.text_color lay.ui in
     (if file.accessible then c else Ui.semilit_color c),
-    Array.map (fun s -> `Text s) (Filesel.row file)
+    Iarray.map (fun s -> `Text s) (Filesel.row file)
   in
 
   let ok =
@@ -145,7 +145,7 @@ let run (st : state) =
 
     | `Resize ws ->
       (* Column resizing: update column widths *)
-      Array.blit ws 0 fs.columns 0 (Array.length ws);
+      fs.columns <- ws;
       false
 
     | `Reorder _ ->

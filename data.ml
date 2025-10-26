@@ -35,7 +35,7 @@ type any_attr = [ artist_attr | album_attr | track_attr | query_attr | `None ]
 
 type order = [`Asc | `Desc]
 type 'attr sorting = ('attr * order) list
-type 'attr columns = ('attr * int) array
+type 'attr columns = ('attr * int) iarray
 
 
 let file_attrs =
@@ -263,8 +263,7 @@ let make_separator () : track =
 
 
 let permute perm a =
-  let a' = Array.copy a in
-  Array.mapi_inplace (fun i _ -> a'.(perm.(i))) a
+  Iarray.init (Iarray.length a) (fun i -> Iarray.get a (Iarray.get perm i))
 
 
 (* String Conversion *)

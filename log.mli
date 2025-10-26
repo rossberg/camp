@@ -1,11 +1,11 @@
 (* Log state *)
 
-type entry = Ui.color * Ui.cell array
+type entry = Ui.color * Ui.cell iarray
 
 type 'cache t =
 {
   table : (entry, 'cache) Table.t;
-  columns : Ui.column array;
+  mutable columns : Ui.column iarray;
   mutable heading : Ui.heading option;
   mutable info : string;
   mutable cancel : bool;
@@ -17,7 +17,7 @@ type 'cache t =
 
 (* Constructor *)
 
-val make : Ui.heading option -> Ui.column array ->
+val make : Ui.heading option -> Ui.column iarray ->
   ('a t -> unit) -> ('a t -> int option * int option -> unit) -> 'a t
 
 

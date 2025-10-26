@@ -10,6 +10,8 @@ type dir = Library.dir
 
 let refresh_delay = 9
 
+let (.$()) = Iarray.get
+
 let clamp = Layout.clamp
 
 let fmt = Printf.sprintf
@@ -721,7 +723,7 @@ let run_browser (st : state) =
 (* Views *)
 
 let convert_sorting columns sorting =
-  let index attr = Array.find_index (fun (a, _) -> a = attr) columns in
+  let index attr = Iarray.find_index (fun (a, _) -> a = attr) columns in
   List.map (fun (attr, order) -> Option.get (index attr), order) sorting
 
 
@@ -746,9 +748,9 @@ let run_view (st : state)
   let mode = Option.get view.shown in
   let old_selected = tab.selected in
   let cols =
-    Array.map (fun (attr, cw) -> cw, Library.attr_align attr) view.columns in
+    Iarray.map (fun (attr, cw) -> cw, Library.attr_align attr) view.columns in
   let headings =
-    Array.map (fun (attr, _) -> Library.attr_name attr) view.columns in
+    Iarray.map (fun (attr, _) -> Library.attr_name attr) view.columns in
 
   if mode = `Grid && Api.Draw.frame win mod refresh_delay = 0 then
     Table.dirty tab;  (* to capture cover updates *)
@@ -757,7 +759,7 @@ let run_view (st : state)
   let pp_row i =
     let entry = entries.(i) in
     color_of entry,
-    Array.map (fun (attr, _) ->
+    Iarray.map (fun (attr, _) ->
       match (attr :> Data.any_attr) with
       | `Cover ->
         if not lib.covers_shown then `Text "" else
@@ -794,7 +796,7 @@ let run_view (st : state)
 
   | `Sort i ->
     (* Click on column header: reorder view accordingly *)
-    let attr = fst view.columns.(i) in
+    let attr = fst view.columns.$(i) in
     let k =
       Bool.to_int (Api.Key.is_modifier_down `Shift) +
       Bool.to_int (Api.Key.is_modifier_down `Alt) * 2 +
@@ -806,12 +808,13 @@ let run_view (st : state)
 
   | `Resize ws ->
     (* Column resizing: update column widths *)
-    Array.mapi_inplace (fun i (attr, _) -> attr, ws.(i)) view.columns;
+    view.columns <-
+      Iarray.mapi (fun i (attr, _) -> attr, ws.$(i)) view.columns;
     Option.iter (Library.save_dir lib) lib.current;
 
   | `Reorder perm ->
     (* Column reordering: update columns *)
-    Data.permute perm view.columns;
+    view.columns <- Data.permute perm view.columns;
     Option.iter (Library.save_dir lib) lib.current;
 
   | `Click (Some i, _)
@@ -837,7 +840,8 @@ let run_view (st : state)
       State.focus_library tab st;
       match loc with
       | Some i, Some j
-        when mode = `Table && (fst view.columns.(j) :> Data.any_attr) = `Cover ->
+        when mode = `Table
+        && (fst view.columns.$(j) :> Data.any_attr) = `Cover ->
         (* Click on cover cell: open cover popup *)
         Run_menu.popup st (popup entries.(i));
       (* Don't do cover pop-up on grid, since that interferes with drag & drop
@@ -938,7 +942,7 @@ let run_view (st : state)
     let search =
       match i_opt, j_opt with
       | Some i, Some j ->
-        let s = attr_string entries.(i) (fst view.columns.(j)) in
+        let s = attr_string entries.(i) (fst view.columns.$(j)) in
         if s = "" then [] else [s]
       | _, _ -> []
     in
@@ -950,12 +954,12 @@ let run_view (st : state)
   | `HeadMenu i_opt ->
     (* Right-click on header: header menu *)
     State.focus_library tab st;
-    let used_attrs = Array.to_list (Array.map fst view.columns) in
+    let used_attrs = Iarray.to_list (Iarray.map fst view.columns) in
     let unused_attrs = Data.diff_attrs all_attrs used_attrs in
     let i, current_attrs =
       match i_opt with
-      | None -> Array.length view.columns, []
-      | Some i -> i, [fst view.columns.(i)]
+      | None -> Iarray.length view.columns, []
+      | Some i -> i, [fst view.columns.$(i)]
     in
     Run_menu.header_menu st view i current_attrs unused_attrs
   );
@@ -1147,13 +1151,14 @@ let run_log (st : state) =
       in
       log.heading <- Some (headers, [i, order']);
       let coeff = match order' with `Asc -> +1 | `Desc -> -1 in
-      let cmp (_, x) (_, y) = coeff * compare x.(i) y.(i) in
+      let cmp (_, x) (_, y) = coeff * compare x.$(i) y.$(i) in
       Array.stable_sort cmp log.table.entries;
     ) log.heading;
 
   | `Resize ws ->
     (* Column resizing: update column widths *)
-    Array.mapi_inplace (fun i (_, align) -> ws.(i), align) log.columns;
+    log.columns <-
+      Iarray.mapi (fun i (_, align) -> ws.$(i), align) log.columns;
 
   | `Menu loc ->
     (* Right-click: run menu handler; ignore possible selection change *)

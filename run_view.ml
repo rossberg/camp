@@ -344,15 +344,16 @@ let punct_re = Str.regexp "[][(){}',;:&?!$%@_0-9*+-]"
 
 let modify ops (st : state) dir on_start on_pl =
   ignore (Domain.spawn (fun () ->
-    let header1 = if ops.show_path then [|"Playlist"|] else [||] in
-    let heading = Array.append header1 [|"Entry"; "Replacement"|], [] in
-    let columns = Array.map (fun w -> (w, `Left)) st.layout.repair_log_columns in
+    let header1 : _ iarray = if ops.show_path then [|"Playlist"|] else [||] in
+    let heading = Iarray.append header1 [|"Entry"; "Replacement"|], [] in
+    let columns = Iarray.map (fun w -> (w, `Left)) st.layout.repair_log_columns in
     let columns, mk_columns =
       if ops.show_path then columns, Fun.id else
-      Array.sub columns 1 2, Array.append [|st.layout.repair_log_columns.(0)|]
+      Iarray.sub columns ~pos: 1 ~len: 2,
+      Iarray.append [|Iarray.get st.layout.repair_log_columns 0|]
     in
     let close b (log : _ Log.t) =
-      st.layout.repair_log_columns <- mk_columns (Array.map fst log.columns);
+      st.layout.repair_log_columns <- mk_columns (Iarray.map fst log.columns);
       Library.end_log st.library;
       ops.final b;
     in
@@ -436,9 +437,9 @@ let modify ops (st : state) dir on_start on_pl =
             | exn -> Storage.log_exn "file" exn ("modifying playlist " ^ path)
           in
           protect (fun () ->
-            let cell1 = if ops.show_path then [|`Text path|] else [||] in
+            let cell1 : _ iarray = if ops.show_path then [|`Text path|] else [||] in
             let extend_log c s1 s2 =
-              Log.append log [|c, Array.append cell1 [|`Text s1; `Text s2|]|];
+              Log.append log [|c, Iarray.append cell1 [|`Text s1; `Text s2|]|];
             in
             let items = ops.load dir in
             let items' =

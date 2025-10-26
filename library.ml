@@ -173,7 +173,7 @@ let tracks_columns : track_attr columns =
 
 let playlist_sorting = [`Pos, `Asc]
 let playlist_columns : track_attr columns =
-  Array.append [|`Pos, 20|] tracks_columns
+  Iarray.append [|`Pos, 20|] tracks_columns
 
 let make_view shown columns sorting : _ view =
   { shown; columns; sorting }
@@ -195,7 +195,7 @@ let make_views pth : views =
   }
 
 let copy_view (view : _ view) =
-  { view with columns = Array.copy view.columns }
+  { view with shown = view.shown }
 
 let copy_views (views : views) =
   { views with
@@ -477,7 +477,7 @@ struct
   let order = enum order_enum
 
   let sorting attr = list (pair attr order)
-  let columns attr = array (pair attr nat)
+  let columns attr = iarray (pair attr nat)
 
   let view attr =
     record (fun (x : 'a view) -> [
@@ -533,7 +533,7 @@ struct
   let order = enum Print.order_enum
 
   let sorting attr = list (pair attr order)
-  let columns attr = array (pair attr nat)
+  let columns attr = iarray (pair attr nat)
 
   let view attr : t -> 'a view =
     record (fun r -> {

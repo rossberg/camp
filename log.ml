@@ -1,11 +1,11 @@
 (* Log state *)
 
-type entry = Ui.color * Ui.cell array
+type entry = Ui.color * Ui.cell iarray
 
 type 'cache t =
 {
   table : (entry, 'cache) Table.t;
-  columns : Ui.column array;
+  mutable columns : Ui.column iarray;
   mutable heading : Ui.heading option;
   mutable info : string;
   mutable cancel : bool;
@@ -40,7 +40,7 @@ let insert log i entries =
 let append log entries = insert log (length log) entries
 
 let text log i j =
-  match (snd log.table.entries.(i)).(j) with
+  match Iarray.get (snd log.table.entries.(i)) j with
   | `Text s -> s
   | `Image _ -> raise (Invalid_argument "Log.text")
 
@@ -59,10 +59,11 @@ let check_opt opt f = Option.value (Option.map f opt) ~default: []
 
 let ok log =
   check_opt log.heading (fun (headers, _) ->
-    check "consistent headers" (Array.length headers = Array.length log.columns)
+    check "consistent headers"
+      (Iarray.length headers = Iarray.length log.columns)
   ) @
   check "consistent table"
     (Array.for_all (fun (_, cells) ->
-      Array.length cells = Array.length log.columns
+      Iarray.length cells = Iarray.length log.columns
     ) log.table.entries) @
   []

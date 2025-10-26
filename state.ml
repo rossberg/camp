@@ -155,7 +155,7 @@ let print_layout ?(raw = false) lay =
     "directories_width", nat lay.directories_width;
     "album_grid", nat lay.album_grid;
     "track_grid", nat lay.track_grid;
-    "repair_cols", array nat lay.repair_log_columns;
+    "repair_cols", iarray nat lay.repair_log_columns;
     "popup_size", nat lay.popup_size;
   ]) lay
 
@@ -210,8 +210,8 @@ let parse_layout lay pos =  (* assumes playlist and library already loaded *)
       (fun w -> lay.album_grid <- w);
     apply (r $? "track_grid") (num min_grid_size max_grid_size)
       (fun w -> lay.track_grid <- w);
-    apply (r $? "repair_cols") (array (num 10 1000))
-      (fun ws -> if Array.length ws = 3 then lay.repair_log_columns <- ws);
+    apply (r $? "repair_cols") (iarray (num 10 1000))
+      (fun ws -> if Iarray.length ws = 3 then lay.repair_log_columns <- ws);
     apply (r $? "popup_size") (num min_popup_size max_popup_size)
       (fun w -> lay.popup_size <- w);
   )

@@ -35,7 +35,7 @@ let header_menu (st : state) (view : _ Library.view) i current_attrs unused_attr
     let items = Array.of_list List.(map fst removes @ sep @ map fst adds) in
     menu' st items (fun k ->
       let n = if removes = [] then -1 (* no sep! *) else List.length removes in
-      let attrs = Array.to_list view.columns in
+      let attrs = Iarray.to_list view.columns in
       let attrs' =
         match compare k n with
         | -1 ->  (* remove entry *)
@@ -49,7 +49,7 @@ let header_menu (st : state) (view : _ Library.view) i current_attrs unused_attr
         | _ ->  (* separator *)
           attrs
       in
-      view.columns <- Array.of_list attrs';
+      view.columns <- Iarray.of_list attrs';
       Option.iter (Library.save_dir st.library) st.library.current
     )
   )

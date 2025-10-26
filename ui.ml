@@ -1104,8 +1104,8 @@ type order = [`Asc | `Desc]
 type sorting = (int * order) list
 type column = int * align
 type cell = [`Text of string | `Image of image]
-type row = color * inversion * cell array
-type heading = string array * sorting
+type row = color * inversion * cell iarray
+type heading = string iarray * sorting
 
 let table_pad gw = (gw + 1)/2
 
@@ -1114,7 +1114,7 @@ let draw_table ui area gw ch cols rows hscroll =
   Draw.fill ui.win x y w h `Black;
   let mw = table_pad gw in  (* inner width padding *)
   let flex = max 0
-    (w - Array.fold_left (fun w (cw, _) -> w + cw + gw) (2 * mw - gw + 1) cols) in
+    (w - Iarray.fold_left (fun w (cw, _) -> w + cw + gw) (2 * mw - gw + 1) cols) in
   let font = font ui ch in
   (* Draw row background first since it must be unclipped. *)
   Array.iteri (fun j (fg, inv, _contents) ->
@@ -1124,7 +1124,7 @@ let draw_table ui area gw ch cols rows hscroll =
     if bg <> `Black then Draw.fill ui.win x cy w ch bg
   ) rows;
   let cx = ref (x + mw - hscroll) in
-  Array.iteri (fun i (cw, align) ->
+  Iarray.iteri (fun i (cw, align) ->
     let cw = if cw < 0 then flex / (- cw) else cw in
     let cw' = min cw (x + w - mw - !cx) in
     let left = max !cx (x + mw) in
@@ -1133,7 +1133,7 @@ let draw_table ui area gw ch cols rows hscroll =
       let cy = y + j * ch in
       let bg = if j mod 2 = 0 then `Black else `Gray 0x20 in
       let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
-      (match contents.(i) with
+      (match Iarray.get contents i with
       | `Text text ->
         let tw = Draw.text_width ui.win ch font text in
         let dx =
@@ -1143,7 +1143,8 @@ let draw_table ui area gw ch cols rows hscroll =
           | `Right ->
             (* Add extra padding if back to back with a left-aligned column *)
             cw - tw -
-              (if i + 1 < Array.length cols && snd cols.(i + 1) = `Left then 4 else 0)
+              ( if i + 1 < Iarray.length cols
+                && snd (Iarray.get cols (i + 1)) = `Left then 4 else 0 )
         in
         Draw.text ui.win (!cx + max 0 dx) cy ch fg font text;
         if tw >= cw then
@@ -1167,8 +1168,8 @@ let draw_table ui area gw ch cols rows hscroll =
 let find_column gw cols hscroll dx =
   let mw = table_pad gw in
   let rec find i cx =
-    if i = Array.length cols then None else
-    let cx' = cx + fst cols.(i) in
+    if i = Iarray.length cols then None else
+    let cx' = cx + fst (Iarray.get cols i) in
     if dx >= cx && dx < cx' then Some i else
     if dx >= cx' then find (i + 1) (cx' + gw) else
     None
@@ -1178,8 +1179,8 @@ let find_gutter gw cols hscroll dx =
   let mw = table_pad gw in
   let gutter_tolerance = 5 in
   let rec find i cx =
-    if i = Array.length cols then `None else
-    let cx' = cx + fst cols.(i) in
+    if i = Iarray.length cols then `None else
+    let cx' = cx + fst (Iarray.get cols i) in
     if abs (cx' + gw/2 - dx) < gutter_tolerance then `Gutter i else
     if cx' + gw/2 < dx then find (i + 1) (cx' + gw) else
     `Header i
@@ -1205,13 +1206,13 @@ type drag += Header_reorder of {mouse_x : int; col : int; moved : bool}
 
 let header ui area gw cols (titles, sorting) hscroll =
   let (x, y, w, h) as r, status = widget ui area no_modkey in
-  let texts = Array.map (fun s -> `Text s) titles in
+  let texts = Iarray.map (fun s -> `Text s) titles in
   ignore (table ui area gw h cols [|text_color ui, `Inverted, texts|] hscroll);
 
   let mw = table_pad gw in
   Draw.clip ui.win x y w h;
   ignore (
-    Array.fold_left (fun cx (cw, _) ->
+    Iarray.fold_left (fun cx (cw, _) ->
       Draw.fill ui.win (cx + cw + gw/2 - hscroll) y 1 h `Black;
       cx + cw + gw;
     ) (x + mw) cols - x - mw
@@ -1219,7 +1220,7 @@ let header ui area gw cols (titles, sorting) hscroll =
 
   List.iteri (fun k (i, order) ->
     let rec find_header j cx =
-      let cw = fst cols.(j) in
+      let cw = fst (Iarray.get cols j) in
       if j < i then find_header (j + 1) (cx + cw + gw) else
       cx, cw
     in
@@ -1271,12 +1272,12 @@ let header ui area gw cols (titles, sorting) hscroll =
     Mouse.set_cursor ui.win (`Resize `E_W);
     let dx = mx - mouse_x in
     if dx = 0 then `None else
-    let ws = Array.map fst cols in
+    let ws = Array.init (Iarray.length cols) (fun i -> fst (Iarray.get cols i)) in
     ws.(i) <- max 0 (ws.(i) + dx);
-    if i + 1 < Array.length cols && Key.is_modifier_down `Shift then
+    if i + 1 < Array.length ws && Key.is_modifier_down `Shift then
       ws.(i + 1) <- max 0 (ws.(i + 1) - dx);
     ui.drag_extra <- Header_resize {mouse_x = mx; col = i};
-    `Resize ws
+    `Resize (Iarray.of_array ws)
 
   | Header_reorder {mouse_x; col = i; moved} when status = `Pressed ->
     if moved then Mouse.set_cursor ui.win `Point;
@@ -1288,13 +1289,14 @@ let header ui area gw cols (titles, sorting) hscroll =
     | `Header j ->
       if i = j then `None else
       let perm =
-        Array.init (Array.length cols) (fun k ->
+        Iarray.init (Iarray.length cols) (fun k ->
           if k = j then i else
           if k >= min i j && k <= max i j then k + j - i else
           k
         )
       in
-      let cols' = Array.mapi (fun i _ -> cols.(perm.(i))) cols in
+      let cols' =
+        Iarray.mapi (fun i _ -> Iarray.get cols (Iarray.get perm i)) cols in
       (* Ignore change if new position is not stable. *)
       match find_gutter cols' mx with
       | `Header k when k = j ->
@@ -1336,8 +1338,8 @@ type table_action =
 type rich_table_action =
   [ table_action
   | `Sort of int
-  | `Resize of int array   (* new sizes *)
-  | `Reorder of int array  (* permutation *)
+  | `Resize of int iarray   (* new sizes *)
+  | `Reorder of int iarray  (* permutation *)
   | `HeadMenu of int option
   ]
 
@@ -1583,7 +1585,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
     (* Horizontal scrollbar *)
     let result =
       if geo.scroll_h = 0 then result else
-      let vw = Array.fold_left (fun w (cw, _) -> w + cw + geo.gutter_w) 0 cols in
+      let vw = Iarray.fold_left (fun w (cw, _) -> w + cw + geo.gutter_w) 0 cols in
       let vw' = max vw (tab.hscroll + w) in
       let ext = if vw' = 0 then 1.0 else min 1.0 (float w /. float vw') in
       let pos = if vw' = 0 then 0.0 else float tab.hscroll /. float vw' in
@@ -1708,7 +1710,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
             let rec find i =
               if i = len then i else
               let _, row = pp_row i in  (* TODO: only pp relevant column *)
-              match row.(col) with
+              match Iarray.get row col with
               | `Text s' when Data.compare_utf_8 s s' <= 0 -> i
               | _ -> find (i + 1)
             in
@@ -1779,8 +1781,8 @@ let browser_entry_text_area ui area geo (tab : _ Table.t) i nest folded =
   (p, x + dx, y + dy, (if w < 0 then w else w - dx), geo.row_h)
 
 let browser ui area geo (tab : _ Table.t) pp_entry =
-  let cols = [|-1, `Left|] in
-  let pp_row i =
+  let cols : _ iarray = [|-1, `Left|] in
+  let pp_row i : _ * _ iarray =
     let nest, folded, c, name = pp_entry i in
     c, [|`Text (browser_pp_pre nest folded ^ name)|]
   in
@@ -2087,7 +2089,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
       match header_opt with
       | None -> result
       | Some heading ->
-        let cols = Array.map (Fun.const (40, `Left)) (fst heading) in
+        let cols = Iarray.map (Fun.const (40, `Left)) (fst heading) in
         match header ui header_area geo.gutter_w cols heading tab.hscroll with
         | `Click i -> `Sort i
         | `Resize ws -> `Resize ws
@@ -2285,15 +2287,17 @@ let menu ui x y bw gw ch items =
   let _, y', _, _ = dim ui area in
   let i = if mouse_inside ui area then (my - y')/ch else -1 in
 
-  let cols = [|lw, `Left; rw, `Right|] in 
+  let cols : _ iarray = [|lw, `Left; rw, `Right|] in
   let c_sep = semilit_color (text_color ui) in
   let rows =
-    Array.mapi (fun j -> function
+    Array.mapi (fun j entry ->
+      (match entry with
       | `Separator -> c_sep, `Regular, [|`Text menu_separator; `Text ""|]
       | `Entry (c, txt, _, enabled) ->
         let c' = if enabled then c else semilit_color c in
         let inv = if enabled && i = j then `Inverted else `Regular in
         c', inv, [|`Text txt; `Text keys.(j)|]
+      : _ * _ * _ iarray)
     ) items
   in
 

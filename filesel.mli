@@ -37,7 +37,7 @@ type 'cache t =
   dirs : (dir, 'cache) Table.t;
   files : (file, 'cache) Table.t;
   input : Edit.t;
-  mutable columns : int array;
+  mutable columns : int iarray;
 }
 
 
@@ -102,6 +102,6 @@ val current_sel_is_dir : 'a t -> bool
 
 (* Formatting *)
 
-val columns : 'a t -> (int * [> `Left | `Right]) array
-val row : file -> string array
-val heading : string array * (int * [`Asc | `Desc]) list
+val columns : 'a t -> (int * [> `Left | `Right]) iarray
+val row : file -> string iarray
+val heading : string iarray * (int * [`Asc | `Desc]) list

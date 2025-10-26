@@ -59,12 +59,12 @@ let run (st : state) =
   let s_time = String.make !digits_time '0' ^ ":00" in
   let cw_pos = Api.Draw.text_width win lay.text font s_pos + 1 in
   let cw_time = Api.Draw.text_width win lay.text font s_time + 1 in
-  let cols = [|cw_pos, `Right; -1, `Left; cw_time, `Right|] in
+  let cols : _ iarray = [|cw_pos, `Right; -1, `Left; cw_time, `Right|] in
 
   if Api.Draw.frame win mod refresh_delay = 0 then
     Table.dirty tab;  (* to capture track updates *)
 
-  let pp_row i =
+  let pp_row i : _ * _ iarray =
     let track = tab.entries.(i) in
     if now -. track.file.age > st.config.delay_track_update then
       Track.update track;

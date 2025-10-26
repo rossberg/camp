@@ -119,13 +119,13 @@ type order = [`Asc | `Desc]
 type sorting = (int * order) list
 type column = int * align
 type cell = [`Text of string | `Image of Api.image]
-type row = color * inversion * cell array
-type heading = string array * sorting
+type row = color * inversion * cell iarray
+type heading = string iarray * sorting
 
-val table : t -> area -> int -> int -> column array -> row array -> int ->
+val table : t -> area -> int -> int -> column iarray -> row array -> int ->
   int option * int option
-val header : t -> area -> int -> column array -> heading -> int ->
-  [`Click of int | `Resize of int array | `Reorder of int array | `Menu of int option | `None]
+val header : t -> area -> int -> column iarray -> heading -> int ->
+  [`Click of int | `Resize of int iarray | `Reorder of int iarray | `Menu of int option | `None]
 
 type cached
 
@@ -152,8 +152,8 @@ type table_action =
 type rich_table_action =
   [ table_action
   | `Sort of int
-  | `Resize of int array   (* new sizes *)
-  | `Reorder of int array  (* permutation *)
+  | `Resize of int iarray   (* new sizes *)
+  | `Reorder of int iarray  (* permutation *)
   | `HeadMenu of int option
   ]
 
@@ -161,14 +161,14 @@ val rich_table :
   t -> 
   area ->
   rich_table ->
-  column array ->                    (* column layout *)
+  column iarray ->                   (* column layout *)
   heading option ->                  (* headers (None if has_heading = false) *)
   ('a, cached) Table.t ->            (* data *)
-  (int -> color * cell array) ->     (* row generator *)
+  (int -> color * cell iarray) ->    (* row generator *)
     rich_table_action
 
 val rich_table_inner_area : t -> area -> rich_table -> area
-val rich_table_mouse : t -> area -> rich_table -> column array ->
+val rich_table_mouse : t -> area -> rich_table -> column iarray ->
   ('a, cached) Table.t -> (int option * int option) option
 val rich_table_drag : t -> area -> rich_table -> [`Above | `Inside] ->
   ('a, cached) Table.t -> unit

@@ -19,7 +19,7 @@ type t =
   mutable library_shown : bool;
   mutable library_width : int;
   mutable library_side : Api.side;
-  mutable repair_log_columns : int array;
+  mutable repair_log_columns : int iarray;
   mutable filesel_shown : bool;
   mutable menu_shown : bool;
   mutable popup_shown : (int * int) option;
