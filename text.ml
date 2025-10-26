@@ -196,6 +196,7 @@ struct
   let option f x = Option.(value (map f x) ~default: (string "null"))
   let list f xs = let us = List.map f xs in Brack (us, is_short us)
   let array f xs = list f (Array.to_list xs)
+  let iarray f xs = list f (Iarray.to_list xs)
   let tuple f x = list Fun.id (f x)
   let pair f1 f2 = tuple (fun (x1, x2) -> [f1 x1; f2 x2])
   let triple f1 f2 f3 = tuple (fun (x1, x2, x3) -> [f1 x1; f2 x2; f3 x3])
@@ -262,6 +263,8 @@ struct
     | _ -> raise Type_error
 
   let array f u = Array.of_list (list f u)
+
+  let iarray f u = Iarray.of_list (list f u)
 
   let tuple f u = f (list Fun.id u)
 

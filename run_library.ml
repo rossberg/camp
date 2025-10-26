@@ -38,7 +38,7 @@ let insert_avail (st : state) =
 let insert (st : state) =
   Run_filesel.filesel st `Dir `Read "" "" (fun path ->
     let roots = st.library.root.children in
-    if not (Library.insert_roots st.library [path] (Array.length roots)) then
+    if not (Library.insert_roots st.library [path] (Iarray.length roots)) then
       Layout.browser_error_box st.layout;  (* flash *)
     State.focus_library st.library.browser st;
   )
@@ -65,7 +65,7 @@ let rename (st : state) i_opt =
 let reverse_avail (st : state) =
   match st.library.current with
   | None -> false
-  | Some dir -> not dir.view.folded && Array.length dir.children > 1
+  | Some dir -> not dir.view.folded && Iarray.length dir.children > 1
 
 let reverse (st : state) =
   Option.iter (fun (dir : dir) ->
@@ -394,7 +394,7 @@ let run_browser (st : state) =
               let pos = Library.find_parent_pos lib dir in
               let pos' =
                 if i = Table.length browser
-                then Array.length lib.root.children
+                then Iarray.length lib.root.children
                 else Library.find_parent_pos lib entries.(i)
               in
               Library.move_dir lib parent pos
@@ -539,7 +539,7 @@ let run_browser (st : state) =
     Option.iter (function (pos_opt, _) ->
       let pos =
         match pos_opt with
-        | None -> Array.length lib.root.children
+        | None -> Iarray.length lib.root.children
         | Some i -> Library.find_parent_pos lib entries.(i)
       in
       if not (Library.insert_roots lib dropped pos) then

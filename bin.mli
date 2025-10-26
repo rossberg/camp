@@ -21,6 +21,7 @@ sig
   val option : ('a -> buf -> unit) -> 'a option -> buf -> unit
   val list : ('a -> buf -> unit) -> 'a list -> buf -> unit
   val array : ('a -> buf -> unit) -> 'a array -> buf -> unit
+  val iarray : ('a -> buf -> unit) -> 'a iarray -> buf -> unit
   val map : ('a -> buf -> unit) -> (string * 'a) list -> buf -> unit
   val tuple : ('a -> (buf -> unit) list) -> 'a -> buf -> unit
   val pair : ('a1 -> buf -> unit) -> ('a2 -> buf -> unit) -> 'a1 * 'a2 -> buf -> unit
@@ -60,6 +61,7 @@ sig
   val option : (buf -> 'a) -> buf -> 'a option
   val list : (buf -> 'a) -> buf -> 'a list
   val array : (buf -> 'a) -> buf -> 'a array
+  val iarray : (buf -> 'a) -> buf -> 'a iarray
   val tuple : (buf -> 'a) -> buf -> 'a
   val pair : (buf -> 'a1) -> (buf -> 'a2) -> buf -> 'a1 * 'a2
   val triple : (buf -> 'a1) -> (buf -> 'a2) -> (buf -> 'a3) -> buf -> 'a1 * 'a2 * 'a3

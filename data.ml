@@ -128,8 +128,8 @@ type 'view dir =
   parent : path option;
   nest : int;
   mutable name : string;
-  mutable children : 'view dir array;
-  mutable tracks : track array;
+  mutable children : 'view dir iarray;
+  mutable tracks : track iarray;
   mutable error : string;  (* for view lists *)
   mutable view : 'view;
 }
@@ -609,13 +609,13 @@ let remove_sorting attr = insert_sorting `None attr (-1) max_int
 (* Iteration *)
 
 let rec iter_dir f (dir : _ dir) =
-  f dir; Array.iter (iter_dir f) dir.children
+  f dir; Iarray.iter (iter_dir f) dir.children
 
 let rec exists_dir f (dir : _ dir) =
-  f dir || Array.exists (exists_dir f) dir.children
+  f dir || Iarray.exists (exists_dir f) dir.children
 
 let rec for_all_dir f (dir : _ dir) =
-  f dir && Array.for_all (for_all_dir f) dir.children
+  f dir && Iarray.for_all (for_all_dir f) dir.children
 
 
 (* Persistence *)
@@ -686,8 +686,8 @@ struct
       "parent", option string x.parent;
       "nest", int x.nest;
       "name", string x.name;
-      "children", array (dir ()) x.children;
-      "tracks", array track (if is_dir x then x.tracks else [||]);
+      "children", iarray (dir ()) x.children;
+      "tracks", iarray track (if is_dir x then x.tracks else [||]);
       "error", string x.error;
     ])
 end
@@ -762,8 +762,8 @@ struct
       parent = option string (r $ "parent");
       nest = int (r $ "nest");
       name = string (r $ "name");
-      children = array (dir make_view) (r $ "children");
-      tracks = array track (r $ "tracks");
+      children = iarray (dir make_view) (r $ "children");
+      tracks = iarray track (r $ "tracks");
       error = string (r $ "error");
       view = make_view ();
     })
@@ -835,8 +835,8 @@ struct
       option string x.parent;
       option nat (if x.nest = -1 then None else Some x.nest);
       string x.name;
-      array (dir ()) x.children;
-      array track (if is_dir x then x.tracks else [||]);
+      iarray (dir ()) x.children;
+      iarray track (if is_dir x then x.tracks else [||]);
       string x.error;
     ])
 end
@@ -919,8 +919,8 @@ struct
       let parent = option string buf in
       let nest = Option.value (option nat buf) ~default: (-1) in
       let name = string buf in
-      let children = array (dir make_view) buf in
-      let tracks = array track buf in
+      let children = iarray (dir make_view) buf in
+      let tracks = iarray track buf in
       let error = string buf in
       let view = make_view () in
       {path; parent; nest; name; children; tracks; error; view}

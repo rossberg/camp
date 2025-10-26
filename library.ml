@@ -8,6 +8,16 @@ module Set = Set.Make(String)
 module Map = Map.Make(String)
 
 
+(* Helpers *)
+
+let (.$()) = Iarray.get
+
+(* HACK since OCaml 5.4 lacks Dynarray.to_iarray *)
+let dynarray_to_iarray a = Obj.magic (Dynarray.to_array a)
+
+
+(* Representations *)
+
 type time = float
 
 type display = [`Table | `Grid]
@@ -342,7 +352,7 @@ let attr_align attr = snd (attr_prop (attr :> any_attr))
 (* Lookup *)
 
 let rec find_dir lib path = find_dir' path lib.root
-and find_dir' path (dir : dir) = Array.find_map (find_dir'' path) dir.children
+and find_dir' path (dir : dir) = Iarray.find_map (find_dir'' path) dir.children
 and find_dir'' path (dir : dir) =
   if String.starts_with path ~prefix: dir.path then
     if String.length path = String.length dir.path then
@@ -364,16 +374,16 @@ let find_parent lib (dir : _ Data.dir) =
 let find_parent_pos lib (dir : _ Data.dir) =
   let parent = Option.get (find_parent lib dir) in
   let siblings = parent.children in
-  let rec loop i = if siblings.(i) == dir then i else loop (i + 1) in
+  let rec loop i = if siblings.$(i) == dir then i else loop (i + 1) in
   loop 0
 
 let rec find_track lib path = find_track' path lib.root
 and find_track' path (dir : dir) =
-  Array.find_map (find_track'' path) dir.children
+  Iarray.find_map (find_track'' path) dir.children
 and find_track'' path (dir : dir) =
   if String.starts_with path ~prefix: dir.path then
     if File.(dir path // "") = dir.path then
-      Array.find_opt (fun (track : track) -> track.path = path) dir.tracks
+      Iarray.find_opt (fun (track : track) -> track.path = path) dir.tracks
     else
       find_track' path dir
   else
@@ -494,7 +504,7 @@ struct
   let browse (x : dir) =
     let rec tree (dir : dir) =
       (dir.path, dir.view.folded) ::
-      List.concat_map tree (Array.to_list dir.children)
+      List.concat_map tree (Iarray.to_list dir.children)
     in map bool (tree x)
 end
 
@@ -550,7 +560,7 @@ struct
     let map = Map.of_list (map bool u) in
     let rec tree (dir : dir) =
       Option.iter (fun b -> dir.view.folded <- b) (Map.find_opt dir.path map);
-      Array.iter tree dir.children
+      Iarray.iter tree dir.children
     in tree
 end
 
@@ -741,7 +751,7 @@ let rescan_dir_tracks' lib mode (dir : dir) =
   try
     let new_tracks = Dynarray.create () in
     let old_tracks =
-      Array.fold_left (fun map (track : track) ->
+      Iarray.fold_left (fun map (track : track) ->
         Map.add track.path track map
       ) Map.empty dir.tracks
     in
@@ -760,9 +770,9 @@ let rescan_dir_tracks' lib mode (dir : dir) =
         if rescan_track' lib mode track then incr updates
       )
     ) (File.read_dir dir.path);
-    dir.tracks <- Dynarray.to_array new_tracks;
+    dir.tracks <- dynarray_to_iarray new_tracks;
     let changed =
-      !updates > 0 || Array.length dir.tracks <> Map.cardinal old_tracks in
+      !updates > 0 || Iarray.length dir.tracks <> Map.cardinal old_tracks in
     if changed then Atomic.set lib.scan.changed true;
     changed
   with exn ->
@@ -771,9 +781,9 @@ let rescan_dir_tracks' lib mode (dir : dir) =
 
 let rescan_playlist' lib _mode (dir : dir) =
   try
-    let items = Array.of_list (M3u.load dir.path) in
+    let items = Iarray.of_list (M3u.load dir.path) in
     dir.tracks <-
-      Array.mapi (fun pos item -> {(find_item lib item) with pos}) items;
+      Iarray.mapi (fun pos item -> {(find_item lib item) with pos}) items;
     true
   with
   | Sys_error _ -> true
@@ -792,7 +802,7 @@ let rescan_viewlist' lib _mode (dir : dir) =
       let _, _, tracks = Query.exec query filter lib.root in
       dir.error <- "";
       dir.tracks <-
-        Array.mapi (fun pos (track : track) -> {track with pos}) tracks;
+        Iarray.init (Array.length tracks) (fun i -> {tracks.(i) with pos = i});
     );
     true
   with
@@ -830,7 +840,7 @@ let rec rescan_dir' lib mode (origin : dir) =
   and scan_dir (dir : dir) =
     Domain.cpu_relax ();
     let old_dirs =
-      Array.fold_left (fun map (dir : dir) ->
+      Iarray.fold_left (fun map (dir : dir) ->
         Map.add dir.path dir map
       ) Map.empty dir.children
     in
@@ -851,36 +861,36 @@ let rec rescan_dir' lib mode (origin : dir) =
         Atomic.set lib.scan.changed true;
         dir.name <- File.remove_extension dir.name;
       );
-      let children = Array.of_list dirs in
-      Array.stable_sort Data.compare_dir children;
+      let children' = Array.of_list dirs in
+      Array.stable_sort Data.compare_dir children';
       (* Post-process to preserve possible custom order among old dirs. *)
       let new_dirs =
         Array.fold_left (fun (i, map) (dir : dir) ->
           i + 1, Map.add dir.path i map
-        ) (0, Map.empty) children |> snd |> ref
+        ) (0, Map.empty) children' |> snd |> ref
       in
       let i = ref 0 in
       let j = ref 0 in
-      let changed = ref (Array.length children <> Array.length dir.children) in
-      while !i < Array.length dir.children do
-        let dir = dir.children.(!i) in
+      let changed = ref (Array.length children' <> Iarray.length dir.children) in
+      while !i < Iarray.length dir.children do
+        let dir = dir.children.$(!i) in
         match Map.find_opt dir.path !new_dirs with
         | None -> changed := true; incr i  (* removed dir *)
         | Some k when k = !j -> incr i; incr j  (* unchanged dir *)
-        | Some k when Map.mem children.(!j).path old_dirs ->
+        | Some k when Map.mem children'.(!j).path old_dirs ->
           (* Manually reordered dir; pull forward *)
           assert (k > !j);
-          let pull = children.(k) in
+          let pull = children'.(k) in
           for p = k - 1 downto !j do
-            children.(p + 1) <- children.(p);
-            new_dirs := Map.add children.(p).path (p + 1) !new_dirs
+            children'.(p + 1) <- children'.(p);
+            new_dirs := Map.add children'.(p).path (p + 1) !new_dirs
           done;
-          children.(!j) <- pull;
+          children'.(!j) <- pull;
           incr i; incr j
         | Some _ -> changed := true; incr j  (* added dir *)
       done;
       if !changed then Atomic.set lib.scan.changed true;
-      dir.children <- children;
+      dir.children <- Iarray.of_array children';
       rescan_dir_tracks lib mode dir;
       Some [dir]
 
@@ -926,7 +936,7 @@ and rescan_dir_tracks lib mode (dir : dir) =
 
 
 let rescan_dirs lib mode dirs = Array.iter (rescan_dir lib mode) dirs
-let rescan_root lib mode = rescan_dirs lib mode lib.root.children
+let rescan_root lib mode = rescan_dirs lib mode (Iarray.to_array lib.root.children)
 let rescan_tracks lib mode tracks = Array.iter (rescan_track lib mode) tracks
 
 let rescan_done lib = Atomic.exchange lib.scan.completed []
@@ -1007,7 +1017,7 @@ let refresh_browser lib =
     Option.iter (fun (cur : dir) ->
       if cur.path = dir.path then lib.current <- Some dir) lib.current;
     dir ::
-    (if dir.view.folded then acc else Array.fold_right entries dir.children acc)
+    (if dir.view.folded then acc else Iarray.fold_right entries dir.children acc)
   in
   let selection = Table.save_selection lib.browser in
   Table.set lib.browser (Array.of_list (entries lib.root []));
@@ -1022,7 +1032,7 @@ let insert_dir lib path =
   | Some parent ->
     ignore (rescan_dir' lib `VeryQuick parent);
     refresh_browser lib;
-    Array.find_opt (fun (dir : dir) -> dir.path = path) parent.children
+    Iarray.find_opt (fun (dir : dir) -> dir.path = path) parent.children
 
 let remove_dir lib path =
   match find_dir lib File.(dir path // "") with
@@ -1032,33 +1042,33 @@ let remove_dir lib path =
   | Some parent ->
     ignore (rescan_dir' lib `VeryQuick parent);
     refresh_browser lib;
-    not (Array.exists (fun (dir : dir) -> dir.path = path) parent.children)
+    not (Iarray.exists (fun (dir : dir) -> dir.path = path) parent.children)
 
 let move_dir lib dir pos pos' =
   if pos <> pos' then
   (
     let children = dir.children in
-    assert (pos < Array.length children);
-    assert (pos' < Array.length children);
+    assert (pos < Iarray.length children);
+    assert (pos' < Iarray.length children);
     let lo, hi = min pos pos', max pos pos' in
     dir.children <-  (* atomic update! *)
-      Array.init (Array.length children) (fun i ->
+      Iarray.init (Iarray.length children) (fun i ->
         if i < lo || i > hi then
-          children.(i)
+          children.$(i)
         else if i = pos' then
-          children.(pos)
+          children.$(pos)
         else if pos < pos' then
-          children.(i + 1)
+          children.$(i + 1)
         else
-          children.(i - 1)
+          children.$(i - 1)
       );
     Atomic.set lib.scan.changed true;
     refresh_browser lib
   )
 
 let reverse_dir lib dir =
-  let n = Array.length dir.children in
-  dir.children <- Array.init n (fun i -> dir.children.(n - i - 1));
+  let n = Iarray.length dir.children in
+  dir.children <- Iarray.init n (fun i -> dir.children.$(n - i - 1));
   save_dir lib dir;
   refresh_browser lib
 
@@ -1390,7 +1400,7 @@ let make_root lib path =
   (
     let dirpath = File.(path // "") in
     match
-      Array.find_opt (fun (dir : dir) ->
+      Iarray.find_opt (fun (dir : dir) ->
         path = dir.path ||
         String.starts_with ~prefix: dirpath dir.path ||
         String.starts_with ~prefix: dir.path dirpath
@@ -1407,16 +1417,16 @@ let insert_roots lib paths pos =
   try
     let roots = lib.root.children in
     let roots' = Array.map (make_root lib) paths in
-    let len = Array.length roots in
+    let len = Iarray.length roots in
     let len' = Array.length roots' in
     lib.root.children <-
-      Array.init (len + len') (fun i ->
+      Iarray.init (len + len') (fun i ->
         if i < pos then
-          roots.(i)
+          roots.$(i)
         else if i < pos + len' then
           roots'.(i - pos)
         else
-          roots.(i - len')
+          roots.$(i - len')
       );
     Atomic.set lib.scan.changed true;
     Array.iter (fun (dir : dir) -> rescan_dir lib `Thorough dir) roots';
@@ -1430,19 +1440,16 @@ let insert_roots lib paths pos =
 let remove_root lib path =
   let dirpath = File.(path // "") in
   let roots = lib.root.children in
-  match Array.find_index (fun (root : dir) -> root.path = dirpath) roots with
+  match Iarray.find_index (fun (root : dir) -> root.path = dirpath) roots with
   | None ->
     error lib "Directory is not a root directory";
     false
   | Some pos ->
-    Data.iter_dir (delete_dir lib) roots.(pos);
+    Data.iter_dir (delete_dir lib) roots.$(pos);
     lib.current <- None;
     lib.root.children <-
-      Array.init (Array.length roots - 1) (fun i ->
-        if i < pos then
-          roots.(i)
-        else
-          roots.(i + 1)
+      Iarray.init (Iarray.length roots - 1) (fun i ->
+        roots.$(if i < pos then i else i + 1)
       );
     Atomic.set lib.scan.changed true;
     refresh_browser lib;
@@ -1574,7 +1581,7 @@ let insert lib pos tracks =
     done;
     Table.insert lib.tracks pos'' tracks';
     Option.iter (fun (dir : dir) ->
-      dir.tracks <- Array.copy lib.tracks.entries;
+      dir.tracks <- Iarray.of_array lib.tracks.entries;
     ) lib.current;
     select lib pos'' (pos'' + len' - 1);
     restore_playlist lib order;
@@ -1601,7 +1608,7 @@ let remove_if p lib n =
     let js = Table.remove_if p lib.tracks n in
     Array.iter (fun (track : track) -> track.pos <- js.(track.pos)) lib.tracks.entries;
     Option.iter (fun (dir : dir) ->
-      dir.tracks <- Array.copy lib.tracks.entries;
+      dir.tracks <- Iarray.of_array lib.tracks.entries;
     ) lib.current;
     restore_playlist lib order;
     save_playlist lib;
@@ -1726,7 +1733,7 @@ let repair_map lib on_busy =
     on_busy dir;
     if Data.is_dir dir then
     (
-      Array.iter (fun (track : Data.track) ->
+      Iarray.iter (fun (track : Data.track) ->
         map := Map.add_to_list (repair_key track.path) track !map
       ) dir.tracks
     )
@@ -1807,7 +1814,7 @@ let print_intern lib =
     "tracks_vscroll", int lib.tracks.vscroll;
     "tracks_hscroll", int lib.tracks.hscroll;
     "tracks_length", int (Array.length lib.tracks.entries);
-    "root_length", int (Array.length lib.root.children);
+    "root_length", int (Iarray.length lib.root.children);
     "lib_error", string lib.error;
     "lib_error_time", float lib.error_time;
   ]) lib

@@ -30,7 +30,8 @@ struct
   let option f x buf =
     bool (Option.is_some x) buf; Option.(iter (flip f buf) x)
   let array f xs buf = nat (Array.length xs) buf; Array.iter (flip f buf) xs
-  let list f xs = array f (Array.of_list xs)
+  let iarray f xs buf = nat (Iarray.length xs) buf; Iarray.iter (flip f buf) xs
+  let list f xs buf = nat (List.length xs) buf; List.iter (flip f buf) xs
   let tuple f x buf = List.iter (fun g -> g buf) (f x)
   let pair f1 f2 (x1, x2) buf = f1 x1 buf; f2 x2 buf
   let triple f1 f2 f3 (x1, x2, x3) buf = f1 x1 buf; f2 x2 buf; f3 x3 buf
@@ -96,7 +97,8 @@ struct
     | None -> error buf'
   let option f buf = if bool buf then Some (f buf) else None
   let array f buf = Array.init (nat buf) (fun _ -> f buf)
-  let list f buf = Array.to_list (array f buf)
+  let iarray f buf = Iarray.init (nat buf) (fun _ -> f buf)
+  let list f buf = List.init (nat buf) (fun _ -> f buf)
   let tuple f = f
   let pair f1 f2 buf = let x1 = f1 buf in let x2 = f2 buf in (x1, x2)
   let triple f1 f2 f3 buf =

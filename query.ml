@@ -420,8 +420,8 @@ let accumulate_meta (meta1 : Meta.t) (meta2 : Meta.t) =
   }
 
 let rec iter_dir f (dir : _ dir) =
-  Array.iter (iter_dir f) dir.children;
-  Array.iter f dir.tracks
+  Iarray.iter (iter_dir f) dir.children;
+  Iarray.iter f dir.tracks
 
 let sort s tracks =
   if s <> [] then

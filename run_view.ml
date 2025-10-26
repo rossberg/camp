@@ -237,13 +237,8 @@ let expand_paths (st : state) paths =
           (fun track -> false, false, not (Data.is_separator track))
           st.library.root
       in
-      for i = 0 to Array.length tracks' / 2 - 1 do
-        let j = Array.length tracks' - i - 1 in
-        let temp = tracks'.(i) in
-        tracks'.(i) <- tracks'.(j);
-        tracks'.(j) <- temp;
-      done;
-      let tracks'' = Array.to_list tracks' in
+      let n = Array.length tracks' in
+      let tracks'' = List.init n (fun i -> tracks'.(n - i - 1)) in
       tracks := if !tracks = [] then tracks'' else tracks'' @ !tracks
   in
   let rec add_path path =
@@ -393,8 +388,9 @@ let modify ops (st : state) dir on_start on_pl =
               );
               `Separator, ignore;
             |])
-            (Array.init (Array.length lib.root.children + 1) (fun j ->
-              let dir = if j = 0 then lib.root else lib.root.children.(j - 1) in
+            (Array.init (Iarray.length lib.root.children + 1) (fun j ->
+              let dir =
+                if j = 0 then lib.root else Iarray.get lib.root.children (j - 1) in
               `Entry (c, "Search for Song in " ^ dir.name, Layout.nokey, true),
               fun () ->
                 Table.deselect_all log.table;
