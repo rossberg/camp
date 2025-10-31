@@ -866,10 +866,10 @@ let find_pos ui x h font s =
   in find 0
 
 
-let edit_text ui area s scroll selection focus =
+let edit_text ui area ph s scroll selection focus =
   let (x, y, w, h), status = widget ui area no_modkey in
   let len = String.length s in
-  let font = font ui h in
+  let font = font ui (max 0 (h - 2 * ph)) in
   let c = text_color ui in
 
   let focus' = focus || status = `Pressed in
@@ -1061,9 +1061,9 @@ let edit_text ui area s scroll selection focus =
       s, scroll', Some (lprim, rprim, sec), ch
 
 
-let rich_edit_text ui area (edit : Edit.t) =
+let rich_edit_text ui area ph (edit : Edit.t) =
   let s', scroll', sel', ch =
-    edit_text ui area edit.text edit.scroll edit.sel_range edit.focus in
+    edit_text ui area ph edit.text edit.scroll edit.sel_range edit.focus in
   if edit.focus then focus ui area;
   if s' <> edit.text then
     Edit.update edit s';
@@ -1109,19 +1109,20 @@ type heading = string iarray * sorting
 
 let table_pad gw = (gw + 1)/2
 
-let draw_table ui area gw ch cols rows hscroll =
+let draw_table ui area gw ch ph cols rows hscroll =
   let x, y, w, h = dim ui area in
   Draw.fill ui.win x y w h `Black;
+  let rh = ch + 2 * ph in
   let mw = table_pad gw in  (* inner width padding *)
   let flex = max 0
     (w - Iarray.fold_left (fun w (cw, _) -> w + cw + gw) (2 * mw - gw + 1) cols) in
   let font = font ui ch in
   (* Draw row background first since it must be unclipped. *)
   Iarray.iteri (fun j (fg, inv, _contents) ->
-    let cy = y + j * ch in
+    let ry = y + j * rh in
     let bg = if j mod 2 = 0 then `Black else `Gray 0x20 in
     let bg = if inv = `Inverted then fg else bg in
-    if bg <> `Black then Draw.fill ui.win x cy w ch bg
+    if bg <> `Black then Draw.fill ui.win x ry w rh bg
   ) rows;
   let cx = ref (x + mw - hscroll) in
   Iarray.iteri (fun i (cw, align) ->
@@ -1130,7 +1131,7 @@ let draw_table ui area gw ch cols rows hscroll =
     let left = max !cx (x + mw) in
     Draw.clip ui.win left y (cw' - max 0 (left - !cx)) h;
     Iarray.iteri (fun j (fg, inv, contents) ->
-      let cy = y + j * ch in
+      let cy = y + j * rh + ph in
       let bg = if j mod 2 = 0 then `Black else `Gray 0x20 in
       let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
       (match Iarray.get contents i with
@@ -1186,12 +1187,13 @@ let find_gutter gw cols hscroll dx =
     `Header i
   in find 0 (mw - hscroll)
 
-let table ui area gw ch cols rows hscroll =
+let table ui area gw ch ph cols rows hscroll =
   let (x, y, _, _), status = widget ui area no_modkey in
-  draw_table ui area gw ch cols rows hscroll;
+  draw_table ui area gw ch ph cols rows hscroll;
   if status = `Pressed || status = `Released then
     let mx, my = Mouse.pos ui.win in
-    Some ((my - y) / ch), find_column gw cols hscroll (mx - x)
+    let rh = ch + 2 * ph in
+    Some ((my - y) / rh), find_column gw cols hscroll (mx - x)
   else
     None, None
 
@@ -1204,10 +1206,12 @@ let symbols_desc = [|"▼" (* "▾" *); "▼'" (* "▽", "▾", "▿" *); "▼''
 type drag += Header_resize of {mouse_x : int; col : int}
 type drag += Header_reorder of {mouse_x : int; col : int; moved : bool}
 
-let header ui area gw cols (titles, sorting) hscroll =
+let header ui area ph gw cols (titles, sorting) hscroll =
   let (x, y, w, h) as r, status = widget ui area no_modkey in
   let texts = Iarray.map (fun s -> `Text s) titles in
-  ignore (table ui area gw h cols [|text_color ui, `Inverted, texts|] hscroll);
+  let th = h - 2 * ph in
+  ignore (table ui area gw th ph cols
+    [|text_color ui, `Inverted, texts|] hscroll);
 
   let mw = table_pad gw in
   Draw.clip ui.win x y w h;
@@ -1227,10 +1231,10 @@ let header ui area gw cols (titles, sorting) hscroll =
     let cx, cw = find_header 0 x in
     let syms = match order with `Asc -> symbols_asc | `Desc -> symbols_desc in
     if k < Array.length syms then
-      let font = font ui h in
-      let tw = Draw.text_width ui.win h font syms.(k) in
+      let font = font ui th in
+      let tw = Draw.text_width ui.win th font syms.(k) in
       if cw > tw then
-        Draw.text ui.win (cx + cw - tw + 4 - hscroll) y h `Black font syms.(k)
+        Draw.text ui.win (cx + cw - tw + 4 - hscroll) (y + ph) th `Black font syms.(k)
   ) sorting;
   Draw.unclip ui.win;
 
@@ -1317,7 +1321,8 @@ type cached = buffer
 
 type rich_table =
   { gutter_w : int;
-    row_h : int;
+    text_h : int;
+    pad_h : int;
     scroll_w : int ;
     scroll_h : int;
     refl_r : int;
@@ -1345,7 +1350,7 @@ type rich_table_action =
 
 let rich_table_inner_area _ui area geo =
   let p, ax, ay, aw, ah = area in
-  let ty = if not geo.has_heading then ay else ay + geo.row_h + 2 in
+  let ty = if not geo.has_heading then ay else ay + geo.text_h + 2 * geo.pad_h + 2 in
   let th =
     ah -
     (if ah < 0 then 0 else ty - ay) -
@@ -1358,7 +1363,7 @@ let rich_table_mouse ui area geo cols (tab : _ Table.t) =
   let (x, y, _, _) as r = dim ui area' in
   let (mx, my) as m = Mouse.pos ui.win in
   if inside m r then
-    let row = (my - y) / geo.row_h + tab.vscroll in
+    let row = (my - y) / (geo.text_h + 2 * geo.pad_h) + tab.vscroll in
     Some (
       (if row < Table.length tab then Some row else None),
       find_column geo.gutter_w cols tab.hscroll (mx - x)
@@ -1371,8 +1376,9 @@ let rich_table_drag ui area geo style tab =
   | Some (i_opt, _) ->
     let area' = rich_table_inner_area ui area geo in
     let x, y, w, _ = dim ui area' in
+    let rh = geo.text_h + 2 * geo.pad_h in
     let i' = Option.value i_opt ~default: (Table.length tab) - tab.vscroll in
-    focus' ui x (y + i' * geo.row_h) w geo.row_h `White style
+    focus' ui x (y + i' * rh) w rh `White style
   | _ -> ()
 
 let adjust_cache ui tab w h =
@@ -1394,7 +1400,7 @@ let adjust_cache ui tab w h =
 let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_row =
   assert (geo.has_heading = Option.is_some header_opt);
   let p, ax, ay, aw, ah = area in
-  let rh = geo.row_h in
+  let rh = geo.text_h + 2 * geo.pad_h in
   let _, _, ty, tw, th = rich_table_inner_area ui area geo in
   let header_area = (p, ax, ay, tw, rh) in
   let table_area = (p, ax, ty, tw, th) in
@@ -1428,7 +1434,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
       in
       if ui.buffered then Draw.buffered ui.win buf;
       let area' = if ui.buffered then (-1, 0, 0, w, h) else table_area in
-      draw_table ui area' geo.gutter_w rh cols rows tab.hscroll;
+      draw_table ui area' geo.gutter_w geo.text_h geo.pad_h cols rows tab.hscroll;
       if ui.buffered then Draw.unbuffered ui.win;
       Table.clean tab;
     );
@@ -1555,7 +1561,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
       match header_opt with
       | None -> result
       | Some heading ->
-        match header ui header_area geo.gutter_w cols heading tab.hscroll with
+        match header ui header_area geo.pad_h geo.gutter_w cols heading tab.hscroll with
         | `Click i -> Table.dirty tab; `Sort i
         | `Resize ws -> Table.dirty tab; `Resize ws
         | `Reorder perm -> Table.dirty tab; `Reorder perm
@@ -1775,10 +1781,10 @@ let browser_entry_text_area ui area geo (tab : _ Table.t) i nest folded =
   let mw = (geo.gutter_w + 1) / 2 in  (* inner width padding *)
   let correction = if Api.is_mac then -2 else +1 in
   let dx = max 0
-    (Draw.text_width ui.win geo.row_h (font ui geo.row_h)
+    (Draw.text_width ui.win geo.text_h (font ui geo.text_h)
       (browser_pp_pre nest folded) + mw - tab.hscroll + correction)
-  and dy = (i - tab.vscroll) * geo.row_h in
-  (p, x + dx, y + dy, (if w < 0 then w else w - dx), geo.row_h)
+  and dy = (i - tab.vscroll) * (geo.text_h + 2 * geo.pad_h) in
+  (p, x + dx, y + dy + geo.pad_h, (if w < 0 then w else w - dx), geo.text_h)
 
 let browser ui area geo (tab : _ Table.t) pp_entry =
   let cols : _ iarray = [|-1, `Left|] in
@@ -1812,7 +1818,7 @@ let browser ui area geo (tab : _ Table.t) pp_entry =
     let x, _, _, _ = dim ui area in
     let nest, folded, _, _ = pp_entry i in
     let tw =
-      Draw.text_width ui.win geo.row_h (font ui geo.row_h)
+      Draw.text_width ui.win geo.text_h (font ui geo.text_h)
         (browser_pp_pre nest folded) in
     if mx + tab.hscroll < x + tw
     && not ui.modal && Mouse.(is_down `Left || is_released `Left) then
@@ -1837,7 +1843,7 @@ let browser ui area geo (tab : _ Table.t) pp_entry =
 
 (* Grids *)
 
-let draw_grid ui area gw iw ch matrix =
+let draw_grid ui area gw iw ch ph matrix =
   let x, y, w, h = dim ui area in
   Draw.fill ui.win x y w h `Black;
   let mw = (gw + 1)/2 in
@@ -1850,10 +1856,10 @@ let draw_grid ui area gw iw ch matrix =
     Draw.clip ui.win (cx - 1) y (iw + 2) h;
     for j = 0 to nrows - 1 do
       Option.iter (fun (img, c, inv, txt) ->
-        let cy = y + mw + j * (iw + gw + ch) in
+        let cy = y + mw + j * (iw + gw + ch + 2 * ph) in
         let fg, bg = if inv = `Inverted then `Black, c else c, `Black in
         if bg <> `Black then
-          Draw.fill ui.win (cx - 1) (cy - 1) (iw + 2) (iw + ch + 2) bg;
+          Draw.fill ui.win (cx - 1) (cy - 1) (iw + 2) (iw + ch + 2 * ph + 2) bg;
         let iw', ih' = Image.size img in
         let scale = float iw /. float (max iw' ih') in
         let dx = int_of_float ((float iw -. scale *. float iw') /. 2.0) in
@@ -1861,7 +1867,7 @@ let draw_grid ui area gw iw ch matrix =
         Api.Draw.image_part ui.win (cx + dx) (cy + dy) (iw - 2*dx) (iw - 2*dy) 0 0 iw' ih' img;
         let tw = Draw.text_width ui.win ch font txt in
         let dx = max 0 ((iw - tw - 2) / 2) in
-        Draw.text ui.win (cx + dx + 1) (cy + iw) ch fg font txt;
+        Draw.text ui.win (cx + dx + 1) (cy + iw + ph) ch fg font txt;
         if tw > iw - 2 then
         (
           let rw = min (iw - 2) 16 in
@@ -1874,9 +1880,9 @@ let draw_grid ui area gw iw ch matrix =
   done
 
 
-let grid ui area gw iw ch matrix =
+let grid ui area gw iw ch ph matrix =
   let (x, y, _, _), status = widget ui area no_modkey in
-  draw_grid ui area gw iw ch matrix;
+  draw_grid ui area gw iw ch ph matrix;
   if status = `Pressed || status = `Released then
     let mx, my = Mouse.pos ui.win in
     Some ((mx - x) / (iw + gw), (my - y) / (iw + ch + gw))
@@ -1888,6 +1894,7 @@ type grid_table =
   { gutter_w : int;
     img_h : int;
     text_h : int;
+    pad_h : int;
     scroll_w : int ;
     refl_r : int;
     has_heading : bool
@@ -1970,12 +1977,12 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
       in
       if ui.buffered then Draw.buffered ui.win buf;
       let area' = if ui.buffered then (-1, 0, 0, w, h) else table_area in
-      draw_grid ui area' geo.gutter_w geo.img_h geo.text_h matrix;
+      draw_grid ui area' geo.gutter_w geo.img_h geo.text_h geo.pad_h matrix;
       if ui.buffered then Draw.unbuffered ui.win;
       Table.clean tab;
     );
     if ui.buffered then Draw.buffer ui.win x y buf;
-    
+
     let mx, my = Mouse.pos ui.win in
     let i, j = (mx - x) / iw, (my - y) / ih in
     let k = tab.vscroll + j * line + i in
@@ -2091,7 +2098,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
       | None -> result
       | Some heading ->
         let cols = Iarray.map (Fun.const (40, `Left)) (fst heading) in
-        match header ui header_area geo.gutter_w cols heading tab.hscroll with
+        match header ui header_area geo.pad_h geo.gutter_w cols heading tab.hscroll with
         | `Click i -> `Sort i
         | `Resize ws -> `Resize ws
         | `Reorder perm -> `Reorder perm
@@ -2257,7 +2264,7 @@ type menu_entry =
 
 let menu_separator = String.concat "" (List.init 80 (Fun.const "·"))
 
-let menu ui x y bw gw ch items =
+let menu ui x y bw gw ch ph items =
   assert ui.modal;
 
   let font = font ui ch in
@@ -2280,13 +2287,14 @@ let menu ui x y bw gw ch items =
   in
 
   let mw = (gw + 1)/2 in  (* inner width padding *)
+  let rh = ch + 2 * ph in
   let w = lw + gw + rw + 2 * mw in
-  let h = ch * Iarray.length items in
+  let h = rh * Iarray.length items in
   let area = popup ui x y w h bw in
 
   let _, my = Mouse.pos ui.win in
   let _, y', _, _ = dim ui area in
-  let i = if mouse_inside ui area then (my - y')/ch else -1 in
+  let i = if mouse_inside ui area then (my - y')/rh else -1 in
 
   let cols : _ iarray = [|lw, `Left; rw, `Right|] in
   let c_sep = semilit_color (text_color ui) in
@@ -2306,7 +2314,7 @@ let menu ui x y bw gw ch items =
   let released = Mouse.is_released `Left || Mouse.is_pressed `Right in
   let enabled i =
     match Iarray.get items i with `Entry (_, _, _, b) -> b | _ -> false in
-  match table ui area gw ch cols rows 0 with
+  match table ui area gw ch ph cols rows 0 with
   | Some i, _ when released && enabled i -> `Click i
   | None, _ when released -> `Close
   | _ ->

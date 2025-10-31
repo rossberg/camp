@@ -9,6 +9,8 @@ type t =
   mutable scaling : int * int;
   mutable margin : int;
   mutable text : int;
+  mutable pad_x : int;
+  mutable pad_y : int;
   mutable label : int;
   mutable button_label : int;
   mutable gutter : int;
@@ -40,6 +42,8 @@ let make ui =
     scaling = 0, 0;
     margin = 10;
     text = 13;
+    pad_x = 0;
+    pad_y = 0;
     label = 9;
     button_label = 9;
     gutter = 7;
@@ -71,18 +75,22 @@ let popup_margin g = g.margin / 2
 let divider_w g = g.margin
 
 let text_h g = g.text
+let pad_w g = g.pad_x
+let pad_h g = g.pad_y
+let line_h g = g.text + 2 * g.pad_y
 let label_h g = g.label
 let button_label_h g = g.button_label
 let gutter_w g = g.gutter
 let scrollbar_w g = g.scrollbar
 let indicator_w _g = 7
 
-let bottom_h g = g.text + g.margin
-let footer_y g = - g.text - (bottom_h g - g.text)/2
+let bottom_h g = line_h g + g.margin
+let footer_y g = - line_h g - (bottom_h g - line_h g)/2
 
 let rich_table g sh has_heading : Ui.rich_table =
   { gutter_w = gutter_w g;
-    row_h = text_h g;
+    text_h = text_h g;
+    pad_h = pad_h g;
     scroll_w = scrollbar_w g;
     scroll_h = sh * scrollbar_w g;
     refl_r = g.reflection;
@@ -93,6 +101,7 @@ let grid_table g img_h has_heading : Ui.grid_table =
   { gutter_w = gutter_w g;
     img_h;
     text_h = text_h g;
+    pad_h = pad_h g;
     scroll_w = scrollbar_w g;
     refl_r = g.reflection;
     has_heading
@@ -184,6 +193,8 @@ let key_undo = cmd 'Z'
 let key_redo = shiftcmd 'Z'
 let key_textup = cmd '+'
 let key_textdn = cmd '-'
+let key_padup = nokey
+let key_paddn = nokey
 let key_gridup = shiftcmd '+'
 let key_griddn = shiftcmd '-'
 let key_popupup = cmd ']'
@@ -216,7 +227,7 @@ let key_scandir = nokey
 
 (* Menu *)
 
-let menu g x y = Ui.menu g.ui x y (popup_margin g) (gutter_w g) (text_h g)
+let menu g x y = Ui.menu g.ui x y (popup_margin g) (gutter_w g) (text_h g) (pad_h g)
 
 
 (* Control Pane *)
@@ -385,11 +396,11 @@ let cover_popup_open g = Ui.mouse g.ui (cover_area g) `Left
 
 let cover_popup_w g = g.popup_size |>
   min (control_w g + Bool.to_int g.library_shown * g.library_width - 2 * popup_margin g) |>
-  min (control_h g + Bool.to_int g.playlist_shown * g.playlist_height - text_h g - 2 * popup_margin g)
+  min (control_h g + Bool.to_int g.playlist_shown * g.playlist_height - line_h g - 2 * popup_margin g)
 let cover_popup_image_size g = Ui.image_size g.ui (-1, 0, 0, cover_popup_w g, cover_popup_w g) `Shrink
-let cover_popup g x y iw ih = Ui.popup g.ui x y iw (ih + text_h g) (popup_margin g)
-let cover_popup_image g (p, x, y, w, h) = Ui.image g.ui (p, x, y, w, h - text_h g) `Shrink
-let cover_popup_text g (p, x, y, w, _) ih = Ui.ticker g.ui (p, x, y + ih, w, text_h g)
+let cover_popup g x y iw ih = Ui.popup g.ui x y iw (ih + line_h g) (popup_margin g)
+let cover_popup_image g (p, x, y, w, h) = Ui.image g.ui (p, x, y, w, h - line_h g) `Shrink
+let cover_popup_text g (p, x, y, w, _) ih = Ui.ticker g.ui (p, x, y + ih + pad_h g, w, text_h g)
 
 
 (* Playlist Pane *)
@@ -407,8 +418,8 @@ let playlist_drag g = Ui.rich_table_drag g.ui (playlist_area g) (rich_table g 0 
 let total_w g = - margin g - scrollbar_w g
 let total_x g = total_w g - 90
 let total_y g = g.playlist_height + footer_y g  (* Hack: this is outside the pane *)
-let playlist_total_box g = Ui.box g.ui (pp, total_x g, total_y g, total_w g, text_h g) `Black
-let playlist_total_text g = Ui.text g.ui (pp, total_x g, total_y g, total_w g - (gutter_w g + 1)/2, text_h g) `Right
+let playlist_total_box g = Ui.box g.ui (pp, total_x g, total_y g, total_w g, line_h g) `Black
+let playlist_total_text g = Ui.text g.ui (pp, total_x g, total_y g + pad_h g, total_w g - (gutter_w g + 1)/2, text_h g) `Right
 
 let enlarge_text_key g = Ui.key g.ui key_textup true
 let reduce_text_key g = Ui.key g.ui key_textdn true
@@ -430,8 +441,8 @@ let edit_pane g = Ui.pane g.ui ep (playlist_x g, - bottom_h g, control_w g, bott
 
 (* Buttons *)
 let edit_w = 27
-let edit_h = 20
-let edit_area i j g = (ep, margin g + i*5 + j*edit_w, - edit_h, edit_w, edit_h)
+let edit_h g = line_h g + 7
+let edit_area i j g = (ep, margin g + i*5 + j*edit_w, - edit_h g, edit_w, edit_h g)
 let edit_button i j label key g = Ui.labeled_button g.ui (edit_area i j g) (button_label_h g) (Ui.inactive_color g.ui) label key true
 
 let tag_button = edit_button 0 0 "TAG" key_tag
@@ -504,15 +515,15 @@ let tracks_label = view_label 0 "TRACKS"
 let search_label_w _g = 30
 let search_x g = margin g + search_label_w g + 3
 let search_y g = 2 * margin g + indicator_w g + view_h + label_h g
-let search_label g = Ui.label g.ui (bp, margin g, search_y g + (text_h g - label_h g + 1)/2, search_label_w g, label_h g) `Left "SEARCH"
-let search_button g = Ui.mouse g.ui (bp, margin g, search_y g, search_label_w g, text_h g) `Left
+let search_label g = Ui.label g.ui (bp, margin g, search_y g + (line_h g - label_h g + 1)/2, search_label_w g, label_h g) `Left "SEARCH"
+let search_button g = Ui.mouse g.ui (bp, margin g, search_y g, search_label_w g, line_h g) `Left
 let search_key g = Ui.key g.ui key_search true
-let search_box g = Ui.box g.ui (bp, search_x g, search_y g, - divider_w g, text_h g) `Black
-let search_edit g = Ui.rich_edit_text g.ui (bp, search_x g + 2, search_y g, - divider_w g - 2, text_h g)
-let search_context g = Ui.mouse g.ui (bp, search_x g, search_y g, - divider_w g, text_h g) `Right
+let search_box g = Ui.box g.ui (bp, search_x g, search_y g, - divider_w g, line_h g) `Black
+let search_edit g = Ui.rich_edit_text g.ui (bp, search_x g + 2, search_y g, - divider_w g - 2, line_h g) (pad_h g)
+let search_context g = Ui.mouse g.ui (bp, search_x g, search_y g, - divider_w g, line_h g) `Right
 
 (* Browser *)
-let browser_y g = search_y g + text_h g + margin g
+let browser_y g = search_y g + line_h g + margin g
 let browser_area g = (bp, margin g, browser_y g, - divider_w g, - bottom_h g)
 let browser_table g = Ui.browser g.ui (browser_area g) (rich_table g 0 false)
 let browser_mouse g = Ui.rich_table_mouse g.ui (browser_area g) (rich_table g 0 false)
@@ -529,8 +540,8 @@ let rename_key g b =
 
 (* Buttons *)
 let ledit_w = 25
-let ledit_h = 20
-let ledit_button i j label key g = Ui.labeled_button g.ui (bp, margin g + i*5 + j*edit_w, - edit_h, ledit_w, ledit_h) (button_label_h g) (Ui.inactive_color g.ui) label key true
+let ledit_h g = line_h g + 7
+let ledit_button i j label key g = Ui.labeled_button g.ui (bp, margin g + i*5 + j*ledit_w, - ledit_h g, ledit_w, ledit_h g) (button_label_h g) (Ui.inactive_color g.ui) label key true
 
 let insert_button = ledit_button 0 0 "ADD" key_adddir
 let remove_button = ledit_button 0 1 "DEL" key_deldir
@@ -558,7 +569,7 @@ let left_mouse g = Ui.rich_table_mouse g.ui (left_area g) (rich_table g 1 true)
 let left_drag g = Ui.rich_table_drag g.ui (left_area g) (rich_table g 1 true) `Above
 let left_grid_mouse g iw = Ui.grid_table_mouse g.ui (left_area g) (grid_table g iw true)
 let left_grid_drag g iw = Ui.grid_table_drag g.ui (left_area g) (grid_table g iw true) `Left
-let left_spin g = Ui.text g.ui (lp, 4, margin g + text_h g + 4, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
+let left_spin g = Ui.text g.ui (lp, 4 + pad_w g, margin g + line_h g + 4 + pad_h g, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
 
 let left_view =
   left_pane, left_area, left_table, left_grid, left_mouse, left_grid_mouse, left_spin
@@ -576,7 +587,7 @@ let right_mouse g = Ui.rich_table_mouse g.ui (right_area g) (rich_table g 1 true
 let right_drag g = Ui.rich_table_drag g.ui (right_area g) (rich_table g 1 true) `Above
 let right_grid_mouse g iw = Ui.grid_table_mouse g.ui (right_area g) (grid_table g iw true)
 let right_grid_drag g iw = Ui.grid_table_drag g.ui (right_area g) (grid_table g iw true) `Left
-let right_spin g = Ui.text g.ui (rp, divider_w g + 4, margin g + text_h g + 4, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
+let right_spin g = Ui.text g.ui (rp, divider_w g + 4 + pad_w g, margin g + line_h g + 4 + pad_h g, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
 
 let right_view =
   right_pane, right_area, right_table, right_grid, right_mouse, right_grid_mouse, right_spin
@@ -594,7 +605,7 @@ let lower_mouse g = Ui.rich_table_mouse g.ui (lower_area g) (rich_table g 1 true
 let lower_drag g = Ui.rich_table_drag g.ui (lower_area g) (rich_table g 1 true) `Above
 let lower_grid_mouse g iw = Ui.grid_table_mouse g.ui (lower_area g) (grid_table g iw true)
 let lower_grid_drag g iw = Ui.grid_table_drag g.ui (lower_area g) (grid_table g iw true) `Left
-let lower_spin g = Ui.text g.ui (lp, 4, divider_w g + text_h g + 4, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
+let lower_spin g = Ui.text g.ui (lp, 4 + pad_w g, divider_w g + line_h g + 4 + pad_h g, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
 
 let lower_view =
   lower_pane, lower_area, lower_table, lower_grid, lower_mouse, lower_grid_mouse, lower_spin
@@ -614,8 +625,8 @@ let log_area g = (lp, 0, margin g, -1, -1)
 let log_table g = Ui.rich_table g.ui (log_area g) (rich_table g 1 true)
 
 let log_button_w g = (g.browser_width - margin g - divider_w g) / 2
-let log_button_h = edit_h
-let log_button i c label key g = Ui.labeled_button g.ui (bp, margin g + i * log_button_w g, - log_button_h, log_button_w g, log_button_h) (button_label_h g) (c g.ui) label key true
+let log_button_h g = edit_h g
+let log_button i c label key g = Ui.labeled_button g.ui (bp, margin g + i * log_button_w g, - log_button_h g, log_button_w g, log_button_h g) (button_label_h g) (c g.ui) label key true
 
 let log_ok_button = log_button 0 Ui.active_color "OK" key_ok
 let log_cancel_button = log_button 1 Ui.inactive_color "CANCEL" key_cancel
@@ -627,9 +638,9 @@ let mp = lp + 1
 let info_pane g = Ui.pane g.ui mp (library_x g + g.browser_width, - bottom_h g, library_w g - g.browser_width, bottom_h g)
 
 let msg_x = 0
-let msg_w g = - margin g
-let msg_box g = Ui.box g.ui (mp, msg_x, footer_y g, msg_w g, text_h g) `Black
-let msg_text g = Ui.color_text g.ui (mp, msg_x, footer_y g, msg_w g - 2, text_h g) `Left
+let msg_w _g = -1
+let msg_box g = Ui.box g.ui (mp, msg_x, footer_y g, msg_w g, line_h g) `Black
+let msg_text g = Ui.color_text g.ui (mp, msg_x + pad_w g, footer_y g + pad_h g, msg_w g - 2 - 2 * pad_w g, text_h g) `Left
 
 
 (* Directories Pane *)
@@ -647,8 +658,8 @@ let directories_mouse g = Ui.rich_table_mouse g.ui (directories_area g) (rich_ta
 
 (* Buttons *)
 let select_button_w g = (g.directories_width - margin g - divider_w g) / 2
-let select_button_h = edit_h
-let select_button i c label key g = Ui.labeled_button g.ui (dp, margin g + i * select_button_w g, - select_button_h, select_button_w g, select_button_h) (button_label_h g) (c g.ui) label key true
+let select_button_h g = edit_h g
+let select_button i c label key g = Ui.labeled_button g.ui (dp, margin g + i * select_button_w g, - select_button_h g, select_button_w g, select_button_h g) (button_label_h g) (c g.ui) label key true
 
 let select_ok_button = select_button 0 Ui.active_color "OK" key_ok
 let select_overwrite_button = select_button 0 Ui.error_color "OVERWRITE" key_overwrite
@@ -669,16 +680,18 @@ let files_mouse g = Ui.rich_table_mouse g.ui (files_area g) (rich_table g 1 true
 
 (* Input field *)
 let file_label_w _g = 20
-let file_label g = Ui.label g.ui (fp, 0, footer_y g + (text_h g - label_h g + 1)/2, file_label_w g, label_h g) `Left "FILE"
-let file_button g = Ui.mouse g.ui (fp, margin g, footer_y g, file_label_w g, text_h g) `Left
-let file_box g = Ui.box g.ui (fp, file_label_w g, footer_y g, - divider_w g, text_h g) `Black
-let file_edit g = Ui.rich_edit_text g.ui (fp, file_label_w g + 2, footer_y g, - divider_w g - 2, text_h g)
+let file_label g = Ui.label g.ui (fp, 0, footer_y g + (line_h g - label_h g + 1)/2, file_label_w g, label_h g) `Left "FILE"
+let file_button g = Ui.mouse g.ui (fp, margin g, footer_y g, file_label_w g, line_h g) `Left
+let file_box g = Ui.box g.ui (fp, file_label_w g, footer_y g, - divider_w g, line_h g) `Black
+let file_edit g = Ui.rich_edit_text g.ui (fp, file_label_w g + 2, footer_y g, - divider_w g - 2, line_h g) (pad_h g)
 
 
 (* Resizing limits *)
 
 let min_text_size = 8
 let max_text_size = 64
+let min_pad_size = 0
+let max_pad_size = 8
 let min_grid_size = 32
 let max_grid_size = 1024
 let min_popup_size = 100
@@ -692,12 +705,12 @@ let views_min g = left_min g + right_min g
 let files_min _g = 100
 let library_min g = max (browser_min g + views_min g) (directories_min g + files_min g)
 
-let upper_min g = margin g + 3 * (text_h g) + scrollbar_w g + 3
-let lower_min g = divider_w g + 3 * (text_h g) + scrollbar_w g + 3
+let upper_min g = margin g + 3 * (line_h g) + scrollbar_w g + 3
+let lower_min g = divider_w g + 3 * (line_h g) + scrollbar_w g + 3
 
 let browser_max g = g.library_width - views_min g
 let directories_max g = g.library_width - files_min g
 let left_max g = g.library_width - g.browser_width - right_min g
 let upper_max g = control_h g + g.playlist_height - bottom_h g - lower_min g
 
-let playlist_min g = bottom_h g + max (margin g + 2 * (text_h g)) (upper_min g + lower_min g - control_h g)
+let playlist_min g = bottom_h g + max (margin g + 2 * (line_h g)) (upper_min g + lower_min g - control_h g)

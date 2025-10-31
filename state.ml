@@ -141,6 +141,8 @@ let print_layout ?(raw = false) lay =
     "buffered", bool (Ui.is_buffered lay.ui);
     "color_palette", nat (Ui.get_palette lay.ui);
     "text_size", nat lay.text;
+    "text_pad_x", nat lay.pad_x;
+    "text_pad_y", nat lay.pad_y;
     "text_sdf", bool (Ui.font_is_sdf lay.ui);
     "play_open", bool lay.playlist_shown;
     "play_height", int (if y + h + dh <> sh || raw then lay.playlist_height else -1);
@@ -184,6 +186,10 @@ let parse_layout lay pos =  (* assumes playlist and library already loaded *)
       (fun i -> Ui.set_palette lay.ui i);
     apply (r $? "text_size") (num min_text_size max_text_size)
       (fun h -> lay.text <- h);
+    apply (r $? "text_pad_x") (num min_pad_size max_pad_size)
+      (fun w -> lay.pad_x <- w);
+    apply (r $? "text_pad_y") (num min_pad_size max_pad_size)
+      (fun h -> lay.pad_y <- h);
     apply (r $? "play_open") bool
       (fun b -> lay.playlist_shown <- b);
     apply (r $? "play_height") (num (playlist_min lay) (sh - wh))

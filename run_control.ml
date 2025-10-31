@@ -103,12 +103,19 @@ let cycle_color (st : state) d =
   dirty_all st
 
 let clamp_text = Layout.(clamp min_text_size max_text_size)
+let clamp_pad = Layout.(clamp min_pad_size max_pad_size)
 
 let resize_text_avail (st : state) delta =
   clamp_text (st.layout.text + delta) <> st.layout.text
 
 let resize_text (st : state) delta =
   st.layout.text <- clamp_text (st.layout.text + delta)
+
+let resize_pad_avail (st : state) delta =
+  clamp_pad (st.layout.pad_y + delta) <> st.layout.pad_y
+
+let resize_pad (st : state) delta =
+  st.layout.pad_y <- clamp_pad (st.layout.pad_y + delta)
 
 let clamp_grid = Layout.(clamp min_grid_size max_grid_size)
 
@@ -656,6 +663,10 @@ let run_toggle_panel (st : state) =
         (fun () -> resize_text st (+1));
       `Entry (c, "Decrease Text Size", Layout.key_textdn, resize_text_avail st (-1)),
         (fun () -> resize_text st (-1));
+      `Entry (c, "Increase Text Padding", Layout.key_padup, resize_pad_avail st (+1)),
+        (fun () -> resize_pad st (+1));
+      `Entry (c, "Decrease Text Padding", Layout.key_paddn, resize_pad_avail st (-1)),
+        (fun () -> resize_pad st (-1));
       `Entry (c, "Increase Grid Cover Size", Layout.key_gridup, resize_grid_avail st (+1)),
         (fun () -> resize_grid st (+1));
       `Entry (c, "Decrease Grid Cover Size", Layout.key_griddn, resize_grid_avail st (-1)),

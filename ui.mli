@@ -100,8 +100,8 @@ val text : t -> area -> align -> inversion -> bool -> string -> unit
 val color_text : t -> area -> align -> color -> inversion -> bool -> string -> unit
 val ticker : t -> area -> string -> unit
 
-val edit_text : t -> area -> string -> int -> (int * int * int) option -> bool -> string * int * (int * int * int) option * Uchar.t
-val rich_edit_text : t -> area -> Edit.t -> Uchar.t
+val edit_text : t -> area -> int -> string -> int -> (int * int * int) option -> bool -> string * int * (int * int * int) option * Uchar.t
+val rich_edit_text : t -> area -> int -> Edit.t -> Uchar.t
 
 val button : t -> area -> ?protrude: bool -> modifier list * key -> bool -> bool option -> bool
 val labeled_button : t -> area -> ?protrude: bool -> int -> color -> string -> modifier list * key -> bool -> bool option -> bool
@@ -122,16 +122,17 @@ type cell = [`Text of string | `Image of Api.image]
 type row = color * inversion * cell iarray
 type heading = string iarray * sorting
 
-val table : t -> area -> int -> int -> column iarray -> row iarray -> int ->
+val table : t -> area -> int -> int -> int -> column iarray -> row iarray -> int ->
   int option * int option
-val header : t -> area -> int -> column iarray -> heading -> int ->
+val header : t -> area -> int -> int -> column iarray -> heading -> int ->
   [`Click of int | `Resize of int iarray | `Reorder of int iarray | `Menu of int option | `None]
 
 type cached
 
 type rich_table =
   { gutter_w : int;
-    row_h : int;
+    text_h : int;
+    pad_h : int;
     scroll_w : int ;
     scroll_h : int;
     refl_r : int;
@@ -195,7 +196,7 @@ val browser_entry_text_area :
 (* Grid *)
 
 val grid :
-  t -> area -> int -> int -> int ->
+  t -> area -> int -> int -> int -> int ->
   (image * color * inversion * string) option iarray iarray ->
     (int * int) option
 
@@ -203,6 +204,7 @@ type grid_table =
   { gutter_w : int;
     img_h : int;
     text_h : int;
+    pad_h : int;
     scroll_w : int ;
     refl_r : int;
     has_heading : bool
@@ -232,5 +234,5 @@ val popup : t -> int -> int -> int -> int -> int -> area
 type menu_entry =
   [`Separator | `Entry of color * string * (modifier list * key) * bool]
 
-val menu : t -> int -> int -> int -> int -> int -> menu_entry iarray ->
+val menu : t -> int -> int -> int -> int -> int -> int -> menu_entry iarray ->
   [`None | `Close | `Click of int]

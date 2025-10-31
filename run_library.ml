@@ -498,7 +498,7 @@ let run_browser (st : state) =
     let area = Layout.rename_area lay browser i dir.nest folded in
 
     Layout.rename_box lay area;
-    let _ = Layout.rename_edit lay area lib.rename in
+    let _ = Layout.rename_edit lay area 0 lib.rename in
     if Api.Key.is_released `Escape then
     (
       Library.end_rename lib false;
