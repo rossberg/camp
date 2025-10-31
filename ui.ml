@@ -117,7 +117,7 @@ let is_shift_down () =
 
 let snap min max v =
   if is_shift_down () then v else
-  if abs (v - min) < snap_dist then 0 else
+  if abs (v - min) < snap_dist then min else
   if abs (v - max) < snap_dist then max else
   v
 
