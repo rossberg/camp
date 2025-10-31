@@ -86,11 +86,25 @@ let asciify s =
   Buffer.contents buf
 
 
+(*
 module UCol = Camomile.UCol.Make (Camomile.UTF8)
 module UCase = Camomile.CaseMap.Make (Camomile.UTF8)
 module UNorm = Camomile.UNF.Make (Camomile.UTF8)
 
+let normalize_utf_8 s = UNorm.nfc s
+let casefold_utf_8 s = UCase.casefolding s
+let sort_key_utf_8 s = UCol.sort_key ~prec: `Primary s
 let compare_utf_8 s1 s2 = UCol.compare ~prec: `Primary s1 s2
+*)
+
+(*
+let normalize_utf_8 s = Uunf_string.normalize_utf_8 `NFC s
+*)
+
+let mapping = Confero_ducet.mapping
+
+let sort_key_utf_8 s = (Confero.Sort_key.of_string ~mapping s :> string)
+let compare_utf_8 s1 s2 = Confero.collate ~mapping s1 s2
 
 (*
 let contains_utf_8 ~inner s =
@@ -99,7 +113,7 @@ let contains_utf_8 ~inner s =
 
 (* TODO: use contains_utf_8 (and remove UCase), once Camomile bug
  * https://github.com/ocaml-community/Camomile/issues/10 is fixed. *)
- let rec string_contains_at' s i s' j =
+let rec string_contains_at' s i s' j =
   j = String.length s' ||
   s.[i + j] = s'.[j] && string_contains_at' s i s' (j + 1)
 
@@ -124,8 +138,4 @@ let rec index_sub_from_opt s i s' =
 let contains_utf_8 ~inner s = index_sub_from_opt s 0 inner <> None
 
 let contains_utf_8_caseless ~inner s =
-  contains_utf_8 ~inner: (UCase.casefolding inner) (UCase.casefolding s)
-
-let sort_key s = UCol.sort_key ~prec: `Primary s
-
-let casefold s = UNorm.nfc (UCase.casefolding s)
+  contains_utf_8 ~inner: (sort_key_utf_8 inner) (sort_key_utf_8 s)

@@ -554,7 +554,7 @@ let attr_fold attr =
   | `Codec
   | `Artist | `Title | `AlbumArtist | `AlbumTitle
   | `Label | `Country ->
-    Unicode.sort_key
+    Unicode.sort_key_utf_8
 
 let key_entry' e attr_string (attr, order) =
   let s = attr_fold attr (attr_string e attr) in

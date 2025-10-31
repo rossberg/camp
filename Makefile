@@ -1,12 +1,17 @@
-NAME = kamp
-APPNAME = Kamp
-VERSION = 0.2
+NAME := $(shell grep "public_name" dune | sed 's/.*public_name//' | sed 's/[^a-zA-Z0-9]//g')
+APPNAME := $(shell grep "let name =" app.ml | sed 's/[^"]*"//' | sed 's/"//')
+VERSION := $(shell grep "let version =" app.ml | sed 's/[^"]*"//' | sed 's/"//')
 
 ASSETS = $(glob assets/*)
-OPAM_DEPS = dune camomile directories raylib
+OPAM_DEPS = dune confero directories raylib
 WIN_DLLS = libwinpthread-1
 
 default: deps exe
+
+vars:
+	@echo NAME = $(NAME)
+	@echo APPNAME = $(APPNAME)
+	@echo VERSION = $(VERSION)
 
 deps:
 	opam install $(OPAM_DEPS)
