@@ -1724,7 +1724,7 @@ let key_subst = List.map (fun (re, s) -> Str.regexp re, s)
   ]
 
 let repair_key path =
-  Data.UCase.casefolding (File.name path) |> Data.UNorm.nfc |>
+  Unicode.casefold (File.name path) |>
   List.fold_right (fun (re, s) -> Str.global_replace re s) key_subst
 
 let repair_map lib on_busy =

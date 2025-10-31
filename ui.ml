@@ -1711,7 +1711,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
               if i = len then i else
               let _, row = pp_row i in  (* TODO: only pp relevant column *)
               match Iarray.get row col with
-              | `Text s' when Data.compare_utf_8 s s' <= 0 -> i
+              | `Text s' when Unicode.compare_utf_8 s s' <= 0 -> i
               | _ -> find (i + 1)
             in
             let i = find 0 in
@@ -2220,7 +2220,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
             let rec find i =
               if i = Table.length tab then i else
               let _, _, txt = pp_cell i in  (* TODO: only pp relevant column *)
-              if Data.compare_utf_8 s txt <= 0 then i else find (i + 1)
+              if Unicode.compare_utf_8 s txt <= 0 then i else find (i + 1)
             in
             let i = find 0 in
             if i < len then

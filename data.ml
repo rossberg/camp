@@ -534,19 +534,11 @@ let query_attr_string (track : track) = function
 
 (* String Comparison *)
 
-module UCol = Camomile.UCol.Make (Camomile.UTF8)
-module UCase = Camomile.CaseMap.Make (Camomile.UTF8)
-module UNorm = Camomile.UNF.Make (Camomile.UTF8)
-
-let compare_utf_8 s1 s2 = UCol.compare ~prec: `Primary s1 s2
-let compare_length s1 s2 = compare (String.length s1) (String.length s2)
+let compare_length s1 s2 =
+  compare (String.length s1) (String.length s2)
 
 let compare_dir (dir1 : _ dir) (dir2 : _ dir) =
-  compare_utf_8 dir1.name dir2.name
-
-
-let contains_utf_8 s1 s2 =
-  try ignore (UCol.search ~prec: `Primary s2 s1 0); true with Not_found -> false
+  Unicode.compare_utf_8 dir1.name dir2.name
 
 
 let attr_fold attr =
@@ -562,7 +554,7 @@ let attr_fold attr =
   | `Codec
   | `Artist | `Title | `AlbumArtist | `AlbumTitle
   | `Label | `Country ->
-    fun s -> UCol.sort_key ~prec: `Primary s
+    Unicode.sort_key
 
 let key_entry' e attr_string (attr, order) =
   let s = attr_fold attr (attr_string e attr) in

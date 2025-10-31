@@ -84,3 +84,48 @@ let asciify s =
     incr i
   done;
   Buffer.contents buf
+
+
+module UCol = Camomile.UCol.Make (Camomile.UTF8)
+module UCase = Camomile.CaseMap.Make (Camomile.UTF8)
+module UNorm = Camomile.UNF.Make (Camomile.UTF8)
+
+let compare_utf_8 s1 s2 = UCol.compare ~prec: `Primary s1 s2
+
+(*
+let contains_utf_8 ~inner s =
+  try ignore (UCol.search ~prec: `Primary s inner 0); true with Not_found -> false
+*)
+
+(* TODO: use contains_utf_8 (and remove UCase), once Camomile bug
+ * https://github.com/ocaml-community/Camomile/issues/10 is fixed. *)
+ let rec string_contains_at' s i s' j =
+  j = String.length s' ||
+  s.[i + j] = s'.[j] && string_contains_at' s i s' (j + 1)
+
+let string_contains_at s i s' =
+  String.length s - i >= String.length s' &&
+  string_contains_at' s i s' 0
+
+let rec index_sub_from_opt s i s' =
+  if s' = "" then Some i else
+  match String.index_from_opt s i s'.[0] with
+  | None -> None
+  | Some j ->
+    if j + String.length s' > String.length s then
+      None
+    else if string_contains_at s j s' then
+      Some j
+    else if j + String.length s' >= String.length s then
+      None
+    else
+      index_sub_from_opt s (j + 1) s'
+
+let contains_utf_8 ~inner s = index_sub_from_opt s 0 inner <> None
+
+let contains_utf_8_caseless ~inner s =
+  contains_utf_8 ~inner: (UCase.casefolding inner) (UCase.casefolding s)
+
+let sort_key s = UCol.sort_key ~prec: `Primary s
+
+let casefold s = UNorm.nfc (UCase.casefolding s)

@@ -248,36 +248,6 @@ let rec validate q =
     )
 
 
-let rec string_contains_at' s i s' j =
-  j = String.length s' ||
-  s.[i + j] = s'.[j] && string_contains_at' s i s' (j + 1)
-
-let string_contains_at s i s' =
-  String.length s - i >= String.length s' &&
-  string_contains_at' s i s' 0
-
-let rec index_sub_from_opt s i s' =
-  if s' = "" then Some i else
-  match String.index_from_opt s i s'.[0] with
-  | None -> None
-  | Some j ->
-    if j + String.length s' > String.length s then
-      None
-    else if string_contains_at s j s' then
-      Some j
-    else if j + String.length s' >= String.length s then
-      None
-    else
-      index_sub_from_opt s (j + 1) s'
-
-let string_contains ~inner s = index_sub_from_opt s 0 inner <> None
-
-(* TODO: use Data.contains_utf_8 (and remove UCase), once Camomile bug
- * https://github.com/ocaml-community/Camomile/issues/10 is fixed. *)
-let string_contains_caseless ~inner s =
-  string_contains ~inner: (Data.UCase.casefolding inner) (Data.UCase.casefolding s)
-
-
 (* Evaluation *)
 
 let lit = function
@@ -318,9 +288,9 @@ let rec eval q track =
     | LE, v1, v2 -> BoolV (lit v1 <= lit v2)
     | GE, v1, v2 -> BoolV (lit v1 >= lit v2)
     | IN, v1, v2 ->
-      BoolV (string_contains_caseless ~inner: (text v1) (text v2))
+      BoolV (Unicode.contains_utf_8_caseless ~inner: (text v1) (text v2))
     | NI, v1, v2 ->
-      BoolV (not (string_contains_caseless ~inner: (text v1) (text v2)))
+      BoolV (not (Unicode.contains_utf_8_caseless ~inner: (text v1) (text v2)))
     | Add, IntV (i1, _), IntV (i2, _) -> IntV (i1 + i2, None)
     | Add, TimeV (t1, _), TimeV (t2, _) -> TimeV (t1 +. t2, None)
     | Add, DateV (t1, _), TimeV (t2, _) -> DateV (t1 +. t2, None)

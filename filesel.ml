@@ -131,7 +131,7 @@ let roots () =
 let scan_dir (dir : dir) =
   try
     let names = File.read_dir dir.path in
-    Array.sort Data.compare_utf_8 names;
+    Array.sort Unicode.compare_utf_8 names;
     let names = List.filter File.is_proper (Array.to_list names) in
     let paths = List.map (File.(//) dir.path) names in
     let files_opt = List.map2 make_file paths names in
@@ -343,7 +343,7 @@ let reorder_files fs k =
   in
   let enriched =
     Array.map (fun (file : file) -> key file, file) fs.files.entries in
-  let cmp e1 e2 = Data.compare_utf_8 (fst e1) (fst e2) in
+  let cmp e1 e2 = Unicode.compare_utf_8 (fst e1) (fst e2) in
   let cmp' =
     if
       Array.find_mapi (fun i e ->
