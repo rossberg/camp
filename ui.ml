@@ -869,7 +869,8 @@ let find_pos ui x h font s =
 let edit_text ui area ph s scroll selection focus =
   let (x, y, w, h), status = widget ui area no_modkey in
   let len = String.length s in
-  let font = font ui (max 0 (h - 2 * ph)) in
+  let ch = max 1 (h - 2 * ph) in
+  let font = font ui ch in
   let c = text_color ui in
 
   let focus' = focus || status = `Pressed in
@@ -917,7 +918,7 @@ let edit_text ui area ph s scroll selection focus =
   match selection' with
   | None ->
     Draw.clip ui.win x y w h;
-    Draw.text ui.win (x - scroll) y h c font s;
+    Draw.text ui.win (x - scroll) (y + ph) ch c font s;
     Draw.unclip ui.win;
     s, scroll, None, Uchar.of_int 0
 
@@ -927,9 +928,9 @@ let edit_text ui area ph s scroll selection focus =
     let sl = String.sub s 0 l in
     let sm = String.sub s l (r - l) in
     let sr = String.sub s r (len - r) in
-    let ws = Draw.text_spacing ui.win h font in
-    let wl = Draw.text_width ui.win h font sl + ws in
-    let wm = Draw.text_width ui.win h font sm + ws in
+    let ws = Draw.text_spacing ui.win ch font in
+    let wl = Draw.text_width ui.win ch font sl + ws in
+    let wm = Draw.text_width ui.win ch font sm + ws in
     let wt = if lprim >= sec then wl else wl + wm in
     let wc = 1 in
     let scroll' =
@@ -940,19 +941,19 @@ let edit_text ui area ph s scroll selection focus =
     Draw.clip ui.win x y w h;
     if not focus' then
     (
-      Draw.text ui.win (x - scroll') y h c font s;
+      Draw.text ui.win (x - scroll') (y + ph) ch c font s;
     )
     else if l = r then
     (
-      Draw.text ui.win (x - scroll') y h c font s;
+      Draw.text ui.win (x - scroll') (y + ph) ch c font s;
       Draw.fill ui.win (x - scroll' + wl) y 1 h c;
     )
     else
     (
       Draw.fill ui.win (x - scroll' + wl) y wm h c;
-      Draw.text ui.win (x - scroll') y h c font sl;
-      Draw.text ui.win (x - scroll' + wl) y h `Black font sm;
-      Draw.text ui.win (x - scroll' + wl + wm) y h c font sr;
+      Draw.text ui.win (x - scroll') (y + ph) ch c font sl;
+      Draw.text ui.win (x - scroll' + wl) (y + ph) ch `Black font sm;
+      Draw.text ui.win (x - scroll' + wl + wm) (y + ph) ch c font sr;
     );
     Draw.unclip ui.win;
 
