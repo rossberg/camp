@@ -109,7 +109,7 @@ struct
 
     (* Discover screen geometry by opening a dummy window and maximise it. *)
     Raylib.(set_config_flags
-      ConfigFlags.[Window_undecorated; Window_resizable]);
+      ConfigFlags.[Window_undecorated; Window_resizable; Window_hidden]);
     Raylib.init_window 0 0 "";
     Raylib.maximize_window ();
     update ();
@@ -126,6 +126,7 @@ struct
         (*Window_transparent;*) Vsync_hint; Msaa_4x_hint]);
     Raylib.init_window (sx w) (sy h) s;
     Raylib.set_window_position (sx x) (sy y);
+    Raylib.(clear_window_state ConfigFlags.[Window_hidden]);
     update ()
 
   let closed () = Raylib.window_should_close ()
