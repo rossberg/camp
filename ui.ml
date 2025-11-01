@@ -656,7 +656,7 @@ let button ui area ?(protrude = true) modkey focus active =
     Draw.fill ui.win (x + 1) (y + 1) 1 (h - 2) (`Gray 0x50);
     if protrude then Draw.fill ui.win (x + 1) (y + 1) (w - 3) 1 (`Gray 0x50);
   );
-  Draw.rect ui.win x y w h (border ui status);
+  Draw.rect ui.win x y (w - 1) h (border ui status);
   match active with
   | None -> false
   | Some active -> if status = `Released then not active else active
@@ -1406,7 +1406,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
   let header_area = (p, ax, ay, tw, rh) in
   let table_area = (p, ax, ty, tw, th) in
   let vscroll_area = 
-    (p, (if aw < 0 then tw else ax + aw + 1), ay, geo.scroll_w, ah) in
+    (p, (if aw < 0 then tw else ax + aw) + 1, ay, geo.scroll_w, ah) in
   let hscroll_area =
     (p, ax, (if ah < 0 then ah - geo.scroll_h else ty + th + 1), tw, geo.scroll_h) in
   let (x, y, w, h) as r = dim ui table_area in
