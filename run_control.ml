@@ -320,7 +320,7 @@ let run (st : state) =
   let progress = if length > 0.0 then elapsed /. length else 0.0 in
   let progress' = Layout.seek_bar lay progress in
   if (progress' <> ctl.progress || Api.Mouse.is_pressed `Left)
-  && progress' <> progress && length > 0.0 then
+  && progress' <> progress && ctl.current <> None then
   (
     (* Click or drag on seek bar at new position: reposition audio *)
     Control.seek ctl progress'
@@ -354,7 +354,8 @@ let run (st : state) =
     (
       let ctl = st.control in
       let more = Playlist.skip st.playlist delta (ctl.repeat <> `None) in
-      Control.switch ctl (Playlist.current st.playlist) more;
+      Control.switch ctl (Playlist.current st.playlist);
+      if more then Control.play ctl;
       (* Unless repeat mode is One, back-skip over silent tracks (separators,
        * missing songs), but make sure not to loop infinitely. *)
       if Control.silent ctl && delta < 0 && more && ctl.repeat <> `One
@@ -381,7 +382,8 @@ let run (st : state) =
         | Some track -> track
         | None -> Option.get st.control.current
       in
-      Control.switch st.control track true;
+      Control.switch st.control track;
+      Control.play st.control;
       Playlist.adjust_scroll st.playlist page;
       Table.dirty st.library.tracks;
       Table.dirty st.library.browser;
@@ -397,7 +399,9 @@ let run (st : state) =
   let pause (_st : state) b =
     if playing' && b then
       Control.pause ctl
-    else if (not stopped && not b || stopped && b) && length > 0.0 then
+    else if stopped && b && length > 0.0 then
+      Control.play ctl
+    else if not stopped && not b && length > 0.0 then
       Control.resume ctl
   in
   let paused' = Layout.pause_button lay focus (Some paused) in
@@ -410,12 +414,7 @@ let run (st : state) =
   let stop (st : state) =
     if not stopped then
     (
-      let track =
-        match Playlist.current_opt st.playlist with
-        | Some track -> track
-        | None -> Option.get st.control.current
-      in
-      Control.switch st.control track false;
+      Control.stop st.control;
       Playlist.adjust_scroll st.playlist page;
       Table.dirty st.library.tracks;
       Table.dirty st.library.browser;
@@ -447,7 +446,8 @@ let run (st : state) =
       Control.resume ctl
     else if stopped && len > 0 then
     (
-      Control.switch ctl (Playlist.current st.playlist) true;
+      Control.switch ctl (Playlist.current st.playlist);
+      Control.play st.control;
       Table.dirty st.library.tracks;
       Table.dirty st.library.browser;
     );
@@ -462,6 +462,9 @@ let run (st : state) =
   (* End of track *)
   (* Check must occur after possible Control.resume above,
    * otherwise the last track would be restarted. *)
+  let length = Control.length ctl in
+  let elapsed = Control.elapsed ctl in
+  let remaining = length -. elapsed in
   if Control.status ctl = `Playing && remaining < 0.2 then
   (
     (* Close to end: switch to next track *)
@@ -476,7 +479,8 @@ let run (st : state) =
       then Option.get ctl.current
       else Playlist.current pl
     in
-    Control.switch ctl next_track more;
+    Control.switch ctl next_track;
+    if more then Control.play st.control;
     Playlist.adjust_scroll pl page;
     Table.dirty st.library.tracks;
     Table.dirty st.library.browser;
@@ -490,7 +494,7 @@ let run (st : state) =
       Playlist.shuffle pl (if stopped then None else pl.table.pos);
       if stopped && pl.table.pos <> None then
       (
-        Control.switch ctl (Playlist.current pl) false;
+        Control.switch ctl (Playlist.current pl);
         Table.dirty st.library.tracks;
         Table.dirty st.library.browser;
       );

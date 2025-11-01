@@ -48,8 +48,9 @@ val volume : t -> float -> unit
 val pause : t -> unit
 val resume : t -> unit
 val stop : t -> unit
+val play : t -> unit
 val eject : t -> unit
-val switch : t -> track -> bool (* play *) -> unit
+val switch : t -> track -> unit
 val switch_if_empty : t -> track option -> bool
 val seek : t -> float (* fraction *) -> unit
 

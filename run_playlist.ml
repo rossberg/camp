@@ -99,7 +99,8 @@ let run (st : state) =
     when Api.Mouse.(is_pressed `Left && is_doubleclick `Left) ->
     (* Double-click on track: switch to track *)
     Playlist.jump pl i;
-    Control.switch st.control tab.entries.(i) true;
+    Control.switch st.control tab.entries.(i);
+    Control.play st.control;
     Table.dirty st.library.tracks;  (* redraw for current track *)
     Table.dirty st.library.browser;
 

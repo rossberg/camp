@@ -273,8 +273,8 @@ let queue_on_playlist (st : state) tracks =
     (
       (* Shift-double-click: replace playlist *)
       Playlist.replace_all st.playlist (Array.copy tracks);
-      Control.eject st.control;
-      Control.switch st.control tracks.(0) true;
+      Control.switch st.control tracks.(0);
+      Control.play st.control;
     )
     else
     (
@@ -285,7 +285,8 @@ let queue_on_playlist (st : state) tracks =
       if status = `Stopped || status = `Ejected then
       (
         Playlist.jump st.playlist len;
-        Control.switch st.control tracks.(0) true;
+        Control.switch st.control tracks.(0);
+        Control.play st.control;
         Playlist.adjust_scroll st.playlist 4;
       )
     );
@@ -739,8 +740,8 @@ let load (st : state) (module View : View) =
     View.(focus st);
     if View.(table it) == st.playlist.table then
     (
-      Control.eject st.control;
-      Control.switch st.control tracks.(0) true;
+      Control.switch st.control tracks.(0);
+      Control.play st.control;
       Table.dirty st.library.tracks;
       Table.dirty st.library.browser;
     )

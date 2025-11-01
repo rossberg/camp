@@ -104,34 +104,43 @@ let status ctl =
 
 let pause ctl = Api.Audio.pause ctl.audio
 let resume ctl = Api.Audio.resume ctl.audio
-let stop ctl = Api.Audio.stop ctl.audio; ctl.progress <- 0.0
 
-let eject ctl =
-  stop ctl;
-  ctl.current <- None;
-  ctl.loop <- `None;
+let play ctl =
+  let track = Option.get ctl.current in
+  ctl.sound <- Api.Audio.load ctl.audio track.path;
+  Api.Audio.play ctl.audio ctl.sound;
+  Api.Audio.volume ctl.audio (if ctl.mute then 0.0 else ctl.volume)
+
+let stop ctl =
+  Api.Audio.stop ctl.audio;
+  ctl.progress <- 0.0;
   if ctl.sound <> Api.Audio.silence ctl.audio then
   (
     Api.Audio.free ctl.audio ctl.sound;
     ctl.sound <- Api.Audio.silence ctl.audio;
   )
 
-let switch ctl (track : track) play =
+let eject ctl =
+  stop ctl;
+  ctl.current <- None;
+  ctl.loop <- `None
+
+let switch ctl (track : track) =
   eject ctl;
-  ctl.sound <- Api.Audio.load ctl.audio track.path;
   ctl.current <- Some track;
-  ctl.loop <- `None;
 (*
   track.time <-
     if ctl.sound = Api.Audio.silence ctl.audio then 0.0
     else Api.Audio.length ctl.audio ctl.sound;
 *)
-  Track.update track;
-  Api.Audio.play ctl.audio ctl.sound;
-  Api.Audio.volume ctl.audio (if ctl.mute then 0.0 else ctl.volume);
-  if not play then Api.Audio.pause ctl.audio
+  Track.update track
 
 let seek ctl percent =
+  if silent ctl && ctl.current <> None then
+  (
+    play ctl;
+    pause ctl;
+  );
   if not (silent ctl) then
   (
     let percent' = max 0.0 (min 1.0 percent) in
@@ -142,7 +151,7 @@ let seek ctl percent =
 
 let switch_if_empty ctl track_opt =
   match ctl.current, track_opt with
-  | None, Some track -> switch ctl track false; true
+  | None, Some track -> switch ctl track; true
   | _, _ -> false
 
 
@@ -199,7 +208,7 @@ let parse_state ctl =
     apply (r $? "mute") bool
       (fun b -> ctl.mute <- b);
     apply (r $? "play") (option string)
-      (Option.iter (fun s -> switch ctl (Data.make_track s) false));
+      (Option.iter (fun s -> switch ctl (Data.make_track s)));
     apply (r $? "seek") (interval 0.0 1.0)
       (fun q -> seek ctl q);
     apply (r $? "repeat") (enum repeat_enum)

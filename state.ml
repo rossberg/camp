@@ -392,8 +392,9 @@ let load st =
   if st.control.current = None && Playlist.length st.playlist > 0 then
   (
     st.control.current <- Table.current_opt st.playlist.table;
-    Option.iter (fun track -> Control.switch st.control track false)
-      st.control.current;
+    Option.iter (fun track ->
+      Control.switch st.control track;
+    ) st.control.current;
   );
 
   (try ok st; true with _ -> false), !pos
