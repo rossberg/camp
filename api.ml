@@ -409,7 +409,7 @@ struct
     current_shader := shader_opt
 
   let start () c =
-    if fst !current_scale = -1 then current_scale := Window.scale ();
+    current_scale := Window.scale ();
     Raylib.begin_drawing ();
     Raylib.clear_background (color c);
 (* TODO: Raylib OCaml is missing set_blend_factors_separate

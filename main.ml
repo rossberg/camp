@@ -112,7 +112,7 @@ and run' (st : state) =
   Ui.rescale lay.ui scale_delta scale_delta;
   let scale_new = Api.Window.scale win in
   lay.scaling <-
-    snd lay.scaling + (fst scale_new - fst scale_old),
+    fst lay.scaling + (fst scale_new - fst scale_old),
     snd lay.scaling + (snd scale_new - snd scale_old);
 
   if Layout.lib_cover_key lay then
