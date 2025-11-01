@@ -95,6 +95,10 @@ let normalize_utf_8 s = UNorm.nfc s
 let casefold_utf_8 s = UCase.casefolding s
 let sort_key_utf_8 s = UCol.sort_key ~prec: `Primary s
 let compare_utf_8 s1 s2 = UCol.compare ~prec: `Primary s1 s2
+(*
+let contains_utf_8 ~inner s =
+  try ignore (UCol.search ~prec: `Primary s inner 0); true with Not_found -> false
+*)
 *)
 
 (*
@@ -106,13 +110,41 @@ let mapping = Confero_ducet.mapping
 let sort_key_utf_8 s = (Confero.Sort_key.of_string ~mapping s :> string)
 let compare_utf_8 s1 s2 = Confero.collate ~mapping s1 s2
 
-(*
-let contains_utf_8 ~inner s =
-  try ignore (UCol.search ~prec: `Primary s inner 0); true with Not_found -> false
-*)
+(* Adopted from https://erratique.ch/software/uucp/doc/Uucp/Case/index.html#caselesseq *)
+let casefold_utf_8 s =
+  let buf = Buffer.create (String.length s * 3) in
+  let to_nfd_and_utf_8 =
+    let n = Uunf.create `NFD in
+    let rec add v = match Uunf.add n v with
+    | `Await | `End -> ()
+    | `Uchar u -> Buffer.add_utf_8_uchar buf u; add `Await
+    in
+    add
+  in
+  let add =
+    let n = Uunf.create `NFD in
+    let rec add v = match Uunf.add n v with
+    | `Await | `End -> ()
+    | `Uchar u ->
+        begin match Uucp.Case.Fold.fold u with
+        | `Self -> to_nfd_and_utf_8 (`Uchar u)
+        | `Uchars us -> List.iter (fun u -> to_nfd_and_utf_8 (`Uchar u)) us
+        end;
+        add `Await
+    in
+    add
+  in
+  let rec loop buf s i max =
+    if i > max then (add `End; to_nfd_and_utf_8 `End; Buffer.contents buf) else
+    let dec = String.get_utf_8_uchar s i in
+    add (`Uchar (Uchar.utf_decode_uchar dec));
+    loop buf s (i + Uchar.utf_decode_length dec) max
+  in
+  loop buf s 0 (String.length s - 1)
 
-(* TODO: use contains_utf_8 (and remove UCase), once Camomile bug
- * https://github.com/ocaml-community/Camomile/issues/10 is fixed. *)
+
+(* TODO: with Camomile, use contains_utf_8 (and remove UCase), once Camomile
+ * bug https://github.com/ocaml-community/Camomile/issues/10 is fixed. *)
 let rec string_contains_at' s i s' j =
   j = String.length s' ||
   s.[i + j] = s'.[j] && string_contains_at' s i s' (j + 1)
@@ -138,4 +170,4 @@ let rec index_sub_from_opt s i s' =
 let contains_utf_8 ~inner s = index_sub_from_opt s 0 inner <> None
 
 let contains_utf_8_caseless ~inner s =
-  contains_utf_8 ~inner: (sort_key_utf_8 inner) (sort_key_utf_8 s)
+  contains_utf_8 ~inner: (casefold_utf_8 inner) (casefold_utf_8 s)

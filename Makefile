@@ -3,7 +3,7 @@ APPNAME := $(shell grep "let name =" app.ml | sed 's/[^"]*"//' | sed 's/"//')
 VERSION := $(shell grep "let version =" app.ml | sed 's/[^"]*"//' | sed 's/"//')
 
 ASSETS = $(glob assets/*)
-OPAM_DEPS = dune confero directories raylib
+OPAM_DEPS = dune uunf uucp confero directories raylib
 WIN_DLLS = libwinpthread-1
 
 default: deps exe
