@@ -751,7 +751,14 @@ let save_avail (st : state) _view =
   not st.layout.filesel_shown && st.library.log = None
 let save (st : state) (module View : View) =
   Run_filesel.filesel st `File `Write "" ".m3u" (fun path ->
-    File.save `Bin path (Track.to_m3u View.(table it).entries)
+    File.save `Bin path (Track.to_m3u View.(tracks it))
+  )
+
+let save_sel_avail (st : state) (module View : View) =
+  save_avail st (module View : View) && View.(num_selected it > 0)
+let save_sel (st : state) (module View : View) =
+  Run_filesel.filesel st `File `Write "" ".m3u" (fun path ->
+    File.save `Bin path (Track.to_m3u View.(selected it))
   )
 
 let save_view_avail (st : state) _view =
@@ -917,6 +924,8 @@ let list_menu (st : state) view searches =
       `Separator, ignore;
       `Entry (c, "Save as Playlist...", Layout.key_save, save_avail st view),
         (fun () -> save st view);
+      `Entry (c, "Save Selection as Playlist...", Layout.nokey, save_sel_avail st view),
+        (fun () -> save_sel st view);
       `Entry (c, "Save as Viewlist...", Layout.key_save2, save_view_avail st view),
         (fun () -> save_view st view);
       `Entry (c, "Queue" ^ quant ^ " to Playlist...", Layout.key_queue,
@@ -990,6 +999,8 @@ let edit_menu (st : state) view searches pos_opt =
         (fun () -> load st view);
       `Entry (c, "Save...", Layout.key_save, save_avail st view),
         (fun () -> save st view);
+      `Entry (c, "Save Selection...", Layout.nokey, save_sel_avail st view),
+        (fun () -> save_sel st view);
     |];
     (if View.(table it) == st.playlist.table then [||] else
     [|
