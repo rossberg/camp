@@ -38,8 +38,8 @@ deps:
 	opam install $(DEPS)
 
 exe:
-	dune build main.exe
-	ln -f _build/default/main.exe $(NAME).exe
+	cd src && dune build main.exe
+	ln -f _build/default/src/main.exe $(NAME).exe
 
 
 # Packaging
@@ -93,7 +93,7 @@ distclean: clean
 # Dune file access
 
 app-%:
-	grep "let $* =" app.ml | sed 's/[^"]*"//' | sed 's/"//'
+	grep "let $* =" src/app.ml | sed 's/[^"]*"//' | sed 's/"//'
 
 dune-%:
-	grep "$*" dune */dune | sed 's/.*$*//' | sed 's/[^a-zA-Z0-9_. ]//g'
+	grep "$*" */dune */*/dune | sed 's/.*$*//' | sed 's/[^a-zA-Z0-9_. ]//g'

@@ -15,7 +15,7 @@ let () =
             "-cclib"; "-subsystem";  (* suppress console window *)
             "-cclib"; "windows";
             "-cclib"; "-Wl,-s";
-            "-cclib"; "icon.res";
+            "-cclib"; "src/icon.res";
           ]
       | _ ->
           [ "-cclib"; "-s" ]

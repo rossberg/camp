@@ -1,6 +1,9 @@
 _build
+stuff
+Kamp
 *.exe
 *.dll
 *.app
 *.zip
 *.ttf
+*.conf

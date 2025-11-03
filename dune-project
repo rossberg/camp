@@ -4,11 +4,11 @@
 (authors "Andreas Rossberg")
 (source (github rossberg/kamp))
 (license CC-BY-NC-4.0)
-(documentation https://github.com/rossberg/kamp/blob/main/README.md)
+(documentation https://github.com/rossberg/kamp/blob/main/README.txt)
 
 (package
   (name kamp)
   (synopsis "Kamp")
-  (description "A minimal KekeAmp")
-  (depends ocaml dune (raylib (>= 1.5.1)) camomile directories)
+  (description "A music player")
+  (depends (ocaml (>= 5.04)) dune (raylib (>= 1.5.1)) uunf uucp confero directories)
 )
