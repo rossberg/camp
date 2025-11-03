@@ -1,44 +1,68 @@
-NAME := $(shell grep "public_name" dune | sed 's/.*public_name//' | sed 's/[^a-zA-Z0-9]//g')
-APPNAME := $(shell grep "let name =" app.ml | sed 's/[^"]*"//' | sed 's/"//')
-VERSION := $(shell grep "let version =" app.ml | sed 's/[^"]*"//' | sed 's/"//')
+# Configuration
+
+APPNAME = $(shell make -s app-name)
+VERSION = $(shell make -s app-version)
+NAME = $(shell make -s dune-public_name)
+
+NONDEPS = unix audio_file [a-zA-Z0-9_]*[.][a-zA-Z0-9_.]*
+DEPS = dune $(shell make -s dune-libraries $(NONDEPS:%=| sed 's/ %//g'))
 
 ASSETS = $(glob assets/*)
-OPAM_DEPS = dune uunf uucp confero directories raylib
 WIN_DLLS = libwinpthread-1
 
+ifeq ($(OS),Windows_NT)
+  SYSTEM = win
+else
+  ifeq ($(shell uname -s),Darwin)
+    SYSTEM = mac
+  endif
+  ifeq ($(shell uname -s),Linux)
+    SYSTEM = linux
+  endif
+endif
+
+
+# Main Targets
+
 default: deps exe
+	make $(SYSTEM)
 
 vars:
-	@echo NAME = $(NAME)
-	@echo APPNAME = $(APPNAME)
-	@echo VERSION = $(VERSION)
+	@echo 'NAME = $(NAME)'
+	@echo 'APPNAME = $(APPNAME)'
+	@echo 'VERSION = $(VERSION)'
+	@echo 'SYSTEM = $(SYSTEM)'
+	@echo 'DEPS = $(DEPS)'
 
 deps:
-	opam install $(OPAM_DEPS)
+	opam install $(DEPS)
 
 exe:
 	dune build main.exe
 	ln -f _build/default/main.exe $(NAME).exe
 
 
-mac: exe $(ASSETS)
-	mkdir -p $(NAME).app/Contents
-	cp -rf platform/mac/* assets $(NAME).exe $(NAME).app/Contents
-	chmod +x $(NAME).app/Contents/MacOS/run.sh
+# Packaging
+
+mac: default $(ASSETS)
+	mkdir -p $(APPNAME).app/Contents
+	cp -rf platform/mac/* assets $(NAME).exe $(APPNAME).app/Contents
+	chmod +x $(APPNAME).app/Contents/MacOS/run.sh
 
 mac-debug: mac
 	codesign -s - -v -f --entitlements platform/mac-debug/debug.plist $(NAME).exe
 
-$(APPNAME)/%.dll:
-	cp `which $(@F)` $@
-
-win: dir $(WIN_DLLS:%=$(APPNAME)/%.dll)
+win: dir
+	cp $(WIN_DLLS:%=`which %.dll`) $(APPNAME)
 
 linux: dir
 
 dir: exe $(ASSETS)
 	mkdir -p $(APPNAME)
 	cp -rf $(NAME).exe assets $(APPNAME)
+
+
+# Zips
 
 zip-mac: mac
 	zip -r $(APPNAME)-$(VERSION)-mac.zip $(APPNAME).app
@@ -51,10 +75,25 @@ zip-linux: linux
 	zip -r $(APPNAME)-$(VERSION)-linux.zip $(APPNAME)
 	rm -rf $(NAME)
 
+zip:
+	make zip-$(SYSTEM)
+
+
+# Clean-up
 
 clean:
 	dune clean
 	rm -rf $(NAME)
 
 distclean: clean
+	rm -rf _build
 	rm -rf *.exe *.zip *.app
+
+
+# Dune file access
+
+app-%:
+	grep "let $* =" app.ml | sed 's/[^"]*"//' | sed 's/"//'
+
+dune-%:
+	grep "$*" dune */dune | sed 's/.*$*//' | sed 's/[^a-zA-Z0-9_. ]//g'
