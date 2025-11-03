@@ -67,6 +67,6 @@ sig
   val variant : (string * t -> 'a) -> t -> 'a
   val (|||) : (t -> 'a) -> (t -> 'a) -> t -> 'a
   val (>->) : (t -> 'a) -> ('a -> 'b) -> t -> 'b
-  val default : (t -> 'a) -> 'a -> t option -> 'a
+  val default : 'a -> (t -> 'a) -> t option -> 'a
   val apply : t option -> (t -> 'a) -> ('a -> unit) -> unit
 end

@@ -543,7 +543,7 @@ struct
 
   let views : t -> views =
     record (fun r -> {
-      search = string (r $ "search");
+      search = default "" string (r $? "search");
       query = None;
       folded = bool (r $ "fold");
       divider_width = nat (r $ "div_w");

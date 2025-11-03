@@ -302,7 +302,7 @@ struct
 
   let (>->) f g u = g (f u)
 
-  let default f x uo =
+  let default x f uo =
     match uo with
     | Some u -> f u
     | _ -> x
