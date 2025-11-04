@@ -134,11 +134,11 @@ type palette = {text : color; warn : color; error : color; hover : color}
 
 let palettes =
 [|
-  {text = `Green; warn = `Yellow; error = `Red; hover = `Blue};
-  {text = `RGB 0x92f2d6; warn = `RGB 0xc8bd4a; error = `RGB 0xec635b; hover = `RGB 0x5f7eb8};
   {text = `RGB 0x78cfeb; warn = `RGB 0xfef46d; error = `RGB 0xd35c6d; hover = `RGB 0x5186bb};
   {text = `RGB 0x51a6fb; warn = `RGB 0xfef46d; error = `RGB 0xd35c6d; hover = `RGB 0x78cfeb};
   {text = `RGB 0xddac4d; warn = `RGB 0xffff6d; error = `RGB 0xf14138; hover = `RGB 0xd5b482};
+  {text = `Green; warn = `Yellow; error = `Red; hover = `Blue};
+  {text = `RGB 0x92f2d6; warn = `RGB 0xc8bd4a; error = `RGB 0xec635b; hover = `RGB 0x5f7eb8};
 |]
 
 let num_palette _ui = Array.length palettes
