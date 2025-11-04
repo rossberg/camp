@@ -620,7 +620,7 @@ let run_toggle_panel (st : state) =
   (
     if Api.Key.is_modifier_down `Shift then
       (* Shift-click: switch sides for library pane *)
-      toggle_side st
+      (if lay.library_shown then toggle_side st)
     else
       toggle_library st
   )
