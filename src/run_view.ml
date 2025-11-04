@@ -894,13 +894,6 @@ let list_menu (st : state) view searches =
         (fun () -> tag st (get_tracks ()) (not all));
       `Entry (c, "Rescan" ^ quant, Layout.key_rescan, rescan_avail st view),
         (fun () -> rescan st (get_tracks ()));
-      `Separator, ignore;
-      `Entry (c, "Select All", Layout.key_all, select_all_avail st view),
-        (fun () -> select_all st view);
-      `Entry (c, "Select None", Layout.key_none, select_none_avail st view),
-        (fun () -> select_none st view);
-      `Entry (c, "Invert Selection", Layout.key_invert, select_invert_avail st view),
-        (fun () -> select_invert st view);
     |];
     (if View.(table it) == st.playlist.table then [||] else
     [|
@@ -909,6 +902,13 @@ let list_menu (st : state) view searches =
         (fun () -> reorder st view);
     |]);
     [|
+      `Separator, ignore;
+      `Entry (c, "Select All", Layout.key_all, select_all_avail st view),
+        (fun () -> select_all st view);
+      `Entry (c, "Select None", Layout.key_none, select_none_avail st view),
+        (fun () -> select_none st view);
+      `Entry (c, "Invert Selection", Layout.key_invert, select_invert_avail st view),
+        (fun () -> select_invert st view);
       `Separator, ignore;
       `Entry (c, "Search...", Layout.key_search, search_avail st),
         (fun () -> search st);
@@ -956,6 +956,14 @@ let edit_menu (st : state) view searches pos_opt =
       `Entry (c, "Reverse" ^ quant, Layout.key_rev,
         if all then reverse_all_avail st view else reverse_avail st view),
         (fun () -> (if all then reverse_all else reverse) st view);
+    |];
+    (if View.(table it) == st.playlist.table then [||] else
+    [|
+      `Separator, ignore;
+      `Entry (c, "Reorder as Sorted", Layout.key_reorder, reorder_avail st view),
+        (fun () -> reorder st view);
+    |]);
+    [|
       `Separator, ignore;
       `Entry (c, "Cut", Layout.key_cut, cut_avail st view),
         (fun () -> cut st view);
