@@ -187,11 +187,11 @@ let string_of_binop = function
   | LE -> "<="
   | GE -> ">="
   | IN -> "@"
-  | NI -> "-@"
+  | NI -> "`~@"
   | Add -> "+"
   | Sub -> "-"
   | Mul -> "*"
-  | Cat -> "#"
+  | Cat -> "++"
 
 let rec string_of_expr = function
   | Int (_, s) -> s
@@ -521,16 +521,19 @@ let scan_num = scan '0' '9'
 
 let scan_date s i =
   let y, j = scan_num s i in
-  if y = "" || not (is '/' s j || is '-' s j) then raise (SyntaxError j) else
+  let int = IntToken (int_of_string y, y) in
+  if y = "" || not (is '/' s j || is '-' s j) then int, j else
   let m, k = scan_num s (j + 1) in
-  if m = "" || not (is s.[j] s k) then raise (SyntaxError k) else
+  if m = "" || not (is s.[j] s k) then int, j else
   let d, l = scan_num s (k + 1) in
-  if d = "" then raise (SyntaxError l) else
+  if d = "" then int, j else
   let post, n = scan_word s l in
-  let s' = String.sub s (i + 1) (n - i) in
+  let s' = String.sub s i (n - i) in
   if post = "" then
     let t = date (int_of_string y) (int_of_string m) (int_of_string d) in
     DateToken (t, s'), n
+  else if is '-' s j then
+    int, j
   else
     TextToken s', n
 
@@ -586,7 +589,7 @@ let rec token s i =
   | '~' -> UnopToken Not, i + 1
   | '0'..'9' ->
     let n, j = scan_num s i in
-    if is '/' s j then scan_date s i else
+    if is '/' s j || is '-' s j then scan_date s i else
     let suf, k = scan_word s j in
     (match suffix suf with
     | Some m -> IntToken (int_of_string n * m, String.sub s i (k - i)), k
