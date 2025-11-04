@@ -3,7 +3,7 @@
 (name kamp)
 (authors "Andreas Rossberg")
 (source (github rossberg/kamp))
-(license CC-BY-NC-4.0)
+(license CC-BY-NC-SA-4.0)
 (documentation https://github.com/rossberg/kamp/blob/main/README.txt)
 
 (package
