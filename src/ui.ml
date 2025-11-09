@@ -658,11 +658,11 @@ let button ui area ?(protrude = true) modkey focus active =
   (
     Draw.fill ui.win (x + 1) (y + 1) 1 (h - 2) (`Gray 0x50);
     mouse_focus ui (-1, x + 1, y + 1, 1, h - 2) (2 * w) 0x70 0;
-    if protrude then Draw.fill ui.win (x + 1) (y + 1) (w - 3) 1 (`Gray 0x50);
-    mouse_focus ui (-1, x + 1, y + 1, w - 3, 1) (2 * w) 0x80 0;
+    if protrude then Draw.fill ui.win (x + 1) (y + 1) (w - 3) 1 (`Gray 0x60);
+    mouse_focus ui (-1, x + 1, y + 1, w - 3, 1) (2 * w) 0xa0 0;
   );
   (*Draw.rect ui.win x y (w - 1) h (border ui status);*)
-  mouse_focus ui area w 0x50 (-5);
+  mouse_focus ui (if protrude then -1, x, y, w - 1, h - 1 else area)  w 0x50 (-5);
   match active with
   | None -> false
   | Some active -> if status = `Released then not active else active
