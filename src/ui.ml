@@ -191,16 +191,19 @@ let focus ui area =
   focus' ui x y w h (text_color ui) `Inside
 
 
-let mouse_focus' ui r =
+let mouse_focus' ui r v offset =
   let mx, my = Mouse.pos ui.win in
-  Draw.gradient_circ ui.win (mx - r) (my - r) (2 * r) (2 * r)
-    (`Trans (`White, 0x20)) (`Trans (`White, 0x00))
+  Draw.gradient_circ ui.win (mx + offset - r) (my + offset - r) (2 * r) (2 * r)
+    (`Trans (`White, v)) (`Trans (`White, 0x00))
 
-let mouse_focus ui area r =
+let mouse_focus ui area r v offset =
   let x, y, w, h = dim ui area in
-  Draw.clip ui.win x y w h;
-  mouse_focus' ui r;
-  Draw.unclip ui.win
+  if mouse_inside ui (-1, max 0 (x - r), max 0 (y - r), w + 2*r, h + 2*r) then
+  (
+    Draw.clip ui.win x y w h;
+    mouse_focus' ui r v offset;
+    Draw.unclip ui.win;
+  )
 
 
 (* Fonts *)
@@ -258,7 +261,7 @@ let background ui x y w h =
   Draw.fill ui.win (x + 1) (y + h - 2) (w - 1) 2 (`Gray 0x10);
   Draw.fill ui.win (x + w - 1) y 1 (h - 2) (`Gray 0x10);
 
-  mouse_focus' ui 50;
+  mouse_focus' ui 50 0x20 0;
 
   Draw.unclip ui.win
 
@@ -649,14 +652,17 @@ let invisible_button ui area mods modkey focus =
 let button ui area ?(protrude = true) modkey focus active =
   let (x, y, w, h), status = widget ui area modkey ~focus in
   let img = get_img ui ui.img_button in
-  let sx, sy = if status = `Pressed then 800, 400 else 0, 200 in
-  Api.Draw.image_part ui.win x y w h sx sy w h img;
+  let sx, sy, h' = if status = `Pressed then 800, 400, h + 1 else 0, 200, h in
+  Api.Draw.image_part ui.win x y w h' sx sy w h' img;
   if status <> `Pressed then
   (
     Draw.fill ui.win (x + 1) (y + 1) 1 (h - 2) (`Gray 0x50);
+    mouse_focus ui (-1, x + 1, y + 1, 1, h - 2) (2 * w) 0x70 0;
     if protrude then Draw.fill ui.win (x + 1) (y + 1) (w - 3) 1 (`Gray 0x50);
+    mouse_focus ui (-1, x + 1, y + 1, w - 3, 1) (2 * w) 0x80 0;
   );
-  Draw.rect ui.win x y (w - 1) h (border ui status);
+  (*Draw.rect ui.win x y (w - 1) h (border ui status);*)
+  mouse_focus ui area w 0x50 (-5);
   match active with
   | None -> false
   | Some active -> if status = `Released then not active else active
@@ -1608,7 +1614,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
 
     (* Focus and mouse reflection *)
     if tab.focus && len > 0 then focus ui table_area;
-    mouse_focus ui area geo.refl_r;
+    mouse_focus ui area geo.refl_r 0x20 0;
 
     (* Keys *)
     let result =
@@ -2124,7 +2130,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
 
     (* Focus and mouse reflection *)
     if tab.focus && len > 0 then focus ui table_area;
-    mouse_focus ui area geo.refl_r;
+    mouse_focus ui area geo.refl_r 0x20 0;
 
     (* Keys *)
     let result =

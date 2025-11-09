@@ -348,6 +348,8 @@ let run (st : state) =
   let _, _, _, h = Ui.dim lay.ui (Layout.playlist_area lay) in
   let page = max 1 (int_of_float (Float.floor (float h /. float lay.text))) in
 
+  Layout.button_box lay;
+
   let last_pos = st.playlist.table.pos in
   let rec skip (st : state) delta =
     if delta <> 0 && st.playlist.table.pos <> None then

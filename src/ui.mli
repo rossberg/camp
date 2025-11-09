@@ -72,7 +72,7 @@ val wheel : t -> area -> float * float
 (* Focus *)
 
 val focus : t -> area -> unit
-val mouse_focus : t -> area -> int -> unit
+val mouse_focus : t -> area -> int -> int -> int -> unit
 
 (* Window *)
 

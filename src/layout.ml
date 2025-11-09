@@ -269,7 +269,7 @@ let info_h _g = -52
 let info_margin _g = 4
 let info_area g = (cp, margin g, margin g, info_w g, info_h g)
 let info_box g = Ui.box g.ui (info_area g) `Black
-let info_refl g = Ui.mouse_focus g.ui (info_area g) (info_h g)
+let info_refl g = Ui.mouse_focus g.ui (info_area g) (info_h g) 0x30 0
 
 (* Volume *)
 let volume_w = 27
@@ -352,6 +352,8 @@ let pause_button = control_button 2 "||" key_pause
 let stop_button = control_button 3 "[]" key_stop
 let fwd_button = control_button 4 ">>" key_fwd
 let eject_button = control_button 5 "^" key_eject
+
+let button_box g = Ui.box g.ui (cp, margin g - 1, ctl_y - 1, 6 * ctl_w + 3, ctl_h + 6) `Black
 
 let start_stop_key g = Ui.key g.ui key_startstop
 let rw_key g = Ui.key g.ui key_rw
