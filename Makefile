@@ -53,7 +53,7 @@ mac-debug: mac
 	codesign -s - -v -f --entitlements platform/mac-debug/debug.plist $(NAME).exe
 
 win: dir
-	cp $(WIN_DLLS:%=`which %.dll`) $(APPNAME)
+	@if [ $(WIN_DLLS:%=`which %.dll`) != '' ]; then cp $(WIN_DLLS:%=`which %.dll`) $(APPNAME); fi
 
 linux: dir
 
