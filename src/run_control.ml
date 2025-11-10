@@ -346,7 +346,8 @@ let run (st : state) =
   (* Play controls *)
   let len = Playlist.length pl in
   let _, _, _, h = Ui.dim lay.ui (Layout.playlist_area lay) in
-  let page = max 1 (int_of_float (Float.floor (float h /. float lay.text))) in
+  let rh = lay.text + 2 * lay.pad_y in
+  let page = max 1 (int_of_float (Float.floor (float h /. float rh))) in
 
   Layout.button_box lay;
 

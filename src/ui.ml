@@ -1583,7 +1583,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
     let h' = page * rh in
     let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * rh)) in
     let pos = if len = 0 then 0.0 else float tab.vscroll /. float len in
-    let coeff = max 1.0 (float page /. 4.0) /. float (len - page) in
+    let coeff = max 1.0 (float page /. 4.0) /. float (max 1 len) in
     let wheel = if vwheel then coeff *. wdy else 0.0 in
     let pos' = scroll_bar ui vscroll_area `Vertical pos ext -. wheel in
     let result =
