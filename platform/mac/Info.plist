@@ -5,6 +5,6 @@
     <key>CFBundleExecutable</key>
     <string>run.sh</string>
     <key>CFBundleIconFile</key>
-    <string>kamp.ico</string>
+    <string>camp.ico</string>
 </dict>
 </plist>

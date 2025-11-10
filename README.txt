@@ -1,10 +1,10 @@
-  _   _   ___  __  __  ____
- | | / / /   ||  \/  ||  _ \   |\
- | |/ / / /| ||      || | \ \  | \
- |   / / /_| || |\/| || |_/ /  |  \
- |   \/ ___  || |  | ||  __/   |  /
- | |\ \/   | || |  | || |      | /
- |_|/\_\   |_||_|  |_||_|      |/
+   ___    ___  __  __  ____
+  / _ \  /   ||  \/  ||  _ \   |\
+ / / \_\/ /| ||      || | \ \  | \
+/ /    / /_| || |\/| || |_/ /  |  \
+\ \   / ___  || |  | ||  __/   |  /
+ \ \_/ /   | || |  | || |      | /
+  \___/    |_||_|  |_||_|      |/
    _                    _ 
   / \_/ A MUSIC PLAYER / \_/
 
@@ -13,7 +13,7 @@
 | 1. INTRODUCTION
 |______________________________________________________________________________
 
-Kamp is an old-school music player heavily inspired by good old Winamp [1],
+Camp is an old-school music player heavily inspired by good old Winamp [1],
 with a particular focus on convenient music library and playlist management and
 a clean and simple interface.
 
@@ -23,7 +23,7 @@ useful.
 If you have a big music library neatly organised into folders and sub-folders,
 even more so. That's what it's especially designed for.
 
-Kamp is entirely written in OCaml [2] and portable across Windows, Mac and
+Camp is entirely written in OCaml [2] and portable across Windows, Mac and
 Linux.
 
 Although I use it myself every day, there may be bugs and hick-ups. You have
@@ -47,7 +47,7 @@ On Windows, no way around Cygwin and make (and you'll probably need to manually
 install the mingw64-x86_64-winpthreads package, although to be honest, I never
 quite understand why that is so).
 
-Kamp is tested on Windows and Mac. It should work on Linux, too, but I haven't
+Camp is tested on Windows and Mac. It should work on Linux, too, but I haven't
 had achance to try.
 
 
@@ -63,9 +63,9 @@ In the main directory (here you found this file), invoke:
 The first time round, it may trigger the installation of additional opam
 packages, which you'll have to confirm.
 
-On Windows and Linux, the outcome is a stand-alone directory `Kamp` bundling
+On Windows and Linux, the outcome is a stand-alone directory `Camp` bundling
 the executable with all files necessary. On Mac, you'll get a proper application
-`Kamp.app`. In both cases, the result is self-contained and can be moved to
+`Camp.app`. In both cases, the result is self-contained and can be moved to
 any location of your chosing.
 
 If you prefer to have either packaged up as a zip file, then go with:
@@ -94,23 +94,23 @@ audio file names to play or queue up that way.
 
 Of course, you can also create file associations for the audio formats you want
 to play with this decent piece of software. Then opening such a file will queue
-it up in Kamp.
+it up in Camp.
 
-Kamp (usually) detects if it is already running. Any files passed to it will
+Camp (usually) detects if it is already running. Any files passed to it will
 then be added to the current playlist.
 
 
 2.4 Application Storage
 -----------------------
 
-When starting Kamp for the first time (no matter from where), it will create a
+When starting Camp for the first time (no matter from where), it will create a
 cosy little directory for itself, where it stores its configuration and
 database. Depending on your operating system, this directory is located in the
 canonical location for local user application data:
 
-* On Windows, find it under C:\Users\<you>\AppData\Local\Kamp
-* On Mac, it'll go to /Users/<you>/Library/Application Directory/Kamp
-* On Linux, it should be /home/<you>/.local/share/Kamp
+* On Windows, find it under C:\Users\<you>\AppData\Local\Camp
+* On Mac, it'll go to /Users/<you>/Library/Application Directory/Camp
+* On Linux, it should be /home/<you>/.local/share/Camp
   (or whatever $XDG_DATA_HOME is set to)
 
 Some of the data here is in text format. You can edit it, but you'll definitely
@@ -124,7 +124,7 @@ be on your own.
 3.1 A First Look
 ----------------
 
-Kamp consists of a window with 3 main areas (I call them *panes* below):
+Camp consists of a window with 3 main areas (I call them *panes* below):
 
 * Control: this is where you control playback, volume, etc.
 * Playlist: this is where you queue up tracks
@@ -156,8 +156,8 @@ said, they will look pretty empty at first.
 -------------------------------------
 
 The usual mode of operation is to drag & drop audio files from your file
-system browser to Kamp's playlist. Then press the Play button and the joy
-begins. Alternatively, use file associations to open audio tracks with Kamp.
+system browser to Camp's playlist. Then press the Play button and the joy
+begins. Alternatively, use file associations to open audio tracks with Camp.
 
 Most controls around the Playlist should be intuitive. A few extra tips:
 
@@ -306,18 +306,18 @@ For those, the Library pane consists of two main areas:
   sub-folder. It can be further divided into artist, album, and track view.
 
 The library is organised around hierarchical folders. You add folders from disk
-and Kamp indexes them for its database.
+and Camp indexes them for its database.
 
 * To add a folder to the database, either drag it onto the browser, or select
   it manually the old-fashioned way using the ADD button at the bottom. A
   folder added this way is called a *root*. You can add as many roots as you
   want, as long as none is a super- or sub-folder of another.
 
-* Once added, Kamp will happily scan the new root and all its sub-folders for
+* Once added, Camp will happily scan the new root and all its sub-folders for
   audio files and playlists. A scan in progress is indicated by the big yellow
   indicator light at the upper left corner of the Library pane.
 
-* Kamp does a quick rescan when started next time, to detect changes. You can
+* Camp does a quick rescan when started next time, to detect changes. You can
   also force that manually by clicking the scanning indicator.
 
 When done, you can use the Browser to explore the folder structure and the
@@ -328,7 +328,7 @@ Views for the tracks in it.
 .................
 
 The Browser is for browsing through the folders you have added: the roots,
-their sub-folders, and also playlists in these folders. In Kamp, playlists
+their sub-folders, and also playlists in these folders. In Camp, playlists
 are treated like virtual folders, meaning that they can participate in all
 the interesting activities around searching, filtering, sorting, showing meta
 data, etc.
@@ -373,7 +373,7 @@ Other things to do in the Browser:
   that you can move the library as whole (audio files + playlists) and the
   playlists continue to function.
 
-  By default, Kamp produces absolute playlists. If you moved stuff around and
+  By default, Camp produces absolute playlists. If you moved stuff around and
   broke your playlists, you can also use the Repair feature to recover from the
   tragedy (Section 3.6).
 
@@ -572,7 +572,7 @@ field. Note that this works even with playlists.
 3.5 Viewlists
 -------------
 
-In addition to plain playlists, which use the usual .m3u format, Kamp also
+In addition to plain playlists, which use the usual .m3u format, Camp also
 understands "smart" playlists, called *viewlists*.
 
 * File extension: A viewlist is stored as a file with the extension .m3v
@@ -653,7 +653,7 @@ sessions:
   (those up to 1440p), 2 on 4K displays and 4 on 8K.
 
 * Text Rendering: Shift+Ctrl/Command+U switches the rendering procedure for
-  text. On low-resolution screens (up to 1440p) Kamp defaults to plain
+  text. On low-resolution screens (up to 1440p) Camp defaults to plain
   rasterisation, while for higher resolution screens, it defaults to SDF [1].
   The defaults usually look better on the respective screens, but this option
   allows to switch manually.
@@ -677,7 +677,7 @@ sessions:
 3.8 Limitations
 ---------------
 
-Kamp comes with a few limitations, most of which I can conveniently blame on
+Camp comes with a few limitations, most of which I can conveniently blame on
 the underlying graphics and audio library (Section 4.3).
 
 * Localisation: The underlying library doesn't offer much in the way of
@@ -839,7 +839,7 @@ declarative layer on top.
 | 5. LEGAL STUFF
 |______________________________________________________________________________
 
-I put Kamp and its source code under an attribution non-commercial share-alike
+I put Camp and its source code under an attribution non-commercial share-alike
 Creative Commons license, CC BY-NC-SA 4.0 [1] for short. Enjoy!
 
 

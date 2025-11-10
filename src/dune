@@ -1,5 +1,5 @@
 (executable
-  (public_name kamp)
+  (public_name camp)
   (name main)
   (modules
     safe_queue
