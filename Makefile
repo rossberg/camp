@@ -59,7 +59,8 @@ linux: dir
 
 dir: exe $(ASSETS)
 	mkdir -p $(APPNAME)
-	cp -rf $(NAME).exe assets $(APPNAME)
+	cp -f $(NAME).exe $(APPNAME)/$(APPNAME).exe
+	cp -rf assets $(APPNAME)
 
 
 # Zips
