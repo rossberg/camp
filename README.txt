@@ -18,10 +18,10 @@ with a particular focus on convenient music library and playlist management and
 a clean and simple interface.
 
 If you have not yet been sucked in by the streaming cartells, you might find it
-useful.
-
-If you have a big music library neatly organised into folders and sub-folders,
-even more so. That's what it's especially designed for.
+useful. Even more so in case your hard drive is home to a neatly organised
+music collection and you want a decent interface for maneuvering, searching,
+and curating it or that ever-growing personal playlist library. But without
+being sucked into some tool's own warped opinion of how to store your stuff.
 
 Camp is entirely written in OCaml [2] and portable across Windows, Mac and
 Linux.
