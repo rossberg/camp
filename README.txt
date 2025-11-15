@@ -9,6 +9,8 @@
   / \_/ A MUSIC PLAYER / \_/
 
 
+Screenshot Gallery: https://github.com/rossberg/amp/blob/master/img/README.md
+
  ______________________________________________________________________________
 | 1. INTRODUCTION
 |______________________________________________________________________________
