@@ -44,7 +44,7 @@ exe:
 
 # Packaging
 
-mac: default $(ASSETS)
+mac: deps exe $(ASSETS)
 	mkdir -p $(APPNAME).app/Contents
 	cp -rf platform/mac/* assets $(NAME).exe $(APPNAME).app/Contents
 	chmod +x $(APPNAME).app/Contents/MacOS/run.sh
