@@ -524,7 +524,7 @@ let run (st : state) =
       | `All -> `None
   in
   Layout.repeat_label lay;
-  Layout.repeat_indicator1 lay (ctl.repeat <> `None);
+  Layout.repeat_indicator1 lay (ctl.repeat = `One);
   Layout.repeat_indicator2 lay (ctl.repeat = `All);
   if Layout.repeat_button lay focus (Some false) then
   (

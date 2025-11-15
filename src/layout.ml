@@ -353,7 +353,7 @@ let stop_button = control_button 3 "[]" key_stop
 let fwd_button = control_button 4 ">>" key_fwd
 let eject_button = control_button 5 "^" key_eject
 
-let button_box g = Ui.box g.ui (cp, margin g - 1, ctl_y - 1, 6 * ctl_w + 3, ctl_h + 6) `Black
+let button_box g = Ui.box g.ui (cp, margin g - 1, ctl_y, 6 * ctl_w + 3, ctl_h + 5) `Black
 
 let start_stop_key g = Ui.key g.ui key_startstop
 let rw_key g = Ui.key g.ui key_rw
