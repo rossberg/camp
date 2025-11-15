@@ -13,21 +13,22 @@
 | 1. INTRODUCTION
 |______________________________________________________________________________
 
-Camp is an old-school music player heavily inspired by good old Winamp [1],
-with a particular focus on convenient music library and playlist management and
-a clean and simple interface.
+What we have here is an old-school music player heavily inspired by good old
+Winamp [1], with a particular focus on convenient music library and playlist
+management and a clean and simple interface.
 
-If you have not yet been sucked in by the streaming cartells, you might find it
-useful. Even more so in case your hard drive is home to a neatly organised
-music collection and you want a decent interface for maneuvering, searching,
-and curating it or that ever-growing personal playlist library. But without
-being sucked into some tool's own warped opinion of how to store your stuff.
+If you have not yet been sucked in by the streaming cartells, then you might
+find it useful. Even more so in case your hard drive is home to a neatly
+organised music collection and you want a decent interface for maneuvering,
+searching, and curating it.
 
 Camp is entirely written in OCaml [2] and portable across Windows, Mac and
 Linux.
 
 Although I use it myself every day, there may be bugs and hick-ups. You have
 been warned.
+
+This README is intentionally written in retro format.
 
 
 [1] https://en.wikipedia.org/wiki/Winamp
@@ -43,30 +44,30 @@ been warned.
 
 You'll need OCaml 5.04 or greater and Opam along with it.
 
-On Windows, no way around Cygwin and make (and you'll probably need to manually
+On Windows, no way around Cygwin and make. And you'll probably need to manually
 install the mingw64-x86_64-winpthreads package, although to be honest, I never
-quite understand why that is so).
+quite understand why that is so.
 
 Camp is tested on Windows and Mac. It should work on Linux, too, but I haven't
-had achance to try.
+had a chance to try.
 
 
 2.2 Building
 ------------
 
-In the main directory (here you found this file), invoke:
+In the main directory (where you found this file), invoke:
 
   +---------------
   | make
   +---------------
 
-The first time round, it may trigger the installation of additional opam
+The first time round, it may trigger the installation of additional Opam
 packages, which you'll have to confirm.
 
 On Windows and Linux, the outcome is a stand-alone directory `Camp` bundling
 the executable with all files necessary. On Mac, you'll get a proper application
 `Camp.app`. In both cases, the result is self-contained and can be moved to
-any location of your chosing.
+any hard drive location of your chosing.
 
 If you prefer to have either packaged up as a zip file, then go with:
 
@@ -94,7 +95,7 @@ audio file names to play or queue up that way.
 
 Of course, you can also create file associations for the audio formats you want
 to play with this decent piece of software. Then opening such a file will queue
-it up in Camp.
+it up in the playlist.
 
 Camp (usually) detects if it is already running. Any files passed to it will
 then be added to the current playlist.
@@ -108,12 +109,12 @@ cosy little directory for itself, where it stores its configuration and
 database. Depending on your operating system, this directory is located in the
 canonical location for local user application data:
 
-* On Windows, find it under C:\Users\<you>\AppData\Local\Camp
-* On Mac, it'll go to /Users/<you>/Library/Application Directory/Camp
-* On Linux, it should be /home/<you>/.local/share/Camp
-  (or whatever $XDG_DATA_HOME is set to)
+* on Windows, find it under C:\Users\<you>\AppData\Local\Camp,
+* on Mac, it'll go to /Users/<you>/Library/Application Support/Camp,
+* on Linux, it should be /home/<you>/.local/share/Camp
+  (or whatever $XDG_DATA_HOME is set to).
 
-Some of the data here is in text format. You can edit it, but you'll definitely
+Some of the data there is in text format. You can edit it, but you'll definitely
 be on your own.
 
 
@@ -126,9 +127,9 @@ be on your own.
 
 Camp consists of a window with 3 main areas (I call them *panes* below):
 
-* Control: this is where you control playback, volume, etc.
-* Playlist: this is where you queue up tracks
-* Library: this is where you manage your music library
+* Control: this is where you control playback, volume, etc.,
+* Playlist: this is where you queue up tracks,
+* Library: this is where you manage your music library.
 
 Playlist and Library are folded away on first start, but you can reveal them by
 activating the respective toggles on the right side of the Control pane. That
@@ -136,7 +137,7 @@ said, they will look pretty empty at first.
 
 * The Playlist opens below the control pane.
 
-* The Library opens to the left or the right, depending on screen space.
+* The Library opens to the right or the left, depending on screen space.
 
 * When the Library is open already, you can Shift-click on the Library toggle
   button to manually switch sides.
@@ -167,8 +168,8 @@ Most controls around the Playlist should be intuitive. A few extra tips:
   Or press left/right cursor keys on the keyboard.
 
 * Volume: Controlled either by using the mouse wheel while hovering over the
-  Control pane, or by directly clicking/dragging the volume bar. You can also
-  press +/- on the keyboard.
+  Control pane, or by directly clicking/dragging the triangular volume bar. You
+  can also press +/- on the keyboard.
 
 * Mute: There is a red Mute sign below the volume bar that is easy to miss.
   Click it.
@@ -182,7 +183,7 @@ Most controls around the Playlist should be intuitive. A few extra tips:
   color schemes, all inspired by actual HiFi displays from the past. Or use the
   context menu.
 
-* Shuffle: Toggles random play of the playlist (see 3.3).
+* Shuffle: Toggles random play of the playlist (Section 3.3).
 
 * Repeat: Cycles Repeat mode between Off (no indicator light), Repeat One (left
   indicator light), and Repeat All (right light).
@@ -191,13 +192,13 @@ Most controls around the Playlist should be intuitive. A few extra tips:
   (left light), on second, sets loop end (right light), on third click
   deactivates looping.
 
-The context menus on the info area or the buttons area reveal some additional
-keys.
+The context menus on the info area or the buttons area reveal additional keys.
 
 If the current track is in the Playlist, its entry is shown in white.
 
 If the current track is in the Library, its home folder is shown in white in
-the Browser. Likewise, respective View entries are shown in white.
+the Browser. Likewise, respective View entries are shown in white. That way, you
+can quickly locate it in the library.
 
 
 3.3 Playing More Tracks: the Playlist
@@ -239,7 +240,7 @@ whole playlist if nothing is selected.
 
 * DEL: Remove the current selection from the playlist.
 
-* CROP: Remove ALL BUT the current selection.
+* CROP: Remove *all but* the current selection.
 
 * WIPE: Clear out all orphan entries, i.e., those whose file is missing (as
   indicated in red).
@@ -258,7 +259,7 @@ is open and has focus, the buttons affect the focussed view there.
 
 Other useful playlist actions:
 
-* Cut/Copy/Paste key shortcuts: Copy entries between playlist and clipboard.
+* Cut/Copy/Paste key short-cuts: Copy entries between playlist and clipboard.
   This allows both exporting and importing playlist fragments as text or
   transferring between playlists (e.g., in the Library).
 
@@ -267,7 +268,7 @@ Other useful playlist actions:
 
 * Eject: To clear the playlist, use the Eject button on the Control pane.
 
-* Shuffle: To activate random play, use the Shuffle button on the control pane.
+* Shuffle: To activate random play, use the Shuffle button on the Control pane.
   Shuffle makes sure that every song is only played once. Fwd/bwd control
   buttons will go through the playlist in shuffle order. When adding new
   tracks to the playlist while Shuffle is active, no matter at which position,
@@ -281,7 +282,7 @@ Other useful playlist actions:
 
 * Export (context menu): Copy all files in playlist or selection to a disk
   folder of choice. Export "with Position" renames them by prepending their
-  relative position, so that they sort in play order.
+  relative position to the file name, so that they sort in play order.
 
 * Search (context menu on an entry): Search current Library view for a track
   with the same artist and title (only available when Library is open).
@@ -297,7 +298,7 @@ The Library is for power users who have a large and hopefully well-organised
 music collection that they want to search and view from every angle. And
 who perhaps want to crank out a good library of playlists, too.
 
-For those, the Library pane consists of two main areas:
+The Library pane consists of two main areas:
 
 * Browser (left): This is a browser for all music folders that have been added
   to the library.
@@ -311,7 +312,8 @@ and Camp indexes them for its database.
 * To add a folder to the database, either drag it onto the browser, or select
   it manually the old-fashioned way using the ADD button at the bottom. A
   folder added this way is called a *root*. You can add as many roots as you
-  want, as long as none is a super- or sub-folder of another.
+  want, as long as they don't overlap, i.e., none is a super- or sub-folder of
+  another on your drive.
 
 * Once added, Camp will happily scan the new root and all its sub-folders for
   audio files and playlists. A scan in progress is indicated by the big yellow
@@ -328,13 +330,14 @@ Views for the tracks in it.
 .................
 
 The Browser is for browsing through the folders you have added: the roots,
-their sub-folders, and also playlists in these folders. In Camp, playlists
-are treated like virtual folders, meaning that they can participate in all
-the interesting activities around searching, filtering, sorting, showing meta
-data, etc.
+their sub-folders, and also playlists in these folders.
 
-There is an entry "All" at the top of the root list. This is the virtual parent
-folder of all roots.
+In Camp, playlists are treated like virtual folders, meaning that they can
+participate in all the interesting activities around searching, filtering,
+sorting, showing meta data, etc.
+
+There is an entry "All" at the top of the folder list. This is the virtual
+parent folder of all roots.
 
 Browser entries can be manipulated with a few buttons at the bottom:
 
@@ -351,12 +354,12 @@ Browser entries can be manipulated with a few buttons at the bottom:
 * SCAN: Rescan the selected folder (if the browser has focus), or the current
   selection in the View that currently has the focus.
   With Shift: Do a "thorough" rescan. A quick scan only looks for new or
-  deleted files, while a throrough Rescan rereads all meta data.
+  deleted files, while a throrough scan rereads all meta data.
 
 Other things to do in the Browser:
 
 * Reorder: You can change the order in which sub-folders are shown by dragging
-  individual entries. You cannot move them to another parent, though.
+  individual entries. You cannot move them to another folder, though.
 
 * Rename (context menu): You can also change the name shown for an entry. Don't
   worry, this does not affect the physical name of the folder or file on disk.
@@ -382,15 +385,15 @@ Other things to do in the Browser:
 ...............
 
 The contents of a folder selected in the browser (including virtual folders
-like playlists) can be viewed in a number of interesting ways.
+like playlists) can be viewed in a number of exciting ways.
 
 * Tables: The view area can be hierarchically organised into artists, albums,
-  and tracks tables, each of which can be toggled on or off using the buttons
-  above the Browser.
+  and tracks tables, each of which can be toggled on or off using the
+  respective buttons above the Browser.
 
-* Grids: If you prefer a all of covers, albums and tracks can alternatively be
-  viewed either as a cover grid. These options are cycled through by the
-  aforementioned view toggles.
+* Grids: If you prefer a wall of covers, albums and tracks can alternatively be
+  viewed as a cover grid. These options are cycled through by clicking the
+  aforementioned view toggles multiple times.
 
 * Columns: Columns in a table can be resized and reordered by drag & drop on
   the column header as you would probably expect. Right-click on a header
@@ -416,17 +419,21 @@ like playlists) can be viewed in a number of interesting ways.
   cell. Good way to e.g. find other songs by an artist.
 
 * Cover: Clicking and holding on a cover thumbnail in table view opens a pop-up
-  for the cover. Hold the mouse butten and hover over other entries to switch
-  covers on the fly.
+  for the cover. Hold the mouse butten and hover over other entries to flick
+  through covers on the fly.
 
 * Save: the context menu also allows saving the current view as a playlist or
-  as viewlist (Section 3.5).
+  as a viewlist (Section 3.5).
 
-* Queue: a double-click on a table or grid item queues up all its tracks in
-  the playlist.
+* Queue: a double-click on a selected table or grid item queues up all its
+  tracks in the playlist.
 
 * Tag: Invoke an external tag editor (see Section 3.3 for how to fiddle with
   configuring that).
+
+* Sort (context menu): In addition, the context menu of the tracks table when
+  showing a playlist folder has an option to reorder that playlist to the
+  current table sort order.
 
 Additional options are available only for the tracks table, and only if it
 displays a playlist folder, and only if that is currently sorted by position:
@@ -435,8 +442,9 @@ displays a playlist folder, and only if that is currently sorted by position:
   (Section 3.3) is available, including drag & drop, adding, removing,
   reordering, wiping, deduping, repairing, exporting tracks.
 
-* Sort (context menu): In addition, a playlist can be reordered to the
-  current table sort order.
+* Buttons: In particular, when the current focus is on the tracks table of a
+  library playlist, then the playlist edit buttons at the bottom of the
+  Playlist pane are rewired to act on the tracks table.
 
 
 3.4.3 Searching
@@ -444,13 +452,13 @@ displays a playlist folder, and only if that is currently sorted by position:
 
 In addition to filtering by selection (see Section 3.4.2), the contents of
 the View area can be further constrained by spilling something into the Search
-field. Note that this works even with playlists.
+field. And this works even with playlists.
 
 * Text Search: Typing one or multiple words filters the View to tracks
   whose meta data contains all the words. Example:
 
   +-----------------------
-  | rush optical
+  | ed rush optical
   +-----------------------
 
   That is, search for tracks done by both Ed Rush & Optical.
@@ -461,13 +469,13 @@ field. Note that this works even with playlists.
   (like you're perhaps used to from shells like bash).
 
 * Connectives: Separating words by `|` filters for tracks that have at least
-  one of the words. Example:
+  one of the sides. Example:
 
   +------------------------
-  | rush|optical
+  | ed rush|optical
   +------------------------
 
-  That is, search for tracks done by either Rush or Optical or both.
+  That is, search for tracks done by either Ed Rush or Optical or both.
   Alternatively, perhaps ask for tracks by Optical that Rush was NOT involved
   in:
  
@@ -477,7 +485,7 @@ field. Note that this works even with playlists.
 
   You can also use `&` if you like, but it's equivalent to just space.
 
-* Grouping: Use parenthesis to group search formulas:
+* Grouping: Use parentheses to group search formulas:
 
   +------------------------
   | ~(rush|optical) virus
@@ -493,7 +501,7 @@ field. Note that this works even with playlists.
   +------------------------
 
   That is, search for "Ed Rush", not just something that happens to contain
-  both words. For example, this will not accidentally pull up a track named
+  both words. For example, this will not accidentally pick up a track named
   "Crushed".
 
 * Attributes: The notation `#attr` produces the value of a specific meta data
@@ -532,7 +540,7 @@ field. Note that this works even with playlists.
   - #true - the true truth value
   - #false - the false truth value
 
-  For example, only give me Ed Rush tracks that actually still exist on disc:
+  For example, only give me Ed Rush tracks that have not vanished from disk:
 
   +------------------------
   | "ed rush" #fileexists
@@ -583,8 +591,8 @@ understands "smart" playlists, called *viewlists*.
   constraining #filepath or #filedir.)
 
 * Sorting: The search formula in a viewlist may be followed by `^` and a
-  sequence of sort keys that define how the playlist ought to be sorted. A sort
-  key is one of the search attributes (Section 4.3.4), possibly preceeded by
+  sequence of sort keys that define how the viewlist ought to be sorted. A sort
+  key is one of the search attributes (Section 3.4.3), possibly preceeded by
   `-` to indicate reverse (descending) order. For example:
 
   +----------------------------------------
@@ -603,8 +611,8 @@ understands "smart" playlists, called *viewlists*.
 3.6 Repairing Playlists
 -----------------------
 
-The context menu on playlists has an item for "repairing" a playlist. It goes
-through all the files in the playlist and checks if they exist. Where not, it
+The context menu on playlist tracks has an item for "repairing" a playlist. It
+goes through all the tracks and checks if their files still exist. Where not, it
 searches the library for a file with the same or a similar name.
 
 * Once the search is complete, it shows a log of all missing files and whether
@@ -633,7 +641,8 @@ sessions:
   Library pane is open.
 
 * Dividers: Drag the dividers between Browser and Views, or between the
-  individual view tables. The configuration will be remembered per folder!
+  individual view tables. The configuration of view dividers will be remembered
+  per folder!
 
 * Text Size: Use the + and - keys with Ctrl/Command (or the context menu from
   the Control pane) to adjust the size of all text in table, list, and edit
@@ -646,11 +655,12 @@ sessions:
   menu from the Control pane) to adjust the size of covers in grid views.
 
 * Pop-up Size: Use the [ and ] keys with Ctrl/Command (or the context menu from
-  the Control pane) to adjust the size of cover popups.
+  the Control pane) to adjust the size of cover popups. But note that pop-ups
+  cannot protrude from the main window, due to limitations of the graphics
+  library. Hence their size will be limited by the current window size.
 
 * Scaling: Use the [ and ] keys with Shift+Ctrl/Command to change the global
-  scaling factor for the UI. This defaults to 1 on low-resolution screens
-  (those up to 1440p), 2 on 4K displays and 4 on 8K.
+  scaling factor for the entire UI. This defaults to 1.
 
 * Text Rendering: Shift+Ctrl/Command+U switches the rendering procedure for
   text. On low-resolution screens (up to 1440p) Camp defaults to plain
@@ -658,17 +668,18 @@ sessions:
   The defaults usually look better on the respective screens, but this option
   allows to switch manually.
 
-  (That said, neither option looks particularly great with a small text at a
+  (That said, neither option looks particularly great with small text at a
   scaling factor of 1. That is a limitation of the rendering method of the
   underlying graphics library, that cannot do sub-pixel rendering. You may
   want to experiment with Text Sizes to find the one that looks best on your
   system.)
 
 * Hide Covers: Ctrl/Command+Y hides the cover in the Control pane, whereas
-  Shift+Ctrl/Command+Y hides the the covers in Library list views.
+  Shift+Ctrl/Command+Y hides the the covers in Library list views. That would
+  primarily be for performance's sake.
 
 * FPS: Ctrl/Command+U toggles the display of an FPS counter in the Control
-  pane.
+  pane. Note that this is soft-limited to 60.
 
 
 [1] https://steamcdn-a.akamaihd.net/apps/valve/2007/SIGGRAPH2007_AlphaTestedMagnification.pdf
@@ -680,8 +691,13 @@ sessions:
 Camp comes with a few limitations, most of which I can conveniently blame on
 the underlying graphics and audio library (Section 4.3).
 
+* CPU Usage: Camp uses an extravagant "immediate mode" GUI, which is a bit more
+  expensive. It isn't super-optimised either. On a dated computer, it may use
+  more compute than a backround app deserves. (And for some reason, I see much
+  higher CPU consumption on my Mac laptop than on my Windows desktop.)
+
 * Localisation: The underlying library doesn't offer much in the way of
-  detecting keyboard assignment, so I'm afraid it assumes an English/U.S.
+  detecting keyboard assignments, so I'm afraid it assumes an English/U.S.
   keyboard. Feel free to hack the source code if you're desperate for an
   override.
 
@@ -690,14 +706,15 @@ the underlying graphics and audio library (Section 4.3).
   As mentioned in Section 3.7, you may want to play with different text sizes
   to find the one that sucks least.
 
-* The graphics library does not support multiple windows. Hence, the one Window
+* The graphics library does not support multiple windows. Hence, the one window
   has to be a rectangular one and with that, the Library pane cannot be
-  vertically resized when the Playlist isn't open. Bummer.
+  vertically resized when the Playlist isn't open. Likewise, pop-ups cannot be
+  protrude from the parent window. Bummer.
 
 * Window resizing or opening/closing Playlist or Library panes may create ugly
   rendering artefacts for a moment, depending on operating system.
 
-* With multiple monitors, moving a window from a high-resolution to a
+* With multiple monitors, dragging a window from a high-resolution to a
   lower-resolution screen or vice versa, messes up window rendering entirely,
   at least on some platforms.
 
@@ -773,7 +790,7 @@ library files.
 
 The only nuisance is that persistance has to be implemented manually. Thus the
 `Bin` module. Fortunately, that's fast enough to savely blast out the whole
-database to disk every 30 seconds in a background thread.
+database to disk frequently in a background thread.
 
 
 4.3 Graphics and Audio
@@ -790,7 +807,7 @@ also handles global graphics scaling.
 Audio is particularly simple, since Raylib already does most of the work for
 loading and buffering audio files. One annoyance is, however, that it does
 not deal with UTF-8 file paths properly, so we have to copy every file with
-a non-ASCII path to a temp directory.
+a non-ASCII path to a temp directory before loading it.
 
 
 [1] https://www.raylib.com
@@ -816,7 +833,7 @@ the only easy way to achieve the correct drawing order is to use a delay
 function that defers some drawing actions to the end of the frame. Hacky-hack.
 
 Unfortunately, immediate mode also is very costly: naively, everything would be
-redrawn on every frame, 60+ times a second. On my desktop machine, that would
+redrawn on every frame, 60 times a second. On my desktop machine, that would
 immediately spin up the fan and eat up up to 50% GPU time once I open the
 Library pane with a lot of small text in it. To work around that issue, all
 table widgets' graphics are cached into their private texture buffer per table
@@ -824,8 +841,7 @@ and only redrawn occasionally or when their content is dirty.
 
 Another pain point is the logic for mouse drags. The `Ui` module essentially
 implements some global state to track which widgets owns the mouse and what
-the widget-specific state deltas are. Not sure if there is a smarter way to do
-this.
+the widget-specific state deltas are. There might be smarter ways of doing this.
 
 In retrospect, this dumb man's conclusion is that, contrary to what you hear in
 the news, immediate mode does not scale well to complex UIs. Once the necessary

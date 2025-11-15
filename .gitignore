@@ -7,3 +7,4 @@ Camp
 *.zip
 *.ttf
 *.conf
+.DS_Store

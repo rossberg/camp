@@ -106,6 +106,7 @@ struct
   let init x y w h s =
     Raylib.(set_trace_log_level TraceLogLevel.Warning);
     Raylib.(set_exit_key Key.Null);
+    Raylib.set_target_fps 60;
 
     (* Discover screen geometry by opening a dummy window and maximise it. *)
     Raylib.(set_config_flags
