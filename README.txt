@@ -9,15 +9,15 @@
   / \_/ A MUSIC PLAYER / \_/
 
 
-Screenshot Gallery: https://github.com/rossberg/amp/blob/master/img/README.md
+Screenshot Gallery: https://github.com/rossberg/camp/blob/master/img/README.md
 
  ______________________________________________________________________________
 | 1. INTRODUCTION
 |______________________________________________________________________________
 
-What we have here is an old-school music player heavily inspired by good old
+What you got here is an old-school music player heavily inspired by good old
 Winamp [1], with a particular focus on convenient music library and playlist
-management and a clean and simple interface.
+management and a pleasant interface.
 
 If you have not yet been sucked in by the streaming cartells, then you might
 find it useful. Even more so in case your hard drive is home to a neatly
@@ -30,7 +30,7 @@ Linux.
 Although I use it myself every day, there may be bugs and hick-ups. You have
 been warned.
 
-This README is intentionally written in retro format.
+This README is intentionally written in retro style.
 
 
 [1] https://en.wikipedia.org/wiki/Winamp
@@ -47,8 +47,8 @@ This README is intentionally written in retro format.
 You'll need OCaml 5.04 or greater and Opam along with it.
 
 On Windows, no way around Cygwin and make. And you'll probably need to manually
-install the mingw64-x86_64-winpthreads package, although to be honest, I never
-quite understand why that is so.
+install the mingw64-x86_64-winpthreads package to have libwinpthread.dll in the
+path, although to be honest, I never quite understand why that is so.
 
 Camp is tested on Windows and Mac. It should work on Linux, too, but I haven't
 had a chance to try.
@@ -578,7 +578,6 @@ field. And this works even with playlists.
   implicitly converted to text.
 
 
-
 3.5 Viewlists
 -------------
 
@@ -609,7 +608,6 @@ understands "smart" playlists, called *viewlists*.
   view) can create a new viewlist saving that view for eternity.
 
 
-
 3.6 Repairing Playlists
 -----------------------
 
@@ -626,7 +624,6 @@ searches the library for a file with the same or a similar name.
 * The Repair command is also available in the browser. When requested on a real
   folder (as opposed to a single playlist), it applies to all playlists in that
   folder and its sub-folders.
-
 
 
 3.7 UI Configuration
