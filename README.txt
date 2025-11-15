@@ -11,24 +11,20 @@
 
 Screenshot Gallery: https://github.com/rossberg/camp/blob/master/img/README.md
 
- ______________________________________________________________________________
-| 1. INTRODUCTION
-|______________________________________________________________________________
+ _____________________________________________________________________________
+|  1. INTRODUCTION                                                            |
+|_____________________________________________________________________________|
 
 What you got here is an old-school music player heavily inspired by good old
-Winamp [1], with a particular focus on convenient music library and playlist
-management and a pleasant interface.
+Winamp [1], with a focus on decent music library and playlist handling.
 
 If you have not yet been sucked in by the streaming cartells, then you might
-find it useful. Even more so in case your hard drive is home to a neatly
-organised music collection and you want a decent interface for maneuvering,
-searching, and curating it.
+find it useful.
 
 Camp is entirely written in OCaml [2] and portable across Windows, Mac and
 Linux.
 
-Although I use it myself every day, there may be bugs and hick-ups. You have
-been warned.
+I use it every day, but there may be bugs. You have been warned.
 
 This README is intentionally written in retro style.
 
@@ -37,9 +33,9 @@ This README is intentionally written in retro style.
 [2] https://ocaml.org
 
 
- ______________________________________________________________________________
-| 2. INSTALLATION
-|______________________________________________________________________________
+ _____________________________________________________________________________
+|  2. INSTALLATION                                                            |
+|_____________________________________________________________________________|
 
 2.1 Requirements
 ----------------
@@ -90,7 +86,7 @@ current directory, do:
 2.3 Running
 -----------
 
-Just click the thing!
+Just click the thing! (*)
 
 Or, if you love your keyboard, start it from the command line. You can pass
 audio file names to play or queue up that way.
@@ -101,6 +97,12 @@ it up in the playlist.
 
 Camp (usually) detects if it is already running. Any files passed to it will
 then be added to the current playlist.
+
+
+(*) If you are on MacOS 26.2+ and witness Camp being unable to open some music
+    files, e.g., from the desktop, even though you allowed it before, then this
+    is because apparently Apple thinks all users are idiots and prevents it. In
+    that case move Camp.app to the Applications folder and start it from there.
 
 
 2.4 Application Storage
@@ -120,9 +122,9 @@ Some of the data there is in text format. You can edit it, but you'll definitely
 be on your own.
 
 
- ______________________________________________________________________________
-| 3. MAKE YOURSELF AT HOME
-|______________________________________________________________________________
+ _____________________________________________________________________________
+|  3. MAKE YOURSELF AT HOME                                                   |
+|_____________________________________________________________________________|
 
 3.1 A First Look
 ----------------
@@ -688,12 +690,13 @@ sessions:
 ---------------
 
 Camp comes with a few limitations, most of which I can conveniently blame on
-the underlying graphics and audio library (Section 4.3).
+the underlying graphics and audio library (Raylib, Section 4.3).
 
 * CPU Usage: Camp uses an extravagant "immediate mode" GUI, which is a bit more
   expensive. It isn't super-optimised either. On a dated computer, it may use
   more compute than a backround app deserves. (And for some reason, I see much
-  higher CPU consumption on my Mac laptop than on my Windows desktop.)
+  higher CPU consumption on my Mac laptop than on my Windows desktop, about 40%
+  vs 2%, while GPU time is about the same.)
 
 * Localisation: The underlying library doesn't offer much in the way of
   detecting keyboard assignments, so I'm afraid it assumes an English/U.S.
@@ -721,15 +724,15 @@ the underlying graphics and audio library (Section 4.3).
   fine. In exchange, MOD and XM modules can be played out of the box!
 
 * I'd like to have an oscilloscope and a frequency analyser, but the library
-  binding for OCaml doesn't currently give access to the necessary callbacks.
+  binding for OCaml does not yet give access to the necessary callbacks.
 
 * There may be bugs. Correction: there almost certainly are. And other
   occasional signs of immature software.
 
 
- ______________________________________________________________________________
-| 4. THE SOURCE
-|______________________________________________________________________________
+ _____________________________________________________________________________
+|  4. THE SOURCE                                                              |
+|_____________________________________________________________________________|
 
 Don't look at it! It's ugly.
 
@@ -796,10 +799,10 @@ database to disk frequently in a background thread.
 ----------------------
 
 The low-level graphics layer is implemented with the Raylib library [1] and its
-OCaml binding [2].
+excellent OCaml binding [2].
 
-Everything is abstracted away in the `Api` module, which also works around a
-number of quirks in that library. For example, its buggy mouse position
+But everything is abstracted away in the `Api` module, which also works around
+a number of quirks in that library. For example, its buggy mouse position
 handling and its quirky window resizing/positioning behaviour. The module
 also handles global graphics scaling.
 
@@ -850,9 +853,9 @@ leaky abstraction. If I had time, I would like to implement a more robust, more
 declarative layer on top.
 
 
- ______________________________________________________________________________
-| 5. LEGAL STUFF
-|______________________________________________________________________________
+ _____________________________________________________________________________
+|  5. LEGAL STUFF                                                             |
+|_____________________________________________________________________________|
 
 I put Camp and its source code under an attribution non-commercial share-alike
 Creative Commons license, CC BY-NC-SA 4.0 [1] for short. Enjoy!
