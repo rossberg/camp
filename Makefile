@@ -52,6 +52,9 @@ mac: deps exe $(ASSETS)
 mac-debug: mac
 	codesign -s - -v -f --entitlements platform/mac-debug/debug.plist $(NAME).exe
 
+mac-install: mac
+	cp -rf $(APPNAME).app /Applications
+
 win: dir
 	@if [ $(WIN_DLLS:%=`which %.dll`) != '' ]; then cp $(WIN_DLLS:%=`which %.dll`) $(APPNAME); fi
 
