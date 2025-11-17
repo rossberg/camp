@@ -245,22 +245,26 @@ let power_h = 22
 let power_y g = margin g
 let power_area g = (cp, shown_x g, power_y g, shown_w, power_h)
 let power_button g = Ui.button g.ui (power_area g) key_quit true
-let power_label g = Ui.label g.ui (cp, shown_x g, power_y g + power_h + 1, shown_w, label_h g) `Center "POWER"
+let power_label g = Ui.label g.ui (cp, shown_x g, power_y g + power_h + 3, shown_w, label_h g) `Center "POWER"
+let power_shadow g = Ui.box g.ui (cp, shown_x g, power_y g, shown_w + 1, power_h + 2) `Black
 let minimize_button g = Ui.invisible_button g.ui (power_area g) [`Shift] key_min true
 
 let shown_indicator y g = Ui.indicator g.ui `Green (cp, shown_indicator_x g, y - indicator_w g - 1, indicator_w g, indicator_w g)
 let shown_button y key g = Ui.button g.ui (cp, shown_x g, y, shown_w, shown_h) key true
-let shown_label y txt g = Ui.label g.ui (cp, shown_x g, y + shown_h + 1, shown_w, label_h g) `Center txt
+let shown_label y txt g = Ui.label g.ui (cp, shown_x g, y + shown_h + 2, shown_w, label_h g) `Center txt
+let shown_shadow y g = Ui.box g.ui (cp, shown_x g, y, shown_w, shown_h + 1) `Black
 
-let play_y = 56
+let play_y = 57
 let playlist_indicator = shown_indicator play_y
 let playlist_button = shown_button play_y key_pl
 let playlist_label = shown_label play_y "PLAYLIST"
+let playlist_shadow = shown_shadow play_y
 
 let lib_y = 93
 let library_indicator = shown_indicator lib_y
 let library_button = shown_button lib_y key_lib
 let library_label = shown_label lib_y "LIBRARY"
+let library_shadow = shown_shadow lib_y
 let library_side_key g = Ui.key g.ui key_side true
 
 (* Display box *)
@@ -353,7 +357,7 @@ let stop_button = control_button 3 "[]" key_stop
 let fwd_button = control_button 4 ">>" key_fwd
 let eject_button = control_button 5 "^" key_eject
 
-let button_box g = Ui.box g.ui (cp, margin g - 1, ctl_y, 6 * ctl_w + 3, ctl_h + 5) `Black
+let button_shadow g = Ui.box g.ui (cp, margin g - 1, ctl_y, 6 * ctl_w + 3, ctl_h + 5) `Black
 
 let start_stop_key g = Ui.key g.ui key_startstop
 let rw_key g = Ui.key g.ui key_rw
@@ -371,21 +375,25 @@ let mode_indicator_x g x = function
 
 let mode_indicator i al g = Ui.indicator g.ui `Green (cp, mode_indicator_x g (mode_x g i) al, mode_y g - indicator_w g - 1, indicator_w g, indicator_w g)
 let mode_button i key g = Ui.button g.ui (cp, mode_x g i, mode_y g, mode_w, mode_h) key
-let mode_label i label g = Ui.label g.ui (cp, mode_x g i, mode_y g + mode_h + 1, mode_w, label_h g) `Center label
+let mode_label i label g = Ui.label g.ui (cp, mode_x g i, mode_y g + mode_h + 2, mode_w, label_h g) `Center label
+let mode_shadow i g = Ui.box g.ui (cp, mode_x g i, mode_y g, mode_w, mode_h + 1) `Black
 
 let shuffle_indicator = mode_indicator 2 `Center
 let shuffle_button = mode_button 2 key_shuffle
 let shuffle_label = mode_label 2 "SHUFFLE"
+let shuffle_shadow = mode_shadow 2
 
 let repeat_indicator1 = mode_indicator 1 `Left
 let repeat_indicator2 = mode_indicator 1 `Right
 let repeat_button = mode_button 1 key_repeat
 let repeat_label = mode_label 1 "REPEAT"
+let repeat_shadow = mode_shadow 1
 
 let loop_indicator1 = mode_indicator 0 `Left
 let loop_indicator2 = mode_indicator 0 `Right
 let loop_button = mode_button 0 key_loop
 let loop_label = mode_label 0 "LOOP"
+let loop_shadow = mode_shadow 0
 
 (* Pop-ups *)
 let info_context g = Ui.mouse g.ui (cp, margin g, margin g, margin g + info_w g - volume_w, info_h g - seek_h g) `Right

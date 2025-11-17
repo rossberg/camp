@@ -654,26 +654,27 @@ let button ui area ?(protrude = true) modkey focus active =
   let img = get_img ui ui.img_button in
   let sx, sy, h' = if status = `Pressed then 800, 400, h + 1 else 0, 200, h in
   Api.Draw.image_part ui.win x y w h' sx sy w h' img;
-  if status <> `Pressed then
+  let grey_left, shine_left = if status = `Pressed then 0x30, 0x20 else 0x50, 0x40 in
+  Draw.fill ui.win (x + 1) (y + 1) 1 (h - 2) (`Gray grey_left);
+  mouse_focus ui (-1, x + 1, y + 1, 1, h - 2) (2 * w) shine_left 0;
+  if protrude then
   (
-    Draw.fill ui.win (x + 1) (y + 1) 1 (h - 2) (`Gray 0x50);
-    mouse_focus ui (-1, x + 1, y + 1, 1, h - 2) (2 * w) 0x40 0;
-    if protrude then
-    (
-      Draw.fill ui.win (x + 1) (y + 1) (w - 3) 1 (`Gray 0x60);
-      mouse_focus ui (-1, x + 1, y + 1, w - 3, 1) (2 * w) 0x40 0;
-    )
-    else
-    (
-      Draw.fill ui.win (x + 1) (y + 1) (w - 3) 1 (`Gray 0x10);
-      mouse_focus ui (-1, x + 1, y + 1, w - 3, 1) 20 0x20 0;
-    )
+    let grey_top, shine_top = if status = `Pressed then 0x30, 0x20 else 0x60, 0x40 in
+    Draw.fill ui.win (x + 1) (y + 1) (w - 3) 1 (`Gray grey_top);
+    mouse_focus ui (-1, x + 1, y + 1, w - 3, 1) (2 * w) shine_top 0;
+  )
+  else
+  (
+    let grey_top, shine_top = if status = `Pressed then 0x00, 0x10 else 0x10, 0x20 in
+    Draw.fill ui.win (x + 1) (y + 1) (w - 3) 1 (`Gray grey_top);
+    mouse_focus ui (-1, x + 1, y + 1, w - 3, 1) 20 shine_top 0;
   );
   (*Draw.rect ui.win x y (w - 1) h (border ui status);*)
   mouse_focus ui (if protrude then -1, x, y, w - 1, h - 1 else area)  w 0x50 (-5);
   match active with
   | None -> false
-  | Some active -> if status = `Released then not active else active
+  | Some active ->
+    if status = `Released && mouse_inside ui area then not active else active
 
 let labeled_button ui area ?(protrude = true) hsym c txt modkey focus active =
   let (x, y, w, h), status = widget ui area modkey ~focus in

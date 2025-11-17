@@ -168,6 +168,7 @@ let run (st : state) =
   (* This has to come first, otherwise Raylib crashes? *)
   let modal = Ui.is_modal lay.ui in
   Ui.nonmodal lay.ui;  (* always allow Quit *)
+  Layout.power_shadow lay;
   if not (Layout.power_button lay (Some true))
   && not (Api.Key.is_modifier_down `Shift) then
   (
@@ -349,7 +350,7 @@ let run (st : state) =
   let rh = lay.text + 2 * lay.pad_y in
   let page = max 1 (int_of_float (Float.floor (float h /. float rh))) in
 
-  Layout.button_box lay;
+  Layout.button_shadow lay;
 
   let last_pos = st.playlist.table.pos in
   let rec skip (st : state) delta =
@@ -509,6 +510,7 @@ let run (st : state) =
   let shuffle = pl.shuffle <> None in
   Layout.shuffle_label lay;
   Layout.shuffle_indicator lay shuffle;
+  Layout.shuffle_shadow lay;
   let shuffle' = Layout.shuffle_button lay focus (Some shuffle) in
   if shuffle' <> shuffle then
   (
@@ -526,6 +528,7 @@ let run (st : state) =
   Layout.repeat_label lay;
   Layout.repeat_indicator1 lay (ctl.repeat = `One);
   Layout.repeat_indicator2 lay (ctl.repeat = `All);
+  Layout.repeat_shadow lay;
   if Layout.repeat_button lay focus (Some false) then
   (
     (* Click on Repeat button: cycle repeat mode *)
@@ -545,6 +548,7 @@ let run (st : state) =
   Layout.loop_indicator1 lay (ctl.loop <> `None);
   Layout.loop_indicator2 lay
     (match ctl.loop with `AB _ -> true | _ -> false);
+  Layout.loop_shadow lay;
   if Layout.loop_button lay focus (Some false) then
   (
     (* Click on Loop button: cycle loop mode *)
@@ -609,6 +613,7 @@ let run_toggle_panel (st : state) =
   let lay = st.layout in
 
   Layout.playlist_label lay;
+  Layout.playlist_shadow lay;
   Layout.playlist_indicator lay lay.playlist_shown;
   let playlist_shown' = Layout.playlist_button lay (Some lay.playlist_shown) in
   (* Click on playlist activation button: toggle playlist *)
@@ -616,6 +621,7 @@ let run_toggle_panel (st : state) =
   if not playlist_shown' then Playlist.defocus st.playlist;
 
   Layout.library_label lay;
+  Layout.library_shadow lay;
   Layout.library_indicator lay lay.library_shown;
   let library_shown' = Layout.library_button lay (Some lay.library_shown) in
   (* Click on library activation button: toggle library *)
