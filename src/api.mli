@@ -259,6 +259,11 @@ sig
   val depth : audio -> sound -> int
   val rate : audio -> sound -> int
   val bitrate : audio -> sound -> float
+
+  type processor = float array -> unit
+
+  val add_processor : audio -> processor -> unit
+  val remove_processor : audio -> processor -> unit
 end
 
 

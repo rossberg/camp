@@ -22,6 +22,9 @@ type t =
 (* Constructor *)
 
 let make audio =
+  Api.Audio.add_processor audio (fun fs ->
+    let f = Array.fold_left (+.) 0.0 fs /. float (Array.length fs) in
+    Printf.printf "data: %d %f\n%!" (Array.length fs) f);
   {
     audio;
     mute = false;

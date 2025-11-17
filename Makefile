@@ -4,7 +4,7 @@ APPNAME = $(shell make -s app-name)
 VERSION = $(shell make -s app-version)
 NAME = $(shell make -s dune-public_name)
 
-NONDEPS = unix audio_file [a-zA-Z0-9_]*[.][a-zA-Z0-9_.]*
+NONDEPS = unix audio_file [a-zA-Z0-9_]*[.][a-zA-Z0-9_.]* raylib_src raylib_ocaml
 DEPS = dune $(shell make -s dune-libraries $(NONDEPS:%=| sed 's/ %//g'))
 
 ASSETS = $(glob assets/*)

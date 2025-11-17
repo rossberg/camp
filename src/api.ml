@@ -805,8 +805,14 @@ end
 
 (* Audio *)
 
-type sound = {music : Raylib.Music.t; format : Format.t; temp : path option (* for UTF-8 workaround *)}
-type audio = {mutex : Mutex.t; mutable sound : sound}
+type sound = {music : Raylib.Music.t; format : Format.t; temp : path option; (* for UTF-8 workaround *)}
+type audio_processor = float array -> unit
+type audio =
+{
+  mutex : Mutex.t;
+  mutable sound : sound;
+  mutable processors : (audio_processor * Raylib_ocaml.Callbacks.audio_callback) list;
+}
 
 module Audio =
 struct
@@ -824,7 +830,7 @@ struct
   let init () =
     Raylib.(set_trace_log_level TraceLogLevel.Warning);
     Raylib.init_audio_device ();
-    let audio = {mutex = Mutex.create (); sound = silence ()} in
+    let audio = {mutex = Mutex.create (); sound = silence (); processors = []} in
 
     let rec refill () =
       Mutex.protect audio.mutex (fun () ->
@@ -908,6 +914,31 @@ struct
   let rate _ sound = sound.format.rate
   let depth _ sound = sound.format.depth
   let bitrate _ sound = sound.format.bitrate
+
+  type processor = audio_processor
+
+  let add_processor a f =
+    Mutex.protect a.mutex (fun () ->
+      let f' ptr n = (*Printf.printf "dummy callback\n%!"*)
+        let len = Unsigned.UInt.to_int n in
+        let ptr' = Ctypes.from_voidp Ctypes.float ptr in
+        f (Array.init len (fun i ->
+          let l = Ctypes.(!@(ptr' +@ 2 * i)) in
+          let r = Ctypes.(!@(ptr' +@ 2 * i +@ 1)) in
+          (l +. r) /. 2.0
+        ))
+      in
+      a.processors <- (f, f') :: a.processors;
+      Raylib_ocaml.Callbacks.attach_audio_mixed_processor f';
+    )
+
+  let remove_processor a f =
+    Mutex.protect a.mutex (fun () ->
+      Option.iter (fun f' ->
+        Raylib_ocaml.Callbacks.detach_audio_mixed_processor f';
+        a.processors <- List.remove_assq f a.processors;
+      ) (List.assq_opt f a.processors)
+    )
 end
 
 
