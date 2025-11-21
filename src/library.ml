@@ -664,6 +664,8 @@ let rescan_cover lib path =
 let load_cover lib win path =
   if M3u.is_separator path then None else
   match Map.find_opt path (Atomic.get lib.covers) with
+  | Some NoCover when Api.Draw.frame win mod 300 = 13 ->
+    rescan_cover lib path; None  (* retry after about 5s *)
   | Some (NoCover | ScanCover) -> None
   | Some (Cover cover) -> cover.last_use <- Api.Draw.frame win; Some cover.image
   | Some (ScannedCover pic) ->
@@ -677,7 +679,6 @@ let load_cover lib win path =
     if Map.is_empty (Atomic.get lib.covers) then
       collect_covers_cont lib win;
     rescan_cover lib path; None
-
 
 let purge_covers lib =
   Atomic.set lib.covers Map.empty
@@ -731,6 +732,11 @@ let rescan_track' lib mode (track : track) =
         Option.iter (fun cover ->
           update_cover lib (Map.add track.path (ScannedCover cover))
         ) meta.cover;
+      )
+      else if track.status = `Absent then
+      (
+        track.status <- `Undet;
+        update_cover lib (Map.remove track.path);
       )
     );
     let time = Unix.gettimeofday () in
@@ -874,7 +880,7 @@ let rec rescan_dir' lib mode (origin : dir) =
       while !i < Iarray.length dir.children do
         let dir = dir.children.$(!i) in
         match Map.find_opt dir.path !new_dirs with
-        | None -> changed := true; incr i  (* removed dir *)
+        | None -> absent_dir dir; changed := true; incr i  (* removed dir *)
         | Some k when k = !j -> incr i; incr j  (* unchanged dir *)
         | Some k when Map.mem children'.(!j).path old_dirs ->
           (* Manually reordered dir; pull forward *)
@@ -902,11 +908,19 @@ let rec rescan_dir' lib mode (origin : dir) =
     if is_viewlist_path dir.name then dir.name <- File.remove_extension dir.name;
     if not (is_very_quick mode) then rescan_viewlist lib mode dir;
     Some [dir]
+
+  and absent_dir (dir : dir) =
+    Data.iter_dir (fun (dir : dir) ->
+      if Data.is_dir dir then
+        Iarray.iter (fun (track : track) -> track.status <- `Absent) dir.tracks
+    ) dir
   in
 
   try
     if File.exists_dir origin.path then
-      ignore (scan_dir origin);
+      ignore (scan_dir origin)
+    else
+      absent_dir origin;
     true
   with exn ->
     Storage.log_exn "file" exn ("scanning directory " ^ origin.path);
