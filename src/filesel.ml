@@ -319,7 +319,7 @@ let columns fs : _ iarray =
 let heading : _ iarray * _ =
   [|""; "File Name"; "File Size"; "File Date"|], [1, `Asc]
 
-let string_of_mode is_dir = if is_dir then "►" else "   "
+let string_of_mode is_dir = if is_dir then " □" else "   "
 let string_of_size size = Data.fmt "%3.2f MB" (float size /. 2.0 ** 20.0)
 
 let string_of_col file = function
