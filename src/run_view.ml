@@ -278,9 +278,10 @@ let queue_on_playlist (st : state) tracks =
     )
     else
     (
-      (* Double-click: replace playlist *)
+      (* Double-click: queue playlist *)
       let len = Playlist.length st.playlist in
       Playlist.insert st.playlist len tracks;
+      Playlist.deselect_all st.playlist;
       let status = Control.status st.control in
       if status = `Stopped || status = `Ejected then
       (
