@@ -430,7 +430,7 @@ like playlists) can be viewed in a number of exciting ways.
   as a viewlist (Section 3.5).
 
 * Queue: a double-click on a selected table or grid item queues up all its
-  tracks in the playlist.
+  tracks in the playlist; a triple-click clears out the previous playlist first.
 
 * Tag: Invoke an external tag editor (see Section 3.3 for how to fiddle with
   configuring that).

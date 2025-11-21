@@ -316,9 +316,12 @@ let run_browser (st : state) =
       (* Shift-Click on dir name: rename *)
       rename st (Some i)
     );
-    if Api.Mouse.(is_pressed `Left && is_doubleclick `Left) then
+    if
+      Api.Mouse.(is_pressed `Left &&
+        (is_doubleclick `Left || is_tripleclick `Left))
+    then
     (
-      (* Double-click on directory name: send track view to playlist *)
+      (* Double/triple-click on directory name: send track view to playlist *)
       let n_artists = Table.num_selected lib.artists in
       let n_albums = Table.num_selected lib.albums in
       if n_artists <> 0 && n_artists <> Table.length lib.artists
@@ -328,7 +331,8 @@ let run_browser (st : state) =
         Table.deselect_all lib.albums;
         Library.refresh_albums_tracks_sync lib;  (* could be slow... *)
       );
-      Run_view.queue_on_playlist st (Array.copy lib.tracks.entries);
+      Run_view.queue_on_playlist st (Array.copy lib.tracks.entries)
+        (Api.Mouse.is_tripleclick `Left);
     )
 
   | `Click (None, _) ->
@@ -734,7 +738,7 @@ let run_view (st : state)
     reorder (view : _ Library.view)
     attr_string prim_attr all_attrs
     path_of text_of color_of
-    selected_tracks clicked_tracks
+    selected_tracks _clicked_tracks
     editable popup make_view =
   let lib = st.library in
   let lay = st.layout in
@@ -817,21 +821,18 @@ let run_view (st : state)
     view.columns <- Data.permute perm view.columns;
     Option.iter (Library.save_dir lib) lib.current;
 
-  | `Click (Some i, _)
-    when Api.Mouse.(is_pressed `Left && is_doubleclick `Left) ->
-    (* Double-click on entry: clear playlist and send tracks to it *)
+  | `Click _ when Api.Mouse.(is_pressed `Left &&
+      (is_doubleclick `Left || is_tripleclick `Left)) ->
+    (* Double/triple-click on entry: send tracks to playlist *)
     let n = Table.num_selected dep_tab in
     if n <> 0 && n <> Table.length dep_tab then
     (
       Table.deselect_all dep_tab;       (* deactivate inner filter *)
       Library.refresh_tracks_sync lib;  (* could be slow... *)
     );
-    let tracks =
-      if Api.Key.are_modifiers_down [`Command]
-      then selected_tracks lib
-      else clicked_tracks lib i
-    in
-    Run_view.queue_on_playlist st (Array.copy tracks);
+    let tracks = selected_tracks lib in
+    Run_view.queue_on_playlist st (Array.copy tracks)
+      (Api.Mouse.is_tripleclick `Left);
 
   | `Click loc ->
     (* Single-click: grab focus, update filter *)
@@ -1018,7 +1019,7 @@ let run_views (st : state) =
       Library.reorder_artists view.artists
       Data.artist_attr_string `Artist Data.artist_attrs
       (fun _ -> "") (fun _ -> "") (fun _ -> Ui.text_color lay.ui)
-      (fun lib -> lib.tracks.entries) (fun lib _ -> lib.tracks.entries)
+      (fun lib -> lib.tracks.entries) (fun lib _ -> lib.Library.tracks.entries)
       false (fun _ -> assert false) Run_view.artists_view;
   );
 
@@ -1040,7 +1041,7 @@ let run_views (st : state) =
       Data.album_attr_string `None Data.album_attrs
       (fun (album : Data.album) -> album.path) text_of
       (fun _ -> Ui.text_color lay.ui)
-      (fun lib -> lib.tracks.entries) (fun lib _ -> lib.tracks.entries)
+      (fun lib -> lib.tracks.entries) (fun lib _ -> lib.Library.tracks.entries)
       false (fun album -> `Album album) Run_view.albums_view;
 
     (* Divider *)
@@ -1099,7 +1100,7 @@ let run_views (st : state) =
       Library.reorder_tracks view.tracks
       Data.track_attr_string prim_attr Data.track_attrs
       (fun (track : Data.track) -> track.path) text_of color_of
-      Library.selected (fun lib i -> [|lib.tracks.entries.(i)|])
+      Library.selected (fun lib i -> [|lib.Library.tracks.entries.(i)|])
       (Library.current_is_plain_playlist lib)
       (fun track -> `Track track) Run_view.tracks_view;
 

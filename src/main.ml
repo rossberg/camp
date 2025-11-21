@@ -45,7 +45,8 @@ and run' (st : state) =
   (
     (* TODO: this could race, should lock the file *)
     Storage.save_string queue_file (fun () -> "");
-    Run_view.external_queue_on_playlist st (M3u.parse !m3u);
+    Run_view.external_queue_on_playlist st (M3u.parse !m3u)
+      (Api.Key.is_modifier_down `Shift);
   );
 
   (* Start drawing *)

@@ -266,10 +266,10 @@ let external_drop drop_on (st : state) (module View : View) =
 let external_drop_on_playlist st = external_drop drop_on_playlist st (playlist_view st)
 let external_drop_on_tracks st = external_drop drop_on_tracks st (tracks_view st)
 
-let queue_on_playlist (st : state) tracks =
+let queue_on_playlist (st : state) tracks replace =
   if tracks <> [||] then
   (
-    if Api.Key.is_modifier_down `Shift then
+    if replace then
     (
       (* Shift-double-click: replace playlist *)
       Playlist.replace_all st.playlist (Array.copy tracks);
@@ -295,8 +295,8 @@ let queue_on_playlist (st : state) tracks =
     Table.dirty st.library.browser;
   )
 
-let external_queue_on_playlist st paths =
-  queue_on_playlist st (expand_paths st paths)
+let external_queue_on_playlist st paths replace =
+  queue_on_playlist st (expand_paths st paths) replace
 
 
 let set_drop_cursor (st : state) =
