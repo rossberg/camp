@@ -667,9 +667,9 @@ let run_toggle_panel (st : state) =
       `Separator, ignore;
       `Entry (c, "Cycle Color", Layout.key_color, true),
         (fun () -> cycle_color st (+1));
-      `Entry (c, show "Cover" (not lay.playlist_shown), Layout.key_cover, true),
+      `Entry (c, show "Cover" (not st.control.cover), Layout.key_cover, true),
         (fun () -> toggle_cover st);
-      `Entry (c, show "FPS" (not lay.playlist_shown), Layout.key_fps, true),
+      `Entry (c, show "FPS" (not st.control.fps), Layout.key_fps, true),
         (fun () -> toggle_fps st);
       `Separator, ignore;
       `Entry (c, "Increase Text Size", Layout.key_textup, resize_text_avail st (+1)),
