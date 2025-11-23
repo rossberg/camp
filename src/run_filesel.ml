@@ -121,7 +121,7 @@ let run (st : state) =
     | `None | `Scroll | `Move _ | `Drag _ | `Drop -> false
 
     | `Click (Some i, _)
-      when Api.Mouse.(is_pressed `Left && is_doubleclick `Left) ->
+      when Api.Mouse.(is_pressed `Left && is_double_click `Left) ->
       (* Double-click on file: change dir or copy to input and accept *)
       let file = files.entries.(i) in
       if not file.is_dir then

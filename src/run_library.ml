@@ -318,7 +318,7 @@ let run_browser (st : state) =
     );
     if
       Api.Mouse.(is_pressed `Left &&
-        (is_doubleclick `Left || is_tripleclick `Left))
+        (is_double_click `Left || is_triple_click `Left))
     then
     (
       (* Double/triple-click on directory name: send track view to playlist *)
@@ -332,7 +332,7 @@ let run_browser (st : state) =
         Library.refresh_albums_tracks_sync lib;  (* could be slow... *)
       );
       Run_view.queue_on_playlist st (Array.copy lib.tracks.entries)
-        (Api.Mouse.is_tripleclick `Left);
+        (Api.Mouse.is_triple_click `Left);
     )
 
   | `Click (None, _) ->
@@ -822,7 +822,7 @@ let run_view (st : state)
     Option.iter (Library.save_dir lib) lib.current;
 
   | `Click _ when Api.Mouse.(is_pressed `Left &&
-      (is_doubleclick `Left || is_tripleclick `Left)) ->
+      (is_double_click `Left || is_triple_click `Left)) ->
     (* Double/triple-click on entry: send tracks to playlist *)
     let n = Table.num_selected dep_tab in
     if n <> 0 && n <> Table.length dep_tab then
@@ -832,7 +832,7 @@ let run_view (st : state)
     );
     let tracks = selected_tracks lib in
     Run_view.queue_on_playlist st (Array.copy tracks)
-      (Api.Mouse.is_tripleclick `Left);
+      (Api.Mouse.is_triple_click `Left);
 
   | `Click loc ->
     (* Single-click: grab focus, update filter *)

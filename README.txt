@@ -212,6 +212,8 @@ I'm sure you have seen playlists before, so hopefully we can make this short.
 
 Mostly, this is operated by drag & drop, e.g., to add files or reorder items.
 
+* Jump: Double-click an entry to play it immediately.
+
 * Select: Click on an entry to select it. Ctrl/Command-click toggles the
   selection of an individual track. Shift-click toggles the selection
   of the entire range between the currently and the last clicked entry.
@@ -399,16 +401,26 @@ like playlists) can be viewed in a number of exciting ways.
   viewed as a cover grid. These options are cycled through by clicking the
   aforementioned view toggles multiple times.
 
+* Select: Click on an entry to select it. Ctrl/Command-click toggles the
+  selection of an individual track. Shift-click toggles the selection
+  of the entire range between the currently and the last clicked entry.
+
+* Queue: a double-click on a selected table or grid entry queues up all its
+  tracks in the playlist; a triple-click clears out the previous playlist first.
+
+  Tip: If you have selected multiple entries, then use double/triple click with
+  Ctrl/Command to avoid changing the selection.
+
+* Filter: Selecting one or multiple entries in the artists or albums table
+  filters the downstream albums or tracks table to only show what belongs to the
+  selected artists or albums or both, respectively.
+
 * Columns: Columns in a table can be resized and reordered by drag & drop on
   the column header as you would probably expect. Right-click on a header
   yields a context menu to remove or add even more columns.
 
-* Filtering: Selecting one or multiple entries in the artists or albums table
-  filters the downstream albums or tracks table to only show what belongs to the
-  selected artists or albums or both, respectively.
-
-* Sorting: Each table can be sorted according to up to 4 keys, by clicking
-  column headers:
+* Sort: Each table can be sorted according to up to 4 keys, by clicking column
+  headers:
 
   - simple click to select a columns as primary sort key,
   - Shift-click for secondary,
@@ -428,9 +440,6 @@ like playlists) can be viewed in a number of exciting ways.
 
 * Save: the context menu also allows saving the current view as a playlist or
   as a viewlist (Section 3.5).
-
-* Queue: a double-click on a selected table or grid item queues up all its
-  tracks in the playlist; a triple-click clears out the previous playlist first.
 
 * Tag: Invoke an external tag editor (see Section 3.3 for how to fiddle with
   configuring that).

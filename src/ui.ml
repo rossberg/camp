@@ -896,15 +896,15 @@ let edit_text ui area ph s scroll selection focus =
     let lprim, rprim, _ = Option.value selection ~default: (i, i, i) in
     if Key.are_modifiers_down [] then
       if Mouse.is_pressed `Left then
-        if Mouse.is_tripleclick `Left then
+        if Mouse.is_triple_click `Left then
           Some (0, 0, len)
-        else if Mouse.is_doubleclick `Left then
+        else if Mouse.is_double_click `Left then
           let j = find_next_word s i in
           Some (find_prev_word s j, j, j)
         else
           Some (i, i, i)
       else if Mouse.is_drag `Left then
-        if Mouse.is_doubleclick `Left then
+        if Mouse.is_double_click `Left then
           if i > rprim then
             Some (lprim, rprim, find_next_word s i)
           else if i < lprim then
@@ -915,9 +915,9 @@ let edit_text ui area ph s scroll selection focus =
           Some (lprim, rprim, i)
       else selection
     else if Key.are_modifiers_down [`Shift] then
-      if Mouse.is_tripleclick `Left then
+      if Mouse.is_triple_click `Left then
         Some (0, 0, len)
-      else if Mouse.is_doubleclick `Left then
+      else if Mouse.is_double_click `Left then
         if i > rprim then
           Some (lprim, rprim, find_next_word s i)
         else if i < lprim then
@@ -1495,16 +1495,19 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
           if i >= limit then
           (
             (* Click on empty space *)
-            Table.deselect_all tab;
+            if not Mouse.(is_double_click `Left || is_triple_click `Left) then
+              Table.deselect_all tab;
             `Click (None, col)
           )
           else
           (
             (* Click on entry *)
-            if not (Table.is_selected tab i) then
+            if not Mouse.(is_double_click `Left || is_triple_click `Left)
+            && not (Table.is_selected tab i) then
+            (
               Table.deselect_all tab;
-            if not (Mouse.is_doubleclick `Left) then
               Table.select tab i i;
+            );
             `Click (Some i, col)
           )
 
@@ -1520,7 +1523,8 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
           else
           (
             (* Click on entry *)
-            Table.select tab i i;
+            if not Mouse.(is_double_click `Left || is_triple_click `Left) then
+              Table.select tab i i;
             `Click (Some i, col)
           )
 
@@ -1536,10 +1540,13 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
           `Click (None, col)
         else
         (
-          if Table.is_selected tab i then
-            Table.deselect tab i i
-          else
-            Table.select tab i i;
+          if not Mouse.(is_triple_click `Left) then
+          (
+            if Table.is_selected tab i then
+              Table.deselect tab i i
+            else
+              Table.select tab i i
+          );
           `Click (Some i, col);
         )
       )
@@ -2045,7 +2052,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
             (* Click on entry *)
             if not (Table.is_selected tab k) then
               Table.deselect_all tab;
-            if not (Mouse.is_doubleclick `Left) then
+            if not (Mouse.is_double_click `Left) then
               Table.select tab k k;
             `Click (Some k, None)
           )

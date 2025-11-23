@@ -207,8 +207,8 @@ sig
   val is_down : side -> bool
   val is_pressed : side -> bool
   val is_released : side -> bool
-  val is_doubleclick : side -> bool
-  val is_tripleclick : side -> bool
+  val is_double_click : side -> bool
+  val is_triple_click : side -> bool
   val is_drag : side -> bool
 
   val set_cursor : window -> cursor -> unit

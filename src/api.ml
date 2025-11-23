@@ -604,11 +604,11 @@ struct
   let is_pressed but = Raylib.is_mouse_button_pressed (button but)
   let is_released but = Raylib.is_mouse_button_released (button but)
 
-  let is_doubleclick = function
+  let is_double_click = function
     | `Left -> !multi_left = 2
     | `Right -> !multi_right = 2
 
-  let is_tripleclick = function
+  let is_triple_click = function
     | `Left -> !multi_left >= 3
     | `Right -> !multi_right >= 3
 

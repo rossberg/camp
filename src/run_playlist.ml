@@ -96,7 +96,7 @@ let run (st : state) =
     Playlist.refresh_total_selected pl
 
   | `Click (Some i, _)
-    when Api.Mouse.(is_pressed `Left && is_doubleclick `Left) ->
+    when Api.Mouse.(is_pressed `Left && is_double_click `Left) ->
     (* Double-click on track: switch to track *)
     Playlist.jump pl i;
     Control.switch st.control tab.entries.(i);
