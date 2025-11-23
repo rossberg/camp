@@ -16,11 +16,15 @@ type t =
   mutable loop : [`None | `A of time | `AB of time * time];
   mutable cover : bool;
   mutable fps : bool;
+  mutable data : float array;
+  mutable processor : Api.Audio.processor;
 }
 
 (* Constructor *)
 
 val make : Api.audio -> t
+
+val toggle_audio_processor : t -> bool -> unit
 
 
 (* Validation *)

@@ -321,6 +321,14 @@ let cover_area g = (cp, cover_x g, cover_y g, cover_w, cover_h)
 let cover g = Ui.image g.ui (cover_area g) (`Crop `Vertical)
 let cover_key g = Ui.key g.ui key_cover true
 
+(* Oscilloscope *)
+let graph_x g = cover_x g - 10
+let graph_y g = cover_y g
+let graph_w g = volume_x g - 10
+let graph_h = cover_h
+let graph_area g = (cp, graph_x g, graph_y g, graph_w g, graph_h)
+let graph_box g = Ui.box g.ui (graph_area g) `Black
+
 (* Info *)
 let seek_h _g = 14
 let seek_y g = info_h g - info_margin g/2 - seek_h g

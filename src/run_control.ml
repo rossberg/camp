@@ -75,7 +75,8 @@ let toggle_side (st : state) =
 let toggle_cover (st : state) =
   State.delay st (fun () ->
     let ctl = st.control in
-    ctl.cover <- not ctl.cover
+    ctl.cover <- not ctl.cover;
+    Control.toggle_audio_processor ctl (not ctl.cover);
   )
 
 let toggle_fps (st : state) =
@@ -240,6 +241,44 @@ let run (st : state) =
     ) ctl.current
   );
   if Layout.cover_key lay then toggle_cover st;
+
+  (* Oscilloscope *)
+  if not ctl.cover then
+  (
+    Layout.graph_box lay;
+    let x, y, w, h = Ui.dim lay.ui (Layout.graph_area lay) in
+    let win = Ui.window lay.ui in
+(*
+    for i = 0 to (min w (Array.length ctl.data))/2 - 1 do
+      let i = 2 * i in
+      let v = ctl.data.(i) *. float h /. 2.0 in
+      let x, y = x + i, y + h/2 - int_of_float v in
+      Api.Draw.fill win x y 1 1 `White;
+    done;
+*)
+    let len = Array.length ctl.data in
+    let ps = Array.make (2 * w) 0.0 in
+    for i = 0 to w - 1 do
+      let v = if i < len then ctl.data.(i) else 0.0 in
+      ps.(2 * i) <- float (x + i);
+      ps.(2 * i + 1) <- float y +. (v +. 1.0) *. float h /. 2.0;
+    done;
+    Api.Draw.spline win ps 0.5 `White;
+(*
+    let array = Ctypes.CArray.make Raylib.Vector2.t w in
+    for i = 0 to min w (Array.length ctl.data) - 1 do
+      let v = ctl.data.(i) *. float h /. 2.0 in
+      let vec = Raylib.Vector2.create (float (x + i)) (float (y + h/2) -. v) in
+      Ctypes.CArray.unsafe_set array i vec;
+    done;
+    for i = min w (Array.length ctl.data) to w - 1 do
+      let vec = Raylib.Vector2.create (float (x + i)) (float (y + h/2)) in
+      Ctypes.CArray.unsafe_set array i vec;
+    done;
+    Raylib.draw_spline_linear (Ctypes.CArray.start array) w
+      0.5 Raylib.Color.white;
+*)
+  );
 
   (* FPS *)
   if ctl.fps then

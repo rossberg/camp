@@ -146,6 +146,7 @@ sig
   val rect : window -> int -> int -> int -> int -> color -> unit
   val fill_circ : window -> int -> int -> int -> int -> color -> unit
   val circ : window -> int -> int -> int -> int -> color -> unit
+  val spline : window -> float array -> float -> color -> unit
   val tri : window -> int -> int -> int -> int -> int -> int -> color -> unit
   val arrow : window -> int -> int -> int -> int -> color -> dir -> unit
   val gradient : window -> int -> int -> int -> int -> color -> orientation -> color -> unit

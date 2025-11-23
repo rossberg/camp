@@ -386,6 +386,8 @@ struct
 
   let sx v = v * fst !current_scale
   let sy v = v * snd !current_scale
+  let sfx v = v *. float (fst !current_scale)
+  let sfy v = v *. float (snd !current_scale)
   let sxy x y = sx x, sy y
   let sxywh x y w h = sx x, sy y, sx w, sy h
 
@@ -480,6 +482,15 @@ struct
   let circ () x y w h c =
     let x, y, w, h = sxywh x y w h in
     Raylib.draw_ellipse_lines (x + w/2) (y + h/2) (float w /. 2.0) (float h /. 2.0) (color c)
+
+  let spline () ps w c =
+    let n = Array.length ps / 2 in
+    let array = Ctypes.CArray.make Raylib.Vector2.t n in
+    for i = 0 to n - 1 do
+      let vec = Raylib.Vector2.create (sfx ps.(2 * i)) (sfy ps.(2 * i + 1)) in
+      Ctypes.CArray.unsafe_set array i vec;
+    done;
+    Raylib.draw_spline_linear (Ctypes.CArray.start array) n w (color c)
 
   let tri () x1 y1 x2 y2 x3 y3 c =
     let (x1, y1), (x2, y2), (x3, y3) = sxy x1 y1, sxy x2 y2, sxy x3 y3 in

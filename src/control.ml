@@ -16,15 +16,14 @@ type t =
   mutable loop : [`None | `A of time | `AB of time * time];
   mutable cover : bool;
   mutable fps : bool;
+  mutable data : float array;
+  mutable processor : Api.Audio.processor;
 }
 
 
 (* Constructor *)
 
 let make audio =
-  Api.Audio.add_processor audio (fun fs ->
-    let f = Array.fold_left (+.) 0.0 fs /. float (Array.length fs) in
-    Printf.printf "data: %d %f\n%!" (Array.length fs) f);
   {
     audio;
     mute = false;
@@ -37,7 +36,19 @@ let make audio =
     loop = `None;
     cover = true;
     fps = false;
+    data = [|0.0|];
+    processor = ignore;
   }
+
+
+let toggle_audio_processor ctl on =
+  if on then
+  (
+    ctl.processor <- (fun fs -> ctl.data <- fs);
+    Api.Audio.add_processor ctl.audio ctl.processor
+  )
+  else
+    Api.Audio.remove_processor ctl.audio ctl.processor
 
 
 (* Validation *)
@@ -222,5 +233,5 @@ let parse_state ctl =
     apply (r $? "timemode") (enum timemode_enum)
       (fun m -> ctl.timemode <- m);
     apply (r $? "cover") bool
-      (fun b -> ctl.cover <- b)
+      (fun b -> ctl.cover <- b; toggle_audio_processor ctl (not b))
   )
