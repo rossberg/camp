@@ -1143,7 +1143,7 @@ let run_log (st : state) =
     Table.deselect_all log.table;
 
   | `Sort i ->
-    (* Click on column header: reorder view accordingly *)
+    (* Click on column header: reorder log accordingly *)
     Option.iter (fun (headers, sorting) ->
       let order' =
        match sorting with

@@ -723,11 +723,7 @@ the underlying graphics and audio library (Raylib, Section 4.3).
   protrude from the parent window. Bummer.
 
 * Window resizing or opening/closing Playlist or Library panes may create ugly
-  rendering artefacts for a moment, depending on operating system.
-
-* With multiple monitors, dragging a window from a high-resolution to a
-  lower-resolution screen or vice versa, messes up window rendering entirely,
-  at least on some platforms.
+  animation artefacts for a moment, depending on operating system.
 
 * More exotic audio formats are not supported. FLAC, MP3, WAV, and OGG are
   fine. In exchange, MOD and XM modules can be played out of the box!
