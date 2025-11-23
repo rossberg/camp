@@ -16,6 +16,8 @@ type t =
   mutable loop : [`None | `A of time | `AB of time * time];
   mutable cover : bool;
   mutable fps : bool;
+  mutable osc_x : float;
+  mutable osc_y : float;
   mutable data : float array;
   mutable processor : Api.Audio.processor;
 }
@@ -36,6 +38,8 @@ let make audio =
     loop = `None;
     cover = true;
     fps = false;
+    osc_x = 0.5;
+    osc_y = 1.5;
     data = [|0.0|];
     processor = ignore;
   }
@@ -94,6 +98,12 @@ let mute ctl b =
 let volume ctl v =
   ctl.volume <- max 0.0 (min 1.0 v);
   adjust_volume ctl
+
+let clamp lo hi x = max lo (min hi x)
+
+let set_osc ctl x y =
+  ctl.osc_x <- clamp 0.2 10.0 x;
+  ctl.osc_y <- clamp 0.2 10.0 y
 
 
 (* Track Control *)
@@ -205,6 +215,8 @@ let print_state ctl =
     "repeat", enum repeat_enum ctl.repeat;
     "loop", print_loop ctl.loop;
     "timemode", enum timemode_enum ctl.timemode;
+    "osc_x", float ctl.osc_x;
+    "osc_y", float ctl.osc_y;
     "cover", bool ctl.cover;
   ]) ctl
 
@@ -232,6 +244,10 @@ let parse_state ctl =
       (fun l -> ctl.loop <- l);
     apply (r $? "timemode") (enum timemode_enum)
       (fun m -> ctl.timemode <- m);
+    apply (r $? "osc_x") float
+      (fun x -> set_osc ctl x ctl.osc_y);
+    apply (r $? "osc_y") float
+      (fun y -> set_osc ctl ctl.osc_x y);
     apply (r $? "cover") bool
       (fun b -> ctl.cover <- b; toggle_audio_processor ctl (not b))
   )

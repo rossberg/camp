@@ -16,6 +16,8 @@ type t =
   mutable loop : [`None | `A of time | `AB of time * time];
   mutable cover : bool;
   mutable fps : bool;
+  mutable osc_x : float;
+  mutable osc_y : float;
   mutable data : float array;
   mutable processor : Api.Audio.processor;
 }
@@ -45,6 +47,8 @@ val parse_state : t -> Text.t -> unit
 
 val mute : t -> bool -> unit
 val volume : t -> float -> unit
+
+val set_osc : t -> float -> float -> unit
 
 
 (* Track Control *)

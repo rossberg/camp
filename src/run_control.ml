@@ -245,6 +245,15 @@ let run (st : state) =
   (* Oscilloscope *)
   if not ctl.cover then
   (
+    (match Layout.graph_drag lay (1, 1) with
+    | `None | `Click | `Take | `Drop -> ()
+    | `Drag ((dx, dy), _, _) ->
+      let dx, dy = if abs dx > abs dy then dx, 0 else 0, dy in
+      Control.set_osc ctl
+        (ctl.osc_x +. 0.05 *. float dx)
+        (ctl.osc_y -. 0.05 *. float dy)
+    );
+
     Layout.graph_box lay;
     let x, y, w, h = Ui.dim lay.ui (Layout.graph_area lay) in
     let win = Ui.window lay.ui in
@@ -257,13 +266,17 @@ let run (st : state) =
     done;
 *)
     let len = Array.length ctl.data in
-    let ps = Array.make (2 * w) 0.0 in
-    for i = 0 to w - 1 do
+    let sx = max (float w /. float len *. 0.8) ctl.osc_x in
+    let n = min len (int_of_float (Float.ceil (float w /. sx))) in
+    let ps = Array.make (2 * n) 0.0 in
+    for i = 0 to n - 1 do
       let v = if i < len then ctl.data.(i) else 0.0 in
-      ps.(2 * i) <- float (x + i);
-      ps.(2 * i + 1) <- float y +. (v +. 1.0) *. float h /. 2.0;
+      ps.(2 * i) <- float x +. sx *. float i;
+      ps.(2 * i + 1) <- float y +. (ctl.osc_y *. v +. 1.0) *. float h /. 2.0;
     done;
+    if ctl.osc_x < 1.0 || ctl.osc_y > 1.0 then Api.Draw.clip win x y w h;
     Api.Draw.spline win ps 0.5 `White;
+    if ctl.osc_x < 1.0 || ctl.osc_y > 1.0 then Api.Draw.unclip win;
 (*
     let array = Ctypes.CArray.make Raylib.Vector2.t w in
     for i = 0 to min w (Array.length ctl.data) - 1 do
@@ -640,7 +653,8 @@ let run (st : state) =
         (fun () -> shift_volume st (-1.0));
     |]
   )
-  else if Layout.cover_popup_open lay && not (Control.silent ctl) then
+  else if ctl.cover && not (Control.silent ctl)
+    && Layout.cover_popup_open lay then
   (
     Run_menu.popup st `Current
   )
