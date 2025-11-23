@@ -110,7 +110,6 @@ let play ctl =
   try
     ctl.sound <- Api.Audio.load ctl.audio track.path;
     Api.Audio.play ctl.audio ctl.sound;
-    Api.Audio.volume ctl.audio (if ctl.mute then 0.0 else ctl.volume)
   with Sys_error _ -> ()
 
 let stop ctl =

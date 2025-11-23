@@ -896,7 +896,7 @@ struct
 
   let volume a x =
     Mutex.protect a.mutex (fun () ->
-      Raylib.set_music_volume a.sound.music x;
+      Raylib.set_master_volume x;
     )
 
   let protect a f = Mutex.protect a.mutex (fun () -> f a.sound.music)
