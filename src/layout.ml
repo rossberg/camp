@@ -187,7 +187,7 @@ let key_paste = cmd 'V'
 let key_wipe = cmd 'W'
 let key_dedupe = shiftcmd 'W'
 let key_cut = cmd 'X'
-let key_cover = cmd 'Y'
+let key_visual = cmd 'Y'
 let key_libcover = shiftcmd 'Y'
 let key_undo = cmd 'Z'
 let key_redo = shiftcmd 'Z'
@@ -312,22 +312,25 @@ let lcd_sec1 g = Ui.lcd g.ui (cp, lcd_x g 3 + colon_w + lcd_space, lcd_y g, lcd_
 let lcd_sec2 g = Ui.lcd g.ui (cp, lcd_x g 4 + colon_w + lcd_space, lcd_y g, lcd_w, lcd_h)
 let lcd_button g = Ui.mouse g.ui (cp, lcd_x g 0, lcd_y g, colon_w + lcd_x g 4, lcd_h) `Left
 
-(* Cover *)
-let cover_x g = lcd_x g 5 + 30
-let cover_y g = margin g + info_margin g
-let cover_w = 80
-let cover_h = 40
-let cover_area g = (cp, cover_x g, cover_y g, cover_w, cover_h)
-let cover g = Ui.image g.ui (cover_area g) (`Crop `Vertical)
-let cover_key g = Ui.key g.ui key_cover true
+(* Visuals *)
+let visual_x g = lcd_x g 5 + 20
+let visual_y g = margin g + info_margin g
+let visual_w g = volume_x g - 10
+let visual_h _g = 40
+let visual_key g = Ui.key g.ui key_visual true
 
-(* Oscilloscope *)
-let graph_x g = cover_x g - 10
-let graph_y g = cover_y g
-let graph_w g = volume_x g - 10
-let graph_h = cover_h
-let graph_area g = (cp, graph_x g, graph_y g, graph_w g, graph_h)
-let graph_box g = Ui.box g.ui (graph_area g) `Black
+let cover_x g = visual_x g + 10
+let cover_y g = visual_y g
+let cover_w g = visual_h g * 2
+let cover_h g = visual_h g
+let cover_area g = (cp, cover_x g, cover_y g, cover_w g, cover_h g)
+let cover g = Ui.image g.ui (cover_area g) (`Crop `Vertical)
+
+let graph_x g = visual_x g
+let graph_y g = visual_y g
+let graph_w g = visual_w g
+let graph_h g = visual_h g
+let graph_area g = (cp, graph_x g, graph_y g, graph_w g, graph_h g)
 let graph_drag g = Ui.drag g.ui (graph_area g)
 
 (* Info *)
@@ -343,10 +346,11 @@ let title_ticker g = Ui.ticker g.ui (cp, margin g + info_margin g, ticker_y g, i
 let seek_bar g = Ui.progress_bar g.ui (cp, margin g + info_margin g / 2, seek_y g, info_w g - info_margin g, seek_h g)
 
 (* Hidden mode buttons *)
-let color_y g = cover_y g + cover_h
+let color_y g = visual_y g + visual_h g
 let color_button g = Ui.mouse g.ui (cp, margin g, color_y g, mute_x g, ticker_y g) `Left
 
-let fps_text g = Ui.text g.ui (cp, cover_x g + cover_w + 20, margin g + info_margin g, 40, 12) `Left
+let fps_w = 40
+let fps_text g = Ui.text g.ui (cp, visual_w g - fps_w, margin g + info_margin g, fps_w, 12) `Left
 let fps_key g = Ui.key g.ui key_fps true
 
 let sdf_key g = Ui.key g.ui key_sdf true

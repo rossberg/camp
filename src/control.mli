@@ -3,6 +3,8 @@
 type time = float
 type track = Data.track
 
+type visual = [`None | `Cover | `Wave | `Oscilloscope]
+
 type t =
 {
   audio : Api.audio;
@@ -14,19 +16,16 @@ type t =
   mutable timemode : [`Elapse | `Remain];
   mutable repeat : [`None | `One | `All];
   mutable loop : [`None | `A of time | `AB of time * time];
-  mutable cover : bool;
+  mutable visual : visual;
   mutable fps : bool;
   mutable osc_x : float;
   mutable osc_y : float;
   mutable data : float array;
-  mutable processor : Api.Audio.processor;
 }
 
 (* Constructor *)
 
 val make : Api.audio -> t
-
-val toggle_audio_processor : t -> bool -> unit
 
 
 (* Validation *)
@@ -47,6 +46,11 @@ val parse_state : t -> Text.t -> unit
 
 val mute : t -> bool -> unit
 val volume : t -> float -> unit
+
+
+(* Visuals *)
+
+val set_visual : t -> visual -> unit
 
 val set_osc : t -> float -> float -> unit
 val reset_osc : t -> unit

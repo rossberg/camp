@@ -72,12 +72,15 @@ let toggle_side (st : state) =
     lay.library_side <- if lay.library_side = `Left then `Right else `Left
   )
 
-let toggle_cover (st : state) =
-  State.delay st (fun () ->
-    let ctl = st.control in
-    ctl.cover <- not ctl.cover;
-    Control.toggle_audio_processor ctl (not ctl.cover);
-  )
+let cycle_visual (st : state) =
+  let ctl = st.control in
+  Control.set_visual ctl
+    (match ctl.visual with
+    | `None -> `Cover
+    | `Cover -> `Wave
+    | `Wave -> `Oscilloscope
+    | `Oscilloscope -> `None
+    )
 
 let toggle_fps (st : state) =
   let ctl = st.control in
@@ -232,28 +235,36 @@ let run (st : state) =
     cycle_color st (if Api.Key.is_modifier_down `Shift then -1 else +1)
   );
 
-  (* Cover *)
-  if ctl.cover then
-  (
+  (* Visual *)
+  if Layout.visual_key lay then cycle_visual st;
+  (match ctl.visual with
+  | `None -> ()
+  | `Cover ->
     Option.iter (fun (track : Data.track) ->
       Option.iter (Layout.cover lay)
         (Library.load_cover st.library win track.path)
     ) ctl.current
-  );
-  if Layout.cover_key lay then toggle_cover st;
-
-  (* Oscilloscope *)
-  if not ctl.cover then
-  (
+  | `Wave ->
+    let x, y, w, h = Ui.dim lay.ui (Layout.graph_area lay) in
+    let win = Ui.window lay.ui in
+    for i = 0 to (min w (Array.length ctl.data))/2 - 1 do
+      let i = 2 * i in
+      let v = ctl.data.(i) *. float h /. 1.5 in
+      let x, y = x + i, y + h/2 - int_of_float v in
+      Api.Draw.fill win x y 1 1 `White;
+    done;
+  | `Oscilloscope ->
     let x, y, w, h = Ui.dim lay.ui (Layout.graph_area lay) in
     let win = Ui.window lay.ui in
 
     (match Layout.graph_drag lay (1, 1) with
     | `None | `Click | `Drop -> ()
     | `Take ->
+      (* Dobule-click on oscilloscope: reset *)
       if Api.Mouse.is_double_click `Left then
         Control.reset_osc ctl
     | `Drag ((dx, dy), _, _) ->
+      (* Drag on oscilloscope: adjust scaling *)
       let dx, dy = if abs dx > abs dy then dx, 0 else 0, dy in
       let mx, my = Api.Mouse.pos win in
       let ox, oy = mx - dx, my - dy in
@@ -264,15 +275,6 @@ let run (st : state) =
       Control.set_osc ctl (ctl.osc_x *. sx) (ctl.osc_y *. sy)
     );
 
-    Layout.graph_box lay;
-(*
-    for i = 0 to (min w (Array.length ctl.data))/2 - 1 do
-      let i = 2 * i in
-      let v = ctl.data.(i) *. float h /. 2.0 in
-      let x, y = x + i, y + h/2 - int_of_float v in
-      Api.Draw.fill win x y 1 1 `White;
-    done;
-*)
     let len = Array.length ctl.data in
     let sx = max (float w /. float len *. 0.8) ctl.osc_x in
     let n = min len (int_of_float (Float.ceil (float w /. sx))) in
@@ -661,7 +663,7 @@ let run (st : state) =
         (fun () -> shift_volume st (-1.0));
     |]
   )
-  else if ctl.cover && not (Control.silent ctl)
+  else if ctl.visual = `Cover && not (Control.silent ctl)
     && Layout.cover_popup_open lay then
   (
     Run_menu.popup st `Current
@@ -728,8 +730,8 @@ let run_toggle_panel (st : state) =
       `Separator, ignore;
       `Entry (c, "Cycle Color", Layout.key_color, true),
         (fun () -> cycle_color st (+1));
-      `Entry (c, show "Cover" (not st.control.cover), Layout.key_cover, true),
-        (fun () -> toggle_cover st);
+      `Entry (c, "Cycle Visual", Layout.key_visual, true),
+        (fun () -> cycle_visual st);
       `Entry (c, show "FPS" (not st.control.fps), Layout.key_fps, true),
         (fun () -> toggle_fps st);
       `Separator, ignore;

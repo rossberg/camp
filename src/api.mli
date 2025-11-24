@@ -265,6 +265,7 @@ sig
 
   val add_processor : audio -> processor -> unit
   val remove_processor : audio -> processor -> unit
+  val remove_all_processors : audio -> unit
 end
 
 

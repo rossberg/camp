@@ -3,6 +3,8 @@
 type time = float
 type track = Data.track
 
+type visual = [`None | `Cover | `Wave | `Oscilloscope]
+
 type t =
 {
   audio : Api.audio;
@@ -14,12 +16,11 @@ type t =
   mutable timemode : [`Elapse | `Remain];
   mutable repeat : [`None | `One | `All];
   mutable loop : [`None | `A of time | `AB of time * time];
-  mutable cover : bool;
+  mutable visual : visual;
   mutable fps : bool;
   mutable osc_x : float;
   mutable osc_y : float;
   mutable data : float array;
-  mutable processor : Api.Audio.processor;
 }
 
 
@@ -39,22 +40,11 @@ let make audio =
     timemode = `Elapse;
     repeat = `None;
     loop = `None;
-    cover = true;
+    visual = `Cover;
     fps = false;
     osc_x; osc_y;
     data = [|0.0|];
-    processor = ignore;
   }
-
-
-let toggle_audio_processor ctl on =
-  if on then
-  (
-    ctl.processor <- (fun fs -> ctl.data <- fs);
-    Api.Audio.add_processor ctl.audio ctl.processor
-  )
-  else
-    Api.Audio.remove_processor ctl.audio ctl.processor
 
 
 (* Validation *)
@@ -102,6 +92,27 @@ let volume ctl v =
   adjust_volume ctl
 
 let clamp lo hi x = max lo (min hi x)
+
+
+(* Visuals *)
+
+let audio_processor ctl fs = ctl.data <- fs
+
+let needs_processor = function
+  | `None | `Cover -> false
+  | `Wave | `Oscilloscope -> true
+
+let set_visual ctl vis =
+  let old_need = needs_processor ctl.visual in
+  let new_need = needs_processor vis in
+  ctl.visual <- vis;
+  if old_need <> new_need then
+  (
+    if new_need then
+      Api.Audio.add_processor ctl.audio (audio_processor ctl)
+    else
+      Api.Audio.remove_all_processors ctl.audio
+  )
 
 let set_osc ctl x y =
   ctl.osc_x <- clamp 0.2 10.0 x;
@@ -190,6 +201,8 @@ let switch_if_empty ctl track_opt =
 
 let timemode_enum = ["elapsed", `Elapse; "remain", `Remain]
 let repeat_enum = ["none", `None; "one", `One; "all", `All]
+let visual_enum =
+  ["none", `None; "cover", `Cover; "wave", `Wave; "oscilloscope", `Oscilloscope]
 
 let print_loop =
   let open Text.Print in
@@ -221,9 +234,9 @@ let print_state ctl =
     "repeat", enum repeat_enum ctl.repeat;
     "loop", print_loop ctl.loop;
     "timemode", enum timemode_enum ctl.timemode;
+    "visual", enum visual_enum ctl.visual;
     "osc_x", float ctl.osc_x;
     "osc_y", float ctl.osc_y;
-    "cover", bool ctl.cover;
   ]) ctl
 
 let print_intern ctl =
@@ -250,10 +263,10 @@ let parse_state ctl =
       (fun l -> ctl.loop <- l);
     apply (r $? "timemode") (enum timemode_enum)
       (fun m -> ctl.timemode <- m);
+    apply (r $? "visual") (enum visual_enum)
+      (fun v -> set_visual ctl v);
     apply (r $? "osc_x") float
       (fun x -> set_osc ctl x ctl.osc_y);
     apply (r $? "osc_y") float
       (fun y -> set_osc ctl ctl.osc_x y);
-    apply (r $? "cover") bool
-      (fun b -> ctl.cover <- b; toggle_audio_processor ctl (not b))
   )

@@ -950,6 +950,14 @@ struct
         a.processors <- List.remove_assq f a.processors;
       ) (List.assq_opt f a.processors)
     )
+
+  let remove_all_processors a =
+    Mutex.protect a.mutex (fun () ->
+      List.iter (fun (_, f') ->
+        Raylib_ocaml.Callbacks.detach_audio_mixed_processor f'
+      ) a.processors;
+      a.processors <- [];
+    )
 end
 
 
