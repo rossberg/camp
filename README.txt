@@ -180,12 +180,18 @@ Most controls around the Playlist should be intuitive. A few extra tips:
 
 * Time: Clicking on the time display toggles between played and remaining time.
 
-* Cover: Clicking on the cover art will zoom it into a pop-up. Click again to
-  close.
-
 * Color: Clicking on the line with the audio details will cycle through several
   color schemes, all inspired by actual HiFi displays from the past. Or use the
   context menu.
+
+* Visualisations: Ctrl/Command-Y cycles through different visualisations of the
+  track playing. Either Cover Art (default), Wave Form, Oscilloscope, or None.
+
+* Cover: Clicking on the cover art will zoom it into a pop-up. Click again to
+  close.
+
+* Oscilloscope: Dragging the mouse horizontally or vertically on it adjusts
+  its scaling in the respective direction.
 
 * Shuffle: Toggles random play of the playlist (Section 3.3).
 
@@ -651,6 +657,10 @@ across sessions:
 * Color: Click the audio properties line (or the Control pane's context menu)
   to cycle through color schemes.
 
+* Visualisation: Ctrl/Command-U (or the Control pane's context menu) cycles
+  through different track vissualisations in the Control pane: Cover art, Wave,
+  Oscilloscope, or All off.
+
 * Resize: Drag on any window border to resize it. However, vertical resize is
   only possible when the Playlist pane is open, horizontal only when the
   Library pane is open.
@@ -734,9 +744,6 @@ the underlying graphics and audio library (Raylib, Section 4.3).
 
 * More exotic audio formats are not supported. FLAC, MP3, WAV, and OGG are
   fine. In exchange, MOD and XM modules can be played out of the box!
-
-* I'd like to have an oscilloscope and a frequency analyser, but the library
-  binding for OCaml does not yet give access to the necessary callbacks.
 
 * There may be bugs. Correction: there almost certainly are. And other
   occasional signs of immature software.
