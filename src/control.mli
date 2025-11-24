@@ -49,6 +49,7 @@ val mute : t -> bool -> unit
 val volume : t -> float -> unit
 
 val set_osc : t -> float -> float -> unit
+val reset_osc : t -> unit
 
 
 (* Track Control *)

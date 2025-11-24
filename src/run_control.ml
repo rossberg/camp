@@ -246,7 +246,10 @@ let run (st : state) =
   if not ctl.cover then
   (
     (match Layout.graph_drag lay (1, 1) with
-    | `None | `Click | `Take | `Drop -> ()
+    | `None | `Click | `Drop -> ()
+    | `Take ->
+      if Api.Mouse.is_double_click `Left then
+        Control.reset_osc ctl
     | `Drag ((dx, dy), _, _) ->
       let dx, dy = if abs dx > abs dy then dx, 0 else 0, dy in
       Control.set_osc ctl

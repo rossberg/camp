@@ -25,6 +25,9 @@ type t =
 
 (* Constructor *)
 
+let osc_x = 0.5
+let osc_y = 1.5
+
 let make audio =
   {
     audio;
@@ -38,8 +41,7 @@ let make audio =
     loop = `None;
     cover = true;
     fps = false;
-    osc_x = 0.5;
-    osc_y = 1.5;
+    osc_x; osc_y;
     data = [|0.0|];
     processor = ignore;
   }
@@ -104,6 +106,10 @@ let clamp lo hi x = max lo (min hi x)
 let set_osc ctl x y =
   ctl.osc_x <- clamp 0.2 10.0 x;
   ctl.osc_y <- clamp 0.2 10.0 y
+
+let reset_osc ctl =
+  ctl.osc_x <- osc_x;
+  ctl.osc_y <- osc_y
 
 
 (* Track Control *)
