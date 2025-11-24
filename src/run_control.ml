@@ -245,6 +245,9 @@ let run (st : state) =
   (* Oscilloscope *)
   if not ctl.cover then
   (
+    let x, y, w, h = Ui.dim lay.ui (Layout.graph_area lay) in
+    let win = Ui.window lay.ui in
+
     (match Layout.graph_drag lay (1, 1) with
     | `None | `Click | `Drop -> ()
     | `Take ->
@@ -252,14 +255,16 @@ let run (st : state) =
         Control.reset_osc ctl
     | `Drag ((dx, dy), _, _) ->
       let dx, dy = if abs dx > abs dy then dx, 0 else 0, dy in
-      Control.set_osc ctl
-        (ctl.osc_x +. 0.05 *. float dx)
-        (ctl.osc_y -. 0.05 *. float dy)
+      let mx, my = Api.Mouse.pos win in
+      let ox, oy = mx - dx, my - dy in
+      let mx', my' = max (x + 1) mx, min (y + h - 1) my in
+      let ox', oy' = max (x + 1) ox, min (y + h - 1) oy in
+      let sx = float (mx' - x) /. float (ox' - x) in
+      let sy = float (y + h - my') /. float (y + h - oy') in
+      Control.set_osc ctl (ctl.osc_x *. sx) (ctl.osc_y *. sy)
     );
 
     Layout.graph_box lay;
-    let x, y, w, h = Ui.dim lay.ui (Layout.graph_area lay) in
-    let win = Ui.window lay.ui in
 (*
     for i = 0 to (min w (Array.length ctl.data))/2 - 1 do
       let i = 2 * i in
