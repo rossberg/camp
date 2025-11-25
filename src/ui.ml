@@ -1433,7 +1433,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
 
   Mutex.protect tab.mutex (fun () ->
     let len = Table.length tab in
-    let page = max 1 (int_of_float (Float.floor (float h /. float rh))) in
+    let page = max 1 (int_of_float (Float.round (float h /. float rh))) in
     let limit = min len (tab.vscroll + page) in
     (* Correct scrolling position for possible resize *)
     Table.adjust_vscroll tab tab.vscroll page;
