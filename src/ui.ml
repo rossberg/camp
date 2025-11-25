@@ -198,7 +198,9 @@ let mouse_focus' ui r v offset =
 
 let mouse_focus ui area r v offset =
   let x, y, w, h = dim ui area in
-  if mouse_inside ui (-1, max 0 (x - r), max 0 (y - r), w + 2*r, h + 2*r) then
+  let rr = (x - r - offset, y - r - offset, w + 2*r, h + 2*r) in
+  (* Don't use mouse_inside here, since values can get negative. *)
+  if inside (Mouse.pos ui.win) rr then
   (
     Draw.clip ui.win x y w h;
     mouse_focus' ui r v offset;

@@ -273,7 +273,7 @@ let info_h _g = -52
 let info_margin _g = 4
 let info_area g = (cp, margin g, margin g, info_w g, info_h g)
 let info_box g = Ui.box g.ui (info_area g) `Black
-let info_refl g = Ui.mouse_focus g.ui (info_area g) (info_h g) 0x30 0
+let info_refl g = Ui.mouse_focus g.ui (info_area g) (control_h g + info_h g) 0x30 0
 
 (* Volume *)
 let volume_w = 27
