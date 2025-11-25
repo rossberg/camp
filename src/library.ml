@@ -263,11 +263,6 @@ let make_views_for lib path : views =
     copy_views lib.views_dir_default
 
 
-let set_views_dir_default lib v = lib.views_dir_default <- copy_views v
-let set_views_album_default lib v = lib.views_album_default <- copy_views v
-let set_views_playlist_default lib v = lib.views_playlist_default <- copy_views v
-
-
 let rec complete scan path =
   let paths = Atomic.get scan.completed in
   if not (Atomic.compare_and_set scan.completed paths (path::paths)) then
@@ -549,13 +544,13 @@ struct
       "sort", sorting attr x.sorting;
     ])
 
-  let views =
+  let views full =
     record (fun (x : views) -> [
       "search", string x.search;
       (* query omitted and reconstructed from search *)
       "fold", bool x.folded;
       "custom", bool x.custom;
-    ] @ if not x.custom then [] else [
+    ] @ if not (x.custom || full) then [] else [
       "div_w", nat x.divider_width;
       "div_h", nat x.divider_height;
       "artists", view artist_attr x.artists;
@@ -563,7 +558,7 @@ struct
       "tracks", view track_attr x.tracks;
     ])
 
-  let dir (x : dir) = views x.view
+  let dir (x : dir) = views false x.view
 
   let browse (x : dir) =
     let rec tree (dir : dir) =
@@ -1446,6 +1441,34 @@ let reorder_tracks lib =
   reorder lib lib.tracks tracks_sorting track_attr_string (track_key lib)
 
 
+let set_views_dir_default lib v = lib.views_dir_default <- copy_views v
+let set_views_album_default lib v = lib.views_album_default <- copy_views v
+let set_views_playlist_default lib v = lib.views_playlist_default <- copy_views v
+
+let current_to_default_views lib =
+  Option.iter (fun (dir : dir) ->
+    (if is_playlist_path dir.path || is_viewlist_path dir.path then
+      set_views_playlist_default
+    else if is_album_path dir.path then
+      set_views_album_default
+    else
+      set_views_dir_default
+    ) lib dir.view;
+    dir.view.custom <- false;
+    save_dir lib dir;
+  ) lib.current
+
+let current_of_default_views lib =
+  Option.iter (fun (dir : dir) ->
+    let view = make_views_for lib dir.path in
+    view.search <- dir.view.search;
+    view.query <- dir.view.query;
+    view.folded <- dir.view.folded;
+    dir.view <- view;
+    save_dir lib dir;
+  ) lib.current
+
+
 (* Folding directories *)
 
 let rec fold_dir lib dir fold =
@@ -1893,9 +1916,9 @@ let print_state lib =
     "browser_scroll", int lib.browser.vscroll;
     "browser_current", option string (Option.map (fun dir -> dir.path) lib.current);
     "lib_cover", bool lib.covers_shown;
-    "views_dir_default", Print.views lib.views_dir_default;
-    "views_album_default", Print.views lib.views_album_default;
-    "views_playlist_default", Print.views lib.views_playlist_default;
+    "views_dir_default", Print.views true lib.views_dir_default;
+    "views_album_default", Print.views true lib.views_album_default;
+    "views_playlist_default", Print.views true lib.views_playlist_default;
   ]) lib
 
 let print_intern lib =
@@ -1922,19 +1945,19 @@ let parse_state lib =
     refresh_browser lib;
     apply (r $? "browser_scroll") (num 0 (max 0 (length_browser lib - 1)))
       (fun i -> Table.set_vscroll lib.browser i 4);
-    apply (r $? "browser_current") string
-      (fun i ->
-        Option.iter (select_dir lib)
-          (Array.find_index (fun (dir : dir) -> dir.path = i)
-            lib.browser.entries);
-        if lib.current = None then lib.current <- find_dir lib i;
-      );
     apply (r $? "views_dir_default") Parse.views
       (fun v -> lib.views_dir_default <- v);
     apply (r $? "views_album_default") Parse.views
       (fun v -> lib.views_album_default <- v);
     apply (r $? "views_playlist_default") Parse.views
       (fun v -> lib.views_playlist_default <- v);
+    apply (r $? "browser_current") string
+      (fun i ->
+        lib.current <- None;
+        Option.iter (select_dir lib)
+          (Array.find_index (fun (dir : dir) -> dir.path = i)
+            lib.browser.entries);
+      );
     apply (r $? "lib_cover") bool
       (fun b -> lib.covers_shown <- b);
     refresh_artists_albums_tracks lib;

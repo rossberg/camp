@@ -187,9 +187,8 @@ val deselect : 'a t -> int -> int -> unit
 
 val set_search : 'a t -> string -> unit
 
-val set_views_dir_default : 'a t -> views -> unit
-val set_views_album_default : 'a t -> views -> unit
-val set_views_playlist_default : 'a t -> views -> unit
+val current_to_default_views : 'a t -> unit
+val current_of_default_views : 'a t -> unit
 
 val make_viewlist : dir -> string
 

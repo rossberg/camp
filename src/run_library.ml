@@ -164,19 +164,14 @@ let create_viewlist (st : state) =
 
 let template_avail (st : state) = st.library.current <> None
 let template (st : state) =
-  let open Library in
-  let lib = st.library in
-  Option.iter (fun (dir : dir) ->
-    (if current_is_playlist lib || current_is_viewlist lib then
-      set_views_playlist_default
-    else if current_is_album lib then
-      set_views_album_default
-    else
-      set_views_dir_default
-    ) lib dir.view;
-    dir.view.custom <- false;
-    Library.save_dir lib dir;
-  ) lib.current
+  Library.current_to_default_views st.library;
+  State.save st
+
+let adopt_avail (st : state) =
+  match st.library.current with
+  | None -> false
+  | Some dir -> dir.view.custom
+let adopt (st : state) = Library.current_of_default_views st.library
 
 
 let playlists_avail (st : state) =
@@ -454,7 +449,7 @@ let run_browser (st : state) =
       if lib.current = None then true, " All" else false, "" in
     let pls =
       if lib.current = None || Library.current_is_playlist lib then "" else "s" in
-    let templ =
+    let _templ =
       if Library.(current_is_playlist lib || current_is_viewlist lib) then
         "Playlists"
       else if Library.current_is_album lib then
@@ -471,13 +466,15 @@ let run_browser (st : state) =
           if all then rescan_all_avail st else rescan_one_avail st),
           (fun () -> (if all then rescan_all else rescan_one) st `Thorough);
         `Separator, ignore;
+        `Entry (c, "Use View as Default", Layout.nokey, template_avail st),
+          (fun () -> template st);
+        `Entry (c, "Change View to Default", Layout.nokey, adopt_avail st),
+          (fun () -> adopt st);
+        `Separator, ignore;
         `Entry (c, "Add Root...", Layout.key_adddir, insert_avail st),
           (fun () -> insert st);
         `Entry (c, "Remove Root", Layout.key_deldir, remove_avail st),
           (fun () -> remove st);
-        `Separator, ignore;
-        `Entry (c, "Make View default for " ^ templ, Layout.nokey, template_avail st),
-          (fun () -> template st);
         `Separator, ignore;
         `Entry (c, "Create Playlist...", Layout.key_newdir, create_playlist_avail st),
           (fun () -> create_playlist st);
