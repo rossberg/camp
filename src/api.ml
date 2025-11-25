@@ -63,7 +63,7 @@ type icon = Raylib.Image.t
 module Window =
 struct
   let scale = ref (1, 1)
-  let min_pos = ref (0, 0)
+  let min_pos = ref (0, 0)       (* unscaled *)
   let max_size = ref (0, 0)
 
   let current_pos = ref (0, 0)   (* buffered during minimization *)
@@ -114,13 +114,13 @@ struct
     Raylib.init_window 0 0 "";
     Raylib.maximize_window ();
     update ();
+    min_pos := !current_pos;
+    max_size := !current_size;
     scale :=
       if snd !current_size > 2880 then (4, 4) (* 8K *) else
       if snd !current_size > 1440 then (2, 2) (* 4K *) else (1, 1);
     if fst !scale > 1 then update ();
     Raylib.close_window ();
-    min_pos := !current_pos;
-    max_size := !current_size;
 
     Raylib.(set_config_flags
       ConfigFlags.[Window_undecorated; Window_always_run;
@@ -138,8 +138,8 @@ struct
   let set_size () w h = next_size := Some (w, h)
   let set_icon () img = if not is_mac then Raylib.set_window_icon img
 
-  let min_pos () = !min_pos
-  let max_size () = !max_size
+  let min_pos () = uxy !min_pos
+  let max_size () = uxy !max_size
 
   let minimize () = Raylib.minimize_window ()
   let restore () = Raylib.restore_window ()
@@ -151,7 +151,7 @@ struct
 
   let screen_size () =
     let mon = Raylib.get_current_monitor () in
-    Raylib.get_monitor_width mon, Raylib.get_monitor_height mon
+    ux (Raylib.get_monitor_width mon), uy (Raylib.get_monitor_height mon)
 
   let is_hires () =
     Raylib.(Vector2.y (get_window_scale_dpi ())) > 1.0 || snd !scale > 1
