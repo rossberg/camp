@@ -121,8 +121,8 @@ let library_w g = g.library_width
 (* Helper *)
 
 let clamp min max v =
-  if v < min then min else
   if v > max then max else
+  if v < min then min else
   v
 
 
@@ -709,10 +709,10 @@ let max_popup_size = 1000
 
 let browser_min _g = 160
 let directories_min _g = 150
-let left_min _g = 100
-let right_min _g = 100
+let left_min _g = 20
+let right_min _g = 20
 let views_min g = left_min g + right_min g
-let files_min _g = 100
+let files_min _g = 20
 let library_min g = max (browser_min g + views_min g) (directories_min g + files_min g)
 
 let upper_min g = margin g + 3 * (line_h g) + scrollbar_w g + 3
@@ -724,3 +724,60 @@ let left_max g = g.library_width - g.browser_width - right_min g
 let upper_max g = control_h g + g.playlist_height - bottom_h g - lower_min g
 
 let playlist_min g = bottom_h g + max (margin g + 2 * (line_h g)) (upper_min g + lower_min g - control_h g)
+
+
+(* Resolution-independent Window Geometry *)
+
+let concrete_geo lay =
+  let x, y = Api.Window.pos (Ui.window lay.ui) in
+  x, y, lay.library_width, lay.playlist_height
+
+let abstract_geo lay =
+  let win = Ui.window lay.ui in
+  let sx, sy = Api.Window.min_pos win in
+  let sw, sh = Api.Window.max_size win in
+  let x', y' = Api.Window.pos win in
+  let w', h' = Api.Window.size win in
+  let x, y = max 0 (x' - sx), max 0 (y' - sy) in
+  let w, h = min w' sw, min h' sh in
+  let x =
+    if lay.library_shown || not lay.filesel_shown then x
+    else x + lay.library_width
+  in
+  let dx = if x = 0 || x + w < sw then 0 else -sw in
+  let dy = if y = 0 || y + h < sh then 0 else -sh in
+  let dw = if lay.library_shown || lay.filesel_shown then 0 else lay.library_width in
+  let dh = if lay.playlist_shown then 0 else lay.playlist_height in
+  let left = lay.library_side = `Left in
+
+  let cx = x + dx in
+  let cy = y + dy in
+  let ch = if y + h + dh <> sh then lay.playlist_height else -1 in
+  let cw = if x + w + dw <> sw || left then lay.library_width else -1 in
+  (cx, cy, cw, ch)
+
+
+let apply_geo lay (cx, cy, cw, ch) : int * int =
+  let win = Ui.window lay.ui in
+  let ww, wh = control_min_w, control_min_h in
+  let sx, sy = Api.Window.min_pos win in
+  let sw, sh = Api.Window.max_size win in
+
+  let cx, cy = clamp (-sw) sw cx, clamp (-sh) sh cy in
+  let dx = if cx >= 0 then 0 else +sw in
+  let dy = if cy >= 0 then 0 else +sh in
+  let x, y = cx + sx + dx, cy + sy + dy in
+
+  lay.playlist_height <- clamp (playlist_min lay) (sh - wh)
+    (if ch = -1 then sh - y + sy - wh else ch);
+  lay.library_width <- clamp (library_min lay) (sw - ww)
+    (if cw = -1 then sw - x + sx - ww else cw);
+
+  lay.browser_width <-
+    clamp (browser_min lay) (browser_max lay) lay.browser_width;
+  lay.left_width <- clamp (left_min lay) (left_max lay) lay.left_width;
+  lay.upper_height <- clamp (upper_min lay) (upper_max lay) lay.upper_height;
+  lay.directories_width <-
+    clamp (directories_min lay) (directories_max lay) lay.directories_width;
+
+  (x, y)

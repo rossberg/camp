@@ -110,11 +110,19 @@ and run' (st : state) =
     Bool.to_int (Layout.reduce_scale_key lay)
   in
   let scale_old = Api.Window.scale win in
+  let geo = Layout.abstract_geo lay in
   Ui.rescale lay.ui scale_delta scale_delta;
   let scale_new = Api.Window.scale win in
-  lay.scaling <-
+  let scaling' =
     fst lay.scaling + (fst scale_new - fst scale_old),
-    snd lay.scaling + (snd scale_new - snd scale_old);
+    snd lay.scaling + (snd scale_new - snd scale_old)
+  in
+  if scaling' <> lay.scaling then
+  (
+    lay.scaling <- scaling';
+    let x, y = Layout.apply_geo lay geo in
+    Api.Window.set_pos win x y;
+  );
 
   if Layout.lib_cover_key lay then
     Library.activate_covers st.library (not st.library.covers_shown);

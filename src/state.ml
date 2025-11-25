@@ -117,26 +117,12 @@ let focus_prev st = focus_switch st (List.rev (foci st))
 
 let side_enum = ["left", `Left; "right", `Right]
 
-let print_layout ?(raw = false) lay =
-  let open Layout in
+let print_layout ?(raw = false) (lay : Layout.t) =
   let open Text.Print in
-  let win = Ui.window lay.ui in
-  let sx, sy = Api.Window.min_pos win in
-  let sw, sh = Api.Window.max_size win in
-  let x', y' = Api.Window.pos win in
-  let w', h' = Api.Window.size win in
-  let x, y = max 0 (x' - sx), max 0 (y' - sy) in
-  let w, h = min w' sw, min h' sh in
-  let x =
-    if lay.library_shown || not lay.filesel_shown then x
-    else x + lay.library_width
-  in
-  let dx = if x = 0 || x + w < sw then 0 else -sw in
-  let dy = if y = 0 || y + h < sh then 0 else -sh in
-  let dw = if lay.library_shown || lay.filesel_shown then 0 else lay.library_width in
-  let dh = if lay.playlist_shown then 0 else lay.playlist_height in
+  let open Layout in
+  let x, y, w, h = (if raw then concrete_geo else abstract_geo) lay in
   record (fun lay -> [
-    "win_pos", pair int int (if raw then Api.Window.pos win else x + dx, y + dy);
+    "win_pos", pair int int (x, y);
     "scaling", pair int int lay.scaling;
     "buffered", bool (Ui.is_buffered lay.ui);
     "color_palette", nat (Ui.get_palette lay.ui);
@@ -145,12 +131,10 @@ let print_layout ?(raw = false) lay =
     "text_pad_y", nat lay.pad_y;
     "text_sdf", bool (Ui.font_is_sdf lay.ui);
     "play_open", bool lay.playlist_shown;
-    "play_height", int (if y + h + dh <> sh || raw then lay.playlist_height else -1);
+    "play_height", int h;
     "lib_open", bool lay.library_shown;
     "lib_side", enum side_enum lay.library_side;
-    "lib_width", int
-      (if lay.library_side = `Left || x + w + dw <> sw || raw
-       then lay.library_width else -1);
+    "lib_width", int w;
     "browser_width", nat lay.browser_width;
     "upper_height", nat lay.upper_height;
     "left_width", nat lay.left_width;
@@ -161,23 +145,15 @@ let print_layout ?(raw = false) lay =
     "popup_size", nat lay.popup_size;
   ]) lay
 
-let parse_layout lay pos =  (* assumes playlist and library already loaded *)
-  let open Layout in
+let parse_layout (lay : Layout.t) pos =  (* assumes playlist and library loaded *)
   let open Text.Parse in
-  let win = Ui.window lay.ui in
-  let ww, wh = Layout.(control_min_w, control_min_h) in
-  let sx, sy = Api.Window.min_pos win in
-  let sw, sh = Api.Window.max_size win in
+  let open Layout in
   record (fun r ->
-    apply (r $? "win_pos")
-      (pair (num (-sw) sw) (num (-sh) sh))
-      (fun (x, y) ->
-        let dx = if x >= 0 then 0 else +sw in
-        let dy = if y >= 0 then 0 else +sh in
-        pos := x + sx + dx, y + sy + dy
-      );
+    let cx, cy, cw, ch = ref (-1), ref (-1), ref (-1), ref (-1) in
     apply (r $? "scaling") (pair (num (-1) 8) (num (-1) 8))
       (fun (dx, dy) -> Ui.rescale lay.ui dx dy; lay.scaling <- dx, dy);
+    apply (r $? "win_pos") (pair int int)
+      (fun (x, y) -> cx := x; cy := y);
     apply (r $? "buffered") bool
       (fun b -> Ui.buffered lay.ui b);
     apply (r $? "text_sdf") bool
@@ -192,18 +168,14 @@ let parse_layout lay pos =  (* assumes playlist and library already loaded *)
       (fun h -> lay.pad_y <- h);
     apply (r $? "play_open") bool
       (fun b -> lay.playlist_shown <- b);
-    apply (r $? "play_height") (num (playlist_min lay) (sh - wh))
-      (fun h -> lay.playlist_height <- h);
-    apply (r $? "play_height") (num (-1) 0)
-      (fun h -> if h = -1 then lay.playlist_height <- sh - snd !pos + sy - wh);
+    apply (r $? "play_height") int
+      (fun h -> ch := h);
     apply (r $? "lib_open") bool
       (fun b -> lay.library_shown <- b);
     apply (r $? "lib_side") (enum side_enum)
       (fun s -> lay.library_side <- s);
-    apply (r $? "lib_width") (num (library_min lay) (sw - ww))
-      (fun w -> lay.library_width <- w);
-    apply (r $? "lib_width") (num (-1) 0)
-      (fun w -> if w = -1 then lay.library_width <- sw - fst !pos + sx - ww);
+    apply (r $? "lib_width") int
+      (fun w -> cw := w);
     apply (r $? "browser_width") (num (browser_min lay) (browser_max lay))
       (fun w -> lay.browser_width <- w);
     apply (r $? "left_width") (num (left_min lay) (left_max lay))
@@ -220,6 +192,7 @@ let parse_layout lay pos =  (* assumes playlist and library already loaded *)
       (fun ws -> if Iarray.length ws = 3 then lay.repair_log_columns <- ws);
     apply (r $? "popup_size") (num min_popup_size max_popup_size)
       (fun w -> lay.popup_size <- w);
+    pos := apply_geo lay (!cx, !cy, !cw, !ch)
   )
 
 
