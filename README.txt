@@ -459,6 +459,11 @@ displays a playlist folder, and only if that is currently sorted by position:
   library playlist, then the playlist edit buttons at the bottom of the
   Playlist pane are rewired to act on the tracks table.
 
+If you don't want to tediously customise the view for each and every folder
+individually, then you can set the current folder's view as a default for other
+folders (via Browser context menu). There are separate defaults for
+playlist/viewlist folders and regular folders.
+
 
 3.4.3 Searching
 ...............

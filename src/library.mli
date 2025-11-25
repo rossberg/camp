@@ -16,6 +16,7 @@ type views =
   mutable search : string;
   mutable query : Query.query option;
   mutable folded : bool;
+  mutable custom : bool;
   mutable divider_width : int;
   mutable divider_height : int;
   artists : artist_attr view;
@@ -45,6 +46,9 @@ type 'cache t = private
   tracks : (track, 'cache) Table.t;
   covers : cover Map.Make(String).t Atomic.t;
   mutable age_covers : (path * cover) Seq.t;
+  mutable views_dir_default : views;
+  mutable views_album_default : views;
+  mutable views_playlist_default : views;
   scan : scan;
 }
 
@@ -52,7 +56,7 @@ type 'cache t = private
 (* Constructor *)
 
 val make : unit -> 'a t
-val make_views : string -> views
+val make_views : unit -> views
 val copy_views : views -> views
 
 
@@ -126,6 +130,7 @@ val find_parent_pos : 'a t -> dir -> int
 val current_is_all : 'a t -> bool
 val current_is_root : 'a t -> bool
 val current_is_dir : 'a t -> bool
+val current_is_album : 'a t -> bool
 val current_is_playlist : 'a t -> bool
 val current_is_viewlist : 'a t -> bool
 val current_is_shown_playlist : 'a t -> bool
@@ -181,6 +186,10 @@ val select : 'a t -> int -> int -> unit
 val deselect : 'a t -> int -> int -> unit
 
 val set_search : 'a t -> string -> unit
+
+val set_views_dir_default : 'a t -> views -> unit
+val set_views_album_default : 'a t -> views -> unit
+val set_views_playlist_default : 'a t -> views -> unit
 
 val make_viewlist : dir -> string
 

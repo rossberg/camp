@@ -156,11 +156,27 @@ let create_viewlist (st : state) =
   Option.iter (fun (dir : dir) ->
     let query = Library.make_viewlist dir in
     let view = Library.copy_views dir.view in
-    view.search <- "";
     let path = if Data.is_dir dir then dir.path else File.dir dir.path in
     Run_filesel.filesel st `File `Write path ".m3v"
       (create_list st ".m3v" query (Some view));
   ) st.library.current
+
+
+let template_avail (st : state) = st.library.current <> None
+let template (st : state) =
+  let open Library in
+  let lib = st.library in
+  Option.iter (fun (dir : dir) ->
+    (if current_is_playlist lib || current_is_viewlist lib then
+      set_views_playlist_default
+    else if current_is_album lib then
+      set_views_album_default
+    else
+      set_views_dir_default
+    ) lib dir.view;
+    dir.view.custom <- false;
+    Library.save_dir lib dir;
+  ) lib.current
 
 
 let playlists_avail (st : state) =
@@ -438,6 +454,14 @@ let run_browser (st : state) =
       if lib.current = None then true, " All" else false, "" in
     let pls =
       if lib.current = None || Library.current_is_playlist lib then "" else "s" in
+    let templ =
+      if Library.(current_is_playlist lib || current_is_viewlist lib) then
+        "Playlists"
+      else if Library.current_is_album lib then
+        "Album Folders"
+      else
+        "Folders"
+    in
     Run_menu.command_menu st (Iarray.concat [
       [|
         `Entry (c, "Rescan" ^ quant ^ " Quick", Layout.key_rescan,
@@ -451,6 +475,9 @@ let run_browser (st : state) =
           (fun () -> insert st);
         `Entry (c, "Remove Root", Layout.key_deldir, remove_avail st),
           (fun () -> remove st);
+        `Separator, ignore;
+        `Entry (c, "Make View default for " ^ templ, Layout.nokey, template_avail st),
+          (fun () -> template st);
         `Separator, ignore;
         `Entry (c, "Create Playlist...", Layout.key_newdir, create_playlist_avail st),
           (fun () -> create_playlist st);
@@ -579,7 +606,7 @@ let run_browser (st : state) =
   let have_dir = lib.current <> None in
   let default =
     if Array.length entries > 0 then entries.(0) else
-    Data.make_dir "" None 0 (Library.make_views "")
+    Data.make_dir "" None 0 (Library.make_views ())
   in
   let dir = Option.value lib.current ~default in
   let view = dir.view in
@@ -604,6 +631,7 @@ let run_browser (st : state) =
   (
     (* Click on Artists button: toggle artist pane *)
     view.artists.shown <- if artists' then Some `Table else None;
+    view.custom <- true;
     if nothing_shown view then
       view.artists.shown <- Some `Table;
     if view.artists.shown = None && Table.has_selection lib.artists then
@@ -624,6 +652,7 @@ let run_browser (st : state) =
   (
     (* Click on Albums button: toggle artist pane *)
     view.albums.shown <- cycle_shown view.albums.shown;
+    view.custom <- true;
     if nothing_shown view then
       view.albums.shown <- Some `Table;
     if view.albums.shown = None && Table.has_selection lib.albums then
@@ -644,6 +673,7 @@ let run_browser (st : state) =
   (
     (* Click on Tracks button: toggle artist pane *)
     view.tracks.shown <- cycle_shown view.tracks.shown;
+    view.custom <- true;
     if nothing_shown view then
       view.tracks.shown <- Some `Table;
     if view.tracks.shown = None && Table.has_selection lib.tracks then
@@ -735,7 +765,7 @@ let run_view (st : state)
     layout grid_w
     (tab : _ Table.t) busy_tab dep_tab
     refresh_busy refresh_deps
-    reorder (view : _ Library.view)
+    reorder (view : _ Library.view) (views : Library.views)
     attr_string prim_attr all_attrs
     path_of text_of color_of
     selected_tracks _clicked_tracks
@@ -807,6 +837,7 @@ let run_view (st : state)
       Bool.to_int (Api.Key.is_modifier_down `Command) * (-4)
     in
     view.sorting <- Data.insert_sorting prim_attr attr k 4 view.sorting;
+    views.custom <- true;
     Option.iter (Library.save_dir lib) lib.current;
     reorder lib;
 
@@ -814,11 +845,13 @@ let run_view (st : state)
     (* Column resizing: update column widths *)
     view.columns <-
       Iarray.mapi (fun i (attr, _) -> attr, ws.$(i)) view.columns;
+    views.custom <- true;
     Option.iter (Library.save_dir lib) lib.current;
 
   | `Reorder perm ->
     (* Column reordering: update columns *)
     view.columns <- Data.permute perm view.columns;
+    views.custom <- true;
     Option.iter (Library.save_dir lib) lib.current;
 
   | `Click _ when Api.Mouse.(is_pressed `Left &&
@@ -996,7 +1029,7 @@ let run_views (st : state) =
   let have_dir = lib.current <> None in
   let default =
     if Array.length lib.browser.entries > 0 then lib.browser.entries.(0) else
-    Data.make_dir "" None 0 (Library.make_views "")
+    Data.make_dir "" None 0 (Library.make_views ())
   in
   let dir = Option.value lib.current ~default in
   let view = dir.view in
@@ -1016,7 +1049,7 @@ let run_views (st : state) =
     run_view st Layout.left_view 1
       lib.artists busy_artists lib.albums
       Library.refresh_artists_busy Library.refresh_albums_tracks
-      Library.reorder_artists view.artists
+      Library.reorder_artists view.artists view
       Data.artist_attr_string `Artist Data.artist_attrs
       (fun _ -> "") (fun _ -> "") (fun _ -> Ui.text_color lay.ui)
       (fun lib -> lib.tracks.entries) (fun lib _ -> lib.Library.tracks.entries)
@@ -1037,7 +1070,7 @@ let run_views (st : state) =
       Layout.(if lay.right_shown then right_view else left_view) lay.album_grid
       lib.albums busy_albums busy_tracks
       Library.refresh_albums_busy Library.refresh_tracks
-      Library.reorder_albums view.albums
+      Library.reorder_albums view.albums view
       Data.album_attr_string `None Data.album_attrs
       (fun (album : Data.album) -> album.path) text_of
       (fun _ -> Ui.text_color lay.ui)
@@ -1054,6 +1087,7 @@ let run_views (st : state) =
       (
         lay.left_width <- left_width';
         dir.view.divider_width <- left_width';
+        dir.view.custom <- true;
         Library.save_dir lib dir;
       )
     );
@@ -1097,7 +1131,7 @@ let run_views (st : state) =
       Layout.(if lay.lower_shown then lower_view else left_view) lay.track_grid
       lib.tracks busy_tracks busy_tracks
       Library.refresh_tracks_busy ignore
-      Library.reorder_tracks view.tracks
+      Library.reorder_tracks view.tracks view
       Data.track_attr_string prim_attr Data.track_attrs
       (fun (track : Data.track) -> track.path) text_of color_of
       Library.selected (fun lib i -> [|lib.Library.tracks.entries.(i)|])
@@ -1117,6 +1151,7 @@ let run_views (st : state) =
       (
         lay.upper_height <- upper_height';
         dir.view.divider_height <- upper_height';
+        dir.view.custom <- true;
         Library.save_dir lib dir;
       )
     );

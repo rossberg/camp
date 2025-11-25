@@ -34,6 +34,7 @@ type views =
   mutable search : string;
   mutable query : Query.query option;
   mutable folded : bool;
+  mutable custom : bool;
   mutable divider_width : int;
   mutable divider_height : int;
   artists : artist_attr view;
@@ -85,6 +86,9 @@ type 'cache t =
   tracks : (track, 'cache) Table.t;
   covers : cover Map.t Atomic.t;
   mutable age_covers : (path * cover) Seq.t;
+  mutable views_dir_default : views;
+  mutable views_album_default : views;
+  mutable views_playlist_default : views;
   scan : scan;
 }
 
@@ -109,7 +113,7 @@ let ok lib =
   Table.ok "browser" lib.browser @
   Table.ok "tracks" lib.tracks @
   check_opt lib.log Log.ok @
-  check "root unfolded" (not lib.root.view.folded) @
+  check "root folded" (not lib.root.view.folded) @
   check "browser nonempty" (Table.length lib.browser > 0) @
   check "artists pos unset" (lib.artists.pos = None || lib.artists.pos = Some 0) @
   check "albums pos unset" (lib.albums.pos = None || lib.albums.pos = Some 0) @
@@ -175,34 +179,93 @@ let playlist_sorting = [`Pos, `Asc]
 let playlist_columns : track_attr columns =
   Iarray.append [|`Pos, 20|] tracks_columns
 
+let album_sorting = [`DiscTrack, `Asc]
+let album_columns : track_attr columns =
+[|
+  `Cover, 30;
+  `DiscTrack, 20;
+  `Rating, 30;
+  `Artist, 150;
+  `Title, 180;
+  `Length, 30;
+  `AlbumArtist, 100;
+  `AlbumTitle, 150;
+  `Date, 60;
+  `Country, 50;
+  `Label, 50;
+  `Codec, 30;
+  `Rate, 50;
+  `FileSize, 50;
+  `FileTime, 70;
+  `FilePath, 400;
+|]
+
 let make_view shown columns sorting : _ view =
   { shown; columns; sorting }
-
-let make_views pth : views =
-  {
-    search = "";
-    query = None;
-    folded = true;
-    divider_width = 100;
-    divider_height = 100;
-    artists = make_view None artists_columns artists_sorting;
-    albums = make_view None albums_columns albums_sorting;
-    tracks =
-      if is_playlist_path pth || is_viewlist_path pth || is_album_path pth then
-        make_view (Some `Table) playlist_columns playlist_sorting
-      else
-        make_view (Some `Table) tracks_columns tracks_sorting;
-  }
 
 let copy_view (view : _ view) =
   { view with shown = view.shown }
 
+let artists_default_view = make_view None artists_columns artists_sorting
+let albums_default_view = make_view None albums_columns albums_sorting
+let tracks_default_view = make_view (Some `Table) tracks_columns tracks_sorting
+
+let make_views () : views =
+  {
+    search = "";
+    query = None;
+    folded = true;
+    custom = false;
+    divider_width = 100;
+    divider_height = 100;
+    artists = copy_view artists_default_view;
+    albums = copy_view albums_default_view;
+    tracks = copy_view tracks_default_view;
+  }
+
+let root_default_views =
+  { (make_views ()) with
+    folded = false;
+    artists = make_view (Some `Table) artists_columns artists_sorting;
+    albums = make_view (Some `Table) albums_columns albums_sorting }
+
+let dir_default_views = make_views ()
+
+let album_default_views =
+  { (make_views ()) with
+    tracks = make_view (Some `Table) album_columns album_sorting }
+
+let playlist_default_views =
+  { (make_views ()) with
+    tracks = make_view (Some `Table) playlist_columns playlist_sorting }
+
 let copy_views (views : views) =
-  { views with
+  {
+    search = "";
+    query = None;
+    folded = true;
+    custom = false;
+    divider_width = views.divider_width;
+    divider_height = views.divider_height;
     artists = copy_view views.artists;
     albums = copy_view views.albums;
     tracks = copy_view views.tracks;
   }
+
+let make_views_for lib path : views =
+  if path = "" then
+    root_default_views
+  else if is_playlist_path path || is_viewlist_path path then
+    copy_views lib.views_playlist_default
+  else if is_album_path path then
+    copy_views lib.views_album_default
+  else
+    copy_views lib.views_dir_default
+
+
+let set_views_dir_default lib v = lib.views_dir_default <- copy_views v
+let set_views_album_default lib v = lib.views_album_default <- copy_views v
+let set_views_playlist_default lib v = lib.views_playlist_default <- copy_views v
 
 
 let rec complete scan path =
@@ -272,18 +335,15 @@ let rec saver lib () =
   saver lib ()
 
 let make () =
-  let root = Data.make_dir "" None (-1) (make_views "") in
+  let root = Data.make_dir "" None (-1) root_default_views in
   root.name <- "All";
-  root.view.folded <- false;
-  root.view.artists.shown <- Some `Table;
-  root.view.albums.shown <- Some `Table;
   let lib =
     {
       root;
       current = None;
       error = "";
       error_time = 0.0;
-      refresh_time = 0.0;
+      refresh_time = infinity;
       covers_shown = true;
       renaming = None;
       log = None;
@@ -295,6 +355,9 @@ let make () =
       tracks = Table.make 100;
       covers = Atomic.make Map.empty;
       age_covers = Seq.empty;
+      views_dir_default = dir_default_views;
+      views_album_default = album_default_views;
+      views_playlist_default = playlist_default_views;
       scan = make_scan ();
     }
   in
@@ -416,7 +479,7 @@ let save_db lib =
 
 let load_db lib =
   Storage.load_string library_name (fun s ->
-    lib.root <- Bin.decode (Data.Decode.dir (fun () -> make_views "")) s
+    lib.root <- Bin.decode (Data.Decode.dir (make_views_for lib)) s;
   )
 
 let _ = save_db_fwd.it <- save_db
@@ -491,6 +554,8 @@ struct
       "search", string x.search;
       (* query omitted and reconstructed from search *)
       "fold", bool x.folded;
+      "custom", bool x.custom;
+    ] @ if not x.custom then [] else [
       "div_w", nat x.divider_width;
       "div_h", nat x.divider_height;
       "artists", view artist_attr x.artists;
@@ -546,6 +611,7 @@ struct
       search = default "" string (r $? "search");
       query = None;
       folded = bool (r $ "fold");
+      custom = default true bool (r $? "custom");
       divider_width = nat (r $ "div_w");
       divider_height = nat (r $ "div_h");
       artists = view artist_attr (r $ "artists");
@@ -553,7 +619,17 @@ struct
       tracks = view track_attr (r $ "tracks");
     })
 
-  let dir u (dir : dir) = dir.view <- views u
+  let views_noncustom (view : views) =
+    record (fun r ->
+      apply (r $? "search") string
+        (fun s -> view.search <- s; view.query <- None);
+      apply (r $? "fold") bool (fun b -> view.folded <- b);
+      apply (r $? "custom") bool (fun b -> view.custom <- b);
+    )
+
+  let dir u (dir : dir) =
+    views_noncustom dir.view u;
+    if dir.view.custom then dir.view <- views u
 
   let browse u =
     let map = Map.of_list (map bool u) in
@@ -571,9 +647,10 @@ let dir_name dir =
   Storage.make_dir (Storage.path browser_dir);
   let file =
     if dir.path = "" then "%2f" else
-    let file = Str.global_replace percent_re "%%" dir.path in
-    let file' = Str.global_replace colon_re "%3a" file in
-    Str.global_replace sep_re "%2f" file'
+    dir.path
+      |> Str.global_replace percent_re "%%"
+      |> Str.global_replace colon_re "%3a"
+      |> Str.global_replace sep_re "%2f"
   in File.(browser_dir // file ^ view_ext)
 
 let save_dir _lib dir =
@@ -582,7 +659,8 @@ let save_dir _lib dir =
   );
   if is_viewlist dir then File.save_safe `Bin dir.path dir.view.search
 
-let load_dir _lib dir =
+let load_dir lib dir =
+  dir.view <- make_views_for lib dir.path;
   Storage.load_string_opt (dir_name dir) (fun s ->
     try
       Parse.dir (Text.parse s) dir
@@ -825,7 +903,7 @@ let rec rescan_dir' lib mode (origin : dir) =
       | None ->
         if change_if_new then Atomic.set lib.scan.changed true;
         Data.make_dir path' (Some parent_path) (parent.nest + 1)
-          (make_views path')
+          (make_views_for lib path')
     in
     if File.is_dir path then
       let dir = subdir File.(path // "") false in
@@ -1094,6 +1172,7 @@ let current_is p lib =
 let current_is_all lib = current_is Data.is_all lib
 let current_is_root lib = current_is Data.is_root lib
 let current_is_dir lib = current_is Data.is_dir lib
+let current_is_album lib = current_is Data.is_album lib
 let current_is_playlist lib = current_is Data.is_playlist lib
 let current_is_viewlist lib = current_is Data.is_viewlist lib
 
@@ -1220,8 +1299,8 @@ let refresh_view lib (tab : _ Table.t) attr_string sorting key f =
       Table.set tab entries;
       Table.restore_selection tab selection key
     );
-    if lib.refresh_time <> 0.0 then
-      lib.refresh_time <- Unix.gettimeofday () +. refresh_delay
+    lib.refresh_time <-
+      min lib.refresh_time (Unix.gettimeofday () +. refresh_delay)
 
 let refresh_tracks_view lib f =
   refresh_view lib lib.tracks track_attr_string tracks_sorting (track_key lib) f
@@ -1333,13 +1412,15 @@ let refresh_after_rescan lib =
 let refresh_after_rescan lib =
   let updated = rescan_done lib in
   let now = Unix.gettimeofday () in
-  if updated <> [] && lib.refresh_time = 0.0 then
-    lib.refresh_time <- now +. refresh_delay
-  else if now > lib.refresh_time && lib.refresh_time > 0.0
-  || (current_is_playlist lib || current_is_viewlist lib)
-     && Table.length lib.tracks = 0 then
+  if
+    updated <> [] ||
+    (current_is_playlist lib || current_is_viewlist lib)
+      && Table.length lib.tracks = 0
+  then
+    lib.refresh_time <- min lib.refresh_time (now +. refresh_delay);
+  if now > lib.refresh_time then
   (
-    lib.refresh_time <- 0.0;
+    lib.refresh_time <- infinity;
     refresh_browser lib;
     refresh_artists_albums_tracks lib ~busy: false;
   )
@@ -1421,7 +1502,7 @@ let make_root lib path =
     with
     | Some dir ->
       failwith (dirpath ^ " overlaps with " ^ dir.name ^ " (" ^ dir.path ^ ")")
-    | None -> Data.make_dir dirpath (Some "") 0 (make_views dirpath)
+    | None -> Data.make_dir dirpath (Some "") 0 (make_views_for lib dirpath)
   )
 
 let insert_roots lib paths pos =
@@ -1812,6 +1893,9 @@ let print_state lib =
     "browser_scroll", int lib.browser.vscroll;
     "browser_current", option string (Option.map (fun dir -> dir.path) lib.current);
     "lib_cover", bool lib.covers_shown;
+    "views_dir_default", Print.views lib.views_dir_default;
+    "views_album_default", Print.views lib.views_album_default;
+    "views_playlist_default", Print.views lib.views_playlist_default;
   ]) lib
 
 let print_intern lib =
@@ -1845,6 +1929,12 @@ let parse_state lib =
             lib.browser.entries);
         if lib.current = None then lib.current <- find_dir lib i;
       );
+    apply (r $? "views_dir_default") Parse.views
+      (fun v -> lib.views_dir_default <- v);
+    apply (r $? "views_album_default") Parse.views
+      (fun v -> lib.views_album_default <- v);
+    apply (r $? "views_playlist_default") Parse.views
+      (fun v -> lib.views_playlist_default <- v);
     apply (r $? "lib_cover") bool
       (fun b -> lib.covers_shown <- b);
     refresh_artists_albums_tracks lib;

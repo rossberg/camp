@@ -150,6 +150,7 @@ let is_track_path path = Format.is_known_ext path || M3u.is_separator path
 let is_all dir = dir.path = ""
 let is_root dir = dir.parent = Some ""
 let is_dir (dir : _ dir) = dir.path = "" || is_dir_path dir.path
+let is_album (dir : _ dir) = is_album_path dir.path
 let is_playlist (dir : _ dir) = is_playlist_path dir.path
 let is_viewlist (dir : _ dir) = is_viewlist_path dir.path
 
@@ -913,7 +914,7 @@ struct
       let children = iarray (dir make_view) buf in
       let tracks = iarray track buf in
       let error = string buf in
-      let view = make_view () in
+      let view = make_view path in
       {path; parent; nest; name; children; tracks; error; view}
     )
 end
