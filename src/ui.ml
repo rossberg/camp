@@ -1940,9 +1940,10 @@ let grid_table_mouse ui area geo (tab : _ Table.t) =
   let iw = geo.gutter_w + geo.img_h in
   let ih = iw + geo.text_h in
   let line = max 1 Float.(to_int (floor (float w /. float iw))) in
+  let vscroll = tab.vscroll / line * line in
   let (mx, my) as m = Mouse.pos ui.win in
   if inside m r then
-    let row = (my - y) / ih * line + (mx - x) / iw + tab.vscroll in
+    let row = (my - y) / ih * line + (mx - x) / iw + vscroll in
     Some ((if row < Table.length tab then Some row else None), None)
   else
     None
@@ -1955,7 +1956,8 @@ let grid_table_drag ui area geo style tab =
     let iw = geo.gutter_w + geo.img_h in
     let ih = iw + geo.text_h in
     let line = max 1 Float.(to_int (floor (float w /. float iw))) in
-    let i' = Option.value i_opt ~default: (Table.length tab) - tab.vscroll in
+    let vscroll = tab.vscroll / line * line in
+    let i' = Option.value i_opt ~default: (Table.length tab) - vscroll in
     focus' ui (x + i' mod line * iw) (y + i' / line * ih) iw ih `White style
   | _ -> ()
 
@@ -1986,13 +1988,14 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
     Table.adjust_vscroll tab tab.vscroll page;
 
     (* Body *)
+    let vscroll = tab.vscroll / line * line in
     let buf = adjust_cache ui tab w h in
     if not ui.buffered || tab.dirty then
     (
       let matrix =
         Iarray.init (page_ceil / line) (fun j ->
           Iarray.init line (fun i ->
-            let k = tab.vscroll + j * line + i in
+            let k = vscroll + j * line + i in
             if k >= len then None else
             let img, c, txt = pp_cell k in
             let inv = if Table.is_selected tab k then `Inverted else `Regular in
@@ -2010,8 +2013,8 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
 
     let mx, my = Mouse.pos ui.win in
     let i, j = (mx - x) / iw, (my - y) / ih in
-    let k = tab.vscroll + j * line + i in
-    let on_bg = i >= line || k >= min len (tab.vscroll + page_ceil) in
+    let k = vscroll + j * line + i in
+    let on_bg = i >= line || k >= min len (vscroll + page_ceil) in
 
     let _, status = widget ui table_area no_modkey in
     (* Mirrors logic in grid *)
@@ -2168,7 +2171,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
           (* Cursor movement *)
           let has_sel = tab.sel_range <> None in
           let default =
-            0, if not shift then tab.vscroll else if d < 0 then len else -1 in
+            0, if not shift then vscroll else if d < 0 then len else -1 in
           let pos1, pos2 = Option.value tab.sel_range ~default in
           let i = if d < 0 then max 0 (pos2 + d) else min (len - 1) (pos2 + d) in
 
