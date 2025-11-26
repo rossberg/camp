@@ -3,7 +3,7 @@
 type time = float
 type track = Data.track
 
-type visual = [`None | `Cover | `Wave | `Oscilloscope]
+type visual = [`None | `Cover | `Spectrum | `Wave | `Oscilloscope]
 
 type t =
 {
@@ -18,8 +18,10 @@ type t =
   mutable loop : [`None | `A of time | `AB of time * time];
   mutable visual : visual;
   mutable fps : bool;
+  mutable spec_bands : int;
   mutable osc_x : float;
   mutable osc_y : float;
+  mutable raw : float array;
   mutable data : float array;
 }
 

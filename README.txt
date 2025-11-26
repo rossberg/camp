@@ -185,7 +185,8 @@ Most controls around the Playlist should be intuitive. A few extra tips:
   context menu.
 
 * Visualisations: Ctrl/Command-Y cycles through different visualisations of the
-  track playing. Either Cover Art (default), Wave Form, Oscilloscope, or None.
+  track playing. Either Cover Art (default), Spectrum Analyzer, Wave Form,
+  Oscilloscope, or None.
 
 * Cover: Clicking on the cover art will zoom it into a pop-up. Click again to
   close.
@@ -658,8 +659,8 @@ across sessions:
   to cycle through color schemes.
 
 * Visualisation: Ctrl/Command-U (or the Control pane's context menu) cycles
-  through different track vissualisations in the Control pane: Cover art, Wave,
-  Oscilloscope, or All off.
+  through different track vissualisations in the Control pane: Cover art,
+  Spectrum analyzer, Wave, Oscilloscope, or All off.
 
 * Resize: Drag on any window border to resize it. However, vertical resize is
   only possible when the Playlist pane is open, horizontal only when the
@@ -744,6 +745,9 @@ the underlying graphics and audio library (Raylib, Section 4.3).
 
 * More exotic audio formats are not supported. FLAC, MP3, WAV, and OGG are
   fine. In exchange, MOD and XM modules can be played out of the box!
+
+* The Spectrum Analyser is a toy. I didn't really know what I was doing. Don't
+  expect an accurate depiction of dB levels.
 
 * There may be bugs. Correction: there almost certainly are. And other
   occasional signs of immature software.

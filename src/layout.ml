@@ -313,9 +313,9 @@ let lcd_sec2 g = Ui.lcd g.ui (cp, lcd_x g 4 + colon_w + lcd_space, lcd_y g, lcd_
 let lcd_button g = Ui.mouse g.ui (cp, lcd_x g 0, lcd_y g, colon_w + lcd_x g 4, lcd_h) `Left
 
 (* Visuals *)
-let visual_x g = lcd_x g 5 + 20
+let visual_x g = lcd_x g 5 + 28
 let visual_y g = margin g + info_margin g
-let visual_w g = volume_x g - 10
+let visual_w g = volume_x g - 16
 let visual_h _g = 40
 let visual_key g = Ui.key g.ui key_visual true
 

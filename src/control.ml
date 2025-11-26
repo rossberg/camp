@@ -3,7 +3,7 @@
 type time = float
 type track = Data.track
 
-type visual = [`None | `Cover | `Wave | `Oscilloscope]
+type visual = [`None | `Cover | `Spectrum | `Wave | `Oscilloscope]
 
 type t =
 {
@@ -18,14 +18,17 @@ type t =
   mutable loop : [`None | `A of time | `AB of time * time];
   mutable visual : visual;
   mutable fps : bool;
+  mutable spec_bands : int;
   mutable osc_x : float;
   mutable osc_y : float;
+  mutable raw : float array;
   mutable data : float array;
 }
 
 
 (* Constructor *)
 
+let spec_bands = 12
 let osc_x = 0.5
 let osc_y = 1.5
 
@@ -42,8 +45,10 @@ let make audio =
     loop = `None;
     visual = `Cover;
     fps = false;
+    spec_bands;
     osc_x; osc_y;
-    data = [|0.0|];
+    raw = [||];
+    data = [||];
   }
 
 
@@ -96,11 +101,12 @@ let clamp lo hi x = max lo (min hi x)
 
 (* Visuals *)
 
-let audio_processor ctl fs = ctl.data <- fs
+let audio_processor ctl fs =
+  ctl.raw <- if ctl.raw = [||] then fs else Array.append ctl.raw fs
 
 let needs_processor = function
   | `None | `Cover -> false
-  | `Wave | `Oscilloscope -> true
+  | `Spectrum | `Wave | `Oscilloscope -> true
 
 let set_visual ctl vis =
   let old_need = needs_processor ctl.visual in
@@ -108,6 +114,8 @@ let set_visual ctl vis =
   ctl.visual <- vis;
   if old_need <> new_need then
   (
+    ctl.raw <- [||];
+    ctl.data <- [||];
     if new_need then
       Api.Audio.add_processor ctl.audio (audio_processor ctl)
     else
@@ -202,7 +210,12 @@ let switch_if_empty ctl track_opt =
 let timemode_enum = ["elapsed", `Elapse; "remain", `Remain]
 let repeat_enum = ["none", `None; "one", `One; "all", `All]
 let visual_enum =
-  ["none", `None; "cover", `Cover; "wave", `Wave; "oscilloscope", `Oscilloscope]
+  [ "none", `None;
+    "cover", `Cover;
+    "spectrum", `Spectrum;
+    "wave",`Wave;
+    "oscilloscope", `Oscilloscope
+  ]
 
 let print_loop =
   let open Text.Print in
@@ -235,6 +248,7 @@ let print_state ctl =
     "loop", print_loop ctl.loop;
     "timemode", enum timemode_enum ctl.timemode;
     "visual", enum visual_enum ctl.visual;
+    "spec_bands", int ctl.spec_bands;
     "osc_x", float ctl.osc_x;
     "osc_y", float ctl.osc_y;
   ]) ctl
@@ -265,6 +279,8 @@ let parse_state ctl =
       (fun m -> ctl.timemode <- m);
     apply (r $? "visual") (enum visual_enum)
       (fun v -> set_visual ctl v);
+    apply (r $? "spec_bands") (num 4 64)
+      (fun n -> ctl.spec_bands <- n);
     apply (r $? "osc_x") float
       (fun x -> set_osc ctl x ctl.osc_y);
     apply (r $? "osc_y") float

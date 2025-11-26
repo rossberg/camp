@@ -77,7 +77,8 @@ let cycle_visual (st : state) =
   Control.set_visual ctl
     (match ctl.visual with
     | `None -> `Cover
-    | `Cover -> `Wave
+    | `Cover -> `Spectrum
+    | `Spectrum -> `Wave
     | `Wave -> `Oscilloscope
     | `Oscilloscope -> `None
     )
@@ -158,6 +159,50 @@ let resize_popup (st : state) delta =
   st.layout.popup_size <- st.layout.popup_size + 100 * delta
 
 
+(* Sine wave generator *)
+
+let sine_freq = ref 440.0
+let sine_off = ref 0.0
+
+let sine_wave_callback buf len =
+  let d = !sine_freq /. 44100.0 in
+  let n = Unsigned.UInt.to_int len in
+  let a = Ctypes.(CArray.from_ptr (from_voidp short buf) n) in
+  for i = 0 to n - 1 do
+    Ctypes.CArray.unsafe_set a i
+      (int_of_float (32000.0 *. sin (2.0 *. Float.pi *. !sine_off)));
+    sine_off := !sine_off +. d;
+    if !sine_off > 1.0 then sine_off := !sine_off -. 1.0
+  done
+
+let sine_stream = ref None
+
+let start_sine_wave () =
+  Printf.printf "[start sine]\n%!";
+  Raylib.set_audio_stream_buffer_size_default 4096;
+  let stream = Raylib.load_audio_stream 44100 16 1 in
+  Raylib_ocaml.Callbacks.set_audio_stream_callback stream sine_wave_callback;
+  Raylib.play_audio_stream stream;
+  sine_stream := Some stream
+
+let stop_sine_wave () =
+  Printf.printf "[stop sine]\n%!";
+  Option.iter Raylib.unload_audio_stream !sine_stream;
+  sine_stream := None
+
+let toggle_sine_wave () =
+  (if !sine_stream = None then start_sine_wave else stop_sine_wave) ()
+
+let tweak_sine_wave c =
+  sine_freq := max 6.875 (min 28160.0 (!sine_freq *. Float.pow 2.0 (c /. 12.0)));
+  Printf.printf "[tweak sine %+.0f] freq=%f\n%!" c !sine_freq
+
+let run_sine_wave () =
+  if Api.Key.is_pressed (`Char '/') then toggle_sine_wave ();
+  if Api.Key.is_pressed_or_repeated (`Char ',') then tweak_sine_wave (-1.0);
+  if Api.Key.is_pressed_or_repeated (`Char '.') then tweak_sine_wave (+1.0)
+
+
 (* Runner *)
 
 let run (st : state) =
@@ -165,6 +210,8 @@ let run (st : state) =
   let pl = st.playlist in
   let lay = st.layout in
   let win = Ui.window lay.ui in
+
+run_sine_wave ();
 
   Layout.control_pane lay;
 
@@ -239,21 +286,78 @@ let run (st : state) =
   if Layout.visual_key lay then cycle_visual st;
   (match ctl.visual with
   | `None -> ()
+
   | `Cover ->
     Option.iter (fun (track : Data.track) ->
       Option.iter (Layout.cover lay)
         (Library.load_cover st.library win track.path)
     ) ctl.current
+
+  | `Spectrum ->
+    let len = Array.length ctl.raw in
+    let lim = Spectrum.fft_samples in
+    if len >= lim then
+    (
+      (* This could race, but that's okay *)
+      let raw = ctl.raw in
+      let wave, rest =
+        if len = lim then raw, [||] else
+        Array.sub raw 0 lim, Array.sub raw lim (len - lim)
+      in
+      ctl.raw <- rest;
+      ctl.data <- Spectrum.bands wave ctl.spec_bands;
+    );
+    let data = ctl.data in
+
+    let x, y, w, h = Ui.dim lay.ui (Layout.graph_area lay) in
+    let y, h = y + 2, h - 4 in
+    let win = Ui.window lay.ui in
+    let green = Ui.text_color lay.ui in
+    let yellow = Ui.warn_color lay.ui in
+    let red = Ui.error_color lay.ui in
+
+    for i = 0 to Array.length data - 1 do
+      let wsep =
+        if ctl.spec_bands <= 12 then 3 else
+        if ctl.spec_bands <= 32 then 2 else 1
+      in
+      let w' = w / ctl.spec_bands - wsep in
+      let x' = x + i * (w' + wsep) in
+      Api.Draw.fill win x' y w' h (Ui.unlit_color red);
+      let hy = 10 * h / 12 in
+      Api.Draw.fill win x' (y + h - hy) w' hy (Ui.unlit_color yellow);
+      let hg = 8 * h / 12 in
+      Api.Draw.fill win x' (y + h - hg) w' hg (Ui.unlit_color green);
+      let hr = min (int_of_float (data.(i) /. 3.0 *. float h)) h in
+      Api.Draw.fill win x' (y + h - hr) w' hr red;
+      let hy = min hr hy in
+      Api.Draw.fill win x' (y + h - hy) w' hy yellow;
+      let hg = min hr hg in
+      Api.Draw.fill win x' (y + h - hg) w' hg green;
+      for j = 0 to h/2 - 1 do
+        Api.Draw.fill win x (y + 2 * j) w 1 `Black;
+      done
+    done;
+
   | `Wave ->
+    let data = if ctl.raw = [||] then ctl.data else ctl.raw in
+    ctl.raw <- [||];
+    ctl.data <- data;
+
     let x, y, w, h = Ui.dim lay.ui (Layout.graph_area lay) in
     let win = Ui.window lay.ui in
-    for i = 0 to (min w (Array.length ctl.data))/2 - 1 do
+    for i = 0 to (min w (Array.length data))/2 - 1 do
       let i = 2 * i in
-      let v = ctl.data.(i) *. float h /. 1.5 in
+      let v = data.(i) *. float h /. 1.5 in
       let x, y = x + i, y + h/2 - int_of_float v in
       Api.Draw.fill win x y 1 1 `White;
     done;
+
   | `Oscilloscope ->
+    let data = if ctl.raw = [||] then ctl.data else ctl.raw in
+    ctl.raw <- [||];
+    ctl.data <- data;
+
     let x, y, w, h = Ui.dim lay.ui (Layout.graph_area lay) in
     let win = Ui.window lay.ui in
 
@@ -275,12 +379,12 @@ let run (st : state) =
       Control.set_osc ctl (ctl.osc_x *. sx) (ctl.osc_y *. sy)
     );
 
-    let len = Array.length ctl.data in
+    let len = Array.length data in
     let sx = max (float w /. float len *. 0.8) ctl.osc_x in
     let n = min len (int_of_float (Float.ceil (float w /. sx))) in
     let ps = Array.make (2 * n) 0.0 in
     for i = 0 to n - 1 do
-      let v = if i < len then ctl.data.(i) else 0.0 in
+      let v = if i < len then data.(i) else 0.0 in
       ps.(2 * i) <- float x +. sx *. float i;
       ps.(2 * i + 1) <- float y +. (ctl.osc_y *. v +. 1.0) *. float h /. 2.0;
     done;
@@ -289,12 +393,12 @@ let run (st : state) =
     if ctl.osc_x < 1.0 || ctl.osc_y > 1.0 then Api.Draw.unclip win;
 (*
     let array = Ctypes.CArray.make Raylib.Vector2.t w in
-    for i = 0 to min w (Array.length ctl.data) - 1 do
-      let v = ctl.data.(i) *. float h /. 2.0 in
+    for i = 0 to min w (Array.length data) - 1 do
+      let v = data.(i) *. float h /. 2.0 in
       let vec = Raylib.Vector2.create (float (x + i)) (float (y + h/2) -. v) in
       Ctypes.CArray.unsafe_set array i vec;
     done;
-    for i = min w (Array.length ctl.data) to w - 1 do
+    for i = min w (Array.length data) to w - 1 do
       let vec = Raylib.Vector2.create (float (x + i)) (float (y + h/2)) in
       Ctypes.CArray.unsafe_set array i vec;
     done;

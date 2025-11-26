@@ -5,7 +5,7 @@
   (modules
     safe_queue
     edit table
-    data track query text bin storage
+    data track query spectrum text bin storage
     control playlist library filesel log menu config
     api ui layout
     state app
