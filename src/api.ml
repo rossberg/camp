@@ -858,15 +858,9 @@ struct
   let load _ path =
     if not (File.exists path) then silence () else
     (* Raylib can't handle UTF-8 file paths, so copy those to temp file. *)
-    (* Also, Raylib <= 5.5 keeps FLAC files locked indefinitely on Windows *)
-    (* (see https://github.com/raysan5/raylib/issues/5131). *)
     (* (Raylib.load_music_stream_from_memory is broken and segfaults.) *)
     let path' =
-      if String.lowercase_ascii (File.extension path) = ".flac"
-      || not (Unicode.is_ascii path)
-      then Storage.copy_to_temp path
-      else path
-    in
+      if not (Unicode.is_ascii path) then Storage.copy_to_temp path else path in
     let format = try Format.read path' with _ -> Format.unknown in
     let music = Raylib.load_music_stream path' in
     if Raylib.Music.ctx_type music = 0 then silence () else
