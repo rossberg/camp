@@ -1497,7 +1497,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
           if i >= limit then
           (
             (* Click on empty space *)
-            if not Mouse.(is_double_click `Left || is_triple_click `Left) then
+            if not Mouse.(is_double_click `Left) then
               Table.deselect_all tab;
             `Click (None, col)
           )
@@ -1515,7 +1515,8 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
 
         | `Click ->
           (* Click-release: deselect all except for clicked entry *)
-          Table.deselect_all tab;
+          if not Mouse.(is_double_click `Left || is_triple_click `Left) then
+            Table.deselect_all tab;
           let col = find_column cols mx in
           if i >= limit then
           (

@@ -645,8 +645,8 @@ searches the library for a file with the same or a similar name.
 3.7 UI Configuration
 --------------------
 
-There are various ways to tweak the UI. All settings are remembered across
-sessions:
+There are various ways to tweak the user interface. All settings are remembered
+across sessions:
 
 * Color: Click the audio properties line (or the Control pane's context menu)
   to cycle through color schemes.
@@ -695,6 +695,8 @@ sessions:
 
 * FPS: Ctrl/Command+U toggles the display of an FPS counter in the Control
   pane. Note that this is soft-limited to 60.
+
+The interface does not use any rounded corners anywhere. That's a feature.
 
 
 [1] https://steamcdn-a.akamaihd.net/apps/valve/2007/SIGGRAPH2007_AlphaTestedMagnification.pdf
