@@ -159,6 +159,7 @@ let resize_popup (st : state) delta =
   st.layout.popup_size <- st.layout.popup_size + 100 * delta
 
 
+(*
 (* Sine wave generator *)
 
 let sine_freq = ref 440.0
@@ -201,6 +202,7 @@ let run_sine_wave () =
   if Api.Key.is_pressed (`Char '/') then toggle_sine_wave ();
   if Api.Key.is_pressed_or_repeated (`Char ',') then tweak_sine_wave (-1.0);
   if Api.Key.is_pressed_or_repeated (`Char '.') then tweak_sine_wave (+1.0)
+*)
 
 
 (* Runner *)
@@ -211,7 +213,9 @@ let run (st : state) =
   let lay = st.layout in
   let win = Ui.window lay.ui in
 
-run_sine_wave ();
+(*
+  run_sine_wave ();
+*)
 
   Layout.control_pane lay;
 
