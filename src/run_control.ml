@@ -328,7 +328,7 @@ run_sine_wave ();
       Api.Draw.fill win x' (y + h - hy) w' hy (Ui.unlit_color yellow);
       let hg = 8 * h / 12 in
       Api.Draw.fill win x' (y + h - hg) w' hg (Ui.unlit_color green);
-      let hr = min (int_of_float (data.(i) /. 3.0 *. float h)) h in
+      let hr = min (int_of_float (data.(i) /. 5.0 *. float h)) h in
       Api.Draw.fill win x' (y + h - hr) w' hr red;
       let hy = min hr hy in
       Api.Draw.fill win x' (y + h - hy) w' hy yellow;
