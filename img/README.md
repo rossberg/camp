@@ -9,3 +9,9 @@ With Library pane
 
 ![Cover Wall](library-covers.png)  
 Library with wall of covers
+
+![Oscilloscope](oscilloscope.png)  
+Control pane with oscilloscope
+
+![Spectrum Analyser](spectrum.png)  
+Control pane with spectrum analyser

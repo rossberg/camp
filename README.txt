@@ -725,6 +725,9 @@ the underlying graphics and audio library (Raylib, Section 4.3).
   higher CPU consumption on my Mac laptop than on my Windows desktop, about 40%
   vs 2%, while GPU time is about the same.)
 
+  There are plenty of smaller things that could be optimised, too. But it's fast
+  enough for me, so I don't care right now.
+
 * Localisation: The underlying library doesn't offer much in the way of
   detecting keyboard assignments, so I'm afraid it assumes an English/U.S.
   keyboard. Feel free to hack the source code if you're desperate for an
@@ -745,9 +748,6 @@ the underlying graphics and audio library (Raylib, Section 4.3).
 
 * More exotic audio formats are not supported. FLAC, MP3, WAV, and OGG are
   fine. In exchange, MOD and XM modules can be played out of the box!
-
-* The Spectrum Analyser is a toy. I didn't really know what I was doing. Don't
-  expect an accurate depiction of dB levels.
 
 * There may be bugs. Correction: there almost certainly are. And other
   occasional signs of immature software.
@@ -774,6 +774,9 @@ organisation.
   from audio files in various formats.
 
 * `Data`, `Track`, and `Query` implement the internal data base representation.
+
+* `Spectrum` implements a naive spectrum analyser. This is just a toy. I didn't
+  really know what I was doing. Don't expect an accurate depiction of dB levels.
 
 * `Control`, `Playlist`, `Library`, `Filesel`, `Menu`, and `Log` encapsulate
   various states and behaviours of the respective components, independent of UI.
