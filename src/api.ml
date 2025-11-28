@@ -1,6 +1,7 @@
 (* Graphics/sound API abstraction *)
 
 open Audio_file
+open Raylib_ocaml
 
 
 (* Base types *)
@@ -822,7 +823,7 @@ type audio =
 {
   mutex : Mutex.t;
   mutable sound : sound;
-  mutable processors : (audio_processor * Raylib_ocaml.Callbacks.audio_callback) list;
+  mutable processors : (audio_processor * Raylib_callbacks.audio_callback) list;
 }
 
 module Audio =
@@ -934,13 +935,13 @@ struct
         ))
       in
       a.processors <- (f, f') :: a.processors;
-      Raylib_ocaml.Callbacks.attach_audio_mixed_processor f';
+      Raylib_ocaml.Raylib_callbacks.attach_audio_mixed_processor f';
     )
 
   let remove_processor a f =
     Mutex.protect a.mutex (fun () ->
       Option.iter (fun f' ->
-        Raylib_ocaml.Callbacks.detach_audio_mixed_processor f';
+        Raylib_callbacks.detach_audio_mixed_processor f';
         a.processors <- List.remove_assq f a.processors;
       ) (List.assq_opt f a.processors)
     )
@@ -948,7 +949,7 @@ struct
   let remove_all_processors a =
     Mutex.protect a.mutex (fun () ->
       List.iter (fun (_, f') ->
-        Raylib_ocaml.Callbacks.detach_audio_mixed_processor f'
+        Raylib_callbacks.detach_audio_mixed_processor f'
       ) a.processors;
       a.processors <- [];
     )
