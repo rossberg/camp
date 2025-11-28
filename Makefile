@@ -8,7 +8,7 @@ NONDEPS = unix audio_file [a-zA-Z0-9_]*[.][a-zA-Z0-9_.]* raylib_src raylib_ocaml
 DEPS = dune $(shell make -s dune-libraries $(NONDEPS:%=| sed 's/ %//g'))
 
 ASSETS = $(glob assets/*)
-WIN_DLLS = libwinpthread-1
+WIN_DLLS = libwinpthread-1 libffi-6
 
 ifeq ($(OS),Windows_NT)
   SYSTEM = win
@@ -56,7 +56,7 @@ mac-install: mac
 	cp -rf $(APPNAME).app /Applications
 
 win: dir
-	@if [ $(WIN_DLLS:%=`which %.dll`) != '' ]; then cp $(WIN_DLLS:%=`which %.dll`) $(APPNAME); fi
+	@if [ "$(WIN_DLLS)" != '' ]; then cp $(WIN_DLLS:%=`which %.dll`) $(APPNAME); fi
 
 linux: dir
 
