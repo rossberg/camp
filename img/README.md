@@ -15,3 +15,6 @@ Control pane with oscilloscope
 
 ![Spectrum Analyser](spectrum.png)  
 Control pane with spectrum analyser
+
+![Live](animation.gif)  
+Control pane live

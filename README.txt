@@ -18,7 +18,7 @@ Screenshot Gallery: https://github.com/rossberg/camp/blob/master/img/README.md
 What you got here is an old-school music player heavily inspired by good old
 Winamp [1], with a focus on decent music library and playlist handling.
 
-If you have not yet been sucked in by the streaming cartells, then you might
+If you have not yet been sucked in by the streaming cartells, you might
 find it useful.
 
 Camp is entirely written in OCaml [2] and portable across Windows, Mac and
@@ -40,7 +40,9 @@ This README is intentionally written in retro style.
 2.1 Requirements
 ----------------
 
-You'll need OCaml 5.04 or greater and Opam along with it.
+If you downloaded a binary, nothing to see here, skip ahead to Section 2.3.
+
+To build yourself, you'll need OCaml 5.04 or greater and Opam along with it.
 
 On Windows, no way around Cygwin and make. And you'll probably need to manually
 install the mingw64-x86_64-winpthreads package to have libwinpthread.dll in the
@@ -719,35 +721,35 @@ The interface does not use any rounded corners anywhere. That's a feature.
 Camp comes with a few limitations, most of which I can conveniently blame on
 the underlying graphics and audio library (Raylib, Section 4.3).
 
-* CPU Usage: Camp uses an extravagant "immediate mode" GUI, which is a bit more
-  expensive. It isn't super-optimised either. On a dated computer, it may use
-  more compute than a backround app deserves. (And for some reason, I see much
-  higher CPU consumption on my Mac laptop than on my Windows desktop, about 40%
-  vs 2%, while GPU time is about the same.)
+* Audio Formats: More exotic formats are not supported. FLAC, MP3, WAV, and OGG
+  are fine. In exchange, MOD and XM modules can be played out of the box.
 
-  There are plenty of smaller things that could be optimised, too. But it's fast
-  enough for me, so I don't care right now.
+* CPU Usage: Camp uses an extravagant "immediate mode" GUI, which is a bit more
+  expensive. On a dated computer, it may use more compute than a background app
+  deserves. (And for some reason, I see much higher CPU consumption on my Mac
+  laptop than on my Windows desktop, about 40% vs 2%, despite comparable specs.
+  GPU time is about the same. Odd.)
+
+  There are plenty of smaller things that aren't super-optimised either. But
+  the thing is snappy enough for my purposes, so I remain lazy about it.
 
 * Localisation: The underlying library doesn't offer much in the way of
   detecting keyboard assignments, so I'm afraid it assumes an English/U.S.
-  keyboard. Feel free to hack the source code if you're desperate for an
+  keyboard layout. Feel free to hack the source code if you're desperate for an
   override.
 
-* Text looks great on hi-res screens (like Retina screens or 4K displays), or
-  with UI scaling. Not so much on lower resolution screens with a scaling of 1.
+* Text: It looks great on hi-res screens (like Retina screens or 4K displays),
+  or with UI scaling. Not so much on lower resolutions with a scaling of 1.
   As mentioned in Section 3.7, you may want to play with different text sizes
   to find the one that sucks least.
 
-* The graphics library does not support multiple windows. Hence, the one window
-  has to be a rectangular one and with that, the Library pane cannot be
-  vertically resized when the Playlist isn't open. Likewise, pop-ups cannot be
+* Windowing: The graphics library does not support multiple windows. Hence, the
+  one window has to be a rectangular one and with that, the Library pane cannot
+  be vertically resized when the Playlist isn't open. Likewise, pop-ups cannot
   protrude from the parent window. Bummer.
 
-* Window resizing or opening/closing Playlist or Library panes may create ugly
+  Window resizing or opening/closing Playlist or Library panes may create ugly
   animation artefacts for a moment, depending on operating system.
-
-* More exotic audio formats are not supported. FLAC, MP3, WAV, and OGG are
-  fine. In exchange, MOD and XM modules can be played out of the box!
 
 * There may be bugs. Correction: there almost certainly are. And other
   occasional signs of immature software.
@@ -761,7 +763,8 @@ Don't look at it! It's ugly.
 
 Seriously.
 
-I mean it, it needs cleaning up.
+I mean it, it needs cleaning up. And if you are looking for an example of
+functional programming style, this is not it either. It looks like C.
 
 Okay, if you insist, here are a few comments regarding the code and its
 organisation.
