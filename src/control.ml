@@ -29,7 +29,7 @@ type t =
 (* Constructor *)
 
 let spec_bands = 12
-let osc_x = 0.5
+let osc_x = 0.3
 let osc_y = 1.5
 
 let make audio =
