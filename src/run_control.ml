@@ -83,6 +83,7 @@ let cycle_visual (st : state) =
     | `Oscilloscope -> `None
     )
 
+(*
 let idx_visual (st : state) =
   match st.control.visual with
   | `None -> None
@@ -90,6 +91,7 @@ let idx_visual (st : state) =
   | `Spectrum -> Some 1
   | `Wave -> Some 2
   | `Oscilloscope -> Some 3
+*)
 
 
 let toggle_fps (st : state) =
@@ -300,7 +302,7 @@ let run (st : state) =
   if Layout.visual_key lay || Layout.visual_button lay
   || ctl.visual = `None && Layout.novisual_button lay then
     cycle_visual st;
-  Option.iter (Layout.visual_indicator lay) (idx_visual st);
+  (*Option.iter (Layout.visual_indicator lay) (idx_visual st);*)
 
   (match ctl.visual with
   | `None -> ()
