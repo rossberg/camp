@@ -74,6 +74,8 @@ let toggle_side (st : state) =
 
 let cycle_visual (st : state) =
   let ctl = st.control in
+  ctl.raw <- [||];
+  ctl.data <- [||];
   Control.set_visual ctl
     (match ctl.visual with
     | `None -> `Cover
@@ -314,50 +316,49 @@ let run (st : state) =
     ) ctl.current
 
   | `Spectrum ->
-    let len = Array.length ctl.raw in
+    let raw = ctl.raw in
+    let len = Array.length raw in
     let lim = Spectrum.fft_samples in
     if len >= lim then
     (
       (* This could race, but that's okay *)
-      let raw = ctl.raw in
-      let wave, rest =
-        if len = lim then raw, [||] else
-        Array.sub raw 0 lim, Array.sub raw lim (len - lim)
-      in
+      let wave = Array.sub raw 0 lim in
+      let rest = Array.sub raw lim (len - lim) in
       ctl.raw <- rest;
       ctl.data <- Spectrum.bands wave ctl.spec_bands;
     );
-    let data = ctl.data in
+    let bands = ctl.data in
+    let n = Array.length bands in
+    if n = ctl.spec_bands then  (* may be off, right after switching visuals *)
+    (
+      let x, y, w, h = Ui.dim lay.ui (Layout.graph_area lay) in
+      let y, h = y + 2, h - 4 in
+      let wbar = (w + 1) / n in
+      let wsep = if wbar <= 4 then 1 else if n <= 10 then 2 else 3 in
+      let w' = wbar - wsep in
+      let win = Ui.window lay.ui in
+      let green = Ui.text_color lay.ui in
+      let yellow = Ui.warn_color lay.ui in
+      let red = Ui.error_color lay.ui in
 
-    let x, y, w, h = Ui.dim lay.ui (Layout.graph_area lay) in
-    let y, h = y + 2, h - 4 in
-    let win = Ui.window lay.ui in
-    let green = Ui.text_color lay.ui in
-    let yellow = Ui.warn_color lay.ui in
-    let red = Ui.error_color lay.ui in
-
-    for i = 0 to Array.length data - 1 do
-      let wsep =
-        if ctl.spec_bands <= 12 then 3 else
-        if ctl.spec_bands <= 32 then 2 else 1
-      in
-      let w' = w / ctl.spec_bands - wsep in
-      let x' = x + i * (w' + wsep) in
-      Api.Draw.fill win x' y w' h (Ui.unlit_color red);
-      let hy = 10 * h / 12 in
-      Api.Draw.fill win x' (y + h - hy) w' hy (Ui.unlit_color yellow);
-      let hg = 8 * h / 12 in
-      Api.Draw.fill win x' (y + h - hg) w' hg (Ui.unlit_color green);
-      let hr = min (int_of_float (data.(i) /. 5.0 *. float h)) h in
-      Api.Draw.fill win x' (y + h - hr) w' hr red;
-      let hy = min hr hy in
-      Api.Draw.fill win x' (y + h - hy) w' hy yellow;
-      let hg = min hr hg in
-      Api.Draw.fill win x' (y + h - hg) w' hg green;
-      for j = 0 to h/2 - 1 do
-        Api.Draw.fill win x (y + 2 * j) w 1 `Black;
+      for i = 0 to n - 1 do
+        let x' = x + i * wbar in
+        Api.Draw.fill win x' y w' h (Ui.unlit_color red);
+        let hy = 10 * h / 12 in
+        Api.Draw.fill win x' (y + h - hy) w' hy (Ui.unlit_color yellow);
+        let hg = 8 * h / 12 in
+        Api.Draw.fill win x' (y + h - hg) w' hg (Ui.unlit_color green);
+        let hr = min (int_of_float (bands.(i) /. 5.0 *. float h)) h in
+        Api.Draw.fill win x' (y + h - hr) w' hr red;
+        let hy = min hr hy in
+        Api.Draw.fill win x' (y + h - hy) w' hy yellow;
+        let hg = min hr hg in
+        Api.Draw.fill win x' (y + h - hg) w' hg green;
+        for j = 0 to h/2 - 1 do
+          Api.Draw.fill win x (y + 2 * j) w 1 `Black;
+        done
       done
-    done;
+    )
 
   | `Wave ->
     let data = if ctl.raw = [||] then ctl.data else ctl.raw in
@@ -366,7 +367,7 @@ let run (st : state) =
 
     let x, y, w, h = Ui.dim lay.ui (Layout.graph_area lay) in
     let win = Ui.window lay.ui in
-    for i = 0 to (min w (Array.length data))/2 - 1 do
+    for i = 0 to min w (Array.length data) / 2 - 1 do
       let i = 2 * i in
       let v = data.(i) *. float h /. 1.5 in
       let x, y = x + i, y + h/2 - int_of_float v in

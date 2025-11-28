@@ -30,7 +30,7 @@ type t =
 
 let spec_bands = 12
 let osc_x = 0.3
-let osc_y = 1.5
+let osc_y = 1.4
 
 let make audio =
   {

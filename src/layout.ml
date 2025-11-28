@@ -41,7 +41,7 @@ let make ui =
     ui;
     scaling = 0, 0;
     margin = 10;
-    text = 13;
+    text = 14;
     pad_x = 0;
     pad_y = 1;
     label = 9;
