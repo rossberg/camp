@@ -264,7 +264,7 @@ let parse_state ctl =
   let open Text.Parse in
   record (fun r ->
     apply (r $? "volume") (interval 0.0 1.0)
-      (fun q -> ctl.volume <- q);
+      (fun q -> ctl.volume <- q; Api.Audio.volume ctl.audio q);
     apply (r $? "mute") bool
       (fun b -> ctl.mute <- b);
     apply (r $? "play") (option string)
