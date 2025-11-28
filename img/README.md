@@ -17,4 +17,4 @@ Control pane with oscilloscope
 Control pane with spectrum analyser
 
 ![Live](animation.gif)  
-Control pane live
+Control pane live, cycling through visualisations (GIF reduced to 15 FPS)
