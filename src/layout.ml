@@ -317,6 +317,8 @@ let visual_x g = lcd_x g 5 + 28
 let visual_y g = margin g + info_margin g
 let visual_w g = volume_x g - 16
 let visual_h _g = 40
+let visual_indicator g i = Ui.box g.ui (cp, visual_x g - 8, visual_y g + 8 * i, 4, 4) (Ui.text_color g.ui)
+let visual_button g = Ui.mouse g.ui (cp, visual_x g - 20, visual_y g, 20, visual_h g) `Left
 let visual_key g = Ui.key g.ui key_visual true
 
 let cover_x g = visual_x g + 10
@@ -332,6 +334,8 @@ let graph_w g = visual_w g
 let graph_h g = visual_h g
 let graph_area g = (cp, graph_x g, graph_y g, graph_w g, graph_h g)
 let graph_drag g = Ui.drag g.ui (graph_area g)
+
+let novisual_button g = Ui.mouse g.ui (graph_area g) `Left
 
 (* Info *)
 let seek_h _g = 14

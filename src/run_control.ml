@@ -83,6 +83,15 @@ let cycle_visual (st : state) =
     | `Oscilloscope -> `None
     )
 
+let idx_visual (st : state) =
+  match st.control.visual with
+  | `None -> None
+  | `Cover -> Some 0
+  | `Spectrum -> Some 1
+  | `Wave -> Some 2
+  | `Oscilloscope -> Some 3
+
+
 let toggle_fps (st : state) =
   let ctl = st.control in
   ctl.fps <- not ctl.fps
@@ -287,7 +296,12 @@ let run (st : state) =
   );
 
   (* Visual *)
-  if Layout.visual_key lay then cycle_visual st;
+  let old_visual = ctl.visual in
+  if Layout.visual_key lay || Layout.visual_button lay
+  || ctl.visual = `None && Layout.novisual_button lay then
+    cycle_visual st;
+  Option.iter (Layout.visual_indicator lay) (idx_visual st);
+
   (match ctl.visual with
   | `None -> ()
 
@@ -771,7 +785,7 @@ let run (st : state) =
         (fun () -> shift_volume st (-1.0));
     |]
   )
-  else if ctl.visual = `Cover && not (Control.silent ctl)
+  else if ctl.visual = `Cover && old_visual = `Cover && not (Control.silent ctl)
     && Layout.cover_popup_open lay then
   (
     Run_menu.popup st `Current

@@ -186,8 +186,9 @@ Most controls around the Playlist should be intuitive. A few extra tips:
   color schemes, all inspired by actual HiFi displays from the past. Or use the
   context menu.
 
-* Visualisations: Ctrl/Command-Y cycles through different visualisations of the
-  track playing. Either Cover Art (default), Spectrum Analyzer, Wave Form,
+* Visualisations: Ctrl/Command-Y or a click in the space between time display
+  and visualisation cycles through different visualisations of the track
+  playing. Either Cover Art (default), Spectrum Analyzer, Wave Form,
   Oscilloscope, or None.
 
 * Cover: Clicking on the cover art will zoom it into a pop-up. Click again to
