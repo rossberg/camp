@@ -6,9 +6,9 @@ type state = State.t
 (* Menu creation *)
 
 let menu' (st : state) items op =
-  st.layout.menu_shown <- true;
-  Menu.set st.menu (Api.Mouse.pos (Ui.window st.layout.ui)) op items;
-  Ui.modal st.layout.ui
+  st.geometry.menu_shown <- true;
+  Menu.set st.menu (Api.Mouse.pos (Ui.window st.geometry.ui)) op items;
+  Ui.modal st.geometry.ui
 
 
 let command_menu st cmds =
@@ -16,7 +16,7 @@ let command_menu st cmds =
 
 
 let header_menu (st : state) (view : _ Library.view) i current_attrs unused_attrs =
-  let c = Ui.text_color st.layout.ui in
+  let c = Ui.text_color st.geometry.ui in
   if current_attrs = [] && unused_attrs = [] then
   (
     menu' st [|`Entry (c, "(Nothing to add)", Layout.nokey, false)|] ignore
@@ -59,34 +59,34 @@ let header_menu (st : state) (view : _ Library.view) i current_attrs unused_attr
 
 let popup (st : state) track_opt =
   st.popup <- track_opt;
-  st.layout.popup_shown <- Some (Api.Mouse.pos (Ui.window st.layout.ui));
-  Ui.modal st.layout.ui
+  st.geometry.popup_shown <- Some (Api.Mouse.pos (Ui.window st.geometry.ui));
+  Ui.modal st.geometry.ui
 
 
 (* Runners *)
 
 let run (st : state) =
-  let lay = st.layout in
+  let geo = st.geometry in
   let menu = st.menu in
   let x, y = menu.pos in
 
-  match Layout.menu lay x y menu.items with
+  match Layout.menu geo x y menu.items with
   | `None -> ()
 
   | `Close ->
-    Ui.nonmodal lay.ui;
-    lay.menu_shown <- false;
+    Ui.nonmodal geo.ui;
+    geo.menu_shown <- false;
     Menu.clear menu
 
   | `Click k ->
     Option.get st.menu.op k;
-    Ui.nonmodal lay.ui;
-    lay.menu_shown <- false;
+    Ui.nonmodal geo.ui;
+    geo.menu_shown <- false;
     Menu.clear menu
 
 
 let run_popup (st : state) =
-  let lay = st.layout in
+  let geo = st.geometry in
   let ctl = st.control in
 
   Option.iter (fun (x, y) ->
@@ -114,17 +114,17 @@ let run_popup (st : state) =
           Data.album_attr_string album `Year,
           ""
       in
-      let img = Option.value ~default: (Ui.nocover lay.ui)
-        (Library.load_cover st.library (Ui.window lay.ui) path) in
-      let iw, ih = Layout.cover_popup_image_size lay img in
-      let area = Layout.cover_popup lay x y iw ih in
+      let img = Option.value ~default: (Ui.nocover geo.ui)
+        (Library.load_cover st.library (Ui.window geo.ui) path) in
+      let iw, ih = Layout.cover_popup_image_size geo img in
+      let area = Layout.cover_popup geo x y iw ih in
       let text =
         artist ^ " - " ^ title ^
         (if year = "" then "" else " (" ^ year ^ ")") ^
         (if num = "" then "" else ", track " ^ num)
       in
-      Layout.cover_popup_image lay area img;
-      Layout.cover_popup_text lay area ih text;
+      Layout.cover_popup_image geo area img;
+      Layout.cover_popup_text geo area ih text;
     ) popup;
 
     if popup = None
@@ -132,7 +132,7 @@ let run_popup (st : state) =
         List.mem (Control.status ctl) [`Stopped; `Ejected]
     || Api.Mouse.(is_released `Left || is_pressed `Right) then
     (
-      Ui.nonmodal lay.ui;
-      lay.popup_shown <- None;
+      Ui.nonmodal geo.ui;
+      geo.popup_shown <- None;
     )
-  ) lay.popup_shown
+  ) geo.popup_shown

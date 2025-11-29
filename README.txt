@@ -11,6 +11,12 @@
 
 Screenshot Gallery: https://github.com/rossberg/camp/blob/master/img/README.md
 
+1. Introduction
+2. Installation
+3. Make Yourself at Home
+4. The Source
+5. Legal Stuff
+
  _____________________________________________________________________________
 |  1. INTRODUCTION                                                            |
 |_____________________________________________________________________________|
@@ -790,7 +796,8 @@ organisation.
 * `Main` and the various `Run_*` modules implement the application-specific UI
   interaction of the different panes.
 
-* `Layout` declares all the widgets used by the actual UI.
+* `Geometry` and `Layout` declare global parameters and all the widgets used by
+  the actual UI.
 
 * `Ui` is a library of generic widgets implemented on top of the low-level API.
 

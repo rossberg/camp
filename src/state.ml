@@ -3,7 +3,7 @@ open Audio_file
 (* Program State *)
 
 type config = Config.t
-type layout = Layout.t
+type geometry = Geometry.t
 type control = Control.t
 type playlist = Ui.cached Playlist.t
 type library = Ui.cached Library.t
@@ -13,7 +13,7 @@ type menu = Menu.t
 type t =
 {
   config : config;
-  layout : layout;
+  geometry : geometry;
   control : control;
   playlist : playlist;
   library : library;
@@ -30,7 +30,7 @@ type t =
 let make ui audio =
   {
     config = Config.make ();
-    layout = Layout.make ui;
+    geometry = Geometry.make ui;
     control = Control.make audio;
     playlist = Playlist.make ();
     library = Library.make ();
@@ -98,9 +98,9 @@ let foci_filesel (fs : _ Filesel.t) =
   [foci_table f fs.dirs; foci_table f fs.files; foci_edit fs.input]
 
 let foci st =
-  (if st.layout.playlist_shown then foci_playlist st.playlist else []) @
-  (if st.layout.filesel_shown then foci_filesel st.filesel else
-   if st.layout.library_shown then foci_library st.library else [])
+  (if st.geometry.playlist_shown then foci_playlist st.playlist else []) @
+  (if st.geometry.filesel_shown then foci_filesel st.filesel else
+   if st.geometry.library_shown then foci_library st.library else [])
 
 let focus_switch st foci =
   let rec find = function
@@ -113,89 +113,6 @@ let focus_next st = focus_switch st (foci st)
 let focus_prev st = focus_switch st (List.rev (foci st))
 
 
-(* Layout Persistence *)
-
-let side_enum = ["left", `Left; "right", `Right]
-
-let print_layout ?(raw = false) (lay : Layout.t) =
-  let open Text.Print in
-  let open Layout in
-  let x, y, w, h = (if raw then concrete_geo else abstract_geo) lay in
-  record (fun lay -> [
-    "win_pos", pair int int (x, y);
-    "scaling", pair int int lay.scaling;
-    "buffered", bool (Ui.is_buffered lay.ui);
-    "color_palette", nat (Ui.get_palette lay.ui);
-    "text_size", nat lay.text;
-    "text_pad_x", nat lay.pad_x;
-    "text_pad_y", nat lay.pad_y;
-    "text_sdf", bool (Ui.font_is_sdf lay.ui);
-    "play_open", bool lay.playlist_shown;
-    "play_height", int h;
-    "lib_open", bool lay.library_shown;
-    "lib_side", enum side_enum lay.library_side;
-    "lib_width", int w;
-    "browser_width", nat lay.browser_width;
-    "upper_height", nat lay.upper_height;
-    "left_width", nat lay.left_width;
-    "directories_width", nat lay.directories_width;
-    "album_grid", nat lay.album_grid;
-    "track_grid", nat lay.track_grid;
-    "repair_cols", iarray nat lay.repair_log_columns;
-    "popup_size", nat lay.popup_size;
-  ]) lay
-
-let parse_layout (lay : Layout.t) pos =  (* assumes playlist and library loaded *)
-  let open Text.Parse in
-  let open Layout in
-  record (fun r ->
-    let cx, cy, cw, ch = ref (-1), ref (-1), ref (-1), ref (-1) in
-    apply (r $? "scaling") (pair (num (-1) 8) (num (-1) 8))
-      (fun (dx, dy) -> Ui.rescale lay.ui dx dy; lay.scaling <- dx, dy);
-    apply (r $? "win_pos") (pair int int)
-      (fun (x, y) -> cx := x; cy := y);
-    apply (r $? "buffered") bool
-      (fun b -> Ui.buffered lay.ui b);
-    apply (r $? "text_sdf") bool
-      (fun b -> Ui.font_sdf lay.ui b);
-    apply (r $? "color_palette") (num 0 (Ui.num_palette lay.ui - 1))
-      (fun i -> Ui.set_palette lay.ui i);
-    apply (r $? "text_size") (num min_text_size max_text_size)
-      (fun h -> lay.text <- h);
-    apply (r $? "text_pad_x") (num min_pad_size max_pad_size)
-      (fun w -> lay.pad_x <- w);
-    apply (r $? "text_pad_y") (num min_pad_size max_pad_size)
-      (fun h -> lay.pad_y <- h);
-    apply (r $? "play_open") bool
-      (fun b -> lay.playlist_shown <- b);
-    apply (r $? "play_height") int
-      (fun h -> ch := h);
-    apply (r $? "lib_open") bool
-      (fun b -> lay.library_shown <- b);
-    apply (r $? "lib_side") (enum side_enum)
-      (fun s -> lay.library_side <- s);
-    apply (r $? "lib_width") int
-      (fun w -> cw := w);
-    apply (r $? "browser_width") (num (browser_min lay) (browser_max lay))
-      (fun w -> lay.browser_width <- w);
-    apply (r $? "left_width") (num (left_min lay) (left_max lay))
-      (fun w -> lay.left_width <- w);
-    apply (r $? "upper_height") (num (upper_min lay) (upper_max lay))
-      (fun h -> lay.upper_height <- h);
-    apply (r $? "directories_width") (num (directories_min lay) (directories_max lay))
-      (fun w -> lay.directories_width <- w);
-    apply (r $? "album_grid") (num min_grid_size max_grid_size)
-      (fun w -> lay.album_grid <- w);
-    apply (r $? "track_grid") (num min_grid_size max_grid_size)
-      (fun w -> lay.track_grid <- w);
-    apply (r $? "repair_cols") (iarray (num 10 1000))
-      (fun ws -> if Iarray.length ws = 3 then lay.repair_log_columns <- ws);
-    apply (r $? "popup_size") (num min_popup_size max_popup_size)
-      (fun w -> lay.popup_size <- w);
-    pos := apply_geo lay (!cx, !cy, !cw, !ch)
-  )
-
-
 (* Persistence *)
 
 let state_file = "state.conf"
@@ -204,7 +121,7 @@ let state_header = App.name
 let print_state st =
   let open Text.Print in
   record (fun st -> [
-    "layout", print_layout st.layout;
+    "layout", Geometry.print_state st.geometry;
     "config", Config.print_state st.config;
     "control", Control.print_state st.control;
     "playlist", Playlist.print_state st.playlist;
@@ -216,7 +133,7 @@ let print_state st =
 let print_intern st =
   let open Text.Print in
   record (fun st -> [
-    "layout", print_layout ~raw: true st.layout;
+    "layout", Geometry.print_intern st.geometry;
     "config", Config.print_intern st.config;
     "control", Control.print_intern st.control;
     "playlist", Playlist.print_intern st.playlist;
@@ -230,7 +147,7 @@ let to_string st = Text.print (print_intern st)
 let parse_state st pos =
   let open Text.Parse in
   record (fun r ->
-    apply (r $? "layout") (parse_layout st.layout pos) ignore;
+    apply (r $? "layout") (Geometry.parse_state st.geometry pos) ignore;
     apply (r $? "config") (Config.parse_state st.config) ignore;
     apply (r $? "control") (Control.parse_state st.control) ignore;
     apply (r $? "playlist") (Playlist.parse_state st.playlist) ignore;
@@ -245,32 +162,6 @@ let parse_state st pos =
 let dumped_before = ref None
 
 let check msg b = if b then [] else [msg]
-
-let layout_ok layout =
-  let open Layout in
-  check "text size in range"
-    (layout.text >= min_text_size && layout.text <= max_text_size) @
-  check "album grid size in range"
-    (layout.album_grid >= min_grid_size && layout.album_grid <= max_grid_size) @
-  check "track grid size in range"
-    (layout.track_grid >= min_grid_size && layout.track_grid <= max_grid_size) @
-  check "playlist height in range"
-    (layout.playlist_height >= playlist_min layout) @
-  check "library width in range"
-    (layout.library_width >= library_min layout) @
-  check "browser width in range"
-    ( layout.browser_width >= browser_min layout &&
-      layout.browser_width <= browser_max layout ) @
-  check "left view width in range"
-    ( layout.left_width >= left_min layout &&
-      layout.left_width <= left_max layout ) @
-  check "upper view height in range"
-    ( layout.upper_height >= upper_min layout &&
-      layout.upper_height <= upper_max layout ) @
-  check "directories width in range"
-    ( layout.directories_width >= directories_min layout &&
-      layout.directories_width <= directories_max layout ) @
-  []
 
 let focus st =
   let pl = st.playlist in
@@ -291,7 +182,7 @@ let focus st =
 let rec ok st =
   match
     Config.ok st.config @
-    layout_ok st.layout @
+    Geometry.ok st.geometry @
     Control.ok st.control @
     Playlist.ok st.playlist @
     Library.ok st.library @
@@ -304,13 +195,13 @@ let rec ok st =
       (not (Table.has_selection st.playlist.table &&
         Table.has_selection st.library.tracks)) @
     check "file selection with op"
-      (st.layout.filesel_shown = (st.filesel.op <> None)) @
+      (st.geometry.filesel_shown = (st.filesel.op <> None)) @
     check "menu with op"
-      (st.layout.menu_shown = (st.menu.op <> None)) @
+      (st.geometry.menu_shown = (st.menu.op <> None)) @
     check "menu modal"
-      (not st.layout.menu_shown || Ui.is_modal st.layout.ui) @
+      (not st.geometry.menu_shown || Ui.is_modal st.geometry.ui) @
     check "rename modal"
-      (st.library.renaming = None || Ui.is_modal st.layout.ui) @
+      (st.library.renaming = None || Ui.is_modal st.geometry.ui) @
     []
   with
   | errors when errors <> [] ->

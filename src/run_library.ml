@@ -12,7 +12,7 @@ let refresh_delay = 9
 
 let (.$()) = Iarray.get
 
-let clamp = Layout.clamp
+let clamp = Geometry.clamp
 
 let fmt = Printf.sprintf
 
@@ -36,12 +36,12 @@ let rescan_one (st : state) mode =
   ) st.library.current
 
 let insert_avail (st : state) =
-  not st.layout.filesel_shown
+  not st.geometry.filesel_shown
 let insert (st : state) =
   Run_filesel.filesel st `Dir `Read "" "" (fun path ->
     let roots = st.library.root.children in
     if not (Library.insert_roots st.library [path] (Iarray.length roots)) then
-      Layout.browser_error_box st.layout;  (* flash *)
+      Layout.browser_error_box st.geometry;  (* flash *)
     State.focus_library st.library.browser st;
   )
 
@@ -58,7 +58,7 @@ let rename (st : state) i_opt =
       State.defocus_all st;
       Edit.focus st.library.rename;
       Edit.set st.library.rename dir.name;
-      Ui.delay st.layout.ui (fun () -> Ui.modal st.layout.ui);
+      Ui.delay st.geometry.ui (fun () -> Ui.modal st.geometry.ui);
       Library.start_rename st.library i;
     )
   ) i_opt
@@ -81,7 +81,7 @@ let remove_avail (st : state) =
 let remove (st : state) =
   Option.iter (fun (dir : dir) ->
     if not (Library.remove_roots st.library [dir.path]) then
-      Layout.browser_error_box st.layout  (* flash *)
+      Layout.browser_error_box st.geometry  (* flash *)
   ) st.library.current
 
 let remove_list_avail (st : state) =
@@ -94,17 +94,17 @@ let remove_list (st : state) =
     if Data.is_playlist dir && dir.tracks <> [||] then
     (
       Library.error lib "Playlist is not empty";
-      Layout.browser_error_box st.layout  (* flash *)
+      Layout.browser_error_box st.geometry  (* flash *)
     )
     else
     (
       assert (Data.is_playlist dir || Data.is_viewlist dir);
       (try File.delete dir.path with Sys_error msg ->
         Library.error lib ("Error deleting file " ^ dir.path ^ ", " ^ msg);
-        Layout.browser_error_box st.layout  (* flash *)
+        Layout.browser_error_box st.geometry  (* flash *)
       );
       if not (Library.remove_dir lib dir.path) then
-        Layout.browser_error_box st.layout  (* flash *)
+        Layout.browser_error_box st.geometry  (* flash *)
       else
         Library.refresh_artists_albums_tracks lib
     )
@@ -117,7 +117,7 @@ let create_list (st : state) ext s view_opt path =
   | None ->
     Library.error lib
       ("Error creating file " ^ path ^ ", path is outside library");
-    Layout.browser_error_box st.layout;  (* flash *)
+    Layout.browser_error_box st.geometry;  (* flash *)
   | Some parent ->
     let path =
       if String.lowercase_ascii (File.extension path) = ext
@@ -198,10 +198,10 @@ let repair_playlist = playlists_modify Run_view.repair_dir
 (* Drag & Drop *)
 
 let drag_on_browser (st : state) =
-  let lay = st.layout in
+  let geo = st.geometry in
   let lib = st.library in
   let browser = lib.browser in
-  if st.layout.library_shown then
+  if st.geometry.library_shown then
   (
     Option.iter (function
       | (Some i, _)->
@@ -209,17 +209,17 @@ let drag_on_browser (st : state) =
         if Data.is_playlist dir then
         (
           (* Drag over playlist browser entry: highlight target entry *)
-          Ui.delay lay.ui (fun () -> Layout.browser_drag lay `Inside browser)
+          Ui.delay geo.ui (fun () -> Layout.browser_drag geo `Inside browser)
         )
       | _ -> ()
-    ) (Layout.browser_mouse lay [||] browser)
+    ) (Layout.browser_mouse geo [||] browser)
   )
 
 let drop_on_browser (st : state) tracks =
-  let lay = st.layout in
+  let geo = st.geometry in
   let lib = st.library in
   let browser = lib.browser in
-  if st.layout.library_shown then
+  if st.geometry.library_shown then
   (
     Option.iter (function
       | (Some i, _) ->
@@ -244,7 +244,7 @@ let drop_on_browser (st : state) tracks =
           );
         )
       | _ -> ()
-    ) (Layout.browser_mouse lay [||] browser)
+    ) (Layout.browser_mouse geo [||] browser)
   )
 
 
@@ -252,10 +252,10 @@ let drop_on_browser (st : state) tracks =
 
 let run_browser (st : state) =
   let lib = st.library in
-  let lay = st.layout in
-  let win = Ui.window lay.ui in
+  let geo = st.geometry in
+  let win = Ui.window geo.ui in
 
-  Layout.browser_pane lay;
+  Layout.browser_pane geo;
 
   let browser = lib.browser in
   let entries = browser.entries in  (* could change concurrently *)
@@ -280,12 +280,12 @@ let run_browser (st : state) =
       if dir.path = File.(dir playing_path // "")
       || dir.view.folded && String.starts_with ~prefix: dir.path playing_path
       then `White
-      else Ui.text_color lay.ui
+      else Ui.text_color geo.ui
     in dir.nest, folded, c, dir.name ^ spin
   in
 
   let dir = Library.selected_dir lib in
-  (match Layout.browser_table lay browser pp_entry with
+  (match Layout.browser_table geo browser pp_entry with
   | `None | `Scroll | `Move _ -> ()
 
   | `Select ->
@@ -298,8 +298,8 @@ let run_browser (st : state) =
       | Some i ->
         Library.select_dir lib i;  (* do bureaucracy *)
         let dir' = entries.(i) in
-        lay.left_width <- dir'.view.divider_width;
-        lay.upper_height <- dir'.view.divider_height;
+        geo.left_width <- dir'.view.divider_width;
+        geo.upper_height <- dir'.view.divider_height;
       );
       Library.deselect_all lib;
       Library.refresh_artists_albums_tracks lib;
@@ -317,8 +317,8 @@ let run_browser (st : state) =
       (* Click on different dir name: switch view *)
       Library.select_dir lib i;  (* do bureaucracy *)
       let dir' = entries.(i) in
-      lay.left_width <- dir'.view.divider_width;
-      lay.upper_height <- dir'.view.divider_height;
+      geo.left_width <- dir'.view.divider_width;
+      geo.upper_height <- dir'.view.divider_height;
       Library.deselect_all lib;
       Library.refresh_artists_albums_tracks lib;
     );
@@ -375,8 +375,8 @@ let run_browser (st : state) =
             then
             (
               (* Drag over sibling: reorder entry *)
-              Api.Mouse.set_cursor (Ui.window lay.ui) `Point;
-              Layout.browser_drag lay `Above browser;
+              Api.Mouse.set_cursor (Ui.window geo.ui) `Point;
+              Layout.browser_drag geo `Above browser;
             )
             else
             (
@@ -385,7 +385,7 @@ let run_browser (st : state) =
             )
           ) (Library.selected_dir lib)
         | _ -> ()
-      ) (Layout.browser_mouse lay [||] browser)
+      ) (Layout.browser_mouse geo [||] browser)
     )
 
   | `Drop ->
@@ -424,7 +424,7 @@ let run_browser (st : state) =
             )
           ) (Library.selected_dir lib)
         | _ -> ()
-      ) (Layout.browser_mouse lay [||] browser)
+      ) (Layout.browser_mouse geo [||] browser)
     )
 
   | `Menu _ ->
@@ -438,13 +438,13 @@ let run_browser (st : state) =
       | Some i ->
         Library.select_dir lib i;  (* do bureaucracy *)
         let dir' = entries.(i) in
-        lay.left_width <- dir'.view.divider_width;
-        lay.upper_height <- dir'.view.divider_height;
+        geo.left_width <- dir'.view.divider_width;
+        geo.upper_height <- dir'.view.divider_height;
       );
       Library.deselect_all lib;
       Library.refresh_artists_albums_tracks lib;
     );
-    let c = Ui.text_color lay.ui in
+    let c = Ui.text_color geo.ui in
     let all, quant =
       if lib.current = None then true, " All" else false, "" in
     let pls =
@@ -520,13 +520,13 @@ let run_browser (st : state) =
   (* Browser entry renaming *)
   let rename_had_focus = lib.rename.focus in
   Option.iter (fun i ->
-    Ui.nonmodal lay.ui;
+    Ui.nonmodal geo.ui;
     let dir = entries.(i) in
     let folded = if dir.children = [||] then None else Some dir.view.folded in
-    let area = Layout.rename_area lay browser i dir.nest folded in
+    let area = Layout.rename_area geo browser i dir.nest folded in
 
-    Layout.rename_box lay area;
-    let _ = Layout.rename_edit lay area 0 lib.rename in
+    Layout.rename_box geo area;
+    let _ = Layout.rename_edit geo area 0 lib.rename in
     if Api.Key.is_released `Escape then
     (
       Library.end_rename lib false;
@@ -534,7 +534,7 @@ let run_browser (st : state) =
       State.focus_table browser st;
     )
     else if Api.Key.(is_released `Return || is_released `Enter)
-    || Api.Mouse.is_released `Left && not (Ui.mouse_inside lay.ui area) then
+    || Api.Mouse.is_released `Left && not (Ui.mouse_inside geo.ui area) then
     (
       Library.end_rename lib (dir.name <> lib.rename.text);
       dir.name <- lib.rename.text;
@@ -542,18 +542,18 @@ let run_browser (st : state) =
       State.focus_table browser st;
     )
     else
-      Ui.modal lay.ui
+      Ui.modal geo.ui
   ) lib.renaming;
 
   (* Keys *)
-  if Layout.rename_key lay (browser.focus && not rename_had_focus) then
+  if Layout.rename_key geo (browser.focus && not rename_had_focus) then
   (
     (* Return or Enter key pressed: rename dir *)
     if not (Library.current_is_all lib) then
       rename st (Library.selected_dir lib)
   );
 
-  if Layout.fold_key lay browser.focus then
+  if Layout.fold_key geo browser.focus then
   (
     (* Space key pressed: fold/unfold dir *)
     if not (Library.current_is_all lib) then
@@ -573,14 +573,14 @@ let run_browser (st : state) =
         | Some i -> Library.find_parent_pos lib entries.(i)
       in
       if not (Library.insert_roots lib dropped pos) then
-        Layout.browser_error_box lay;  (* flash *)
-    ) (Layout.browser_mouse lay [||] browser)
+        Layout.browser_error_box geo;  (* flash *)
+    ) (Layout.browser_mouse geo [||] browser)
   );
 
   (* Scanning indicator *)
-  Layout.scan_label lay;
-  Layout.scan_indicator lay (Library.rescan_busy lib <> None);
-  if Layout.scan_button lay then
+  Layout.scan_label geo;
+  Layout.scan_indicator geo (Library.rescan_busy lib <> None);
+  if Layout.scan_button geo then
   (
     let shift = Api.Key.is_modifier_down `Shift in
     if shift then
@@ -620,10 +620,10 @@ let run_browser (st : state) =
   in
 
   let artists = have_dir && view.artists.shown <> None in
-  Layout.artists_label lay;
-  Layout.artists_indicator lay artists;
+  Layout.artists_label geo;
+  Layout.artists_indicator geo artists;
   let artists' =
-    Layout.artists_button lay (if have_dir then Some artists else None) in
+    Layout.artists_button geo (if have_dir then Some artists else None) in
   if have_dir && artists' <> artists then
   (
     (* Click on Artists button: toggle artist pane *)
@@ -640,11 +640,11 @@ let run_browser (st : state) =
   );
 
   let albums = have_dir && view.albums.shown <> None in
-  Layout.albums_label lay;
-  Layout.albums_indicator1 lay (view.albums.shown = Some `Table);
-  Layout.albums_indicator2 lay (view.albums.shown = Some `Grid);
+  Layout.albums_label geo;
+  Layout.albums_indicator1 geo (view.albums.shown = Some `Table);
+  Layout.albums_indicator2 geo (view.albums.shown = Some `Grid);
   let albums' =
-    Layout.albums_button lay (if have_dir then Some albums else None) in
+    Layout.albums_button geo (if have_dir then Some albums else None) in
   if have_dir && albums' <> albums then
   (
     (* Click on Albums button: toggle artist pane *)
@@ -661,11 +661,11 @@ let run_browser (st : state) =
   );
 
   let tracks = have_dir && view.tracks.shown <> None in
-  Layout.tracks_label lay;
-  Layout.tracks_indicator1 lay (view.tracks.shown = Some `Table);
-  Layout.tracks_indicator2 lay (view.tracks.shown = Some `Grid);
+  Layout.tracks_label geo;
+  Layout.tracks_indicator1 geo (view.tracks.shown = Some `Table);
+  Layout.tracks_indicator2 geo (view.tracks.shown = Some `Grid);
   let tracks' =
-    Layout.tracks_button lay (if have_dir then Some tracks else None) in
+    Layout.tracks_button geo (if have_dir then Some tracks else None) in
   if have_dir && tracks' <> tracks then
   (
     (* Click on Tracks button: toggle artist pane *)
@@ -681,16 +681,16 @@ let run_browser (st : state) =
   );
 
   (* Search *)
-  Layout.search_label lay;
-  Layout.search_box lay;
+  Layout.search_label geo;
+  Layout.search_box geo;
   if have_dir then
   (
-    if Layout.search_key lay then
+    if Layout.search_key geo then
     (
       (* Search button pressed: focus search *)
       Library.focus_search lib;
     )
-    else if Layout.search_button lay then
+    else if Layout.search_button geo then
     (
       (* Click on Search label: clear and focus search *)
       if lib.search.text <> "" then
@@ -702,7 +702,7 @@ let run_browser (st : state) =
     );
 
     let search = lib.search.text in
-    let _ = Layout.search_edit lay lib.search in
+    let _ = Layout.search_edit geo lib.search in
     if lib.search.focus then
     (
       (* Have or gained focus: make sure it's consistent *)
@@ -715,13 +715,13 @@ let run_browser (st : state) =
       Library.set_search lib lib.search.text;
     );
 
-    if Layout.search_context lay then
+    if Layout.search_context geo then
     (
       let rec nub = function
         | [] -> []
         | x::xs -> x :: nub (List.filter ((<>) x) xs)
       in
-      let c = Ui.text_color lay.ui in
+      let c = Ui.text_color geo.ui in
       let history = Edit.history lib.search in
       let history' = nub history in
       Run_menu.command_menu st ([
@@ -768,11 +768,11 @@ let run_view (st : state)
     selected_tracks _clicked_tracks
     editable popup make_view =
   let lib = st.library in
-  let lay = st.layout in
-  let win = Ui.window lay.ui in
+  let geo = st.geometry in
+  let win = Ui.window geo.ui in
 
   let pane, area, table, grid, mouse, _grid_mouse, spinner = layout in
-  pane lay;
+  pane geo;
 
   let busy = refresh_busy lib in
   let tab = if busy then busy_tab else tab in
@@ -807,16 +807,16 @@ let run_view (st : state)
     let img =
       match Library.load_cover lib win (path_of entry) with
       | Some img -> img
-      | None -> Ui.nocover lay.ui
-    in img, Ui.text_color lay.ui, text_of entry
+      | None -> Ui.nocover geo.ui
+    in img, Ui.text_color geo.ui, text_of entry
   in
 
   let sorting = convert_sorting view.columns view.sorting in
   let header = Some (headings, sorting) in
   (match
     match mode with
-    | `Table -> table lay cols header tab pp_row
-    | `Grid -> grid lay grid_w header tab pp_cell
+    | `Table -> table geo cols header tab pp_row
+    | `Grid -> grid geo grid_w header tab pp_cell
   with
   | `None | `Scroll -> ()
 
@@ -908,7 +908,7 @@ let run_view (st : state)
 
         if editable then
         (
-          assert (layout == Layout.(if lay.lower_shown then lower_view else left_view));
+          assert (layout == Layout.(if geo.lower_shown then lower_view else left_view));
 
           (* Invariant as for playlist view *)
           if motion = `Moving then
@@ -944,7 +944,7 @@ let run_view (st : state)
   | `Drop ->
     if Api.Key.are_modifiers_down [] then
     (
-      if Ui.mouse_inside lay.ui (area lay) then
+      if Ui.mouse_inside geo.ui (area geo) then
       (
         (* Dropping inside own: drop aux undo if no change *)
         if editable then
@@ -996,18 +996,18 @@ let run_view (st : state)
   );
 
   if busy then
-    spinner lay (Run_view.spin st);
+    spinner geo (Run_view.spin st);
 
-  if lay.popup_shown <> None && Api.Mouse.is_down `Left && mode = `Table then
+  if geo.popup_shown <> None && Api.Mouse.is_down `Left && mode = `Table then
   (
     (*
     match
       if mode = `Grid
-      then grid_mouse lay grid_w tab
-      else mouse lay cols tab
+      then grid_mouse geo grid_w tab
+      else mouse geo cols tab
     with
     *)
-    match mouse lay cols tab with
+    match mouse geo cols tab with
     | Some (Some i, _) ->
       (* Drag with active cover popup: update cover *)
       Run_menu.popup st (popup entries.(i));
@@ -1021,7 +1021,7 @@ let busy_tracks = Table.make 0
 
 let run_views (st : state) =
   let lib = st.library in
-  let lay = st.layout in
+  let geo = st.geometry in
 
   let have_dir = lib.current <> None in
   let default =
@@ -1032,13 +1032,13 @@ let run_views (st : state) =
   let view = dir.view in
 
   let show_artists =
-    have_dir && view.artists.shown <> None && lay.playlist_shown in
+    have_dir && view.artists.shown <> None && geo.playlist_shown in
   let show_albums =
-    have_dir && view.albums.shown <> None && lay.playlist_shown in
+    have_dir && view.albums.shown <> None && geo.playlist_shown in
   let show_tracks =
-    not have_dir || view.tracks.shown <> None || not lay.playlist_shown in
-  lay.right_shown <- show_artists && show_albums;
-  lay.lower_shown <- show_tracks && (show_artists || show_albums);
+    not have_dir || view.tracks.shown <> None || not geo.playlist_shown in
+  geo.right_shown <- show_artists && show_albums;
+  geo.lower_shown <- show_tracks && (show_artists || show_albums);
 
   (* Artists view *)
   if show_artists then
@@ -1048,7 +1048,7 @@ let run_views (st : state) =
       Library.refresh_artists_busy Library.refresh_albums_tracks
       Library.reorder_artists view.artists view
       Data.artist_attr_string `Artist Data.artist_attrs
-      (fun _ -> "") (fun _ -> "") (fun _ -> Ui.text_color lay.ui)
+      (fun _ -> "") (fun _ -> "") (fun _ -> Ui.text_color geo.ui)
       (fun lib -> lib.tracks.entries) (fun lib _ -> lib.Library.tracks.entries)
       false (fun _ -> assert false) Run_view.artists_view;
   );
@@ -1064,25 +1064,25 @@ let run_views (st : state) =
     in
 
     run_view st
-      Layout.(if lay.right_shown then right_view else left_view) lay.album_grid
+      Layout.(if geo.right_shown then right_view else left_view) geo.album_grid
       lib.albums busy_albums busy_tracks
       Library.refresh_albums_busy Library.refresh_tracks
       Library.reorder_albums view.albums view
       Data.album_attr_string `None Data.album_attrs
       (fun (album : Data.album) -> album.path) text_of
-      (fun _ -> Ui.text_color lay.ui)
+      (fun _ -> Ui.text_color geo.ui)
       (fun lib -> lib.tracks.entries) (fun lib _ -> lib.Library.tracks.entries)
       false (fun album -> `Album album) Run_view.albums_view;
 
     (* Divider *)
-    if lay.right_shown then
+    if geo.right_shown then
     (
-      let left_width' = Layout.right_divider lay lay.left_width
-        (Layout.left_min lay) (Layout.left_max lay) in
+      let left_width' = Layout.right_divider geo geo.left_width
+        (Geometry.left_min geo) (Geometry.left_max geo) in
       (* Possible drag of divider: update pane width *)
-      if left_width' <> lay.left_width then
+      if left_width' <> geo.left_width then
       (
-        lay.left_width <- left_width';
+        geo.left_width <- left_width';
         dir.view.divider_width <- left_width';
         dir.view.custom <- true;
         Library.save_dir lib dir;
@@ -1109,14 +1109,14 @@ let run_views (st : state) =
         Track.update track;
       match track.status with
       | _ when track.path = playing_path -> `White
-      | `Absent -> Ui.error_color lay.ui
-      | `Invalid -> Ui.warn_color lay.ui
-      | `Undet -> Ui.semilit_color (Ui.text_color lay.ui)
+      | `Absent -> Ui.error_color geo.ui
+      | `Invalid -> Ui.warn_color geo.ui
+      | `Undet -> Ui.semilit_color (Ui.text_color geo.ui)
       | `Predet | `Det ->
         if track.pos = -1 || Data.is_separator track || Library.has_track lib track then
-          Ui.text_color lay.ui
+          Ui.text_color geo.ui
         else
-          Ui.warn_color lay.ui
+          Ui.warn_color geo.ui
     in
 
     let prim_attr =
@@ -1125,7 +1125,7 @@ let run_views (st : state) =
     in
 
     run_view st
-      Layout.(if lay.lower_shown then lower_view else left_view) lay.track_grid
+      Layout.(if geo.lower_shown then lower_view else left_view) geo.track_grid
       lib.tracks busy_tracks busy_tracks
       Library.refresh_tracks_busy ignore
       Library.reorder_tracks view.tracks view
@@ -1139,14 +1139,14 @@ let run_views (st : state) =
     Run_view.external_drop_on_tracks st;
 
     (* Divider *)
-    if lay.lower_shown then
+    if geo.lower_shown then
     (
-      let upper_height' = Layout.lower_divider lay lay.upper_height
-        (Layout.upper_min lay) (Layout.upper_max lay) in
+      let upper_height' = Layout.lower_divider geo geo.upper_height
+        (Geometry.upper_min geo) (Geometry.upper_max geo) in
       (* Possible drag of divider: update pane width *)
-      if upper_height' <> lay.upper_height then
+      if upper_height' <> geo.upper_height then
       (
-        lay.upper_height <- upper_height';
+        geo.upper_height <- upper_height';
         dir.view.divider_height <- upper_height';
         dir.view.custom <- true;
         Library.save_dir lib dir;
@@ -1159,15 +1159,15 @@ let run_views (st : state) =
 
 let run_log (st : state) =
   let lib = st.library in
-  let lay = st.layout in
+  let geo = st.geometry in
   let log = Option.get lib.log in
 
-  Layout.log_pane lay;
+  Layout.log_pane geo;
 
-  if not lay.menu_shown then Table.deselect_all log.table;
+  if not geo.menu_shown then Table.deselect_all log.table;
 
   let pp_row i = log.table.entries.(i) in
-  (match Layout.log_table lay log.columns log.heading log.table pp_row with
+  (match Layout.log_table geo log.columns log.heading log.table pp_row with
   | `None | `Scroll | `Move _ | `Drag _ | `Drop | `Reorder _ | `HeadMenu _ -> ()
 
   | `Select | `Click _ ->
@@ -1204,14 +1204,14 @@ let run_log (st : state) =
 
 let run_browse_info (st : state) =
   let lib = st.library in
-  let lay = st.layout in
+  let geo = st.geometry in
 
-  Layout.info_pane lay;
+  Layout.info_pane geo;
 
-  Layout.msg_box lay;
+  Layout.msg_box geo;
   let now = Unix.gettimeofday () in
   if lib.error <> "" && now -. lib.error_time < 10.0 then
-    Layout.msg_text lay (Ui.error_color lay.ui) `Regular true lib.error
+    Layout.msg_text geo (Ui.error_color geo.ui) `Regular true lib.error
   else
   (
     let tr = Table.length lib.tracks in
@@ -1231,43 +1231,43 @@ let run_browse_info (st : state) =
         count "track" trs tr tracks;
       ]
     in
-    Layout.msg_text lay (Ui.text_color lay.ui) `Regular true
+    Layout.msg_text geo (Ui.text_color geo.ui) `Regular true
       (String.concat ", " (List.filter_map Fun.id counts))
 *)
     let count name m n = fmt "%s%d %s%s" (sel m) n name (plu n) in
     let counts = String.concat ", "
       [count "artist" ars ar; count "album" als al; count "track" trs tr] in
-    Layout.msg_text lay (Ui.text_color lay.ui) `Regular true counts
+    Layout.msg_text geo (Ui.text_color geo.ui) `Regular true counts
   )
 
 
 let run_log_info (st : state) =
-  let lay = st.layout in
+  let geo = st.geometry in
   let lib = st.library in
   let log = Option.get lib.log in
 
-  Layout.info_pane lay;
-  Layout.msg_box lay;
-  Layout.msg_text lay (Ui.text_color lay.ui) `Regular true log.info
+  Layout.info_pane geo;
+  Layout.msg_box geo;
+  Layout.msg_text geo (Ui.text_color geo.ui) `Regular true log.info
 
 
 (* Buttons *)
 
 let run_browse_buttons (st : state) =
-  let lay = st.layout in
+  let geo = st.geometry in
   let lib = st.library in
 
   let active_if avail = if avail st then Some false else None in
   let active_if2 avail1 avail2 =
     if avail1 st || avail2 st then Some false else None in
 
-  if Layout.insert_button lay (active_if insert_avail) then
+  if Layout.insert_button geo (active_if insert_avail) then
   (
     (* Click on Insert (Add) button: add directory or playlist *)
     insert st
   );
 
-  if Layout.remove_button lay (active_if2 remove_avail remove_list_avail) then
+  if Layout.remove_button geo (active_if2 remove_avail remove_list_avail) then
   (
     (* Click on Remove (Del) button: remove directory or playlist *)
     let dir = Option.get (lib.current) in
@@ -1277,19 +1277,19 @@ let run_browse_buttons (st : state) =
       remove_list st
   );
 
-  if Layout.create_button lay (active_if create_playlist_avail) then
+  if Layout.create_button geo (active_if create_playlist_avail) then
   (
     (* Click on Create (New) button: create new playlist *)
     create_playlist st
   );
 
-  if Layout.view_button lay (active_if create_viewlist_avail) then
+  if Layout.view_button geo (active_if create_viewlist_avail) then
   (
     (* Click on View button: create new viewlist *)
     create_viewlist st
   );
 
-  if Layout.rescan_button lay (active_if rescan_one_avail) then
+  if Layout.rescan_button geo (active_if rescan_one_avail) then
   (
     (* Click on Rescan (Scan) button: rescan directory, view, or files *)
     Option.iter (fun (dir : dir) ->
@@ -1311,13 +1311,13 @@ let run_browse_buttons (st : state) =
 
 
 let run_log_buttons (st : state) =
-  let lay = st.layout in
+  let geo = st.geometry in
   let lib = st.library in
   let log = Option.get lib.log in
 
   let ok = log.completed in
-  let ok' = Layout.log_ok_button lay (if ok then Some true else None) in
-  let cancel = Layout.log_cancel_button lay (Some false) in
+  let ok' = Layout.log_ok_button geo (if ok then Some true else None) in
+  let cancel = Layout.log_cancel_button geo (Some false) in
 
   if cancel then log.cancel <- true;
   if ok <> ok' || cancel then Log.complete log
@@ -1327,16 +1327,16 @@ let run_log_buttons (st : state) =
 
 let run (st : state) =
   let lib = st.library in
-  let lay = st.layout in
-  let win = Ui.window lay.ui in
+  let geo = st.geometry in
+  let win = Ui.window geo.ui in
 
   (* Update after possible window resize *)
-  lay.browser_width <-
-    clamp (Layout.browser_min lay) (Layout.browser_max lay) lay.browser_width;
-  lay.left_width <-
-    clamp (Layout.left_min lay) (Layout.left_max lay) lay.left_width;
-  lay.upper_height <-
-    clamp (Layout.upper_min lay) (Layout.upper_max lay) lay.upper_height;
+  geo.browser_width <-
+    clamp (Geometry.browser_min geo) (Geometry.browser_max geo) geo.browser_width;
+  geo.left_width <-
+    clamp (Geometry.left_min geo) (Geometry.left_max geo) geo.left_width;
+  geo.upper_height <-
+    clamp (Geometry.upper_min geo) (Geometry.upper_max geo) geo.upper_height;
 
   (* Background rescanning *)
   Library.refresh_after_rescan lib;
@@ -1360,7 +1360,7 @@ let run (st : state) =
   let focus = lib.tracks.entries <> [||] &&
     (lib.browser.focus || lib.artists.focus || lib.albums.focus) in
 
-  if Ui.key lay.ui Layout.key_copy focus then
+  if Ui.key geo.ui Layout.key_copy focus then
   (
     (* Press of Copy key: write selected tracks to clipboard *)
     let s = Track.to_m3u lib.tracks.entries in
@@ -1369,7 +1369,7 @@ let run (st : state) =
 
   (* Pane divider *)
 
-  let browser_width' = Layout.browser_divider lay lay.browser_width
-    (Layout.browser_min lay) (Layout.browser_max lay) in
+  let browser_width' = Layout.browser_divider geo geo.browser_width
+    (Geometry.browser_min geo) (Geometry.browser_max geo) in
   (* Possible drag of divider: update pane width *)
-  lay.browser_width <- browser_width'
+  geo.browser_width <- browser_width'

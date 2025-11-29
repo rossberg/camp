@@ -36,17 +36,17 @@ let fmt_time3 t =
 
 let run (st : state) =
   let pl = st.playlist in
-  let lay = st.layout in
-  let win = Ui.window lay.ui in
+  let geo = st.geometry in
+  let win = Ui.window geo.ui in
   let tab = pl.table in
   let len = Table.length tab in
   let now = Unix.time () in
 
-  Layout.playlist_pane lay;
+  Layout.playlist_pane geo;
 
   (* Playlist table *)
-  let _, _, _, h = Ui.dim lay.ui (Layout.playlist_area lay) in
-  let page = max 1 (int_of_float (Float.floor (float h /. float lay.text))) in
+  let _, _, _, h = Ui.dim geo.ui (Layout.playlist_area geo) in
+  let page = max 1 (int_of_float (Float.floor (float h /. float geo.text))) in
   let digits_pos = log10 (len + 1) + 1 in
   let digits_time = ref 1 in
   for i = tab.vscroll to min len (tab.vscroll + page) - 1 do
@@ -54,11 +54,11 @@ let run (st : state) =
     if time > 599.4 then
       digits_time := max !digits_time (if time > 5999.4 then 3 else 2)
   done;
-  let font = Ui.font lay.ui lay.text in
+  let font = Ui.font geo.ui geo.text in
   let s_pos = String.make digits_pos '0' ^ "." in
   let s_time = String.make !digits_time '0' ^ ":00" in
-  let cw_pos = Api.Draw.text_width win lay.text font s_pos + 1 in
-  let cw_time = Api.Draw.text_width win lay.text font s_time + 1 in
+  let cw_pos = Api.Draw.text_width win geo.text font s_pos + 1 in
+  let cw_time = Api.Draw.text_width win geo.text font s_time + 1 in
   let cols : _ iarray = [|cw_pos, `Right; -1, `Left; cw_time, `Right|] in
 
   if Api.Draw.frame win mod refresh_delay = 0 then
@@ -72,11 +72,11 @@ let run (st : state) =
       match track.status with
       | _ when tab.pos = Some i ->
         if track.path = (Option.get st.control.current).path then `White else `Gray 0xc0
-      | _ when Data.is_separator track -> Ui.text_color lay.ui
-      | `Absent -> Ui.error_color lay.ui
-      | `Invalid -> Ui.warn_color lay.ui
-      | `Undet -> Ui.semilit_color (Ui.text_color lay.ui)
-      | `Predet | `Det -> Ui.text_color lay.ui
+      | _ when Data.is_separator track -> Ui.text_color geo.ui
+      | `Absent -> Ui.error_color geo.ui
+      | `Invalid -> Ui.warn_color geo.ui
+      | `Undet -> Ui.semilit_color (Ui.text_color geo.ui)
+      | `Predet | `Det -> Ui.text_color geo.ui
     in
     let time = Track.time track in
     let stime = if time = 0.0 then "" else fmt_time time in
@@ -87,7 +87,7 @@ let run (st : state) =
     |]
   in
 
-  (match Layout.playlist_table lay cols None tab pp_row with
+  (match Layout.playlist_table geo cols None tab pp_row with
   | `None | `Scroll -> ()
   | `Sort _ | `Resize _ | `Reorder _ | `HeadMenu _ -> assert false
 
@@ -165,7 +165,7 @@ let run (st : state) =
   | `Drop ->
     if Api.Key.are_modifiers_down [] then
     (
-      if Ui.mouse_inside lay.ui (Layout.playlist_area lay) then
+      if Ui.mouse_inside geo.ui (Layout.playlist_area geo) then
       (
         (* Dropping inside playlist: drop aux undo if no change *)
         Table.clean_undo pl.table
@@ -205,5 +205,5 @@ let run (st : state) =
     fmt_total pl.total_selected ^ "/"
   in
   let s2 = fmt_total pl.total in
-  Layout.playlist_total_box lay;
-  Layout.playlist_total_text lay `Regular true (s1 ^ s2)
+  Layout.playlist_total_box geo;
+  Layout.playlist_total_text geo `Regular true (s1 ^ s2)

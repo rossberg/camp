@@ -28,11 +28,11 @@ let spin_delay = 3
 let spins = [|"|"; "/"; "-"; "\\"|]
 
 let spin (st : state) =
-  let win = Ui.window st.layout.ui in
+  let win = Ui.window st.geometry.ui in
   spins.(Api.Draw.frame win / spin_delay mod Array.length spins)
 
 let spin_changed (st : state) =
-  let win = Ui.window st.layout.ui in
+  let win = Ui.window st.geometry.ui in
   Api.Draw.frame win mod spin_delay = 0
 
 
@@ -164,31 +164,31 @@ let current_is_grid (st : state) =
   | Some dir -> dir.view.tracks.shown = Some `Grid
 
 let drag (st : state) table_drag (module View : View) =
-  let lay = st.layout in
+  let geo = st.geometry in
   let tab = View.table View.it in
   (* Drag over table: highlight target entry *)
-  Ui.delay lay.ui (fun () -> table_drag lay tab)
+  Ui.delay geo.ui (fun () -> table_drag geo tab)
 
 let drag_on_playlist (st : state) =
-  if st.layout.playlist_shown then
+  if st.geometry.playlist_shown then
     drag st Layout.playlist_drag (playlist_view st)
 
-let library_drag (st : state) (lay : Layout.t) =
+let library_drag (st : state) (geo : Geometry.t) =
   let drag, grid_drag =
-    if lay.lower_shown then Layout.(lower_drag, lower_grid_drag) else
-    if lay.right_shown then Layout.(right_drag, right_grid_drag) else
+    if geo.lower_shown then Layout.(lower_drag, lower_grid_drag) else
+    if geo.right_shown then Layout.(right_drag, right_grid_drag) else
     Layout.(left_drag, left_grid_drag)
   in
-  if current_is_grid st then grid_drag lay lay.track_grid else drag lay
+  if current_is_grid st then grid_drag geo geo.track_grid else drag geo
 
 let drag_on_tracks (st : state) =
-  if st.layout.library_shown && Library.current_is_shown_playlist st.library then
+  if st.geometry.library_shown && Library.current_is_shown_playlist st.library then
     drag st (library_drag st) (tracks_view st)
 
 let drop (st : state) tracks table_mouse (module View : View) =
   if tracks <> [||] then
   (
-    let lay = st.layout in
+    let geo = st.geometry in
     let view = View.it in
     let tab = View.table view in
     Option.iter (fun (pos_opt, _) ->
@@ -198,23 +198,23 @@ let drop (st : state) tracks table_mouse (module View : View) =
       State.defocus_all st;
       View.focus st;
       update_control st;
-    ) (table_mouse lay tab)
+    ) (table_mouse geo tab)
   )
 
 let drop_on_playlist (st : state) tracks =
-  if st.layout.playlist_shown then
-    drop st tracks (fun lay -> Layout.playlist_mouse lay [||]) (playlist_view st)
+  if st.geometry.playlist_shown then
+    drop st tracks (fun geo -> Layout.playlist_mouse geo [||]) (playlist_view st)
 
-let library_mouse (st : state) (lay : Layout.t) =
+let library_mouse (st : state) (geo : Geometry.t) =
   let mouse, grid_mouse =
-    if lay.lower_shown then Layout.(lower_mouse, lower_grid_mouse) else
-    if lay.right_shown then Layout.(right_mouse, right_grid_mouse) else
+    if geo.lower_shown then Layout.(lower_mouse, lower_grid_mouse) else
+    if geo.right_shown then Layout.(right_mouse, right_grid_mouse) else
     Layout.(left_mouse, left_grid_mouse)
   in
-  if current_is_grid st then grid_mouse lay lay.track_grid else mouse lay [||]
+  if current_is_grid st then grid_mouse geo geo.track_grid else mouse geo [||]
 
 let drop_on_tracks (st : state) tracks =
-  if st.layout.library_shown && Library.current_is_shown_playlist st.library then
+  if st.geometry.library_shown && Library.current_is_shown_playlist st.library then
     drop st tracks (library_mouse st) (tracks_view st)
 
 
@@ -259,7 +259,7 @@ let expand_paths (st : state) paths =
   Array.of_list (List.rev !tracks)
 
 let external_drop drop_on (st : state) (module View : View) =
-  let dropped = Api.Files.dropped (Ui.window st.layout.ui) in
+  let dropped = Api.Files.dropped (Ui.window st.geometry.ui) in
   if dropped <> [] then
     drop_on st (expand_paths st dropped)
 
@@ -300,25 +300,25 @@ let external_queue_on_playlist st paths replace =
 
 
 let set_drop_cursor (st : state) =
-  let lay = st.layout in
+  let geo = st.geometry in
   let pl = st.playlist in
   let lib = st.library in
   let droppable =
-    lay.playlist_shown &&
+    geo.playlist_shown &&
       (* over playlist *)
-      Layout.playlist_mouse lay [||] pl.table <> None
+      Layout.playlist_mouse geo [||] pl.table <> None
     ||
-    lay.library_shown && (
+    geo.library_shown && (
       (* over library playlist view? *)
-      Library.current_is_playlist lib && library_mouse st lay lib.tracks <> None
+      Library.current_is_playlist lib && library_mouse st geo lib.tracks <> None
       ||
       (* over browser entry that is a playlist? *)
-      match Layout.browser_mouse lay [||] lib.browser with
+      match Layout.browser_mouse geo [||] lib.browser with
       | Some (Some i, _) -> Data.is_playlist lib.browser.entries.(i)
       | _ -> false
     )
   in
-  Api.Mouse.set_cursor (Ui.window lay.ui)
+  Api.Mouse.set_cursor (Ui.window geo.ui)
     (if droppable then `Point else `Blocked)
 
 
@@ -348,14 +348,14 @@ let modify ops (st : state) dir on_start on_pl =
   ignore (Domain.spawn (fun () ->
     let header1 : _ iarray = if ops.show_path then [|"Playlist"|] else [||] in
     let heading = Iarray.append header1 [|"Entry"; "Replacement"|], [] in
-    let columns = Iarray.map (fun w -> (w, `Left)) st.layout.repair_log_columns in
+    let columns = Iarray.map (fun w -> (w, `Left)) st.geometry.repair_log_columns in
     let columns, mk_columns =
       if ops.show_path then columns, Fun.id else
       Iarray.sub columns ~pos: 1 ~len: 2,
-      Iarray.append [|Iarray.get st.layout.repair_log_columns 0|]
+      Iarray.append [|Iarray.get st.geometry.repair_log_columns 0|]
     in
     let close b (log : _ Log.t) =
-      st.layout.repair_log_columns <- mk_columns (Iarray.map fst log.columns);
+      st.geometry.repair_log_columns <- mk_columns (Iarray.map fst log.columns);
       Library.end_log st.library;
       ops.final b;
     in
@@ -364,7 +364,7 @@ let modify ops (st : state) dir on_start on_pl =
         Option.iter (fun i ->
           (* Right-click on log entry: open context menu *)
           let lib = st.library in
-          let c = Ui.text_color st.layout.ui in
+          let c = Ui.text_color st.geometry.ui in
           let search =
             File.(remove_extension (name (Log.text log i 1))) |>
             Str.global_replace punct_re " " |>
@@ -383,8 +383,8 @@ let modify ops (st : state) dir on_start on_pl =
                   Library.fold_dir lib dir false;
                   Option.iter (fun i ->
                     Library.select_dir lib i;
-                    st.layout.left_width <- dir.view.divider_width;
-                    st.layout.upper_height <- dir.view.divider_height;
+                    st.geometry.left_width <- dir.view.divider_width;
+                    st.geometry.upper_height <- dir.view.divider_height;
                   ) (Library.find_entry_dir lib dir);
                 ) dir_opt;
                 close false log;
@@ -399,8 +399,8 @@ let modify ops (st : state) dir on_start on_pl =
                 Table.deselect_all log.table;
                 Option.iter (fun i ->
                   Library.select_dir lib i;
-                  st.layout.left_width <- dir.view.divider_width;
-                  st.layout.upper_height <- dir.view.divider_height;
+                  st.geometry.left_width <- dir.view.divider_width;
+                  st.geometry.upper_height <- dir.view.divider_height;
                 ) (Library.find_entry_dir lib dir);
                 Edit.set lib.search search;
                 Library.set_search lib search;
@@ -503,7 +503,7 @@ let modify_simple f ops (st : state) dir =
           if path = path' then item else
           (
             incr count;
-            extend_log (Ui.text_color st.layout.ui) path path';
+            extend_log (Ui.text_color st.geometry.ui) path path';
             ops.set_item_path item path'
           )
         ) items
@@ -546,7 +546,7 @@ let modify_repair ops (st : state) dir =
             (if !fuzzy = 0 then [] else [fmt "%d entries ambiguous" !fuzzy])
           in
           update_info (String.concat ", " ss);
-          extend_log (color st.layout.ui) item_path path';
+          extend_log (color st.geometry.ui) item_path path';
         );
         item'
       ) items
@@ -576,7 +576,7 @@ let resolve_dir = modify_dir modify_resolve
 let repair_dir = modify_dir modify_repair
 
 let modify_view modify (st : state) view all =
-  let lib_shown = st.layout.library_shown in
+  let lib_shown = st.geometry.library_shown in
   if not lib_shown then Run_control.toggle_library st;
   modify
   {
@@ -660,7 +660,7 @@ let dedupe all _st (module View : View) =
   View.(remove_duplicates it all)
 
 let repair_avail all (st : state) view =
-  wipe_avail all st view && st.library.log = None && not st.layout.filesel_shown
+  wipe_avail all st view && st.library.log = None && not st.geometry.filesel_shown
 let repair all st view =
   repair_view st view all
 
@@ -685,7 +685,7 @@ let copy_avail _st (module View : View) =
   View.(num_selected it > 0)
 let copy (st : state) (module View : View) =
   let s = Track.to_m3u View.(selected it) in
-  Api.Clipboard.write (Ui.window st.layout.ui) s
+  Api.Clipboard.write (Ui.window st.geometry.ui) s
 
 let cut_avail st view =
   copy_avail st view && remove_avail st view
@@ -694,9 +694,9 @@ let cut st view =
   remove st view
 
 let paste_avail (st : state) view =
-  all_editable st view && Api.Clipboard.read (Ui.window st.layout.ui) <> None
+  all_editable st view && Api.Clipboard.read (Ui.window st.geometry.ui) <> None
 let paste (st : state) (module View : View) =
-  let s = Option.value (Api.Clipboard.read (Ui.window st.layout.ui)) ~default: "" in
+  let s = Option.value (Api.Clipboard.read (Ui.window st.geometry.ui)) ~default: "" in
   let tracks = Track.of_m3u s in
   let found_proper =
     Array.exists (fun (track : Data.track) ->
@@ -733,7 +733,7 @@ let reverse_all _st (module View : View) =
 
 let load_avail (st : state) (module View : View) =
   editable st (module View) &&
-  not st.layout.filesel_shown && st.library.log = None
+  not st.geometry.filesel_shown && st.library.log = None
 let load (st : state) (module View : View) =
   Run_filesel.filesel st `File `Read "" ".m3u" (fun path ->
     let tracks = Array.map Track.of_m3u_item (Array.of_list (M3u.load path)) in
@@ -749,7 +749,7 @@ let load (st : state) (module View : View) =
   )
 
 let save_avail (st : state) _view =
-  not st.layout.filesel_shown && st.library.log = None
+  not st.geometry.filesel_shown && st.library.log = None
 let save (st : state) (module View : View) =
   Run_filesel.filesel st `File `Write "" ".m3u" (fun path ->
     File.save `Bin path (Track.to_m3u View.(tracks it))
@@ -763,7 +763,7 @@ let save_sel (st : state) (module View : View) =
   )
 
 let save_view_avail (st : state) _view =
-  not st.layout.filesel_shown && st.layout.library_shown &&
+  not st.geometry.filesel_shown && st.geometry.library_shown &&
   not st.playlist.table.focus && st.library.log = None &&
   ( st.library.search.text <> "" ||
     Table.num_selected st.library.artists > 0 ||
@@ -852,7 +852,7 @@ let search (st : state) =
   State.focus_edit st.library.search st
 
 let search_for_avail (st : state) =
-  st.layout.library_shown && st.library.current <> None
+  st.geometry.library_shown && st.library.current <> None
 
 let search_for (st : state) ss =
   let s = String.concat " " (List.map (fun s -> "\"" ^ s ^ "\"") ss) in
@@ -884,10 +884,10 @@ let subject_tracks (module View : View) =
   else true, " All", fun () -> View.(tracks it)
 
 let list_menu (st : state) view searches =
-  let lay = st.layout in
+  let geo = st.geometry in
   let module View = (val view : View) in
 
-  let c = Ui.text_color lay.ui in
+  let c = Ui.text_color geo.ui in
   let all, quant, get_tracks = subject_tracks view in
   Run_menu.command_menu st (Iarray.concat [
     [|
@@ -936,11 +936,11 @@ let list_menu (st : state) view searches =
   ])
 
 let edit_menu (st : state) view searches pos_opt =
-  let lay = st.layout in
+  let geo = st.geometry in
   let module View = (val view : View) in 
 
   let pos = Option.value pos_opt ~default: View.(length it) in
-  let c = Ui.text_color lay.ui in
+  let c = Ui.text_color geo.ui in
   let all, quant, get_tracks = subject_tracks view in
   Run_menu.command_menu st (Iarray.concat [
     [|
@@ -1034,9 +1034,9 @@ let edit_menu (st : state) view searches pos_opt =
 let run_edit_panel (st : state) =
   let pl = st.playlist in
   let lib = st.library in
-  let lay = st.layout in
+  let geo = st.geometry in
 
-  Layout.edit_pane lay;
+  Layout.edit_pane geo;
 
   let lib_shows_tracks =
     match lib.current with
@@ -1050,8 +1050,8 @@ let run_edit_panel (st : state) =
   let focus = pl_focus || lib_focus && lib_shows_tracks in
 
   assert (not (pl_focus && lib_focus));
-  assert (lay.playlist_shown || not pl_focus);
-  assert (lay.library_shown || not lib_focus);
+  assert (geo.playlist_shown || not pl_focus);
+  assert (geo.library_shown || not lib_focus);
 
   let playlist = playlist_view st in
   let library = tracks_view st in
@@ -1062,7 +1062,7 @@ let run_edit_panel (st : state) =
   let active_if avail = if focus && avail st view then Some false else None in
 
   (* Separator button *)
-  if Layout.sep_button lay (active_if separator_avail) then
+  if Layout.sep_button geo (active_if separator_avail) then
   (
     (* Click on Separator button: insert separator *)
     let pos = Option.value View.(first_selected it) ~default: 0 in
@@ -1070,71 +1070,71 @@ let run_edit_panel (st : state) =
   );
 
   (* Edit buttons *)
-  if Layout.del_button lay (active_if remove_avail)
-  || remove_avail st view && Layout.del_button_alt lay then
+  if Layout.del_button geo (active_if remove_avail)
+  || remove_avail st view && Layout.del_button_alt geo then
   (
     (* Click on Delete button: remove selected tracks from playlist *)
     remove st view
   );
 
-  if Layout.crop_button lay (active_if crop_avail) then
+  if Layout.crop_button geo (active_if crop_avail) then
   (
     (* Click on Crop button: remove unselected tracks from playlist *)
     crop st view
   );
 
-  if Layout.wipe_button lay (active_if (wipe_avail all)) then
+  if Layout.wipe_button geo (active_if (wipe_avail all)) then
   (
     (* Click on Wipe button: remove invalid tracks *)
     wipe all st view
   );
 
-  if focus && Layout.dedupe_button lay then
+  if focus && Layout.dedupe_button geo then
   (
     (* Dedupe key pressed or Shift-click on Wipe button: dedupe *)
     dedupe all st view
   );
 
-  if Layout.undo_button lay (active_if undo_avail) then
+  if Layout.undo_button geo (active_if undo_avail) then
   (
     (* Click on Undo button: pop undo *)
     undo st view
   );
 
-  if focus && redo_avail st view && Layout.redo_button lay then
+  if focus && redo_avail st view && Layout.redo_button geo then
   (
     (* Redo key pressed or Shift-click on Undo button: pop redo *)
     redo st view
   );
 
   (* Edit keys *)
-  if focus && cut_avail st view && Layout.cut_key lay then
+  if focus && cut_avail st view && Layout.cut_key geo then
   (
     (* Press of Cut key: remove selected tracks and write them to clipboard *)
     cut st view
   );
 
-  if (focus || lib_focus) && copy_avail st view && Layout.copy_key lay then
+  if (focus || lib_focus) && copy_avail st view && Layout.copy_key geo then
   (
     (* Press of Copy key: write selected tracks to clipboard *)
     copy st view
   );
 
-  if focus && paste_avail st view && Layout.paste_key lay then
+  if focus && paste_avail st view && Layout.paste_key geo then
   (
     (* Press of Paste key: insert tracks from clipboard *)
     paste st view
   );
 
   (* Tag button *)
-  if Layout.tag_button lay (active_if tag_avail) then
+  if Layout.tag_button geo (active_if tag_avail) then
   (
     (* Click on Tag button: execute tagging program *)
     let _, _, get_tracks = subject_tracks view in
     tag st (get_tracks ()) false;
   );
 
-  if focus && tag_avail st view && Layout.tag_add_button lay then
+  if focus && tag_avail st view && Layout.tag_add_button geo then
   (
     (* Shift-click on Tag button: execute tagging program, additively *)
     let _, _, get_tracks = subject_tracks view in
@@ -1142,14 +1142,14 @@ let run_edit_panel (st : state) =
   );
 
   (* Load button *)
-  if Layout.load_button lay (active_if load_avail) then
+  if Layout.load_button geo (active_if load_avail) then
   (
     (* Click on Load button: load playlist *)
     load st view
   );
 
   (* Save Playlist button *)
-  if Layout.save_button lay (active_if save_avail)
+  if Layout.save_button geo (active_if save_avail)
   && Api.Key.are_modifiers_down [] then
   (
     (* Click on Save button: save playlist *)
@@ -1157,7 +1157,7 @@ let run_edit_panel (st : state) =
   );
 
   (* Save Viewlist button *)
-  if lib_focus && Layout.save_view_button lay then
+  if lib_focus && Layout.save_view_button geo then
   (
     (* Press of Save-View key or Shift-Click on Save button: save viewlist *)
     if save_view_avail st view then
@@ -1165,7 +1165,7 @@ let run_edit_panel (st : state) =
   );
 
   (* Queue key *)
-  if lib_focus && queue_avail st view && Layout.queue_key lay then
+  if lib_focus && queue_avail st view && Layout.queue_key geo then
   (
     (* Press of Queue key: queue tracks *)
     let _, _, get_tracks = subject_tracks view in
@@ -1173,5 +1173,5 @@ let run_edit_panel (st : state) =
   );
 
   (* Focus buttons *)
-  if Layout.focus_next_key lay then State.focus_next st;
-  if Layout.focus_prev_key lay then State.focus_prev st
+  if Layout.focus_next_key geo then State.focus_next st;
+  if Layout.focus_prev_key geo then State.focus_prev st

@@ -29,47 +29,47 @@ let quit _st =
 
 let minimize (st : state) =
   State.delay st (fun () ->
-    Api.Window.minimize (Ui.window st.layout.ui)
+    Api.Window.minimize (Ui.window st.geometry.ui)
   )
 
 let toggle_playlist (st : state) =
   State.delay st (fun () ->
-    let lay = st.layout in
-    lay.playlist_shown <- not lay.playlist_shown;
-    if not lay.playlist_shown then Playlist.defocus st.playlist
+    let geo = st.geometry in
+    geo.playlist_shown <- not geo.playlist_shown;
+    if not geo.playlist_shown then Playlist.defocus st.playlist
   )
 
 let toggle_library (st : state) =
   State.delay st (fun () ->
-    let lay = st.layout in
-    if lay.library_shown then
+    let geo = st.geometry in
+    if geo.library_shown then
     (
-      lay.library_shown <- false;
+      geo.library_shown <- false;
       Library.defocus st.library;
     )
     else
     (
-      lay.library_shown <- true;
+      geo.library_shown <- true;
       (* Switch side if window exceeds respective border *)
-      if not lay.filesel_shown then
+      if not geo.filesel_shown then
       (
-        let win = Ui.window lay.ui in
+        let win = Ui.window geo.ui in
         let wx, _ = Api.Window.pos win in
         let sx, _ = Api.Window.min_pos win in
         let sw, _ = Api.Window.max_size win in
-        if lay.library_side = `Left && wx <= sx then
-          lay.library_side <- `Right;
-        if lay.library_side = `Right && wx + Layout.control_w lay >= sx + sw then
-          lay.library_side <- `Left;
+        if geo.library_side = `Left && wx <= sx then
+          geo.library_side <- `Right;
+        if geo.library_side = `Right && wx + Geometry.control_w geo >= sx + sw then
+          geo.library_side <- `Left;
       )
     );
-    if not (lay.library_shown || lay.filesel_shown) then State.focus_playlist st
+    if not (geo.library_shown || geo.filesel_shown) then State.focus_playlist st
   )
 
 let toggle_side (st : state) =
   State.delay st (fun () ->
-    let lay = st.layout in
-    lay.library_side <- if lay.library_side = `Left then `Right else `Left
+    let geo = st.geometry in
+    geo.library_side <- if geo.library_side = `Left then `Right else `Left
   )
 
 let cycle_visual (st : state) =
@@ -110,42 +110,42 @@ let dirty_all (st : state) =
   Table.dirty st.filesel.files
 
 let toggle_sdf (st : state) =
-  let lay = st.layout in
-  Ui.font_sdf lay.ui (not (Ui.font_is_sdf lay.ui));
+  let geo = st.geometry in
+  Ui.font_sdf geo.ui (not (Ui.font_is_sdf geo.ui));
   dirty_all st
 
 let cycle_color (st : state) d =
-  let lay = st.layout in
-  let n = Ui.num_palette lay.ui in
-  Ui.set_palette lay.ui ((Ui.get_palette lay.ui + d + n) mod n);
+  let geo = st.geometry in
+  let n = Ui.num_palette geo.ui in
+  Ui.set_palette geo.ui ((Ui.get_palette geo.ui + d + n) mod n);
   dirty_all st
 
-let clamp_text = Layout.(clamp min_text_size max_text_size)
-let clamp_pad = Layout.(clamp min_pad_size max_pad_size)
+let clamp_text = Geometry.(clamp min_text_size max_text_size)
+let clamp_pad = Geometry.(clamp min_pad_size max_pad_size)
 
 let resize_text_avail (st : state) delta =
-  clamp_text (st.layout.text + delta) <> st.layout.text
+  clamp_text (st.geometry.text + delta) <> st.geometry.text
 
 let resize_text (st : state) delta =
-  st.layout.text <- clamp_text (st.layout.text + delta)
+  st.geometry.text <- clamp_text (st.geometry.text + delta)
 
 let resize_pad_avail (st : state) delta =
-  clamp_pad (st.layout.pad_y + delta) <> st.layout.pad_y
+  clamp_pad (st.geometry.pad_y + delta) <> st.geometry.pad_y
 
 let resize_pad (st : state) delta =
-  st.layout.pad_y <- clamp_pad (st.layout.pad_y + delta)
+  st.geometry.pad_y <- clamp_pad (st.geometry.pad_y + delta)
 
-let clamp_grid = Layout.(clamp min_grid_size max_grid_size)
+let clamp_grid = Geometry.(clamp min_grid_size max_grid_size)
 
 let resize_grid_avail (st : state) delta =
   match st.library.current with
   | None -> false
   | Some (dir : Library.dir) ->
-    let lay = st.layout in
+    let geo = st.geometry in
     dir.view.albums.shown = Some `Grid &&
-      clamp_grid (lay.album_grid + delta) <> lay.album_grid ||
+      clamp_grid (geo.album_grid + delta) <> geo.album_grid ||
     dir.view.tracks.shown = Some `Grid &&
-      clamp_grid (lay.track_grid + delta) <> lay.track_grid
+      clamp_grid (geo.track_grid + delta) <> geo.track_grid
 
 let resize_grid (st : state) delta =
   Option.iter (fun (dir : Library.dir) ->
@@ -156,20 +156,20 @@ let resize_grid (st : state) delta =
       if n <= 140 then 8 else
       if n <= 300 then 16 else 32
     in
-    let lay = st.layout in
+    let geo = st.geometry in
     if dir.view.albums.shown = Some `Grid then
-      lay.album_grid <- clamp_grid (inc lay.album_grid);
+      geo.album_grid <- clamp_grid (inc geo.album_grid);
     if dir.view.tracks.shown = Some `Grid then
-      lay.track_grid <- clamp_grid (inc lay.track_grid);
+      geo.track_grid <- clamp_grid (inc geo.track_grid);
   ) st.library.current
 
-let clamp_popup = Layout.(clamp min_popup_size max_popup_size)
+let clamp_popup = Geometry.(clamp min_popup_size max_popup_size)
 
 let resize_popup_avail (st : state) delta =
-  clamp_popup (st.layout.popup_size + 100 * delta) <> st.layout.popup_size
+  clamp_popup (st.geometry.popup_size + 100 * delta) <> st.geometry.popup_size
 
 let resize_popup (st : state) delta =
-  st.layout.popup_size <- st.layout.popup_size + 100 * delta
+  st.geometry.popup_size <- st.geometry.popup_size + 100 * delta
 
 
 (*
@@ -223,28 +223,28 @@ let run_sine_wave () =
 let run (st : state) =
   let ctl = st.control in
   let pl = st.playlist in
-  let lay = st.layout in
-  let win = Ui.window lay.ui in
+  let geo = st.geometry in
+  let win = Ui.window geo.ui in
 
 (*
   run_sine_wave ();
 *)
 
-  Layout.control_pane lay;
+  Layout.control_pane geo;
 
   (* Exit button *)
   (* This has to come first, otherwise Raylib crashes? *)
-  let modal = Ui.is_modal lay.ui in
-  Ui.nonmodal lay.ui;  (* always allow Quit *)
-  Layout.power_shadow lay;
-  if not (Layout.power_button lay (Some true))
+  let modal = Ui.is_modal geo.ui in
+  Ui.nonmodal geo.ui;  (* always allow Quit *)
+  Layout.power_shadow geo;
+  if not (Layout.power_button geo (Some true))
   && not (Api.Key.is_modifier_down `Shift) then
   (
     (* Power button clicked: quit *)
     quit st
   );
-  if modal then Ui.modal lay.ui;
-  Layout.power_label lay;
+  if modal then Ui.modal geo.ui;
+  Layout.power_label geo;
 
   (* Current status *)
   let status = Control.status ctl in
@@ -257,11 +257,11 @@ let run (st : state) =
   let remaining = length -. elapsed in
   let focus =
     pl.table.focus ||
-    not (lay.library_shown || lay.filesel_shown || lay.menu_shown)
+    not (geo.library_shown || geo.filesel_shown || geo.menu_shown)
   in
 
   (* LCD *)
-  Layout.info_box lay;
+  Layout.info_box geo;
   let sign, d1, d2, d3, d4 =
     if paused && int_of_float (time ()) mod 2 = 0 then
       '+', ' ', ' ', ' ', ' ' else
@@ -270,7 +270,7 @@ let run (st : state) =
       | `Elapse -> '+', elapsed
       | `Remain -> '-', remaining
     in
-    Layout.lcd_colon lay ':';
+    Layout.lcd_colon geo ':';
     let seconds = int_of_float (Float.round time) in
     sign,
     (Char.chr (Char.code '0' + seconds mod 6000 / 600)),
@@ -278,13 +278,13 @@ let run (st : state) =
     (Char.chr (Char.code '0' + seconds mod 60 / 10)),
     (Char.chr (Char.code '0' + seconds mod 10))
   in
-  Layout.lcd_sign lay sign;
-  Layout.lcd_min1 lay d1;
-  Layout.lcd_min2 lay d2;
-  Layout.lcd_sec1 lay d3;
-  Layout.lcd_sec2 lay d4;
+  Layout.lcd_sign geo sign;
+  Layout.lcd_min1 geo d1;
+  Layout.lcd_min2 geo d2;
+  Layout.lcd_sec1 geo d3;
+  Layout.lcd_sec2 geo d4;
 
-  if Layout.lcd_button lay then
+  if Layout.lcd_button geo then
   (
     (* Click on time LCD: toggle time mode *)
     ctl.timemode <-
@@ -293,7 +293,7 @@ let run (st : state) =
       | `Remain -> `Elapse
   );
 
-  if Layout.color_button lay then
+  if Layout.color_button geo then
   (
     (* Click on color button: cycle color palette *)
     cycle_color st (if Api.Key.is_modifier_down `Shift then -1 else +1)
@@ -301,17 +301,17 @@ let run (st : state) =
 
   (* Visual *)
   let old_visual = ctl.visual in
-  if Layout.visual_key lay || Layout.visual_button lay
-  || ctl.visual = `None && Layout.novisual_button lay then
+  if Layout.visual_key geo || Layout.visual_button geo
+  || ctl.visual = `None && Layout.novisual_button geo then
     cycle_visual st;
-  (*Option.iter (Layout.visual_indicator lay) (idx_visual st);*)
+  (*Option.iter (Layout.visual_indicator geo) (idx_visual st);*)
 
   (match ctl.visual with
   | `None -> ()
 
   | `Cover ->
     Option.iter (fun (track : Data.track) ->
-      Option.iter (Layout.cover lay)
+      Option.iter (Layout.cover geo)
         (Library.load_cover st.library win track.path)
     ) ctl.current
 
@@ -331,15 +331,15 @@ let run (st : state) =
     let n = Array.length bands in
     if n = ctl.spec_bands then  (* may be off, right after switching visuals *)
     (
-      let x, y, w, h = Ui.dim lay.ui (Layout.graph_area lay) in
+      let x, y, w, h = Ui.dim geo.ui (Layout.graph_area geo) in
       let y, h = y + 2, h - 4 in
       let wbar = (w + 1) / n in
       let wsep = if wbar <= 4 then 1 else if n <= 10 then 2 else 3 in
       let w' = wbar - wsep in
-      let win = Ui.window lay.ui in
-      let green = Ui.text_color lay.ui in
-      let yellow = Ui.warn_color lay.ui in
-      let red = Ui.error_color lay.ui in
+      let win = Ui.window geo.ui in
+      let green = Ui.text_color geo.ui in
+      let yellow = Ui.warn_color geo.ui in
+      let red = Ui.error_color geo.ui in
 
       for i = 0 to n - 1 do
         let x' = x + i * wbar in
@@ -365,8 +365,8 @@ let run (st : state) =
     ctl.raw <- [||];
     ctl.data <- data;
 
-    let x, y, w, h = Ui.dim lay.ui (Layout.graph_area lay) in
-    let win = Ui.window lay.ui in
+    let x, y, w, h = Ui.dim geo.ui (Layout.graph_area geo) in
+    let win = Ui.window geo.ui in
     for i = 0 to min w (Array.length data) / 2 - 1 do
       let i = 2 * i in
       let v = data.(i) *. float h /. 1.5 in
@@ -379,10 +379,10 @@ let run (st : state) =
     ctl.raw <- [||];
     ctl.data <- data;
 
-    let x, y, w, h = Ui.dim lay.ui (Layout.graph_area lay) in
-    let win = Ui.window lay.ui in
+    let x, y, w, h = Ui.dim geo.ui (Layout.graph_area geo) in
+    let win = Ui.window geo.ui in
 
-    (match Layout.graph_drag lay (1, 1) with
+    (match Layout.graph_drag geo (1, 1) with
     | `None | `Click | `Drop -> ()
     | `Take ->
       (* Dobule-click on oscilloscope: reset *)
@@ -430,11 +430,11 @@ let run (st : state) =
 
   (* FPS *)
   if ctl.fps then
-    Layout.fps_text lay `Regular true (fmt "%d FPS" (Api.Window.fps win));
+    Layout.fps_text geo `Regular true (fmt "%d FPS" (Api.Window.fps win));
   (* Press of FPS key: toggle FPS display *)
-  if Layout.fps_key lay then toggle_fps st;
+  if Layout.fps_key geo then toggle_fps st;
 
-  if Layout.sdf_key lay then toggle_sdf st;
+  if Layout.sdf_key geo then toggle_sdf st;
 
   (* Audio properties *)
   if not silent then
@@ -447,7 +447,7 @@ let run (st : state) =
     let rate = Control.rate ctl in
     let channels = Control.channels ctl in
     let depth = bitrate /. float rate /. float channels in
-    Layout.prop_text lay `Regular true
+    Layout.prop_text geo `Regular true
       (fmt "%s  %.0f KBPS  %.1f KHZ  %s BIT  %s"
         format (bitrate /. 1000.0) (float rate /. 1000.0)
         (fmt (if depth = Float.round depth then "%.0f" else "%.1f") depth)
@@ -466,26 +466,26 @@ let run (st : state) =
       Track.name track ^ " - " ^ fmt_time (Track.time track)
     | _ -> App.(name ^ " " ^ version)
   in
-  Layout.title_ticker lay name;
+  Layout.title_ticker geo name;
 
   (* Volume control *)
   let shift_volume (st : state) delta =
     if delta <> 0.0 then
       Control.volume st.control (ctl.volume +. 0.05 *. delta)
   in
-  let vol_mouse = Layout.volume_bar lay ctl.volume in
+  let vol_mouse = Layout.volume_bar geo ctl.volume in
   (* Hack to overlap volume bar with mute button. *)
-  let mute_mouse = Ui.mouse_inside lay.ui (Layout.mute_area lay) in
-  if not mute_mouse && Layout.mute_drag lay (0, 0) = `None
+  let mute_mouse = Ui.mouse_inside geo.ui (Layout.mute_area geo) in
+  if not mute_mouse && Layout.mute_drag geo (0, 0) = `None
   && vol_mouse <> ctl.volume then
   (
     (* Click or drag on volume bar: adjust volume *)
     Control.volume ctl vol_mouse;
   );
   let vol_delta =
-    snd (Layout.volume_wheel lay) +.
-    float_of_bool (Layout.volup_key lay focus) -.
-    float_of_bool (Layout.voldown_key lay focus)
+    snd (Layout.volume_wheel geo) +.
+    float_of_bool (Layout.volup_key geo focus) -.
+    float_of_bool (Layout.voldown_key geo focus)
   in
   (* Volume key pressed or mouse wheel used: shift volume *)
   shift_volume st vol_delta;
@@ -493,8 +493,8 @@ let run (st : state) =
   let toggle_mute (st : state) =
     Control.mute st.control (not st.control.mute)
   in
-  Layout.mute_text lay (Ui.error_color lay.ui) `Inverted ctl.mute "MUTE";
-  if Layout.mute_button lay then
+  Layout.mute_text geo (Ui.error_color geo.ui) `Inverted ctl.mute "MUTE";
+  if Layout.mute_button geo then
   (
     (* Click on mute label: toggle muting *)
     toggle_mute st;
@@ -506,7 +506,7 @@ let run (st : state) =
       Control.seek st.control (st.control.progress +. 0.05 *. delta)
   in
   let progress = if length > 0.0 then elapsed /. length else 0.0 in
-  let progress' = Layout.seek_bar lay progress in
+  let progress' = Layout.seek_bar geo progress in
   if (progress' <> ctl.progress || Api.Mouse.is_pressed `Left)
   && progress' <> progress && ctl.current <> None then
   (
@@ -514,14 +514,14 @@ let run (st : state) =
     Control.seek ctl progress'
   );
   let seek_delta =
-    float_of_bool (Layout.ff_key lay focus) -.
-    float_of_bool (Layout.rw_key lay focus)
+    float_of_bool (Layout.ff_key geo focus) -.
+    float_of_bool (Layout.rw_key geo focus)
   in
   (* Seek key pressed: seek *)
   seek st seek_delta;
 
   (* Mouse reflection *)
-  Layout.info_refl lay;
+  Layout.info_refl geo;
 
   (* Looping *)
   (match ctl.loop with
@@ -533,11 +533,11 @@ let run (st : state) =
 
   (* Play controls *)
   let len = Playlist.length pl in
-  let _, _, _, h = Ui.dim lay.ui (Layout.playlist_area lay) in
-  let rh = lay.text + 2 * lay.pad_y in
+  let _, _, _, h = Ui.dim geo.ui (Layout.playlist_area geo) in
+  let rh = geo.text + 2 * geo.pad_y in
   let page = max 1 (int_of_float (Float.floor (float h /. float rh))) in
 
-  Layout.button_shadow lay;
+  Layout.button_shadow geo;
 
   let last_pos = st.playlist.table.pos in
   let rec skip (st : state) delta =
@@ -560,8 +560,8 @@ let run (st : state) =
       )
     );
   in
-  let bwd = Layout.bwd_button lay focus (Some false) in
-  let fwd = Layout.fwd_button lay focus (Some false) in
+  let bwd = Layout.bwd_button geo focus (Some false) in
+  let fwd = Layout.fwd_button geo focus (Some false) in
   skip st (Bool.to_int fwd - Bool.to_int bwd);
 
   let play (st : state) =
@@ -580,7 +580,7 @@ let run (st : state) =
       Table.dirty st.library.browser;
     )
   in
-  let playing' = Layout.play_button lay focus (Some playing) in
+  let playing' = Layout.play_button geo focus (Some playing) in
   if playing' && not playing then
   (
     (* Click on play button: start track *)
@@ -595,7 +595,7 @@ let run (st : state) =
     else if not stopped && not b && length > 0.0 then
       Control.resume ctl
   in
-  let paused' = Layout.pause_button lay focus (Some paused) in
+  let paused' = Layout.pause_button geo focus (Some paused) in
   if paused <> paused' then
   (
     (* Click on pause button when playing: pause track *)
@@ -611,7 +611,7 @@ let run (st : state) =
       Table.dirty st.library.browser;
     )
   in
-  if Layout.stop_button lay focus (Some false) then
+  if Layout.stop_button geo focus (Some false) then
   (
     (* Click on stop button when playing: stop track *)
     stop st;
@@ -623,7 +623,7 @@ let run (st : state) =
     Table.dirty st.library.tracks;
     Table.dirty st.library.browser
   in
-  if Layout.eject_button lay focus (Some false) then
+  if Layout.eject_button geo focus (Some false) then
   (
     (* Click on eject button: stop and clear playlist *)
     eject st
@@ -644,7 +644,7 @@ let run (st : state) =
     );
     Playlist.adjust_scroll st.playlist page
   in
-  if Layout.start_stop_key lay focus then
+  if Layout.start_stop_key geo focus then
   (
     (* Press of space key: pause or resume *)
     start_stop st
@@ -695,10 +695,10 @@ let run (st : state) =
       Playlist.unshuffle pl
   in
   let shuffle = pl.shuffle <> None in
-  Layout.shuffle_label lay;
-  Layout.shuffle_indicator lay shuffle;
-  Layout.shuffle_shadow lay;
-  let shuffle' = Layout.shuffle_button lay focus (Some shuffle) in
+  Layout.shuffle_label geo;
+  Layout.shuffle_indicator geo shuffle;
+  Layout.shuffle_shadow geo;
+  let shuffle' = Layout.shuffle_button geo focus (Some shuffle) in
   if shuffle' <> shuffle then
   (
     (* Click on Shuffle button: toggle shuffle *)
@@ -712,11 +712,11 @@ let run (st : state) =
       | `One -> `All
       | `All -> `None
   in
-  Layout.repeat_label lay;
-  Layout.repeat_indicator1 lay (ctl.repeat = `One);
-  Layout.repeat_indicator2 lay (ctl.repeat = `All);
-  Layout.repeat_shadow lay;
-  if Layout.repeat_button lay focus (Some false) then
+  Layout.repeat_label geo;
+  Layout.repeat_indicator1 geo (ctl.repeat = `One);
+  Layout.repeat_indicator2 geo (ctl.repeat = `All);
+  Layout.repeat_shadow geo;
+  if Layout.repeat_button geo focus (Some false) then
   (
     (* Click on Repeat button: cycle repeat mode *)
     cycle_repeat st
@@ -731,12 +731,12 @@ let run (st : state) =
       | `A t1 -> `AB (t1, t)
       | `AB _ -> `None
   in
-  Layout.loop_label lay;
-  Layout.loop_indicator1 lay (ctl.loop <> `None);
-  Layout.loop_indicator2 lay
+  Layout.loop_label geo;
+  Layout.loop_indicator1 geo (ctl.loop <> `None);
+  Layout.loop_indicator2 geo
     (match ctl.loop with `AB _ -> true | _ -> false);
-  Layout.loop_shadow lay;
-  if Layout.loop_button lay focus (Some false) then
+  Layout.loop_shadow geo;
+  if Layout.loop_button geo focus (Some false) then
   (
     (* Click on Loop button: cycle loop mode *)
     cycle_loop st
@@ -744,9 +744,9 @@ let run (st : state) =
 
   (* Pop-ups *)
 
-  if Layout.(control_context lay || seek_context lay || volume_context lay) then
+  if Layout.(control_context geo || seek_context geo || volume_context geo) then
   (
-    let c = Ui.text_color lay.ui in
+    let c = Ui.text_color geo.ui in
     let unpause x = if x then "Unpause" else "Pause" in
     let shuffle s x = s ^ (if x = None then " On " else " Off ") in
     let repeat s x = s ^ (match x with `None -> " One" | `One -> " All" | `All -> " Off") in
@@ -789,7 +789,7 @@ let run (st : state) =
     |]
   )
   else if ctl.visual = `Cover && old_visual = `Cover && not (Control.silent ctl)
-    && Layout.cover_popup_open lay then
+    && Layout.cover_popup_open geo then
   (
     Run_menu.popup st `Current
   )
@@ -798,46 +798,46 @@ let run (st : state) =
 (* Pane Activation Runner *)
 
 let run_toggle_panel (st : state) =
-  let lay = st.layout in
+  let geo = st.geometry in
 
-  Layout.playlist_label lay;
-  Layout.playlist_shadow lay;
-  Layout.playlist_indicator lay lay.playlist_shown;
-  let playlist_shown' = Layout.playlist_button lay (Some lay.playlist_shown) in
+  Layout.playlist_label geo;
+  Layout.playlist_shadow geo;
+  Layout.playlist_indicator geo geo.playlist_shown;
+  let playlist_shown' = Layout.playlist_button geo (Some geo.playlist_shown) in
   (* Click on playlist activation button: toggle playlist *)
-  lay.playlist_shown <- playlist_shown';
+  geo.playlist_shown <- playlist_shown';
   if not playlist_shown' then Playlist.defocus st.playlist;
 
-  Layout.library_label lay;
-  Layout.library_shadow lay;
-  Layout.library_indicator lay lay.library_shown;
-  let library_shown' = Layout.library_button lay (Some lay.library_shown) in
+  Layout.library_label geo;
+  Layout.library_shadow geo;
+  Layout.library_indicator geo geo.library_shown;
+  let library_shown' = Layout.library_button geo (Some geo.library_shown) in
   (* Click on library activation button: toggle library *)
-  if library_shown' <> lay.library_shown then
+  if library_shown' <> geo.library_shown then
   (
     if Api.Key.is_modifier_down `Shift then
       (* Shift-click: switch sides for library pane *)
-      (if lay.library_shown then toggle_side st)
+      (if geo.library_shown then toggle_side st)
     else
       toggle_library st
   )
-  else if Layout.library_side_key lay then
+  else if Layout.library_side_key geo then
   (
     (* Library side toggle key pressed: switch sides for library pane *)
     toggle_side st
   );
 
   (* Minimize button *)
-  if Layout.minimize_button lay then
+  if Layout.minimize_button geo then
   (
     (* Right-click on power button: minimize window *)
     minimize st
   );
 
   (* Context menu *)
-  if Layout.(info_context lay || shown_context lay) then
+  if Layout.(info_context geo || shown_context geo) then
   (
-    let c = Ui.text_color lay.ui in
+    let c = Ui.text_color geo.ui in
     let show s b = (if b then "Show " else "Hide ") ^ s in
     let side s d = s ^ (match d with `Left -> " Right" | `Right -> " Left") in
     Run_menu.command_menu st [|
@@ -846,11 +846,11 @@ let run_toggle_panel (st : state) =
       `Entry (c, "Minimize", Layout.key_min, true),
         (fun () -> minimize st);
       `Separator, ignore;
-      `Entry (c, show "Playlist" (not lay.playlist_shown), Layout.key_pl, true),
+      `Entry (c, show "Playlist" (not geo.playlist_shown), Layout.key_pl, true),
         (fun () -> toggle_playlist st);
-      `Entry (c, show "Library" (not lay.library_shown), Layout.key_lib, true),
+      `Entry (c, show "Library" (not geo.library_shown), Layout.key_lib, true),
         (fun () -> toggle_library st);
-      `Entry (c, side "Expand to" lay.library_side, Layout.key_side, true),
+      `Entry (c, side "Expand to" geo.library_side, Layout.key_side, true),
         (fun () -> toggle_side st);
       `Separator, ignore;
       `Entry (c, "Cycle Color", Layout.key_color, true),

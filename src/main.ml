@@ -34,8 +34,8 @@ let rec run (st : state) =
   run st
 
 and run' (st : state) =
-  let lay = st.layout in
-  let win = Ui.window lay.ui in
+  let geo = st.geometry in
+  let win = Ui.window geo.ui in
   if Api.Window.closed win then Run_control.quit st;
 
   (* App invocation with arguments *)
@@ -50,22 +50,22 @@ and run' (st : state) =
   );
 
   (* Start drawing *)
-  Ui.start lay.ui;
+  Ui.start geo.ui;
 
   (* Remember current geometry for later *)
-  let playlist_shown = lay.playlist_shown in
-  let library_shown = lay.library_shown in
-  let filesel_shown = lay.filesel_shown in
+  let playlist_shown = geo.playlist_shown in
+  let library_shown = geo.library_shown in
+  let filesel_shown = geo.filesel_shown in
   let overlay_shown = library_shown || filesel_shown in
-  let menu_shown = lay.menu_shown in
-  let popup_shown = lay.popup_shown <> None in
-  let library_side = lay.library_side in
-  let library_width = lay.library_width in
+  let menu_shown = geo.menu_shown in
+  let popup_shown = geo.popup_shown <> None in
+  let library_side = geo.library_side in
+  let library_width = geo.library_width in
 
   (* Update geometry *)
   let ww, wh = Api.Window.size win in
-  if playlist_shown then lay.playlist_height <- wh - Layout.control_h lay;
-  if overlay_shown then lay.library_width <- ww - Layout.control_w lay;
+  if playlist_shown then geo.playlist_height <- wh - Geometry.control_h geo;
+  if overlay_shown then geo.library_width <- ww - Geometry.control_w geo;
 
   (* Run panes *)
   Run_control.run st;
@@ -84,64 +84,64 @@ and run' (st : state) =
 
   (* Adjust font and grid size *)
   let text_delta =
-    Bool.to_int (Layout.enlarge_text_key lay) -
-    Bool.to_int (Layout.reduce_text_key lay)
+    Bool.to_int (Layout.enlarge_text_key geo) -
+    Bool.to_int (Layout.reduce_text_key geo)
   in
   Run_control.resize_text st text_delta;
 
   let grid_delta =
-    Bool.to_int (Layout.enlarge_grid_key lay) -
-    Bool.to_int (Layout.reduce_grid_key lay)
+    Bool.to_int (Layout.enlarge_grid_key geo) -
+    Bool.to_int (Layout.reduce_grid_key geo)
   in
   Run_control.resize_grid st grid_delta;
 
-  let is_modal = Ui.is_modal lay.ui in
-  if is_modal then Ui.nonmodal lay.ui;  (* temporarily enable keys *)
+  let is_modal = Ui.is_modal geo.ui in
+  if is_modal then Ui.nonmodal geo.ui;  (* temporarily enable keys *)
   let popup_delta =
-    Bool.to_int (Layout.enlarge_popup_key lay) -
-    Bool.to_int (Layout.reduce_popup_key lay)
+    Bool.to_int (Layout.enlarge_popup_key geo) -
+    Bool.to_int (Layout.reduce_popup_key geo)
   in
-  if is_modal then Ui.modal lay.ui;  (* reenable keys *)
-  lay.popup_size <- Layout.(clamp min_popup_size max_popup_size
-    (lay.popup_size + 100 * popup_delta));
+  if is_modal then Ui.modal geo.ui;  (* reenable keys *)
+  geo.popup_size <- Geometry.(clamp min_popup_size max_popup_size
+    (geo.popup_size + 100 * popup_delta));
 
   let scale_delta =
-    Bool.to_int (Layout.enlarge_scale_key lay) -
-    Bool.to_int (Layout.reduce_scale_key lay)
+    Bool.to_int (Layout.enlarge_scale_key geo) -
+    Bool.to_int (Layout.reduce_scale_key geo)
   in
   let scale_old = Api.Window.scale win in
-  let geo = Layout.abstract_geo lay in
-  Ui.rescale lay.ui scale_delta scale_delta;
+  let wingeo = Geometry.abstract_geo geo in
+  Ui.rescale geo.ui scale_delta scale_delta;
   let scale_new = Api.Window.scale win in
   let scaling' =
-    fst lay.scaling + (fst scale_new - fst scale_old),
-    snd lay.scaling + (snd scale_new - snd scale_old)
+    fst geo.scaling + (fst scale_new - fst scale_old),
+    snd geo.scaling + (snd scale_new - snd scale_old)
   in
-  if scaling' <> lay.scaling then
+  if scaling' <> geo.scaling then
   (
-    lay.scaling <- scaling';
-    let x, y = Layout.apply_geo lay geo in
+    geo.scaling <- scaling';
+    let x, y = Geometry.apply_geo geo wingeo in
     Api.Window.set_pos win x y;
   );
 
-  if Layout.lib_cover_key lay then
+  if Layout.lib_cover_key geo then
     Library.activate_covers st.library (not st.library.covers_shown);
 
   (* Adjust window size *)
-  let overlay_shown' = lay.library_shown || lay.filesel_shown in
-  let extra_w = if overlay_shown' then lay.library_width else 0 in
+  let overlay_shown' = geo.library_shown || geo.filesel_shown in
+  let extra_w = if overlay_shown' then geo.library_width else 0 in
   let extra_h =
-    if lay.playlist_shown then lay.playlist_height else
-    if overlay_shown' then Layout.bottom_h lay else 0
+    if geo.playlist_shown then geo.playlist_height else
+    if overlay_shown' then Geometry.bottom_h geo else 0
   in
   Api.Window.set_size win
-    (Layout.control_w lay + extra_w) (Layout.control_h lay + extra_h);
+    (Geometry.control_w geo + extra_w) (Geometry.control_h geo + extra_h);
 
   (* Adjust window position after opening/closing library *)
   let dx =
-    match overlay_shown, overlay_shown', library_side, lay.library_side with
+    match overlay_shown, overlay_shown', library_side, geo.library_side with
     | false, true, _, `Left
-    | true, true, `Right, `Left -> -lay.library_width  (* opened on the left *)
+    | true, true, `Right, `Left -> -geo.library_width  (* opened on the left *)
     | true, false, `Left, _
     | true, true, `Left, `Right -> +library_width      (* closed on the left *)
     | _ -> 0
@@ -152,14 +152,14 @@ and run' (st : state) =
   (* Finish drawing *)
   let minw, maxw =
     if overlay_shown
-    then Layout.(control_w lay + library_min lay, -1)
-    else Layout.(control_w lay, control_w lay)
+    then Geometry.(control_w geo + library_min geo, -1)
+    else Geometry.(control_w geo, control_w geo)
   and minh, maxh =
     if playlist_shown
-    then Layout.(control_h lay + playlist_min lay, -1)
-    else Layout.(control_h lay, control_h lay)
+    then Geometry.(control_h geo + playlist_min geo, -1)
+    else Geometry.(control_h geo, control_h geo)
   in
-  Ui.finish lay.ui (Layout.margin lay) (minw, minh) (maxw, maxh);
+  Ui.finish geo.ui (Geometry.margin geo) (minw, minh) (maxw, maxh);
 
   if Api.Window.is_hidden win then  (* after startup *)
     Api.Window.reveal win;
@@ -179,8 +179,8 @@ let startup () =
   let st0 = State.make ui audio in
   let success, (x, y) = State.load st0 in
   let st = if success then st0 else State.make ui audio in
-  let w = Layout.control_min_w + st.layout.library_width in
-  let h = Layout.control_min_h + st.layout.playlist_height in
+  let w = Geometry.control_min_w + st.geometry.library_width in
+  let h = Geometry.control_min_h + st.geometry.playlist_height in
   Api.Draw.start win `Black;
   Api.Window.set_pos win x y;
   Api.Window.set_size win w h;

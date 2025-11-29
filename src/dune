@@ -7,7 +7,7 @@
     edit table
     data track query spectrum text bin storage
     control playlist library filesel log menu config
-    api ui layout
+    api ui geometry layout
     state app
     run_menu run_filesel run_control run_view run_library run_playlist
     main
