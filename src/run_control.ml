@@ -376,56 +376,59 @@ let run (st : state) =
 
   | `Oscilloscope ->
     let data = if ctl.raw = [||] then ctl.data else ctl.raw in
+    let len = Array.length data in
     ctl.raw <- [||];
     ctl.data <- data;
 
-    let x, y, w, h = Ui.dim geo.ui (Layout.graph_area geo) in
-    let win = Ui.window geo.ui in
+    if len > 0 then
+    (
+      let x, y, w, h = Ui.dim geo.ui (Layout.graph_area geo) in
+      let win = Ui.window geo.ui in
 
-    (match Layout.graph_drag geo (1, 1) with
-    | `None | `Click | `Drop -> ()
-    | `Take ->
-      (* Dobule-click on oscilloscope: reset *)
-      if Api.Mouse.is_double_click `Left then
-        Control.reset_osc ctl
-    | `Drag ((dx, dy), _, _) ->
-      (* Drag on oscilloscope: adjust scaling *)
-      let dx, dy = if abs dx > abs dy then dx, 0 else 0, dy in
-      let mx, my = Api.Mouse.pos win in
-      let ox, oy = mx - dx, my - dy in
-      let mx', my' = max (x + 1) mx, min (y + h - 1) my in
-      let ox', oy' = max (x + 1) ox, min (y + h - 1) oy in
-      let sx = float (mx' - x) /. float (ox' - x) in
-      let sy = float (y + h - my') /. float (y + h - oy') in
-      Control.set_osc ctl (ctl.osc_x *. sx) (ctl.osc_y *. sy)
-    );
+      (match Layout.graph_drag geo (1, 1) with
+      | `None | `Click | `Drop -> ()
+      | `Take ->
+        (* Dobule-click on oscilloscope: reset *)
+        if Api.Mouse.is_double_click `Left then
+          Control.reset_osc ctl
+      | `Drag ((dx, dy), _, _) ->
+        (* Drag on oscilloscope: adjust scaling *)
+        let dx, dy = if abs dx > abs dy then dx, 0 else 0, dy in
+        let mx, my = Api.Mouse.pos win in
+        let ox, oy = mx - dx, my - dy in
+        let mx', my' = max (x + 1) mx, min (y + h - 1) my in
+        let ox', oy' = max (x + 1) ox, min (y + h - 1) oy in
+        let sx = float (mx' - x) /. float (ox' - x) in
+        let sy = float (y + h - my') /. float (y + h - oy') in
+        Control.set_osc ctl (ctl.osc_x *. sx) (ctl.osc_y *. sy)
+      );
 
-    let len = Array.length data in
-    let sx = max (float w /. float len *. 0.8) ctl.osc_x in
-    let n = min len (int_of_float (Float.ceil (float w /. sx))) in
-    let ps = Array.make (2 * n) 0.0 in
-    for i = 0 to n - 1 do
-      let v = if i < len then data.(i) else 0.0 in
-      ps.(2 * i) <- float x +. sx *. float i;
-      ps.(2 * i + 1) <- float y +. (ctl.osc_y *. v +. 1.0) *. float h /. 2.0;
-    done;
-    if ctl.osc_x < 1.0 || ctl.osc_y > 1.0 then Api.Draw.clip win x y w h;
-    Api.Draw.spline win ps 0.5 `White;
-    if ctl.osc_x < 1.0 || ctl.osc_y > 1.0 then Api.Draw.unclip win;
+      let sx = max (float w /. float len *. 0.8) ctl.osc_x in
+      let n = min len (int_of_float (Float.ceil (float w /. sx))) in
+      let ps = Array.make (2 * n) 0.0 in
+      for i = 0 to n - 1 do
+        let v = if i < len then data.(i) else 0.0 in
+        ps.(2 * i) <- float x +. sx *. float i;
+        ps.(2 * i + 1) <- float y +. (ctl.osc_y *. v +. 1.0) *. float h /. 2.0;
+      done;
+      if ctl.osc_x < 1.0 || ctl.osc_y > 1.0 then Api.Draw.clip win x y w h;
+      Api.Draw.spline win ps 0.5 `White;
+      if ctl.osc_x < 1.0 || ctl.osc_y > 1.0 then Api.Draw.unclip win;
 (*
-    let array = Ctypes.CArray.make Raylib.Vector2.t w in
-    for i = 0 to min w (Array.length data) - 1 do
-      let v = data.(i) *. float h /. 2.0 in
-      let vec = Raylib.Vector2.create (float (x + i)) (float (y + h/2) -. v) in
-      Ctypes.CArray.unsafe_set array i vec;
-    done;
-    for i = min w (Array.length data) to w - 1 do
-      let vec = Raylib.Vector2.create (float (x + i)) (float (y + h/2)) in
-      Ctypes.CArray.unsafe_set array i vec;
-    done;
-    Raylib.draw_spline_linear (Ctypes.CArray.start array) w
-      0.5 Raylib.Color.white;
+      let array = Ctypes.CArray.make Raylib.Vector2.t w in
+      for i = 0 to min w (Array.length data) - 1 do
+        let v = data.(i) *. float h /. 2.0 in
+        let vec = Raylib.Vector2.create (float (x + i)) (float (y + h/2) -. v) in
+        Ctypes.CArray.unsafe_set array i vec;
+      done;
+      for i = min w (Array.length data) to w - 1 do
+        let vec = Raylib.Vector2.create (float (x + i)) (float (y + h/2)) in
+        Ctypes.CArray.unsafe_set array i vec;
+      done;
+      Raylib.draw_spline_linear (Ctypes.CArray.start array) w
+        0.5 Raylib.Color.white;
 *)
+    )
   );
 
   (* FPS *)

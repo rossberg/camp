@@ -80,7 +80,10 @@ let ok ctl =
     (match ctl.loop with
     | `AB (t1, t2) -> t1 <= t2 && t2 <= length
     | _ -> true
-    )
+    ) @
+  check "spectrum bands in range" (ctl.spec_bands >= 4 && ctl.spec_bands <= 64) @
+  check "oscillator x in range" (ctl.osc_x >= 0.2 && ctl.osc_x <= 10.0) @
+  check "oscillator y in range" (ctl.osc_y >= 0.2 && ctl.osc_x <= 10.0)
 
 
 (* Volume Control *)
@@ -102,7 +105,9 @@ let clamp lo hi x = max lo (min hi x)
 (* Visuals *)
 
 let audio_processor ctl fs =
-  ctl.raw <- if ctl.raw = [||] then fs else Array.append ctl.raw fs
+  let len = Array.length ctl.raw in
+  let lim = 2 * Spectrum.fft_samples in
+  ctl.raw <- if len = 0 || len > lim then fs else Array.append ctl.raw fs
 
 let needs_processor = function
   | `None | `Cover -> false
@@ -281,8 +286,8 @@ let parse_state ctl =
       (fun v -> set_visual ctl v);
     apply (r $? "spec_bands") (num 4 64)
       (fun n -> ctl.spec_bands <- n);
-    apply (r $? "osc_x") float
+    apply (r $? "osc_x") (interval 0.01 100.0)
       (fun x -> set_osc ctl x ctl.osc_y);
-    apply (r $? "osc_y") float
+    apply (r $? "osc_y") (interval 0.01 100.0)
       (fun y -> set_osc ctl ctl.osc_x y);
   )

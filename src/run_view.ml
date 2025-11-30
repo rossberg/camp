@@ -1071,7 +1071,7 @@ let run_edit_panel (st : state) =
 
   (* Edit buttons *)
   if Layout.del_button geo (active_if remove_avail)
-  || remove_avail st view && Layout.del_button_alt geo then
+  || Layout.del_button_alt geo && remove_avail st view then
   (
     (* Click on Delete button: remove selected tracks from playlist *)
     remove st view
