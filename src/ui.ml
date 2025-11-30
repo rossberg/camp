@@ -1433,7 +1433,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
 
   Mutex.protect tab.mutex (fun () ->
     let len = Table.length tab in
-    let page = max 1 (int_of_float (Float.round (float h /. float rh))) in
+    let page = max 1 (int_of_float (Float.trunc (float h /. float rh))) in
     let limit = min len (tab.vscroll + page) in
     (* Correct scrolling position for possible resize *)
     Table.adjust_vscroll tab tab.vscroll page;
@@ -1442,8 +1442,9 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
     let buf = adjust_cache ui tab w h in
     if not ui.buffered || tab.dirty || Draw.frame ui.win mod 10 = 7 then
     (
+      let page' = max 1 (int_of_float (Float.round (float h /. float rh))) in
       let rows =
-        Iarray.init (min page len) (fun i ->
+        Iarray.init (min page' (len - tab.vscroll)) (fun i ->
           let i = tab.vscroll + i in
           let c, cols = pp_row i in
           let inv = if Table.is_selected tab i then `Inverted else `Regular in
