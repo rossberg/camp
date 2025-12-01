@@ -1243,8 +1243,12 @@ let filter_artist lib =
       Set.empty (Table.selected lib.artists)
   in fun (track : track) ->
     artists = Set.empty ||
-    Set.mem (Data.track_attr_string track `Artist) artists ||
-    Set.mem (Data.track_attr_string track `AlbumArtist) artists
+    let artist = Data.track_attr_string track `Artist in
+    Set.mem artist artists ||
+    let albumartist = Data.track_attr_string track `AlbumArtist in
+    Set.mem albumartist artists ||
+    List.exists (fun n -> Set.mem n artists) (Meta.artists_of_artist artist) ||
+    List.exists (fun n -> Set.mem n artists) (Meta.artists_of_artist albumartist)
 
 let filter_album lib =
   let albums =

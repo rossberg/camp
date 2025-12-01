@@ -320,6 +320,7 @@ struct
 end
 module AlbumSet = Set.Make(AlbumKey)
 module AlbumMap = Map.Make(AlbumKey)
+module ArtistSet = Set.Make(String)
 module ArtistMap = Map.Make(String)
 
 let album_key' attr_string x : AlbumKey.t =
@@ -341,8 +342,8 @@ let new_album_of_track (track : track) : album =
     memo = None;
   }
 
-let new_artist_of_track (track : track) : artist =
-  { name = Data.track_attr_string track `AlbumArtist;
+let new_artist name : artist =
+  { name;
     albums = 1;
     tracks = 1;
   }
@@ -439,15 +440,25 @@ let exec q p dir =
         in
         if to_artists then
         (
-          let artist = new_artist_of_track track in
-          match ArtistMap.find_opt artist.name !artist_map with
-          | None ->
-            artist_map := ArtistMap.add artist.name artist !artist_map;
-            Dynarray.add_last artists artist
-          | Some artist' ->
-            artist'.tracks <- artist'.tracks + artist.albums;
-            if is_new_album then
-              artist'.albums <- artist'.albums + artist.albums;
+          let aname = Data.track_attr_string track `Artist in
+          let tname = Data.track_attr_string track `AlbumArtist in
+          let (++) = ArtistSet.union in
+          let names =
+            ArtistSet.of_list (Meta.artists_of_artist aname) ++
+            ArtistSet.of_list (Meta.artists_of_artist tname) ++
+            ArtistSet.singleton aname ++ ArtistSet.singleton tname
+          in
+          ArtistSet.iter (fun name ->
+            let artist = new_artist name in
+            match ArtistMap.find_opt artist.name !artist_map with
+            | None ->
+              artist_map := ArtistMap.add artist.name artist !artist_map;
+              Dynarray.add_last artists artist
+            | Some artist' ->
+              artist'.tracks <- artist'.tracks + artist.albums;
+              if is_new_album then
+                artist'.albums <- artist'.albums + artist.albums;
+          ) names
         )
       )
     )

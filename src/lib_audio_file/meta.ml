@@ -345,3 +345,28 @@ let meta path tag =
 
 
 let load path = meta path (load_tag path)
+
+
+let rec string_contains_from' s i s' j =
+  j = String.length s' ||
+  s.[i + j] = s'.[j] && string_contains_from' s i s' (j + 1)
+
+let string_contains_from s i s' =
+  String.length s - i >= String.length s' &&
+  string_contains_from' s i s' 0
+
+let artists_of_artist s =
+  let len = String.length s in
+  let rec loop i j ss =
+    if i = len then ss else
+    match String.index_from_opt s j ' ' with
+    | Some k when k <> i && k < len - 3 ->
+      if s.[k + 1] = '&' && s.[k + 2] = ' ' then
+        loop (k + 3) (k + 3) (String.sub s i (k - i) :: ss)
+      else if string_contains_from s (k + 1) "feat. " then
+        loop (k + 7) (k + 7) (String.sub s i (k - i) :: ss)
+      else
+        loop i (k + 1) ss
+    | Some k -> loop i (k + 1) ss
+    | None -> if i = 0 then [] else String.sub s i (len - i) :: ss
+  in loop 0 0 []

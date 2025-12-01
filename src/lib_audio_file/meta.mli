@@ -48,6 +48,8 @@ val year_of_string : string -> int   (* returns 0 on error *)
 val int_of_total_string : string -> int    (* returns 0 on error *)
 val total_of_total_string : string -> int  (* returns 0 on error *)
 
+val artists_of_artist : string -> string list
+
 val unknown : t
 
 val meta : path -> tag option -> t

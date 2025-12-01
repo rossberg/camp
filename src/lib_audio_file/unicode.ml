@@ -145,13 +145,13 @@ let casefold_utf_8 s =
 
 (* TODO: with Camomile, use contains_utf_8 (and remove UCase), once Camomile
  * bug https://github.com/ocaml-community/Camomile/issues/10 is fixed. *)
-let rec string_contains_at' s i s' j =
+let rec string_contains_from' s i s' j =
   j = String.length s' ||
-  s.[i + j] = s'.[j] && string_contains_at' s i s' (j + 1)
+  s.[i + j] = s'.[j] && string_contains_from' s i s' (j + 1)
 
-let string_contains_at s i s' =
+let string_contains_from s i s' =
   String.length s - i >= String.length s' &&
-  string_contains_at' s i s' 0
+  string_contains_from' s i s' 0
 
 let rec index_sub_from_opt s i s' =
   if s' = "" then Some i else
@@ -160,7 +160,7 @@ let rec index_sub_from_opt s i s' =
   | Some j ->
     if j + String.length s' > String.length s then
       None
-    else if string_contains_at s j s' then
+    else if string_contains_from s j s' then
       Some j
     else if j + String.length s' >= String.length s then
       None
