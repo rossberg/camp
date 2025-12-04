@@ -808,7 +808,7 @@ let run_view (st : state)
       match Library.load_cover lib win (path_of entry) with
       | Some img -> img
       | None -> Ui.nocover geo.ui
-    in img, Ui.text_color geo.ui, text_of entry
+    in img, color_of entry, text_of entry
   in
 
   let sorting = convert_sorting view.columns view.sorting in
