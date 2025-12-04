@@ -43,8 +43,8 @@ val current_opt : ('a, 'b) t -> 'a option
 
 val set_pos : ('a, 'b) t -> int option -> unit
 val set_hscroll : ('a, 'b) t -> int -> unit
-val set_vscroll : ('a, 'b) t -> int -> int -> unit
-val adjust_vscroll : ('a, 'b) t -> int -> int -> unit
+val set_vscroll : ('a, 'b) t -> int -> int -> int -> unit
+val adjust_vscroll : ('a, 'b) t -> int -> int -> int -> unit
 
 val focus : ('a, 'b) t -> unit
 val defocus : ('a, 'b) t -> unit

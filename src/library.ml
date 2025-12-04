@@ -1948,7 +1948,7 @@ let parse_state lib =
   record (fun r ->
     refresh_browser lib;
     apply (r $? "browser_scroll") (num 0 (max 0 (length_browser lib - 1)))
-      (fun i -> Table.set_vscroll lib.browser i 4);
+      (fun i -> Table.set_vscroll lib.browser i 1 4);
     apply (r $? "views_dir_default") Parse.views
       (fun v -> lib.views_dir_default <- v);
     apply (r $? "views_album_default") Parse.views

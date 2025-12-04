@@ -753,7 +753,7 @@ type drag += Scroll_bar_page of {last_repeat : time}
 type drag += Scroll_bar_drag of {value : float; mx : int; my : int}
 
 let scroll_bar ui area orient v len =
-  assert (v +. len <= 1.0);
+  assert (v +. len < 2.0); (* at most 1 line over 1.0, but line may be a page *)
   let (x, y, w, h), status = widget ui area no_modkey in
   Draw.fill ui.win x y w h (fill ui false);
   let x', y', w', h' as r =
@@ -1436,7 +1436,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
     let page = max 1 (int_of_float (Float.trunc (float h /. float rh))) in
     let limit = min len (tab.vscroll + page) in
     (* Correct scrolling position for possible resize *)
-    Table.adjust_vscroll tab tab.vscroll page;
+    Table.adjust_vscroll tab tab.vscroll 1 page;
 
     (* Body *)
     let buf = adjust_cache ui tab w h in
@@ -1610,7 +1610,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
       if result <> `None || pos = pos' then result else
       (
         Table.set_vscroll tab
-          (max 0 (int_of_float (Float.round (pos' *. float len)))) page;
+          (max 0 (int_of_float (Float.round (pos' *. float len)))) 1 page;
         `Scroll
       )
     in
@@ -1665,12 +1665,12 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
             (
               Table.deselect_all tab;
               Table.select tab i i;
-              Table.adjust_vscroll tab i page;
+              Table.adjust_vscroll tab i 1 page;
               `Select
             )
             else
             (
-              Table.set_vscroll tab i page;
+              Table.set_vscroll tab i 1 page;
               `Scroll
             )
           )
@@ -1694,13 +1694,13 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
               Table.select tab (max 0 pos2) i;
               Table.deselect tab pos1 i;
             );
-            Table.adjust_vscroll tab i page;
+            Table.adjust_vscroll tab i 1 page;
             `Select
           )
           else if command && has_sel then
           (
             (* Cmd-cursor movement: move selection *)
-            Table.adjust_vscroll tab i page;
+            Table.adjust_vscroll tab i 1 page;
             `Move d
           )
           else `None
@@ -1750,7 +1750,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
             let i = find 0 in
             if i < len then
             (
-              Table.set_vscroll tab i page;
+              Table.set_vscroll tab i 1 page;
               `Scroll
             )
             else `None
@@ -1987,7 +1987,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
     let page_ceil =
       max 1 Float.(to_int (ceil (float h /. float ih)) * line) in
     (* Correct scrolling position for possible resize *)
-    Table.adjust_vscroll tab tab.vscroll page;
+    Table.adjust_vscroll tab tab.vscroll line page;
 
     (* Body *)
     let vscroll = tab.vscroll / line * line in
@@ -2137,16 +2137,17 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
     in
 
     (* Vertical scrollbar *)
-    let ext = if len = 0 then 1.0 else min 1.0 (float page /. float len) in
-    let pos = if len = 0 then 0.0 else float tab.vscroll /. float len in
-    let coeff = max 1.0 (float line) /. float (len - page) in
+    let len' = (len + line - 1)/line * line in (* round to multiple of line *)
+    let ext = if len = 0 then 1.0 else min 1.0 (float page /. float len') in
+    let pos = if len = 0 then 0.0 else float tab.vscroll /. float len' in
+    let coeff = max 1.0 (float line) /. float (len' - page) in
     let wheel = coeff *. snd (wheel_status ui r) in
     let pos' = scroll_bar ui vscroll_area `Vertical pos ext -. wheel in
     let result =
       if result <> `None || pos = pos' then result else
       (
         Table.set_vscroll tab
-          (int_of_float (Float.round (pos' *. float len))) page;
+          (int_of_float (Float.round (pos' *. float len'))) line page;
         `Scroll
       )
     in
@@ -2184,12 +2185,12 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
             (
               Table.deselect_all tab;
               Table.select tab i i;
-              Table.adjust_vscroll tab i page;
+              Table.adjust_vscroll tab i line page;
               `Select
             )
             else
             (
-              Table.set_vscroll tab i page;
+              Table.set_vscroll tab i line page;
               `Scroll
             )
           )
@@ -2213,13 +2214,13 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
               Table.select tab (max 0 pos2) i;
               Table.deselect tab pos1 i;
             );
-            Table.adjust_vscroll tab i page;
+            Table.adjust_vscroll tab i line page;
             `Select
           )
           else if command && has_sel then
           (
             (* Cmd-cursor movement: move selection *)
-            Table.adjust_vscroll tab i page;
+            Table.adjust_vscroll tab i line page;
             `Move d
           )
           else `None
@@ -2262,7 +2263,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
             let i = find 0 in
             if i < len then
             (
-              Table.adjust_vscroll tab ((i + line - 1) / line) page;
+              Table.adjust_vscroll tab ((i + line - 1) / line) line page;
               `Scroll
             )
             else `None

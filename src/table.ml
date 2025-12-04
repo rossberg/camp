@@ -82,19 +82,21 @@ let set_hscroll tab i =
     tab.hscroll <- i';
   )
 
-let set_vscroll tab i page =
+let set_vscroll tab i line page =
+  assert (page mod line = 0);
   let len = Array.length tab.entries in
-  let i' = max 0 (min i (len - page)) in
+  let len' = (len + line - 1)/line * line in  (* round up to multiple of line *)
+  let i' = max 0 (min i (len' - page)) in
   if i' <> tab.vscroll then
   (
     dirty tab;
     tab.vscroll <- i';
   )
 
-let adjust_vscroll tab i page =
+let adjust_vscroll tab i line page =
   let d = tab.vscroll in
   let i' = if i >= d && i < d + page then d else i - (page - 2)/2 in
-  set_vscroll tab i' page
+  set_vscroll tab i' line page
 
 let focus tab = tab.focus <- true
 let defocus tab = tab.focus <- false
@@ -303,7 +305,7 @@ let set tab entries =
     deselect_all tab;
     tab.entries <- entries;
     set_pos tab tab.pos;
-    adjust_vscroll tab tab.vscroll 4;
+    adjust_vscroll tab tab.vscroll 1 4;
   )
 
 

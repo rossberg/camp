@@ -67,7 +67,7 @@ let focus pl = Table.focus pl.table
 let defocus pl = Table.defocus pl.table
 
 let adjust_scroll pl page =
-  Option.iter (fun i -> Table.adjust_vscroll pl.table i page) pl.table.pos
+  Option.iter (fun i -> Table.adjust_vscroll pl.table i 1 page) pl.table.pos
 
 
 (* Total *)
@@ -475,7 +475,7 @@ let parse_state pl =
     apply (r $? "pos") (option (num 0 lim))
       (fun i -> Table.set_pos pl.table i);
     apply (r $? "scroll") (num 0 lim)
-      (fun i -> Table.set_vscroll pl.table i 4);
+      (fun i -> Table.set_vscroll pl.table i 1 4);
     apply (r $? "shuffle") bool
       (fun b -> if b then shuffle pl pl.table.pos);
   )

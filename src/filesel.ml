@@ -68,7 +68,7 @@ let refresh_files fs =
   let dir = fs.dirs.entries.(i) in
   Table.deselect_all fs.files;
   Table.set fs.files dir.files;
-  Table.set_vscroll fs.files 0 4
+  Table.set_vscroll fs.files 0 1 4
 
 let refresh_dirs fs =
   let rec entries (dirs : dir array) i acc =
@@ -81,7 +81,7 @@ let refresh_dirs fs =
   Table.set fs.dirs (Array.of_list (entries fs.roots 0 []));
   Table.restore_selection fs.dirs selection (fun dir -> dir.path);
   Table.adjust_vscroll fs.files
-    (Option.value (Table.first_selected fs.files) ~default: 0) 4
+    (Option.value (Table.first_selected fs.files) ~default: 0) 1 4
 
 
 (* Constructor *)
