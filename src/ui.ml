@@ -676,8 +676,7 @@ let button ui area ?(protrude = true) modkey focus active =
   mouse_focus ui (if protrude then -1, x, y, w - 1, h - 1 else area)  w 0x50 (-5);
   match active with
   | None -> false
-  | Some active ->
-    if status = `Released then not active else active
+  | Some active -> if status = `Released then not active else active
 
 let labeled_button ui area ?(protrude = true) hsym c txt modkey focus active =
   let (x, y, w, h), status = widget ui area modkey ~focus in
