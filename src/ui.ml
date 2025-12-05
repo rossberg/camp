@@ -1984,9 +1984,9 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
     let ih = iw + ch in
     let line = max 1 Float.(to_int (floor (float w /. float iw))) in
     let page =
-      max 1 Float.(to_int (floor (float h /. float ih)) * line) in
+      max line Float.(to_int (floor (float h /. float ih)) * line) in
     let page_ceil =
-      max 1 Float.(to_int (ceil (float h /. float ih)) * line) in
+      max line Float.(to_int (ceil (float h /. float ih)) * line) in
     (* Correct scrolling position for possible resize *)
     Table.adjust_vscroll tab tab.vscroll line page;
 
