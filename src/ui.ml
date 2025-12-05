@@ -606,7 +606,8 @@ let widget ui area ?(focus = false) modkey =
   let r = dim ui area in
   r,
   match mouse_status ui r `Left, key_status ui modkey focus with
-  | `Released, _ | _, `Released -> `Released
+  | `Released, _ when mouse_inside ui area -> `Released
+  | _, `Released -> `Released
   | `Pressed, _ | _, `Pressed -> `Pressed
   | `Hovered, _ | _, `Hovered -> `Hovered
   | _, _ -> `Untouched
@@ -676,7 +677,7 @@ let button ui area ?(protrude = true) modkey focus active =
   match active with
   | None -> false
   | Some active ->
-    if status = `Released && mouse_inside ui area then not active else active
+    if status = `Released then not active else active
 
 let labeled_button ui area ?(protrude = true) hsym c txt modkey focus active =
   let (x, y, w, h), status = widget ui area modkey ~focus in
