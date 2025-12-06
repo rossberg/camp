@@ -11,6 +11,8 @@ val name_of_path : path -> string
 val name_of_meta : path -> Meta.t -> string
 val name : track -> string
 
+val split_name : string -> string list
+
 val time : track -> time
 
 

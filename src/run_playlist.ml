@@ -188,7 +188,7 @@ let run (st : state) =
     let search =
       match i_opt with
       | Some i when not (Data.is_separator tab.entries.(i)) ->
-        List.map (Data.track_attr_string tab.entries.(i)) [`Artist; `Title]
+        Track.split_name (Track.name tab.entries.(i))
       | _ -> []
     in
     Run_view.(edit_menu st (playlist_view st) search i_opt)
