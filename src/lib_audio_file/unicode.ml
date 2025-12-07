@@ -105,42 +105,74 @@ let contains_utf_8 ~inner s =
 let normalize_utf_8 s = Uunf_string.normalize_utf_8 `NFC s
 *)
 
+(* Adopted from Confero.Sort_key, but ignoring everything but primary weight *)
+module Search_key =
+struct
+  open Confero
+
+  let decode_uutf ?(encoding = `UTF_8) source =
+    let decoder = Uutf.decoder ~encoding source in
+    let rec loop () =
+      (match Uutf.decode decoder with
+       | `Await -> failwith "Bad source"
+       | `Uchar och -> Seq.Cons (och, loop)
+       | `End -> Seq.Nil
+       | `Malformed msg -> failwith msg)
+    in
+    loop
+
+  let map_uunf form =
+    let uunf = Uunf.create form in
+    let rec loop iseq = function
+     | `Await ->
+        (match iseq () with
+         | Seq.Nil -> loop iseq (Uunf.add uunf `End)
+         | Seq.Cons (ich, iseq') -> loop iseq' (Uunf.add uunf (`Uchar ich)))
+     | `Uchar och -> Seq.Cons (och, fun () -> loop iseq (Uunf.add uunf `Await))
+     | `End -> Seq.Nil
+    in
+    fun iseq () -> loop iseq (Uunf.add uunf `Await)
+
+  let of_collation_elements ces =
+    let ces = Array.of_seq ces in
+    let buf = Buffer.create 256 in
+    let add ce = Collation_element.add_to_buffer ce 0 buf in
+    Array.iter add ces;
+    Buffer.contents buf
+
+  let of_uchar_seq ~mapping useq = useq
+    |> map_uunf `NFD
+    |> Collation_mapping.run mapping
+    |> of_collation_elements
+
+  let of_string ?encoding ~mapping s =
+    decode_uutf ?encoding (`String s) |> of_uchar_seq ~mapping
+end
+
 let mapping = Confero_ducet.mapping
 
+let search_key_utf_8 s = Search_key.of_string ~mapping s
 let sort_key_utf_8 s = (Confero.Sort_key.of_string ~mapping s :> string)
 let compare_utf_8 s1 s2 = Confero.collate ~mapping s1 s2
 
 (* Adopted from https://erratique.ch/software/uucp/doc/Uucp/Case/index.html#caselesseq *)
 let casefold_utf_8 s =
   let buf = Buffer.create (String.length s * 3) in
-  let to_nfd_and_utf_8 =
-    let n = Uunf.create `NFD in
-    let rec add v = match Uunf.add n v with
-    | `Await | `End -> ()
-    | `Uchar u -> Buffer.add_utf_8_uchar buf u; add `Await
-    in
-    add
+  let normalizer = Uunf.create `NFD in
+  let rec add v = match Uunf.add normalizer v with
+  | `Await | `End -> ()
+  | `Uchar u ->
+    match Uucp.Case.Nfkc_fold.fold u with
+    | `Self -> Buffer.add_utf_8_uchar buf u; add `Await
+    | `Uchars us -> List.iter (Buffer.add_utf_8_uchar buf) us; add `Await
   in
-  let add =
-    let n = Uunf.create `NFD in
-    let rec add v = match Uunf.add n v with
-    | `Await | `End -> ()
-    | `Uchar u ->
-        begin match Uucp.Case.Fold.fold u with
-        | `Self -> to_nfd_and_utf_8 (`Uchar u)
-        | `Uchars us -> List.iter (fun u -> to_nfd_and_utf_8 (`Uchar u)) us
-        end;
-        add `Await
-    in
-    add
-  in
-  let rec loop buf s i max =
-    if i > max then (add `End; to_nfd_and_utf_8 `End; Buffer.contents buf) else
+  let rec loop i max =
+    if i > max then (add `End; Buffer.contents buf) else
     let dec = String.get_utf_8_uchar s i in
     add (`Uchar (Uchar.utf_decode_uchar dec));
-    loop buf s (i + Uchar.utf_decode_length dec) max
+    loop (i + Uchar.utf_decode_length dec) max
   in
-  loop buf s 0 (String.length s - 1)
+  loop 0 (String.length s - 1)
 
 
 (* TODO: with Camomile, use contains_utf_8 (and remove UCase), once Camomile
