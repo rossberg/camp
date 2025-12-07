@@ -288,9 +288,9 @@ let rec eval q track =
     | LE, v1, v2 -> BoolV (lit v1 <= lit v2)
     | GE, v1, v2 -> BoolV (lit v1 >= lit v2)
     | IN, v1, v2 ->
-      BoolV (Unicode.contains_utf_8_caseless ~inner: (text v1) (text v2))
+      BoolV (Unicode.contains_utf_8_diacriticless ~inner: (text v1) (text v2))
     | NI, v1, v2 ->
-      BoolV (not (Unicode.contains_utf_8_caseless ~inner: (text v1) (text v2)))
+      BoolV (not (Unicode.contains_utf_8_diacriticless ~inner: (text v1) (text v2)))
     | Add, IntV (i1, _), IntV (i2, _) -> IntV (i1 + i2, None)
     | Add, TimeV (t1, _), TimeV (t2, _) -> TimeV (t1 +. t2, None)
     | Add, DateV (t1, _), TimeV (t2, _) -> DateV (t1 +. t2, None)

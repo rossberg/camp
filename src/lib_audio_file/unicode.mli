@@ -15,3 +15,4 @@ val compare_utf_8 : string -> string -> int
 val search_key_utf_8 : string -> string
 val contains_utf_8 : inner: string -> string -> bool
 val contains_utf_8_caseless : inner: string -> string -> bool
+val contains_utf_8_diacriticless : inner: string -> string -> bool

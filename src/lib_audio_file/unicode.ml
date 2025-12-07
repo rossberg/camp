@@ -203,3 +203,6 @@ let contains_utf_8 ~inner s = index_sub_from_opt s 0 inner <> None
 
 let contains_utf_8_caseless ~inner s =
   contains_utf_8 ~inner: (casefold_utf_8 inner) (casefold_utf_8 s)
+
+let contains_utf_8_diacriticless ~inner s =
+  contains_utf_8 ~inner: (search_key_utf_8 inner) (search_key_utf_8 s)
