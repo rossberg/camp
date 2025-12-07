@@ -28,6 +28,7 @@ val explode : path -> name list
 val implode : name list -> path
 
 val normalize : path -> path
+val real : path -> path
 
 val is_relative : path -> bool
 val relative : dir -> path -> path

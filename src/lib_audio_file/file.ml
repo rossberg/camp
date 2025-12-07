@@ -81,6 +81,10 @@ let escape path =
 
 (* Attributes *)
 
+let real path =
+  (* Unix.realpath doesn't like Windows UNC prefix *)
+  Unix.realpath (escape path)
+
 let stat path =
   (* Unix.stat doesn't like Windows UNC prefix *)
   Unix.stat (escape path)

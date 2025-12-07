@@ -1873,7 +1873,8 @@ let path_distance path1 path2 =
 
 let repair_path (map : repair_map) base_path path =
   let path' = M3u.resolve_path base_path path in
-  if M3u.is_separator path || File.exists path' then `Ok else
+  if M3u.is_separator path
+  || File.(exists path' && name (real path') = name path') then `Ok else
   match Map.find_opt (repair_key path') map with
   | None -> `Missing 
   | Some [track] -> `Replace track
