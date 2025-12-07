@@ -925,7 +925,7 @@ struct
 
   let add_processor a f =
     Mutex.protect a.mutex (fun () ->
-      let f' ptr n = (*Printf.printf "dummy callback\n%!"*)
+      let f' ptr n =
         let len = Unsigned.UInt.to_int n in
         let ptr' = Ctypes.from_voidp Ctypes.float ptr in
         f (Array.init len (fun i ->

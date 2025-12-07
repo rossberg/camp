@@ -328,37 +328,38 @@ let run (st : state) =
       ctl.data <- Spectrum.bands wave ctl.spec_bands;
     );
     let bands = ctl.data in
-    let n = Array.length bands in
-    if n = ctl.spec_bands then  (* may be off, right after switching visuals *)
-    (
-      let x, y, w, h = Ui.dim geo.ui (Layout.graph_area geo) in
-      let y, h = y + 2, h - 4 in
-      let wbar = (w + 1) / n in
-      let wsep = if wbar <= 4 then 1 else if n <= 10 then 2 else 3 in
-      let w' = wbar - wsep in
-      let win = Ui.window geo.ui in
-      let green = Ui.text_color geo.ui in
-      let yellow = Ui.warn_color geo.ui in
-      let red = Ui.error_color geo.ui in
+    let n = ctl.spec_bands in
+    let n' = Array.length bands in
+    (* Buffer may be off right after switching visuals *)
+    let bands = if n' = n then bands else Array.make n 0.0 in
 
-      for i = 0 to n - 1 do
-        let x' = x + i * wbar in
-        Api.Draw.fill win x' y w' h (Ui.unlit_color red);
-        let hy = 10 * h / 12 in
-        Api.Draw.fill win x' (y + h - hy) w' hy (Ui.unlit_color yellow);
-        let hg = 8 * h / 12 in
-        Api.Draw.fill win x' (y + h - hg) w' hg (Ui.unlit_color green);
-        let hr = min (int_of_float (bands.(i) /. 5.0 *. float h)) h in
-        Api.Draw.fill win x' (y + h - hr) w' hr red;
-        let hy = min hr hy in
-        Api.Draw.fill win x' (y + h - hy) w' hy yellow;
-        let hg = min hr hg in
-        Api.Draw.fill win x' (y + h - hg) w' hg green;
-        for j = 0 to h/2 - 1 do
-          Api.Draw.fill win x (y + 2 * j) w 1 `Black;
-        done
+    let x, y, w, h = Ui.dim geo.ui (Layout.graph_area geo) in
+    let y, h = y + 2, h - 4 in
+    let wbar = (w + 1) / n in
+    let wsep = if wbar <= 4 then 1 else if n <= 10 then 2 else 3 in
+    let w' = wbar - wsep in
+    let win = Ui.window geo.ui in
+    let green = Ui.text_color geo.ui in
+    let yellow = Ui.warn_color geo.ui in
+    let red = Ui.error_color geo.ui in
+
+    for i = 0 to n - 1 do
+      let x' = x + i * wbar in
+      Api.Draw.fill win x' y w' h (Ui.unlit_color red);
+      let hy = 10 * h / 12 in
+      Api.Draw.fill win x' (y + h - hy) w' hy (Ui.unlit_color yellow);
+      let hg = 8 * h / 12 in
+      Api.Draw.fill win x' (y + h - hg) w' hg (Ui.unlit_color green);
+      let hr = min (int_of_float (bands.(i) /. 5.0 *. float h)) h in
+      Api.Draw.fill win x' (y + h - hr) w' hr red;
+      let hy = min hr hy in
+      Api.Draw.fill win x' (y + h - hy) w' hy yellow;
+      let hg = min hr hg in
+      Api.Draw.fill win x' (y + h - hg) w' hg green;
+      for j = 0 to h/2 - 1 do
+        Api.Draw.fill win x (y + 2 * j) w 1 `Black;
       done
-    )
+    done
 
   | `Wave ->
     let data = if ctl.raw = [||] then ctl.data else ctl.raw in
@@ -367,10 +368,11 @@ let run (st : state) =
 
     let x, y, w, h = Ui.dim geo.ui (Layout.graph_area geo) in
     let win = Ui.window geo.ui in
-    for i = 0 to min w (Array.length data) / 2 - 1 do
+    for i = 0 to w / 2 - 1 do
       let i = 2 * i in
-      let v = data.(i) *. float h /. 1.5 in
-      let x, y = x + i, y + h/2 - int_of_float v in
+      let v = if i < Array.length data then data.(i) else 0.0 in
+      let v' = v *. float h /. 1.5 in
+      let x, y = x + i, y + h/2 - int_of_float v' in
       Api.Draw.fill win x y 1 1 `White;
     done;
 
