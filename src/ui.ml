@@ -606,8 +606,7 @@ let widget ui area ?(focus = false) modkey =
   let r = dim ui area in
   r,
   match mouse_status ui r `Left, key_status ui modkey focus with
-  | `Released, _ when mouse_inside ui area -> `Released
-  | _, `Released -> `Released
+  | `Released, _ | _, `Released -> `Released
   | `Pressed, _ | _, `Pressed -> `Pressed
   | `Hovered, _ | _, `Hovered -> `Hovered
   | _, _ -> `Untouched
