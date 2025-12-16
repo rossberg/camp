@@ -1,7 +1,6 @@
 (* Graphics/sound API abstraction *)
 
 open Audio_file
-open Raylib_ocaml
 
 
 (* Base types *)
@@ -935,7 +934,7 @@ struct
         ))
       in
       a.processors <- (f, f') :: a.processors;
-      Raylib_ocaml.Raylib_callbacks.attach_audio_mixed_processor f';
+      Raylib_callbacks.attach_audio_mixed_processor f';
     )
 
   let remove_processor a f =

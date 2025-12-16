@@ -4,7 +4,7 @@ APPNAME = $(shell make -s app-name)
 VERSION = $(shell make -s app-version)
 NAME = $(shell make -s dune-public_name)
 
-NONDEPS = unix audio_file [a-zA-Z0-9_]*[.][a-zA-Z0-9_.]* raylib_src raylib_ocaml
+NONDEPS = unix audio_file [a-zA-Z0-9_]*[.][a-zA-Z0-9_.]*
 DEPS = dune $(shell make -s dune-libraries $(NONDEPS:%=| sed 's/ %//g'))
 
 ASSETS = $(glob assets/*)
@@ -100,4 +100,4 @@ app-%:
 	grep "let $* =" src/app.ml | sed 's/[^"]*"//' | sed 's/"//'
 
 dune-%:
-	grep "$*" */dune */*/dune | sed 's/.*$*//' | sed 's/[^a-zA-Z0-9_. ]//g'
+	grep "$*" */dune */*/dune | sed 's/.*$*//' | sed 's/[^a-zA-Z0-9_. -]//g'

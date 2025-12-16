@@ -1,7 +1,6 @@
 (executable
   (public_name camp)
   (name main)
-  (package camp)
   (modules
     safe_queue
     edit table
@@ -12,7 +11,7 @@
     run_menu run_filesel run_control run_view run_library run_playlist
     main
   )
-  (libraries unix directories audio_file raylib_ocaml)
+  (libraries unix directories audio_file raylib raylib-callbacks)
   (link_deps (include link_deps.sexp))
   (link_flags (:include link_flags.sexp))
 )
