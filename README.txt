@@ -24,7 +24,7 @@ Screenshot Gallery: https://github.com/rossberg/camp/blob/master/img/README.md
 What you got here is an old-school music player heavily inspired by good old
 Winamp [1], with a focus on decent music library and playlist handling.
 
-If you have not yet been sucked in by the streaming cartells, you might
+If you have not yet been sucked in by the streaming cartels, you might
 find it useful.
 
 Camp is entirely written in OCaml [2] and portable across Windows, Mac and
