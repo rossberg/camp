@@ -36,12 +36,12 @@ vars:
 
 deps:
   # Temporary hack until raylib-callbacks is on official Opam repo
-	@if opam show raylib-callbacks | grep "^repository *default$$" >/dev/null; \
+	@if opam show raylib-callbacks 2>/dev/null | grep "^repository *default$$" >/dev/null; \
 	then \
 		opam repo remove opam-raylib-1.6.0 >/dev/null; \
-	elif ! opam show raylib-callbacks >/dev/null; \
+	elif ! opam show raylib-callbacks >/dev/null 2>&1; \
 	then \
-		opam repo add opam-raylib-1.6.0 file://`pwd`/opam-raylib-1.6.0; \
+		opam repo add opam-raylib-1.6.0 opam-raylib-1.6.0; \
   fi
 	opam install $(DEPS)
 
