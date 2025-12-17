@@ -43,6 +43,7 @@ deps:
 	then \
 		opam repo add opam-raylib-1.6.0 opam-raylib-1.6.0; \
   fi
+	opam install --yes --deps-only $(DEPS)  # Temporary workaround for Opam Windows bug
 	opam install --yes $(DEPS)
 
 exe:
