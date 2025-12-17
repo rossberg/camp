@@ -43,7 +43,7 @@ deps:
 	then \
 		opam repo add opam-raylib-1.6.0 opam-raylib-1.6.0; \
   fi
-	opam install $(DEPS)
+	opam install --yes $(DEPS)
 
 exe:
 	cd src && dune build main.exe
@@ -68,7 +68,7 @@ win: dir
 
 linux: dir
 
-dir: exe $(ASSETS)
+dir: deps exe $(ASSETS)
 	mkdir -p $(APPNAME)
 	cp -f $(NAME).exe $(APPNAME)/$(APPNAME).exe
 	cp -rf assets $(APPNAME)
