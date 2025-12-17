@@ -24,7 +24,7 @@ endif
 
 # Main Targets
 
-default: deps exe
+default:
 	make $(SYSTEM)
 
 vars:
@@ -53,7 +53,19 @@ exe:
 
 # Packaging
 
-mac: deps exe $(ASSETS)
+prerequisites: deps exe $(ASSETS)
+
+dir: prerequisites
+	mkdir -p $(APPNAME)
+	cp -f $(NAME).exe $(APPNAME)/$(APPNAME).exe
+	cp -rf assets $(APPNAME)
+
+win: dir
+	@if [ "$(WIN_DLLS)" != '' ]; then cp $(WIN_DLLS:%=`opam exec -- which %.dll`) $(APPNAME); fi
+
+linux: dir
+
+mac: prerequisites
 	mkdir -p $(APPNAME).app/Contents
 	cp -rf platform/mac/* assets $(NAME).exe $(APPNAME).app/Contents
 	chmod +x $(APPNAME).app/Contents/MacOS/run.sh
@@ -63,16 +75,6 @@ mac-debug: mac
 
 mac-install: mac
 	cp -rf $(APPNAME).app /Applications
-
-win: dir
-	@if [ "$(WIN_DLLS)" != '' ]; then cp $(WIN_DLLS:%=`opam exec -- which %.dll`) $(APPNAME); fi
-
-linux: dir
-
-dir: deps exe $(ASSETS)
-	mkdir -p $(APPNAME)
-	cp -f $(NAME).exe $(APPNAME)/$(APPNAME).exe
-	cp -rf assets $(APPNAME)
 
 
 # Zips
