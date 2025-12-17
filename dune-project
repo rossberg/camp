@@ -5,6 +5,7 @@
 (source (github rossberg/camp))
 (license CC-BY-NC-SA-4.0)
 (documentation https://github.com/rossberg/camp/blob/main/README.txt)
+(generate_opam_files true)
 
 (package
   (name camp)
