@@ -46,7 +46,7 @@ deps:
 	opam install --yes $(DEPS)
 
 exe:
-	cd src && dune build main.exe
+	cd src && opam exec -- dune build main.exe
 	ln -f _build/default/src/main.exe $(NAME).exe
 
 
