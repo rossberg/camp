@@ -65,7 +65,7 @@ mac-install: mac
 	cp -rf $(APPNAME).app /Applications
 
 win: dir
-	@if [ "$(WIN_DLLS)" != '' ]; then cp $(WIN_DLLS:%=`which %.dll`) $(APPNAME); fi
+	@if [ "$(WIN_DLLS)" != '' ]; then cp $(WIN_DLLS:%=`opam exec -- which %.dll`) $(APPNAME); fi
 
 linux: dir
 
