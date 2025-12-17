@@ -108,4 +108,4 @@ app-%:
 	grep "let $* =" src/app.ml | sed 's/[^"]*"//' | sed 's/"//'
 
 dune-%:
-	grep "$*" */dune */*/dune | sed 's/.*$*//' | sed 's/[^a-zA-Z0-9_. -]//g'
+	grep "$*" src/dune src/*/dune | sed 's/.*$*//' | sed 's/[^a-zA-Z0-9_. -]//g'
