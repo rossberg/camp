@@ -9,7 +9,7 @@
   / \_/ A MUSIC PLAYER / \_/
 
 
-Screenshot Gallery: https://github.com/rossberg/camp/blob/master/img/README.md
+Screenshot Gallery: https://github.com/rossberg/camp/blob/master/img/
 
 1. Introduction
 2. Installation
@@ -68,7 +68,7 @@ In the main directory (where you found this file), invoke:
   +---------------
 
 The first time round, it may trigger the installation of additional Opam
-packages, which you'll have to confirm.
+packages. Don't be alarmed.
 
 On Windows and Linux, the outcome is a stand-alone directory `Camp` bundling
 the executable with all files necessary. On Mac, you'll get a proper application
