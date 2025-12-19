@@ -48,7 +48,7 @@ This README is intentionally written in retro style.
 
 If you downloaded a binary, nothing to see here, skip ahead to Section 2.3.
 
-To build yourself, you'll need OCaml 5.04 or greater and Opam along with it.
+To build yourself, you'll need OCaml 5.4.0 or greater and Opam along with it.
 
 On Windows, no way around Cygwin and make. And you'll probably need to manually
 install the mingw64-x86_64-winpthreads package to have libwinpthread.dll in the
