@@ -2,14 +2,14 @@
 
 Library:
 
-- New view column Playlist
-- New query attribute #playlist
-- New query functions #min, #max, #avg, #if
-
+- [new] Playlist column for tracks views
+- [new] Query attribute #playlist
+- [new] Query functions #min, #max, #avg, #if
+- [fix] Properly restore view dividers on start-up
 
 Build:
 
-- Remove obsolete auxiliary opam repo for Raylib 1.6.0
+- [clean] Remove obsolete auxiliary opam repo for Raylib 1.6.0
   (if you built 0.9.0 before, you may have to run
    `opam repo remove opam-raylib-1.6.0` and `opam update && opam upgrade` once)
 

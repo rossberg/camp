@@ -250,6 +250,10 @@ let load st =
     with Text.Syntax_error _ | Text.Type_error as exn ->
       Storage.log_exn "parse" exn "while loading state"
   );
+  Option.iter (fun (dir : Library.dir) ->
+    st.geometry.left_width <- dir.view.divider_width;
+    st.geometry.upper_height <- dir.view.divider_height;
+  ) st.library.current;
   st.saved <- Unix.gettimeofday ();
 
   focus_playlist st;
