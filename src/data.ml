@@ -29,7 +29,7 @@ type meta_attr =
 
 type artist_attr = [ `Artist | `Albums | `Tracks ]
 type album_attr = [ file_attr | format_attr | meta_attr ]
-type track_attr = [ file_attr | format_attr | meta_attr | `Pos ]
+type track_attr = [ file_attr | format_attr | meta_attr | `Playlist | `Pos ]
 type query_attr = [ track_attr | `True | `False | `Now | `Random ]
 type any_attr = [ artist_attr | album_attr | track_attr | query_attr | `None ]
 
@@ -48,7 +48,7 @@ let meta_attrs =
 
 let artist_attrs = [ `Artist; `Albums; `Tracks ]
 let album_attrs = file_attrs @ format_attrs @ meta_attrs
-let track_attrs = file_attrs @ format_attrs @ meta_attrs @ [ `Pos ]
+let track_attrs = file_attrs @ format_attrs @ meta_attrs @ [ `Playlist; `Pos ]
 
 (* Can't use a set since the key cannot be polymorphic. *)
 module AttrMap = Map.Make (struct type t = any_attr let compare = compare end)
@@ -117,7 +117,8 @@ type track =
   mutable format : Format.t option;
   mutable meta : Meta.t option;
   mutable album : album option;
-  mutable pos : int;  (* 0-based *)
+  mutable playlist : string;  (* empty if not a playlist entry *)
+  mutable pos : int;  (* 0-based position, -1 if not a playlist entry *)
   mutable status : [`Undet | `Predet | `Det | `Invalid | `Absent];
   mutable memo : memo option;
 }
@@ -228,6 +229,7 @@ let make_track path : track =
     format = None;
     meta = None;
     album = None;
+    playlist = "";
     pos = -1;
     status = `Undet;
     memo = None;
@@ -425,6 +427,7 @@ let album_attr_string' (album : album) = function
   | #meta_attr as attr -> nonempty meta_attr_string album.meta attr
 
 let track_attr_string' (track : track) = function
+  | `Playlist -> track.playlist
   | `Pos -> nonzero_int 3 (track.pos + 1)
   | `Artist -> artist_attr_string' `Artist track.path track.meta
   | `Title -> title_attr_string' `Title track.path track.meta
@@ -440,7 +443,7 @@ let track_attr_string' (track : track) = function
 let attr_string' get_memo set_memo f x attr =
   match (attr :> track_attr) with
   | `FileExists | `FilePath | `FileDir | `FileName | `FileExt
-  | `Codec | `Label | `Country | `Cover | `Pos ->
+  | `Codec | `Label | `Country | `Cover | `Playlist | `Pos ->
     f x attr
   | _ ->
     let memo =
@@ -510,7 +513,7 @@ let attr_string' get_memo set_memo f x attr =
       if memo.rating <> "" then memo.rating else
       let s = f x attr in memo.rating <- s; s
     | `FileExists | `FilePath | `FileDir | `FileName | `FileExt
-    | `Codec | `Label | `Country | `Cover | `Pos ->
+    | `Codec | `Label | `Country | `Cover | `Playlist | `Pos ->
       assert false
 
 let get_album_memo (album : album) = album.memo
@@ -554,7 +557,8 @@ let attr_fold attr =
   | `FilePath | `FileDir | `FileName | `FileExt
   | `Codec
   | `Artist | `Title | `AlbumArtist | `AlbumTitle
-  | `Label | `Country ->
+  | `Label | `Country
+  | `Playlist ->
     Unicode.sort_key_utf_8
 
 let key_entry' e attr_string (attr, order) =
@@ -743,6 +747,7 @@ struct
       format = option format (r $ "format");
       meta = option meta (r $ "meta");
       album = None;
+      playlist = "";
       pos = -1;
       status = status (r $ "status");
       memo = None;
@@ -901,7 +906,10 @@ struct
       let format = option format buf in
       let meta = option meta buf in
       let status = status buf in
-      {path; file; format; meta; album = None; pos = -1; status; memo = None}
+      {
+        path; file; format; meta; album = None;
+        playlist = ""; pos = -1; status; memo = None
+      }
     )
 
   let rec dir make_view =

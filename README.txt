@@ -561,6 +561,7 @@ field. And this works even with playlists.
   - #depth - sample bit depth of (e.g. 16 for CD)
   - #samplerate - sampling rate (e.g. 44100 for CD)
   - #bitrate - bit rate (e.g. 128, 192, 320 or something for MP3s)
+  - #playlist - path of playlist (only non-empty for playlist entries)
   - #pos - position in playlist (only meaningful for playlist entries)
   - #fileexists - true for track files that are not missing
   - #filetime - the modification time of a track's file
@@ -615,6 +616,11 @@ field. And this works even with playlists.
   5 data types for text, numbers, time values, date values, or Booleans.
   Mixing these types in a meaningless way is rejected, though most types can be
   implicitly converted to text.
+
+* Playlists: Search can also be applied to playlists, or even whole directories
+  of playlists. In this case, each occurrence of the same track in a playlist
+  produces a separate result. In order to distinguish those, it cannot harm to
+  activate the Playlist and perhaps the Position (#) column of the tracks view.
 
 
 3.5 Viewlists

@@ -64,6 +64,7 @@ let value key (track : track) =
   | `False -> BoolV false
   | `Now -> TimeV (Unix.gettimeofday (), None)
   | `Random -> IntV (Random.int 0x1_0000_0000, None)
+  | `Playlist -> TextV track.playlist
   | `Pos -> IntV (track.pos + 1, None)
   | `Length ->
     (match format_value track.format `Length with
@@ -160,7 +161,7 @@ let keys =
     "codec", `Codec; "channels", `Channels; "depth", `Depth;
     "samplerate", `SampleRate; "bitrate", `BitRate;
     "cover", `Cover;
-    "pos", `Pos;
+    "playlist", `Playlist; "pos", `Pos;
   ]
 
 let fns =
@@ -236,7 +237,8 @@ let rec validate q =
   | Text _
   | Key (`FilePath | `FileDir | `FileName | `FileExt)
   | Key (`Artist | `Title | `AlbumArtist | `AlbumTitle)
-  | Key (`Label | `Country | `Codec | `DiscTrack) -> TextT
+  | Key (`Label | `Country | `Codec | `DiscTrack)
+  | Key `Playlist -> TextT
   | Fn (fn, qs) ->
     let ts = List.map validate qs in
     (match fn, ts with

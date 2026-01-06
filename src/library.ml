@@ -370,6 +370,7 @@ let error lib msg =
 (* Attributes *)
 
 let attr_prop = function
+  | `Playlist -> "Playlist", `Left
   | `Pos -> "#   ", `Right
   | `FileExists -> "File Exists", `Left
   | `FilePath -> "File Path", `Left
@@ -486,6 +487,7 @@ struct
 
   let attr_enum =
   [
+    "PLL", `Playlist;
     "POS", `Pos;
     "EXS", `FileExists;
     "PTH", `FilePath;
@@ -861,7 +863,9 @@ let rescan_playlist' lib _mode (dir : dir) =
   try
     let items = Iarray.of_list (M3u.load dir.path) in
     dir.tracks <-
-      Iarray.mapi (fun pos item -> {(find_item lib item) with pos}) items;
+      Iarray.mapi (fun pos item ->
+        {(find_item lib item) with pos; playlist = dir.path}
+      ) items;
     true
   with
   | Sys_error _ -> true
@@ -880,7 +884,9 @@ let rescan_viewlist' lib _mode (dir : dir) =
       let _, _, tracks = Query.exec query filter lib.root in
       dir.error <- "";
       dir.tracks <-
-        Iarray.init (Array.length tracks) (fun i -> {tracks.(i) with pos = i});
+        Iarray.init (Array.length tracks) (fun i ->
+          {tracks.(i) with pos = i; playlist = dir.path}
+        );
     );
     true
   with
@@ -1232,7 +1238,9 @@ let track_key lib : track -> string =
   if current_is_playlist lib || current_is_viewlist lib then
     fun track -> string_of_int track.pos
   else
-    fun track -> track.path
+    fun track ->
+      if track.playlist = "" then track.path
+      else string_of_int track.pos ^ "\x00" ^ track.playlist
 
 
 let refresh_delay = 5.0

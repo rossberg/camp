@@ -2,6 +2,8 @@
 
 Library:
 
+- New view column Playlist
+- New query attribute #playlist
 - New query functions #min, #max, #avg, #if
 
 
