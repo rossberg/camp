@@ -35,16 +35,12 @@ vars:
 	@echo 'DEPS = $(DEPS)'
 
 deps:
-	# Temporary hack until raylib-callbacks is on official Opam repo
-	@if opam show raylib-callbacks 2>/dev/null | grep "^repository *default$$" >/dev/null; \
-	then \
-	  opam repo remove opam-raylib-1.6.0 >/dev/null; \
-	elif ! opam show raylib-callbacks >/dev/null 2>&1; \
-	then \
-	  opam repo add opam-raylib-1.6.0 opam-raylib-1.6.0; \
-	fi
 	opam install --yes --deps-only $(DEPS)  # Temporary workaround for Opam Windows bug
 	opam install --yes $(DEPS)
+
+upgrade:
+	opam update
+	opam upgrade --yes
 
 exe:
 	cd src && opam exec -- dune build main.exe
