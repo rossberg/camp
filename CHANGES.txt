@@ -1,5 +1,10 @@
 === 0.9.1 (WIP) ===
 
+Library:
+
+- New query functions #min, #max, #avg, #if
+
+
 Build:
 
 - Remove obsolete auxiliary opam repo for Raylib 1.6.0

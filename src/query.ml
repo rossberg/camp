@@ -119,6 +119,7 @@ type artist = Data.artist
 type order = Data.order
 type sorting = Data.track_attr Data.sorting
 
+type fnop = Min | Max | Avg | If
 type unop = Not | Neg
 type binop =
   | And | Or | EQ | NE | LT | GT | LE | GE | IN | NI | Add | Sub | Mul | Cat
@@ -128,6 +129,7 @@ type expr =
   | Time of time * string
   | Date of date * string
   | Key of key
+  | Fn of fnop * expr list
   | Un of unop * expr
   | Bin of binop * expr * expr
 
@@ -161,6 +163,11 @@ let keys =
     "pos", `Pos;
   ]
 
+let fns =
+  [
+    "min", Min; "max", Max; "avg", Avg; "if", If
+  ]
+
 
 let empty_query = {expr = Key `False; sort = []}
 let full_query = {expr = Key `True; sort = []}
@@ -168,6 +175,9 @@ let full_query = {expr = Key `True; sort = []}
 
 let string_of_key k =
   fst (List.find (fun (_, x) -> x = (k :> key)) keys)
+
+let string_of_fn f =
+  fst (List.find (fun (_, x) -> x = f) fns)
 
 let string_of_order = function
   | `Asc -> ""
@@ -199,6 +209,8 @@ let rec string_of_expr = function
   | Date (_, s) -> s
   | Text s -> "\"" ^ s ^ "\""
   | Key k -> "#" ^ string_of_key k
+  | Fn (f, es) ->
+    "#" ^ string_of_fn f ^ "(" ^ String.concat ", " (List.map string_of_expr es) ^ ")"
   | Un (op, e) -> "(" ^ string_of_unop op ^ " " ^ string_of_expr e ^ ")"
   | Bin (op, e1, e2) ->
     "(" ^ string_of_expr e1 ^ " " ^ string_of_binop op ^ " " ^ string_of_expr e2 ^ ")"
@@ -225,6 +237,20 @@ let rec validate q =
   | Key (`FilePath | `FileDir | `FileName | `FileExt)
   | Key (`Artist | `Title | `AlbumArtist | `AlbumTitle)
   | Key (`Label | `Country | `Codec | `DiscTrack) -> TextT
+  | Fn (fn, qs) ->
+    let ts = List.map validate qs in
+    (match fn, ts with
+    | (Min | Max), t::ts' ->
+      if List.exists ((<>) t) ts' then raise TypeError;
+      t
+    | Avg, (IntT | TimeT | DateT as t)::ts' ->
+      if List.exists ((<>) t) ts' then raise TypeError;
+      t
+    | If, [t1; t2; t3] ->
+      if t1 <> BoolT || t2 <> t3 then raise TypeError;
+      t2
+    | _ -> raise TypeError
+    )
   | Un (op, q1) ->
     (match op, validate q1 with
     | Not, BoolT -> BoolT
@@ -270,6 +296,35 @@ let rec eval q track =
   | Time (t, s) -> TimeV (t, Some s)
   | Date (t, s) -> DateV (t, Some s)
   | Key key -> value key track
+  | Fn (fn, qs) ->
+    let vs = List.map (fun q -> eval q track) qs in
+    (match fn, vs with
+    | Min, v1::vs' -> List.fold_left min v1 vs'
+    | Max, v1::vs' -> List.fold_left max v1 vs'
+    | Avg, v1::vs' ->
+      let n = float (List.length vs) in
+      (match
+        List.fold_left (fun v1 v2 ->
+          match v1, v2 with
+          | IntV (i1, _), IntV (i2, _) -> IntV (i1 + i2, None)
+          | TimeV (t1, _), TimeV (t2, _) -> TimeV (t1 +. t2, None)
+          | DateV (t1, _), TimeV (t2, _) -> DateV (t1 +. t2, None)
+          | _ -> assert false
+        ) v1 vs'
+      with
+      | IntV (i, _) -> IntV (int_of_float (Float.round (float i /. n)), None)
+      | TimeV (t, _) -> TimeV (t /. n, None)
+      | DateV (t, _) -> DateV (t /. n, None)
+      | _ -> assert false
+      )
+    | If, [v1; v2; v3] ->
+      (match v1 with
+      | BoolV true -> v2
+      | BoolV false -> v3
+      | _ -> assert false
+      )
+    | _ -> assert false
+    )
   | Un (Not, q1) -> BoolV (not (check q1 track))
   | Bin (And, q1, q2) -> BoolV (check q1 track && check q2 track)
   | Bin (Or, q1, q2) -> BoolV (check q1 track || check q2 track)
@@ -486,10 +541,12 @@ type token =
   | TimeToken of time * string
   | DateToken of time * string
   | KeyToken of key
+  | FnToken of fnop
   | UnopToken of unop
   | BinopToken of binop
   | LParToken
   | RParToken
+  | CommaToken
   | SortToken
   | EndToken
 
@@ -500,10 +557,12 @@ let string_of_token = function
   | TimeToken (_, s) -> s
   | DateToken t -> Date.string_of_date t
   | KeyToken x -> "#" ^ string_of_key x
+  | FnToken x -> "#" ^ string_of_fn x
   | UnopToken op -> string_of_unop op
   | BinopToken op -> string_of_binop op
   | LParToken -> "("
   | RParToken -> ")"
+  | CommaToken -> ","
   | SortToken -> "^"
   | EndToken -> "(end of string)"
 *)
@@ -583,6 +642,7 @@ let rec token s i =
   | '^' -> SortToken, i + 1
   | '(' -> LParToken, i + 1
   | ')' -> RParToken, i + 1
+  | ',' -> CommaToken, i + 1
   | '&' -> BinopToken And, i + 1
   | '|' -> BinopToken Or, i + 1
   | '+' when is '+' s (i + 1) -> BinopToken Cat, i + 2
@@ -629,7 +689,10 @@ let rec token s i =
     let x, j = scan_word s (i + 1) in
     (match List.assoc_opt x keys with
     | Some key -> KeyToken key, j
-    | None -> raise (SyntaxError i)
+    | None ->
+      match List.assoc_opt x fns with
+      | Some fn -> FnToken fn, j
+      | None -> raise (SyntaxError i)
     )
   | c when c >= '\x80' ->
     let s', j = scan_word s i in
@@ -671,6 +734,16 @@ let rec parse_prim s i =
   | TimeToken (t, s'), j -> Time (t, s'), j
   | DateToken (t, s'), j -> Date (t, s'), j
   | KeyToken key, j -> Key key, j
+  | FnToken fn, j ->
+    let lpar, k = token s j in
+    if lpar <> LParToken then raise (SyntaxError j) else
+    let qs, l = parse_list s k [] in
+    let rpar, m = token s l in
+    if rpar <> RParToken then raise (SyntaxError l) else
+    (match fn, qs with
+    | If, q1::qs' -> Fn (fn, coerce_bool q1 :: qs'), m
+    | _, _ -> Fn (fn, qs), m
+    )
   | _ -> raise (SyntaxError i)
 
 and parse_mul s i =
@@ -719,7 +792,7 @@ and parse_neg s i =
 and parse_conj s i =
   let tok, _ = token s i in
   match tok with
-  | EndToken | SortToken | RParToken | BinopToken Or ->
+  | EndToken | SortToken | RParToken | CommaToken | BinopToken Or ->
     Key `True, i  (* empty conjunction *)
   | _ ->
     let q, j = parse_neg s i in
@@ -728,7 +801,7 @@ and parse_conj s i =
 and parse_conj_rest q1 s i =
   let tok, j = token s i in
   match tok with
-  | EndToken | SortToken | RParToken | BinopToken Or ->
+  | EndToken | SortToken | RParToken | CommaToken | BinopToken Or ->
     q1, i
   | BinopToken And ->
     let q2, k = parse_neg s j in
@@ -747,6 +820,13 @@ and parse_disj_rest q1 s i =
     let q2, k = parse_conj s j in
     parse_disj_rest (Bin (Or, coerce_bool q1, coerce_bool q2)) s k
   | _ -> q1, i
+
+and parse_list s i qs =
+  let q, j = parse_disj s i in
+  match token s j with
+  | CommaToken, k -> parse_list s k (q::qs)
+  | _ ->
+  List.rev (q::qs), j
 
 let rec parse_sort s i =
   match token s i with
@@ -773,7 +853,7 @@ let parse_query s : (query, string) result =
     in
     Ok {expr = q'; sort = ks}
   with
-  | SyntaxError _i -> Error "Syntax error"
+  | SyntaxError i -> Error ("Syntax error at \"" ^ String.sub s i (String.length s - i) ^ "\"")
   | TypeError -> Error "Type error"
 
 let parse_expr s : (expr, string) result =

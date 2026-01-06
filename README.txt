@@ -604,6 +604,13 @@ field. And this works even with playlists.
   - dates: in ISO format like 2000-06-30 or 2000/06/30
   - Booleans: use #true and #false if ever needed
 
+* Functions: In addition to simple operators, formulas can also contain functions:
+
+  - `#min(...)` - minimum of values
+  - `#max(...)` - maximum of values
+  - `#avg(...)` - average of values (must be numeric or time)
+  - `#if(e1,e2,e3)` - e2 if e1 is true, otherwise e3
+
 * Type Checking: Formulas are actually checked for consistency, based on the
   5 data types for text, numbers, time values, date values, or Booleans.
   Mixing these types in a meaningless way is rejected, though most types can be

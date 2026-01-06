@@ -7,15 +7,17 @@ type artist = Data.artist
 type order = Data.order
 type sorting = Data.track_attr Data.sorting
 
+type fnop = Min | Max | Avg | If
 type unop = Not | Neg
 type binop =
-  And | Or | EQ | NE | LT | GT | LE | GE | IN | NI | Add | Sub | Mul | Cat
+  | And | Or | EQ | NE | LT | GT | LE | GE | IN | NI | Add | Sub | Mul | Cat
 type expr =
   | Text of string
   | Int of int * string
   | Time of Data.time * string
   | Date of Data.date * string
   | Key of key
+  | Fn of fnop * expr list
   | Un of unop * expr
   | Bin of binop * expr * expr
 
