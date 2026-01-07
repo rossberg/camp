@@ -1,11 +1,12 @@
 # Configuration
 
-APPNAME = $(shell make -s app-name)
-VERSION = $(shell make -s app-version)
-NAME = $(shell make -s dune-public_name)
+APPNAME = $(strip $(shell make -s app-name))
+VERSION = $(strip $(shell make -s app-version))
+NAME = $(strip $(shell make -s dune-public_name))
+MAIN = main
 
 NONDEPS = unix audio_file [a-zA-Z0-9_]*[.][a-zA-Z0-9_.]*
-DEPS = dune $(shell make -s dune-libraries $(NONDEPS:%=| sed 's/ %//g'))
+DEPS = dune $(strip $(shell make -s dune-libraries $(NONDEPS:%=| sed 's/ %//g')))
 
 ASSETS = $(glob assets/*)
 WIN_DLLS = libwinpthread-1 libffi-6
@@ -29,6 +30,7 @@ default:
 
 vars:
 	@echo 'NAME = $(NAME)'
+	@echo 'MAIN = $(MAIN)'
 	@echo 'APPNAME = $(APPNAME)'
 	@echo 'VERSION = $(VERSION)'
 	@echo 'SYSTEM = $(SYSTEM)'
@@ -43,8 +45,8 @@ upgrade:
 	opam upgrade --yes
 
 exe:
-	cd src && opam exec -- dune build main.exe
-	ln -f _build/default/src/main.exe $(NAME).exe
+	cd src && opam exec -- dune build $(MAIN).exe
+	ln -f _build/default/src/$(MAIN).exe $(NAME).exe
 
 
 # Packaging
@@ -107,4 +109,4 @@ app-%:
 	grep "let $* =" src/app.ml | sed 's/[^"]*"//' | sed 's/"//'
 
 dune-%:
-	grep "$*" src/dune src/*/dune | sed 's/.*$*//' | sed 's/[^a-zA-Z0-9_. -]//g'
+	grep "[(]$*" src/dune src/*/dune | sed 's/.*$*//' | sed 's/[^a-zA-Z0-9_. -]//g'
