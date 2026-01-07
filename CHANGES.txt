@@ -1,6 +1,7 @@
 === 0.9.1 (WIP) ===
 
 UI:
+- [fix] Add missing font file
 - [chg] Glue view dividers to nearest border on window resize
 - [fix] Correctly restore view dividers on start-up
 
