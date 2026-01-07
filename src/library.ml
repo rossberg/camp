@@ -553,8 +553,8 @@ struct
       "fold", bool x.folded;
       "custom", bool x.custom;
     ] @ if not (x.custom || full) then [] else [
-      "div_w", nat x.divider_width;
-      "div_h", nat x.divider_height;
+      "div_w", int x.divider_width;
+      "div_h", int x.divider_height;
       "artists", view artist_attr x.artists;
       "albums", view album_attr x.albums;
       "tracks", view track_attr x.tracks;
@@ -609,8 +609,8 @@ struct
       query = None;
       folded = bool (r $ "fold");
       custom = default true bool (r $? "custom");
-      divider_width = nat (r $ "div_w");
-      divider_height = nat (r $ "div_h");
+      divider_width = int (r $ "div_w");
+      divider_height = int (r $ "div_h");
       artists = view artist_attr (r $ "artists");
       albums = view album_attr (r $ "albums");
       tracks = view track_attr (r $ "tracks");

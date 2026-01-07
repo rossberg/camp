@@ -189,28 +189,28 @@ let abstract_geo geo =
   let dh = if geo.playlist_shown then 0 else geo.playlist_height in
   let left = geo.library_side = `Left in
 
-  let cx = x + dx in
-  let cy = y + dy in
-  let ch = if y + h + dh <> sh then geo.playlist_height else -1 in
-  let cw = if x + w + dw <> sw || left then geo.library_width else -1 in
-  (cx, cy, cw, ch)
+  let ax = x + dx in
+  let ay = y + dy in
+  let ah = if y + h + dh <> sh then geo.playlist_height else -1 in
+  let aw = if x + w + dw <> sw || left then geo.library_width else -1 in
+  (ax, ay, aw, ah)
 
 
-let apply_geo geo (cx, cy, cw, ch) : int * int =
+let apply_geo geo (ax, ay, aw, ah) : int * int =
   let win = Ui.window geo.ui in
   let ww, wh = control_min_w, control_min_h in
   let sx, sy = Api.Window.min_pos win in
   let sw, sh = Api.Window.max_size win in
 
-  let cx, cy = clamp (-sw) sw cx, clamp (-sh) sh cy in
-  let dx = if cx >= 0 then 0 else +sw in
-  let dy = if cy >= 0 then 0 else +sh in
-  let x, y = cx + sx + dx, cy + sy + dy in
+  let ax, ay = clamp (-sw) sw ax, clamp (-sh) sh ay in
+  let dx = if ax >= 0 then 0 else +sw in
+  let dy = if ay >= 0 then 0 else +sh in
+  let x, y = ax + sx + dx, ay + sy + dy in
 
   geo.playlist_height <- clamp (playlist_min geo) (sh - wh)
-    (if ch = -1 then sh - y + sy - wh else ch);
+    (if ah = -1 then sh - y + sy - wh else ah);
   geo.library_width <- clamp (library_min geo) (sw - ww)
-    (if cw = -1 then sw - x + sx - ww else cw);
+    (if aw = -1 then sw - x + sx - ww else aw);
 
   geo.browser_width <-
     clamp (browser_min geo) (browser_max geo) geo.browser_width;
@@ -220,6 +220,20 @@ let apply_geo geo (cx, cy, cw, ch) : int * int =
     clamp (directories_min geo) (directories_max geo) geo.directories_width;
 
   (x, y)
+
+
+let abstract_view_geo geo : int * int =
+  let w = geo.left_width in
+  let h = geo.upper_height in
+  let aw = if w - left_min geo < left_max geo - w then w else w - left_max geo in
+  let ah = if h - upper_min geo < upper_max geo - h then h else h - upper_max geo in
+  aw, ah
+
+let apply_view_geo geo (aw, ah) =
+  let w = if aw >= 0 then aw else left_max geo + aw in
+  let h = if ah >= 0 then ah else upper_max geo + ah in
+  geo.left_width <- clamp (left_min geo) (left_max geo) w;
+  geo.upper_height <- clamp (upper_min geo) (upper_max geo) h
 
 
 (* Persistence *)

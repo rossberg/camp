@@ -295,11 +295,7 @@ let run_browser (st : state) =
     (
       (match Library.selected_dir lib with
       | None -> Library.deselect_dir lib
-      | Some i ->
-        Library.select_dir lib i;  (* do bureaucracy *)
-        let dir' = entries.(i) in
-        geo.left_width <- dir'.view.divider_width;
-        geo.upper_height <- dir'.view.divider_height;
+      | Some i -> Library.select_dir lib i  (* do bureaucracy *)
       );
       Library.deselect_all lib;
       Library.refresh_artists_albums_tracks lib;
@@ -316,9 +312,6 @@ let run_browser (st : state) =
     (
       (* Click on different dir name: switch view *)
       Library.select_dir lib i;  (* do bureaucracy *)
-      let dir' = entries.(i) in
-      geo.left_width <- dir'.view.divider_width;
-      geo.upper_height <- dir'.view.divider_height;
       Library.deselect_all lib;
       Library.refresh_artists_albums_tracks lib;
     );
@@ -435,11 +428,7 @@ let run_browser (st : state) =
       (* Click on different dir name: switch view *)
       (match Library.selected_dir lib with
       | None -> Library.deselect_dir lib
-      | Some i ->
-        Library.select_dir lib i;  (* do bureaucracy *)
-        let dir' = entries.(i) in
-        geo.left_width <- dir'.view.divider_width;
-        geo.upper_height <- dir'.view.divider_height;
+      | Some i -> Library.select_dir lib i  (* do bureaucracy *)
       );
       Library.deselect_all lib;
       Library.refresh_artists_albums_tracks lib;
@@ -1040,6 +1029,10 @@ let run_views (st : state) =
   geo.right_shown <- show_artists && show_albums;
   geo.lower_shown <- show_tracks && (show_artists || show_albums);
 
+  (* Adjust dividers*)
+  Geometry.apply_view_geo geo
+    (dir.view.divider_width, dir.view.divider_height);
+
   (* Artists view *)
   if show_artists then
   (
@@ -1083,7 +1076,8 @@ let run_views (st : state) =
       if left_width' <> geo.left_width then
       (
         geo.left_width <- left_width';
-        dir.view.divider_width <- left_width';
+        let abs_width, _ = Geometry.abstract_view_geo geo in
+        dir.view.divider_width <- abs_width;
         dir.view.custom <- true;
         Library.save_dir lib dir;
       )
@@ -1147,7 +1141,8 @@ let run_views (st : state) =
       if upper_height' <> geo.upper_height then
       (
         geo.upper_height <- upper_height';
-        dir.view.divider_height <- upper_height';
+        let _, abs_height = Geometry.abstract_view_geo geo in
+        dir.view.divider_height <- abs_height;
         dir.view.custom <- true;
         Library.save_dir lib dir;
       )

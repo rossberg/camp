@@ -381,11 +381,8 @@ let modify ops (st : state) dir on_start on_pl =
                 let dir_opt = Library.find_dir lib (Log.text log i 0) in
                 Option.iter (fun dir ->
                   Library.fold_dir lib dir false;
-                  Option.iter (fun i ->
-                    Library.select_dir lib i;
-                    st.geometry.left_width <- dir.view.divider_width;
-                    st.geometry.upper_height <- dir.view.divider_height;
-                  ) (Library.find_entry_dir lib dir);
+                  Option.iter (Library.select_dir lib)
+                    (Library.find_entry_dir lib dir);
                 ) dir_opt;
                 close false log;
               );
@@ -397,11 +394,8 @@ let modify ops (st : state) dir on_start on_pl =
               `Entry (c, "Search for Song in " ^ dir.name, Layout.nokey, true),
               fun () ->
                 Table.deselect_all log.table;
-                Option.iter (fun i ->
-                  Library.select_dir lib i;
-                  st.geometry.left_width <- dir.view.divider_width;
-                  st.geometry.upper_height <- dir.view.divider_height;
-                ) (Library.find_entry_dir lib dir);
+                Option.iter (Library.select_dir lib)
+                  (Library.find_entry_dir lib dir);
                 Edit.set lib.search search;
                 Library.set_search lib search;
                 close false log;
