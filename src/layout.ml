@@ -132,7 +132,7 @@ let menu g x y = Ui.menu g.ui x y (popup_margin g) (gutter_w g) (text_h g) (pad_
 (* Control Pane *)
 
 let cp = 0
-let control_pane g = Ui.pane g.ui cp (playlist_x g, 0, control_w g, control_h g)
+let control_pane g = Ui.pane g.ui cp (control_x g, control_y g, control_w g, control_h g)
 
 (* Power and pane activation buttons *)
 let shown_w = 35
@@ -332,7 +332,7 @@ let cover_popup_text g (p, x, y, w, _) ih = Ui.ticker g.ui (p, x, y + ih + pad_h
 (* Playlist Pane *)
 
 let pp = cp + 1
-let playlist_pane g = Ui.pane g.ui pp (playlist_x g, control_h g, control_w g, - bottom_h g)
+let playlist_pane g = Ui.pane g.ui pp (playlist_x g, playlist_y g, playlist_w g, - bottom_h g)
 
 (* Playlist *)
 let playlist_area g = (pp, margin g, margin g, - margin g, - 1)
@@ -363,7 +363,7 @@ let reduce_popup_key g = Ui.key g.ui key_popupdn true
 (* Edit Pane *)
 
 let ep = pp + 1
-let edit_pane g = Ui.pane g.ui ep (playlist_x g, - bottom_h g, control_w g, bottom_h g)
+let edit_pane g = Ui.pane g.ui ep (playlist_x g, - bottom_h g, playlist_w g, bottom_h g)
 
 (* Buttons *)
 let edit_w = 27
@@ -396,7 +396,7 @@ let focus_prev_key g = Ui.key g.ui key_prev true
 (* Browser Pane *)
 
 let bp = ep + 1
-let browser_pane g = Ui.pane g.ui bp (library_x g, 0, g.browser_width, -1)
+let browser_pane g = Ui.pane g.ui bp (library_x g, library_y g, g.browser_width, -1)
 
 (* Divider *)
 let browser_divider g = Ui.divider g.ui (bp, - divider_w g, margin g, divider_w g, - bottom_h g) `Horizontal
@@ -479,6 +479,7 @@ let rescan_button = ledit_button 1 4 "SCAN" key_scandir
 (* View Panes *)
 
 let left_x g = library_x g + g.browser_width
+let left_y g = library_y g
 let left_w g = if g.right_shown then g.left_width else library_w g - g.browser_width
 let right_w g = if g.right_shown then library_w g - g.browser_width - g.left_width else 0
 let upper_h g = if g.lower_shown then g.upper_height else - bottom_h g
@@ -486,7 +487,7 @@ let lower_h g = - bottom_h g
 
 (* Upper left view *)
 let lp = bp + 1
-let left_pane g = Ui.pane g.ui lp (left_x g, 0, left_w g, upper_h g)
+let left_pane g = Ui.pane g.ui lp (left_x g, left_y g, left_w g, upper_h g)
 
 let left_area g = (lp, 0, margin g, -1, -1)
 let left_table g = Ui.rich_table g.ui (left_area g) (rich_table g 1 true)
@@ -502,7 +503,7 @@ let left_view =
 
 (* Upper right view (optional) *)
 let rp = lp + 1
-let right_pane g = Ui.pane g.ui rp (left_x g + g.left_width, 0, right_w g, upper_h g)
+let right_pane g = Ui.pane g.ui rp (left_x g + g.left_width, left_y g, right_w g, upper_h g)
 
 let right_divider g = Ui.divider g.ui (rp, 0, 0, divider_w g, -1) `Horizontal
 
@@ -520,7 +521,7 @@ let right_view =
 
 (* Lower view (optional) *)
 let lp = rp + 1
-let lower_pane g = Ui.pane g.ui lp (left_x g, g.upper_height, library_w g - g.browser_width, lower_h g)
+let lower_pane g = Ui.pane g.ui lp (left_x g, left_y g + g.upper_height, library_w g - g.browser_width, lower_h g)
 
 let lower_divider g = Ui.divider g.ui (lp, 0, 0, -1, divider_w g) `Vertical
 
@@ -545,7 +546,7 @@ let lib_cover_key g = Ui.key g.ui key_libcover true
 
 let log_x g = library_x g + g.browser_width
 let log_w g = library_w g - g.browser_width
-let log_pane g = Ui.pane g.ui lp (log_x g, 0, log_w g, - bottom_h g)
+let log_pane g = Ui.pane g.ui lp (log_x g, library_y g, log_w g, - bottom_h g)
 
 let log_area g = (lp, 0, margin g, -1, -1)
 let log_table g = Ui.rich_table g.ui (log_area g) (rich_table g 1 true)
@@ -572,7 +573,7 @@ let msg_text g = Ui.color_text g.ui (mp, msg_x + pad_w g, footer_y g + pad_h g, 
 (* Directories Pane *)
 
 let dp = mp + 1
-let directories_pane g = Ui.pane g.ui dp (library_x g, 0, g.directories_width, -1)
+let directories_pane g = Ui.pane g.ui dp (library_x g, library_y g, g.directories_width, -1)
 
 (* Divider *)
 let directories_divider g = Ui.divider g.ui (dp, - divider_w g, margin g, divider_w g, - bottom_h g) `Horizontal
@@ -597,7 +598,7 @@ let return_key g = Ui.key g.ui key_ok true
 (* Files Pane *)
 
 let fp = dp + 1
-let files_pane g = Ui.pane g.ui fp (library_x g + g.directories_width, 0, library_w g - g.directories_width, -1)
+let files_pane g = Ui.pane g.ui fp (library_x g + g.directories_width, library_y g, library_w g - g.directories_width, library_h g)
 
 (* Table *)
 let files_area g = (fp, 0, margin g, -1, -bottom_h g)

@@ -55,21 +55,15 @@ let before_frame_finish = ref []
 let after_frame_finish = ref []
 
 
-(* Window *)
+(* Screen *)
 
-type window = unit
-type icon = Raylib.Image.t
+type screen = int
 
-module Window =
+module Screen =
 struct
-  let scale = ref (1, 1)
-  let min_pos = ref (0, 0)       (* unscaled *)
-  let max_size = ref (0, 0)
+  type monitor = {outer : rect; inner : rect; hires : bool}  (* unscaled *)
 
-  let current_pos = ref (0, 0)   (* buffered during minimization *)
-  let current_size = ref (0, 0)
-  let next_pos = ref None        (* defer window changes to frame end *)
-  let next_size = ref None
+  let scale = ref (1, 1)
 
   let sx x = x * fst !scale
   let sy y = y * snd !scale
@@ -81,11 +75,83 @@ struct
   let uxy (x, y) = (ux x, uy y)
   let ufxy (x, y) = (ufx x, ufy y)
 
+  let monitors = ref ([||] : monitor iarray)
+
+  let init () =
+    (* Probe screen geometries by opening a dummy window on each and maximise.
+     * This is a hack that cannot react to dynamic changes, e.g., of resolution.
+     * Unfortunately, Raylib provides no way to inquire monitor geometry
+     * directly and by need. *)
+    Raylib.(set_config_flags
+      ConfigFlags.[Window_undecorated; Window_resizable; Window_hidden]);
+    (* Open dummy window to initialize GLFW for monitor queries to work. *)
+    Raylib.init_window 0 0 "";
+let n = Raylib.get_monitor_count () in
+Printf.printf "%d monitors\n%!" n;
+    let monitor_poss = Iarray.init (Raylib.get_monitor_count ())
+      (fun i -> point_of_vec2 (Raylib.get_monitor_position i)) in
+    Raylib.close_window ();
+    (* Probe all monitors. *)
+    monitors := Iarray.mapi (fun i (x, y) ->
+      Raylib.init_window 1 1 "";
+      Raylib.set_window_position x y;
+      Raylib.maximize_window ();
+      let w, h = Raylib.get_monitor_width i, Raylib.get_monitor_height i in
+      let min_x, min_y = point_of_vec2 (Raylib.get_window_position ()) in
+      let max_w, max_h = Raylib.get_screen_width (), Raylib.get_screen_height () in
+      let hires = Raylib.(Vector2.y (get_window_scale_dpi ())) > 1.0 in
+      Raylib.close_window ();
+Printf.printf "[%d] pos=%d,%d size=%d,%d\n%!" i min_x min_y max_w max_h;
+      {outer = x, y, w, h; inner = min_x, min_y, max_w, max_h; hires}
+    ) monitor_poss;
+
+    (* Default scaling factor. *)
+    let min_h = Iarray.fold_left (fun h {outer = _, _, _, h'; _} -> min h h') 0 !monitors in
+    scale :=
+      if min_h > 2880 (* 8K *) then (4, 4) else
+      if min_h > 1440 (* 4K *) then (2, 2) else (1, 1)
+
+  let screen pos =
+    Option.value ~default: 0
+      (Iarray.find_index (fun mon -> inside pos mon.outer) !monitors)
+
+  let mon scr = Iarray.get !monitors scr
+  let pos scr = let {outer = x, y, _, _; _} = mon scr in uxy (x, y)
+  let size scr = let {outer = _, _, w, h; _} = mon scr in uxy (w, h)
+  let min_pos scr = let {inner = x, y, _, _; _} = mon scr in uxy (x, y)
+  let max_size scr = let {inner = _, _, w, h; _} = mon scr in uxy (w, h)
+  let is_hires scr = let {hires; _} = mon scr in hires || snd !scale > 1
+end
+
+
+(* Window *)
+
+type window = unit
+type icon = Raylib.Image.t
+
+module Window =
+struct
+  open Screen
+
+(*
+  let screen_changed = ref false
+*)
+  let current_screen = ref (-1)
+  let current_pos = ref (0, 0)   (* buffered during minimization *)
+  let current_size = ref (0, 0)
+  let next_pos = ref None        (* defer window changes to frame end *)
+  let next_size = ref None
+
   let update () =
     if not (Raylib.is_window_minimized ()) then
     (
       current_pos := uxy (point_of_vec2 (Raylib.get_window_position ()));
       current_size := uxy ((Raylib.get_screen_width (), Raylib.get_screen_height ()));
+(*
+      let scr = Screen.screen !current_pos in
+      screen_changed := scr <> !current_screen;
+      current_screen := scr;
+*)
     )
 
   (* We have to set the window position before events are processed,
@@ -103,43 +169,35 @@ struct
       Raylib.(set_exit_key Key.Null);  (* seems to be reset somehow? *)
     ) :: !after_frame_finish
 
-  let init x y w h s =
+  let init x y w h title =
     Raylib.(set_trace_log_level TraceLogLevel.Warning);
     Raylib.(set_exit_key Key.Null);
     Raylib.set_target_fps 60;
 
-    (* Discover screen geometry by opening a dummy window and maximise it. *)
-    Raylib.(set_config_flags
-      ConfigFlags.[Window_undecorated; Window_resizable; Window_hidden]);
-    Raylib.init_window 0 0 "";
-    Raylib.maximize_window ();
-    update ();
-    min_pos := !current_pos;
-    max_size := !current_size;
-    scale :=
-      if snd !current_size > 2880 then (4, 4) (* 8K *) else
-      if snd !current_size > 1440 then (2, 2) (* 4K *) else (1, 1);
-    if fst !scale > 1 then update ();
-    Raylib.close_window ();
+    Screen.init ();
+    let mouse = Screen.uxy (point_of_vec2 (Raylib.get_mouse_position ())) in
+    current_screen := Screen.screen mouse;
 
     Raylib.(set_config_flags
       ConfigFlags.[Window_undecorated; Window_always_run;
         (*Window_transparent;*) Vsync_hint; Msaa_4x_hint]);
-    Raylib.init_window (sx w) (sy h) s;
+    Raylib.init_window (sx w) (sy h) title;
     Raylib.set_window_position (sx x) (sy y);
     Raylib.(clear_window_state ConfigFlags.[Window_hidden]);
     update ()
 
   let closed () = Raylib.window_should_close ()
+(*
+  let screen_changed () = !screen_changed
+*)
 
   let pos () = !current_pos
   let size () = !current_size
+  let screen () = !current_screen
   let set_pos () x y = next_pos := Some (x, y)
   let set_size () w h = next_size := Some (w, h)
+  let set_screen () scr = current_screen := scr
   let set_icon () img = if not is_mac then Raylib.set_window_icon img
-
-  let min_pos () = uxy !min_pos
-  let max_size () = uxy !max_size
 
   let minimize () = Raylib.minimize_window ()
   let restore () = Raylib.restore_window ()
@@ -149,18 +207,11 @@ struct
   let reveal () = Raylib.clear_window_state [Raylib.ConfigFlags.Window_hidden]
   let is_hidden () = Raylib.is_window_hidden ()
 
-  let screen_size () =
-    let mon = Raylib.get_current_monitor () in
-    ux (Raylib.get_monitor_width mon), uy (Raylib.get_monitor_height mon)
-
-  let is_hires () =
-    Raylib.(Vector2.y (get_window_scale_dpi ())) > 1.0 || snd !scale > 1
-
   let rescale () dx dy =
-    let x, y = !scale in
-    scale := max 1 (x + dx), max 1 (y + dy)
+    let x, y = !Screen.scale in
+    Screen.scale := max 1 (x + dx), max 1 (y + dy)
 
-  let scale () = !scale
+  let scale () = !Screen.scale
 
   let fps () = Raylib.get_fps ()
 end
@@ -261,7 +312,7 @@ struct
 
   let load () path min max size sdf =
     let size =
-      Window.sy size * int_of_float Raylib.(Vector2.y (get_window_scale_dpi ())) in
+      Screen.sy size * int_of_float Raylib.(Vector2.y (get_window_scale_dpi ())) in
     if sdf then
     (
       (* https://github.com/raysan5/raylib/blob/master/examples/text/text_font_sdf.c *)
@@ -421,20 +472,20 @@ struct
     let rl_max = 0x8008 in
     Raylib.Rlgl.set_blend_factors_separate 1 1 1 1 rl_func_add rl_max;
 *)
-    List.iter (fun f -> f ()) !after_frame_start
+    List.iter (fun f -> f ()) (List.rev !after_frame_start)
 
   let finish () =
-    List.iter (fun f -> f ()) !before_frame_finish;
+    List.iter (fun f -> f ()) (List.rev !before_frame_finish);
     incr frame;
     shader None;
     Raylib.end_drawing ();  (* polls input events *)
-    List.iter (fun f -> f ()) !after_frame_finish
+    List.iter (fun f -> f ()) (List.rev !after_frame_finish)
 
   let buffered () buf =
     shader None;
     Raylib.begin_texture_mode buf.texture;
     (* Manual adjustment for High DPI scaling is needed *)
-    current_scale := Window.sxy (point_of_vec2 (Raylib.get_window_scale_dpi ()))
+    current_scale := Screen.sxy (point_of_vec2 (Raylib.get_window_scale_dpi ()))
 
   let unbuffered () =
     shader None;
@@ -590,6 +641,7 @@ struct
   let last_win_pos = ref (0, 0) (* store to work around Raylib not updating relative mouse pos on window move *)
   let current_pos = ref (0, 0)  (* work around Raylib mouse pos bug *)
   let last_pos = ref (0, 0)     (* implement our own mouse delta, since Raylib's is off as well *)
+  let last_screen_pos = ref (0, 0)
   let last_press_pos = ref (min_int, min_int)
   let last_press_left = ref 0.0
   let last_press_right = ref 0.0
@@ -598,11 +650,12 @@ struct
   let is_drag_left = ref false
   let is_drag_right = ref false
   let next_cursor = ref Raylib.MouseCursor.Default
-  let last_screen_pos = ref (0, 0)
 
   let pos () = !current_pos
+(*
   let delta () = sub !current_pos !last_pos
-  let wheel () = Window.ufxy (floats_of_vec2 (Raylib.get_mouse_wheel_move_v ()))
+*)
+  let wheel () = Screen.ufxy (floats_of_vec2 (Raylib.get_mouse_wheel_move_v ()))
 
   let screen_pos () = add (pos ()) (Window.pos ())
   let screen_delta () = sub (screen_pos ()) !last_screen_pos
@@ -648,14 +701,23 @@ struct
     (fun () ->
       (* Work around Raylib issue: if window was moved but mouse hasn't, then
        * mouse pos is off; detect and correct by adding window delta. *)
-      current_pos := Window.uxy (point_of_vec2 (Raylib.get_mouse_position ()));
-      let win_pos = Window.uxy (point_of_vec2 (Raylib.get_window_position ())) in
-      let mouse_delta = Window.uxy (point_of_vec2 (Raylib.get_mouse_delta ())) in
+      current_pos := Screen.uxy (point_of_vec2 (Raylib.get_mouse_position ()));
+      let win_pos = Screen.uxy (point_of_vec2 (Raylib.get_window_position ())) in
+      let mouse_delta = Screen.uxy (point_of_vec2 (Raylib.get_mouse_delta ())) in
       let win_delta = sub win_pos !last_win_pos in
       if not is_mac || mouse_delta <> (0, 0) then
         last_win_pos := win_pos  (* true mouse location caught up *)
       else if is_mac && win_delta <> (0, 0) then
         current_pos := sub !current_pos win_delta;
+
+Printf.printf "[mouse %d,%d delta %+d,%+d screen=%d,%d last=%d,%d win=%d,%d vs %d,%d]\n%!"
+(fst !current_pos) (snd !current_pos)
+(fst (screen_delta ())) (snd (screen_delta ()))
+(fst (screen_pos ())) (snd (screen_pos ()))
+(fst !last_screen_pos) (snd !last_screen_pos)
+(fst win_pos) (snd win_pos)
+(fst (Window.pos ())) (snd (Window.pos ()))
+;
 
       (* Detect multi clicks *)
       let left = is_pressed `Left in

@@ -60,7 +60,6 @@ and run' (st : state) =
   let menu_shown = geo.menu_shown in
   let popup_shown = geo.popup_shown <> None in
   let library_side = geo.library_side in
-  let library_width = geo.library_width in
 
   (* Update geometry *)
   let ww, wh = Api.Window.size win in
@@ -110,8 +109,7 @@ and run' (st : state) =
     Bool.to_int (Layout.reduce_scale_key geo)
   in
   let scale_old = Api.Window.scale win in
-  let wingeo = Geometry.abstract_geo geo in
-  Ui.rescale geo.ui scale_delta scale_delta;
+  Ui.rescale geo.ui (scale_delta, scale_delta);
   let scale_new = Api.Window.scale win in
   let scaling' =
     fst geo.scaling + (fst scale_new - fst scale_old),
@@ -120,14 +118,38 @@ and run' (st : state) =
   if scaling' <> geo.scaling then
   (
     geo.scaling <- scaling';
-    let x, y = Geometry.apply_geo geo wingeo in
-    Api.Window.set_pos win x y;
+    Option.iter (fun wingeo ->
+      let x, y = Geometry.apply_geo geo wingeo in
+      Api.Window.set_pos win x y;
+    ) geo.window
   );
 
   if Layout.lib_cover_key geo then
     Library.activate_covers st.library (not st.library.covers_shown);
 
-  (* Adjust window size *)
+  (* Adjust window size after opening/closing panes *)
+  let playlist_shown' = geo.playlist_shown in
+  let overlay_shown' = Geometry.overlay_shown geo in
+  if playlist_shown' <> playlist_shown then
+  (
+    let s = if playlist_shown' then +1 else -1 in
+    Ui.resize geo.ui (-1, -1) (0, s * geo.playlist_height);
+  );
+  if overlay_shown' <> overlay_shown then
+  (
+    let s = if overlay_shown' then +1 else -1 in
+    let ox = if Geometry.overlay_left geo then Int.max_int else -1 in
+    Ui.resize geo.ui (ox, -1) (s * geo.library_width, 0);
+  )
+  else if overlay_shown' && geo.library_side <> library_side then
+  (
+    let ox, ox' = if Geometry.overlay_left geo then -1, Int.max_int else Int.max_int, -1 in
+    Ui.resize geo.ui (ox, -1) (- geo.library_width, 0);
+    Ui.resize geo.ui (ox', -1) (+ geo.library_width, 0);
+  );
+(*
+  let w, h = geo.library_width, geo.playlist_height in
+
   let overlay_shown' = geo.library_shown || geo.filesel_shown in
   let extra_w = if overlay_shown' then geo.library_width else 0 in
   let extra_h =
@@ -148,21 +170,38 @@ and run' (st : state) =
   in
   let x, y = Api.Window.pos win in
   if dx <> 0 then Api.Window.set_pos win (x + dx) y;
+*)
 
   (* Finish drawing *)
-  let minw, maxw =
-    if overlay_shown
-    then Geometry.(control_w geo + library_min geo, -1)
-    else Geometry.(control_w geo, control_w geo)
-  and minh, maxh =
-    if playlist_shown
-    then Geometry.(control_h geo + playlist_min geo, -1)
-    else Geometry.(control_h geo, control_h geo)
-  in
-  Ui.finish geo.ui (Geometry.margin geo) (minw, minh) (maxw, maxh);
+  let win_min = Geometry.(win_min_w geo, win_min_h geo) in
+  let win_max = Geometry.(win_max_w geo, win_max_h geo) in
+  Ui.finish geo.ui (Geometry.margin geo) win_min win_max (fun scr ->
+let win = Ui.window geo.ui in
+let scr_old = Api.Window.screen win in
+let scr_new = scr in
+    Ui.pin geo.ui scr;
+    Option.iter (fun wingeo ->
+let open Geometry in
+let ax,ay,aw,ah = wingeo in
+let win = Ui.window geo.ui in
+let wx,wy = Api.Window.pos win in
+let ww,wh = Api.Window.size win in
+Printf.printf "[screen change] a=%.2f,%.2f,%.2f,%.2f w=%d,%d,%d,%d\n%!" ax ay aw ah wx wy ww wh;
+let scr = Api.Window.screen win in
+Printf.printf " old=%b new=%b\n%!" (scr = scr_old) (scr = scr_new);
+      let w, h = geo.library_width, geo.playlist_height in
+      ignore (Geometry.apply_geo geo wingeo);
+      let dw = if overlay_shown geo then geo.library_width - w else 0 in
+      let dh = if geo.playlist_shown then geo.playlist_height - h else 0 in
+      (* Substract mouse delta to get position relative to current geometry *)
+      Ui.resize geo.ui Api.(sub (Mouse.pos win) (Mouse.screen_delta win)) (dw, dh)
+    ) geo.window
+  );
 
   if Api.Window.is_hidden win then  (* after startup *)
     Api.Window.reveal win;
+
+  geo.window <- Some (Geometry.abstract_geo geo);
 
   (* Save state regularly every second *)
   State.save_after st 1.0
@@ -179,8 +218,8 @@ let startup () =
   let st0 = State.make ui audio in
   let success, (x, y) = State.load st0 in
   let st = if success then st0 else State.make ui audio in
-  let w = Geometry.control_min_w + st.geometry.library_width in
-  let h = Geometry.control_min_h + st.geometry.playlist_height in
+  let w = Geometry.win_w st.geometry in
+  let h = Geometry.win_h st.geometry in
   Api.Draw.start win `Black;
   Api.Window.set_pos win x y;
   Api.Window.set_size win w h;

@@ -77,9 +77,11 @@ val mouse_focus : t -> area -> int -> int -> int -> unit
 (* Window *)
 
 val start : t -> unit
-val finish : t -> int -> size -> size -> unit
+val finish : t -> int -> size -> size -> (Api.screen -> unit) -> unit
 
-val rescale : t -> int -> int -> unit
+val resize : t -> point -> size -> unit
+val rescale : t -> size -> unit
+val pin : t -> screen -> unit
 
 val delay : t -> (unit -> unit) -> unit
 

@@ -17,11 +17,13 @@ type t =
   mutable buffered : bool;
   mutable font_sdf : bool;
   mutable palette : int;
-  mutable panes : rect array;
+  mutable panes : (rect * rect) array;  (* abstract and concrete rectangles *)
   mutable modal : bool;             (* whether a pop-up menu is shown *)
   mutable mouse_owned : bool;       (* whether mouse was owned by a widget *)
   mutable drag_origin : point;      (* starting position of mouse drag *)
   mutable drag_extra : drag;        (* associated data for drag operation *)
+  mutable repos : size;             (* requested window reposition delta *)
+  mutable resize : size;            (* requested window resize delta *)
   mutable delayed : (unit -> unit) list;   (* draw at end of frame *)
   img_background : image_load;
   img_button : image_load;
@@ -38,13 +40,15 @@ let make win =
   Window.set_icon win icon;
   { win;
     buffered = true;
-    font_sdf = Window.is_hires win;
+    font_sdf = Screen.is_hires (Window.screen win);
     palette = 0;
-    panes = Array.make 10 (0, 0, 0, 0);
+    panes = Array.make 10 ((0, 0, 0, 0), (0, 0, 0, 0));
     modal = false;
     mouse_owned = false;
     drag_origin = no_drag;
     drag_extra = No_drag;
+    repos = 0, 0;
+    resize = 0, 0;
     delayed = [];
     img_background = ref (`Unloaded "bg.jpg");
     img_button = ref (`Unloaded "but.jpg");
@@ -84,9 +88,24 @@ let pane ui i r =
 
   let n = Array.length ui.panes in
   if i >= n then
+  (
+    let z = 0, 0, 0, 0 in
     ui.panes <-
-      Array.init (2*i) (fun i -> if i < n then ui.panes.(i) else (0, 0, 0, 0));
-  ui.panes.(i) <- (x, y, w, h)
+      Array.init (2*i) (fun i -> if i < n then ui.panes.(i) else z, z);
+  );
+  ui.panes.(i) <- r, (x, y, w, h)
+;if i=0 then Printf.printf "[pane 0: %d,%d,%d,%d]\n%!" x y w h
+
+let find_pane ui pos =
+  match Array.find_opt (fun (_, r) -> inside pos r) ui.panes with
+  | Some rr -> Some rr
+  | None ->
+    let w, h = Window.size ui.win in
+    let all = (0, 0, w, h) in
+    if inside pos all then
+      Some (all, all)
+    else
+      None
 
 
 (* Areas *)
@@ -95,7 +114,7 @@ type area = pane * int * int * int * int
 
 let dim ui (i, x, y, w, h) =
   let px, py, pw, ph =
-    if i >= 0 then ui.panes.(i) else
+    if i >= 0 then snd ui.panes.(i) else
     let ww, wh = Window.size ui.win in 0, 0, ww, wh
   in
   let x' = x + (if x >= 0 then 0 else pw) in
@@ -273,6 +292,9 @@ let background ui x y w h =
 type drag += Move of {target : point}
 type drag += Resize of {overshoot : size}
 
+let delay ui f =
+  ui.delayed <- f :: ui.delayed
+
 let start ui =
   Draw.start ui.win (`Trans (`Black, 0x40));
 
@@ -291,93 +313,145 @@ let start ui =
   )
 
 
-let finish ui margin (minw, minh) (maxw, maxh) =
+let finish ui margin (minw, minh) (maxw, maxh) on_screen_change =
   List.iter (fun f -> f ()) (List.rev ui.delayed);
   ui.delayed <- [];
 
-  if ui.mouse_owned then
-  (
-     ui.mouse_owned <- false
-  )
-  else
-  (
-    let (wx, wy) as pos = Window.pos ui.win in
-    let (ww, wh) as size = Window.size ui.win in
-    let mouse = Mouse.pos ui.win in
-    let origin = if Mouse.is_down `Left then ui.drag_origin else mouse in
-    let varw = minw <> maxw in
-    let varh = minh <> maxh in
-    let left = inside origin (0, 0, margin, wh) in
-    let right = inside origin (ww - margin, 0, margin, wh) in
-    let upper = inside origin (0, 0, ww, margin) in
-    let lower = inside origin (0, wh - margin, ww, margin) in
-    let cursor =
-      match varw && left, varw && right, varh && upper, varh && lower with
-      | true, false, false, false
-      | false, true, false, false -> `Resize `E_W
-      | false, false, true, false
-      | false, false, false, true -> `Resize `N_S
-      | true, false, true, false
-      | false, true, false, true -> `Resize `NW_SE
-      | true, false, false, true
-      | false, true, true, false -> `Resize `NE_SW
-      | _ -> if Mouse.is_down `Left then `Point else `Default
-    in
-    Mouse.set_cursor ui.win cursor;
+  let (wx, wy) as pos = Window.pos ui.win in
+  let (ww, wh) as size = Window.size ui.win in
+  let pos' = add pos ui.repos in
+  let size' = add size ui.resize in
 
-    if Mouse.is_down `Left && cursor <> `Default then
+  let (wx', wy'), (ww', wh') =
+    if ui.mouse_owned then
     (
-      let sx, sy = Window.min_pos ui.win in
-      let sw, sh = Window.max_size ui.win in
-      match ui.drag_extra with
-      | No_drag when cursor = `Point ->
-        ui.drag_extra <- Move {target = pos};
-
-      | No_drag ->
-        ui.drag_extra <- Resize {overshoot = 0, 0};
-
-      | Move {target} ->
-        assert (cursor = `Point);
-        let off = sub pos target in
-        let (wx', wy') as pos' = sub (add pos (Mouse.screen_delta ui.win)) off in
-        Window.set_pos ui.win (snap sx (sx + sw - ww) wx') (snap sy (sy + sh - wh) wy');
-        ui.drag_extra <- Move {target = pos'};
-
-      | Resize {overshoot = over} ->
-        assert (cursor <> `Point);
-        let signx = if left then -1 else if right then +1 else 0 in
-        let signy = if upper then -1 else if lower then +1 else 0 in
-        let delta = mul (signx, signy) (Mouse.screen_delta ui.win) in
-        let ww', wh' = add (add size delta) over in
-        let rx, ry = wx - sx, wy - sy in
-        let maxw = if maxw >= 0 then maxw else if right then sw - rx else ww + rx in
-        let maxh = if maxh >= 0 then maxh else if lower then sh - ry else wh + ry in
-        let ww'', wh'' = clamp minw maxw ww', clamp minh maxh wh' in
-        let dwx = if left then ww'' - ww else 0 in
-        let dwy = if upper then wh'' - wh else 0 in
-        let dmx = if right then ww'' - ww else 0 in
-        let dmy = if lower then wh'' - wh else 0 in
-        Window.set_size ui.win ww'' wh'';            (* deferred until end fo frame! *)
-        Window.set_pos ui.win (wx - dwx) (wy - dwy); (* deferred until end fo frame! *)
-        ui.drag_extra <- Resize {overshoot = ww' - ww'', wh' - wh''};
-        ui.drag_origin <- add ui.drag_origin (dmx, dmy);  (* adjust for resize *)
-
-      | _ -> ()
+       ui.mouse_owned <- false;
+       pos', size'
     )
-  );
+    else
+    (
+      let mouse = Mouse.pos ui.win in
+      let origin = if Mouse.is_down `Left then ui.drag_origin else mouse in
+      let varw = minw <> maxw in
+      let varh = minh <> maxh in
+      let left = inside origin (0, 0, margin, wh) in
+      let right = inside origin (ww - margin, 0, margin, wh) in
+      let upper = inside origin (0, 0, ww, margin) in
+      let lower = inside origin (0, wh - margin, ww, margin) in
+      let cursor =
+        match varw && left, varw && right, varh && upper, varh && lower with
+        | true, false, false, false
+        | false, true, false, false -> `Resize `E_W
+        | false, false, true, false
+        | false, false, false, true -> `Resize `N_S
+        | true, false, true, false
+        | false, true, false, true -> `Resize `NW_SE
+        | true, false, false, true
+        | false, true, true, false -> `Resize `NE_SW
+        | _ -> if Mouse.is_down `Left then `Point else `Default
+      in
+      Mouse.set_cursor ui.win cursor;
+
+      if Mouse.is_down `Left && cursor <> `Default then
+      (
+        let scr = Api.Window.screen ui.win in
+        let sx, sy = Api.Screen.min_pos scr in
+        let sw, sh = Api.Screen.max_size scr in
+        match ui.drag_extra with
+        | No_drag when cursor = `Point ->
+          ui.drag_extra <- Move {target = pos};
+          pos', size'
+
+        | No_drag ->
+          ui.drag_extra <- Resize {overshoot = 0, 0};
+          pos', size'
+
+        | Move {target} ->
+          assert (cursor = `Point);
+          let mouse = Mouse.screen_pos ui.win in
+          let delta = Mouse.screen_delta ui.win in
+          if Screen.screen mouse <> Window.screen ui.win then
+            (* Moved to another screen, callback may update repos/resize *)
+(
+Printf.printf " mouse=%d,%d delta=%+d,%+d\n%!" (fst mouse)(snd mouse)(fst delta)(snd delta);
+            on_screen_change (Screen.screen mouse);
+);
+          let pos' = add pos ui.repos in
+          let size' = add size ui.resize in
+          let target' = add target ui.repos in
+          let off = sub pos' target' in
+          let (wx', wy') as pos'' = sub (add pos' delta) off in
+          ui.drag_extra <- Move {target = pos''};
+          (snap sx (sx + sw - ww) wx', snap sy (sy + sh - wh) wy'), size'
+
+        | Resize {overshoot = over} ->
+          assert (cursor <> `Point);
+          let signx = if left then -1 else if right then +1 else 0 in
+          let signy = if upper then -1 else if lower then +1 else 0 in
+          let delta = mul (signx, signy) (Mouse.screen_delta ui.win) in
+          let ww', wh' = add (add size delta) over in
+          let rx, ry = wx - sx, wy - sy in
+          let maxw = if maxw >= 0 then maxw else if right then sw - rx else ww + rx in
+          let maxh = if maxh >= 0 then maxh else if lower then sh - ry else wh + ry in
+          let ww'', wh'' = clamp minw maxw ww', clamp minh maxh wh' in
+          let dwx = if left then ww'' - ww else 0 in
+          let dwy = if upper then wh'' - wh else 0 in
+          let dmx = if right then ww'' - ww else 0 in
+          let dmy = if lower then wh'' - wh else 0 in
+          ui.drag_extra <- Resize {overshoot = ww' - ww'', wh' - wh''};
+          ui.drag_origin <- add ui.drag_origin (dmx, dmy);  (* adjust for resize *)
+          add (wx - dwx, wy - dwy) ui.repos,
+          add (ww'', wh'') ui.resize
+
+        | _ -> pos', size'
+      )
+      else pos', size'
+    )
+  in
+if (wx,wy,ww,wh) <> (wx',wy',ww',wh') then
+Printf.printf "[win %d %d %d %d -> %d %d %d %d]\n%!" wx wy ww wh wx' wy' ww' wh';
+  Window.set_pos ui.win wx' wy';   (* deferred until end fo frame! *)
+  Window.set_size ui.win ww' wh';  (* deferred until end fo frame! *)
+  ui.repos <- 0, 0;
+  ui.resize <- 0, 0;
 
   Draw.finish ui.win
 
+let resize ui origin (dw, dh) =
+  (* Figure out whether origin sticks to upper/left or lower/right.
+   * If the former, respective window position coordinate remains unchanged.
+   * If the latter, move window position along respective axis.
+   * Assume that widgets in the lower/right half of a pane stick to that side.
+   * (Breaking this assumption in a pane layout may lead to crashes when
+   * dragging a window, since the mouse pointer can end up over a different
+   * widget after resize!)
+   * TODO: Declare pivot explicitly with pane geometry and check widgets?
+   *)
+  let ox, oy = add origin ui.repos in
+  let dx, dy =
+    match find_pane ui origin with
+    | Some ((rx, ry, rw, rh), (x, y, w, h)) ->
+Printf.printf "[pane found %d %d %d %d] rx=%d rw=%d ox=%d\n%!" x y w h rx rw ox;
+      (if rx < 0 || rw < 0 && 2*(ox - x) > w then -dw else 0),
+      (if ry < 0 || rh < 0 && 2*(oy - y) > h then -dh else 0)
+    | None ->
+Printf.printf "[pane not found] ox=%d\n%!" ox;
+      (if fst origin < 0 then 0 else -dw),
+      (if snd origin < 0 then 0 else -dh)
+  in
+Printf.printf "[resize dwh=%+d,%+d @ (%d,%d)] dxy=%+d,%+d\n%!" dw dh (fst origin) (snd origin) dx dy;
+  ui.repos <- add ui.repos (dx, dy);
+  ui.resize <- add ui.resize (dw, dh)
 
-let rescale ui dx dy =
+let rescale ui (dx, dy) =
   if dx <> 0 || dy <> 0 then
   (
     Window.rescale ui.win dx dy;
     font_purge ui;
   )
 
-let delay ui f =
-  ui.delayed <- f :: ui.delayed
+let pin ui scr =
+  Window.set_screen ui.win scr
 
 
 (* Input Status *)
@@ -470,6 +544,10 @@ let drag_status ui r (stepx, stepy) =
       | false, false -> `Outside
     in
     `Drag ((dx', dy'), motion, traj)
+| Move _ -> ignore (failwith "move");
+let x,y,w,h=r in
+Printf.printf "Unexpected Move at %d,%d,%d,%d\n%!" x y w h; `None
+| Resize _ -> failwith "resize"
   | _ -> assert false
 
 let wheel_status ui r =
@@ -832,9 +910,9 @@ let divider ui area orient v minv maxv =
     | _ -> assert false
   in
   let vx, vy = inj v in
-  let vx', vy' = add (add (vx, vy) (Mouse.delta ui.win)) over in
+  let vx', vy' = add (add (vx, vy) (Mouse.screen_delta ui.win)) over in
   let i, _, _, _, _ = area in
-  let _, _, pw, ph = ui.panes.(i) in
+  let _, _, pw, ph = snd ui.panes.(i) in
   let minx, miny = inj minv in
   let maxx, maxy = inj maxv in
   let maxx = if maxx < 0 then pw else maxx in

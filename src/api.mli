@@ -31,6 +31,21 @@ val mul : point -> point -> point
 val inside : point -> rect -> bool
 
 
+(* Screen *)
+
+type screen
+
+module Screen :
+sig
+  val screen : point -> screen
+  val pos : screen -> point
+  val size : screen -> size
+  val min_pos : screen -> point
+  val max_size : screen -> size
+  val is_hires : screen -> bool
+end
+
+
 (* Window *)
 
 type window
@@ -41,15 +56,17 @@ sig
   val init : int -> int -> int -> int -> string -> window
 
   val closed : window -> bool
+(*
+  val screen_changed : window -> bool
+*)
 
   val pos : window -> point
   val size : window -> size
+  val screen : window -> screen
   val set_pos : window -> int -> int -> unit
   val set_size : window -> int -> int -> unit
+  val set_screen : window -> screen -> unit
   val set_icon : window -> icon -> unit
-
-  val min_pos : window -> point
-  val max_size : window -> size
 
   val minimize : window -> unit
   val restore : window -> unit
@@ -59,8 +76,6 @@ sig
   val reveal : window -> unit
   val is_hidden : window -> bool
 
-  val screen_size : window -> size
-  val is_hires : window -> bool
   val scale : window -> int * int
   val rescale : window -> int -> int -> unit
   val fps : window -> int
@@ -201,7 +216,9 @@ type cursor =
 module Mouse :
 sig
   val pos : window -> point
+(*
   val delta : window -> point
+*)
   val screen_pos : window -> point
   val screen_delta : window -> point
   val wheel : window -> float * float

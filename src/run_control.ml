@@ -54,9 +54,10 @@ let toggle_library (st : state) =
       if not geo.filesel_shown then
       (
         let win = Ui.window geo.ui in
+        let scr = Api.Window.screen win in
         let wx, _ = Api.Window.pos win in
-        let sx, _ = Api.Window.min_pos win in
-        let sw, _ = Api.Window.max_size win in
+        let sx, _ = Api.Screen.min_pos scr in
+        let sw, _ = Api.Screen.max_size scr in
         if geo.library_side = `Left && wx <= sx then
           geo.library_side <- `Right;
         if geo.library_side = `Right && wx + Geometry.control_w geo >= sx + sw then
