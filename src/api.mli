@@ -56,9 +56,6 @@ sig
   val init : int -> int -> int -> int -> string -> window
 
   val closed : window -> bool
-(*
-  val screen_changed : window -> bool
-*)
 
   val pos : window -> point
   val size : window -> size
@@ -216,11 +213,8 @@ type cursor =
 module Mouse :
 sig
   val pos : window -> point
-(*
   val delta : window -> point
-*)
-  val screen_pos : window -> point
-  val screen_delta : window -> point
+  val abs_pos : window -> point
   val wheel : window -> float * float
   val is_down : side -> bool
   val is_pressed : side -> bool

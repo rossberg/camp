@@ -1326,14 +1326,8 @@ let run (st : state) =
   let win = Ui.window geo.ui in
 
   (* Update after possible window resize *)
-assert (geo.browser_width >= 0);
-(*Printf.printf "min=%d max=%d\n%!" (Geometry.browser_min geo) (Geometry.browser_max geo);*)
-assert (Geometry.library_min geo >= 0);
-assert (Geometry.browser_min geo >= 0);
-assert (Geometry.browser_max geo >= Geometry.browser_min geo);
   geo.browser_width <-
     clamp (Geometry.browser_min geo) (Geometry.browser_max geo) geo.browser_width;
-assert (geo.browser_width >= 0);
   geo.left_width <-
     clamp (Geometry.left_min geo) (Geometry.left_max geo) geo.left_width;
   geo.upper_height <-
@@ -1374,4 +1368,3 @@ assert (geo.browser_width >= 0);
   geo.browser_width <-
     Layout.browser_divider geo geo.browser_width
       (Geometry.browser_min geo) (Geometry.browser_max geo)
-;assert (geo.browser_width >= 0)

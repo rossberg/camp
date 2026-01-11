@@ -143,58 +143,24 @@ and run' (st : state) =
   )
   else if overlay_shown' && geo.library_side <> library_side then
   (
-    let ox, ox' = if Geometry.overlay_left geo then -1, Int.max_int else Int.max_int, -1 in
+    let ox, ox' =
+      if Geometry.overlay_left geo then -1, Int.max_int else Int.max_int, -1 in
     Ui.resize geo.ui (ox, -1) (- geo.library_width, 0);
     Ui.resize geo.ui (ox', -1) (+ geo.library_width, 0);
   );
-(*
-  let w, h = geo.library_width, geo.playlist_height in
-
-  let overlay_shown' = geo.library_shown || geo.filesel_shown in
-  let extra_w = if overlay_shown' then geo.library_width else 0 in
-  let extra_h =
-    if geo.playlist_shown then geo.playlist_height else
-    if overlay_shown' then Geometry.bottom_h geo else 0
-  in
-  Api.Window.set_size win
-    (Geometry.control_w geo + extra_w) (Geometry.control_h geo + extra_h);
-
-  (* Adjust window position after opening/closing library *)
-  let dx =
-    match overlay_shown, overlay_shown', library_side, geo.library_side with
-    | false, true, _, `Left
-    | true, true, `Right, `Left -> -geo.library_width  (* opened on the left *)
-    | true, false, `Left, _
-    | true, true, `Left, `Right -> +library_width      (* closed on the left *)
-    | _ -> 0
-  in
-  let x, y = Api.Window.pos win in
-  if dx <> 0 then Api.Window.set_pos win (x + dx) y;
-*)
 
   (* Finish drawing *)
   let win_min = Geometry.(win_min_w geo, win_min_h geo) in
   let win_max = Geometry.(win_max_w geo, win_max_h geo) in
   Ui.finish geo.ui (Geometry.margin geo) win_min win_max (fun scr ->
-let win = Ui.window geo.ui in
-let scr_old = Api.Window.screen win in
-let scr_new = scr in
     Ui.pin geo.ui scr;
     Option.iter (fun wingeo ->
-let open Geometry in
-let ax,ay,aw,ah = wingeo in
-let win = Ui.window geo.ui in
-let wx,wy = Api.Window.pos win in
-let ww,wh = Api.Window.size win in
-Printf.printf "[screen change] a=%.2f,%.2f,%.2f,%.2f w=%d,%d,%d,%d\n%!" ax ay aw ah wx wy ww wh;
-let scr = Api.Window.screen win in
-Printf.printf " old=%b new=%b\n%!" (scr = scr_old) (scr = scr_new);
       let w, h = geo.library_width, geo.playlist_height in
       ignore (Geometry.apply_geo geo wingeo);
-      let dw = if overlay_shown geo then geo.library_width - w else 0 in
+      let dw = if Geometry.overlay_shown geo then geo.library_width - w else 0 in
       let dh = if geo.playlist_shown then geo.playlist_height - h else 0 in
       (* Substract mouse delta to get position relative to current geometry *)
-      Ui.resize geo.ui Api.(sub (Mouse.pos win) (Mouse.screen_delta win)) (dw, dh)
+      Ui.resize geo.ui Api.Mouse.(Api.sub (pos win) (delta win)) (dw, dh)
     ) geo.window
   );
 

@@ -94,7 +94,6 @@ let pane ui i r =
       Array.init (2*i) (fun i -> if i < n then ui.panes.(i) else z, z);
   );
   ui.panes.(i) <- r, (x, y, w, h)
-;if i=0 then Printf.printf "[pane 0: %d,%d,%d,%d]\n%!" x y w h
 
 let find_pane ui pos =
   match Array.find_opt (fun (_, r) -> inside pos r) ui.panes with
@@ -368,14 +367,11 @@ let finish ui margin (minw, minh) (maxw, maxh) on_screen_change =
 
         | Move {target} ->
           assert (cursor = `Point);
-          let mouse = Mouse.screen_pos ui.win in
-          let delta = Mouse.screen_delta ui.win in
+          let mouse = Mouse.abs_pos ui.win in
+          let delta = Mouse.delta ui.win in
           if Screen.screen mouse <> Window.screen ui.win then
             (* Moved to another screen, callback may update repos/resize *)
-(
-Printf.printf " mouse=%d,%d delta=%+d,%+d\n%!" (fst mouse)(snd mouse)(fst delta)(snd delta);
             on_screen_change (Screen.screen mouse);
-);
           let pos' = add pos ui.repos in
           let size' = add size ui.resize in
           let target' = add target ui.repos in
@@ -388,7 +384,7 @@ Printf.printf " mouse=%d,%d delta=%+d,%+d\n%!" (fst mouse)(snd mouse)(fst delta)
           assert (cursor <> `Point);
           let signx = if left then -1 else if right then +1 else 0 in
           let signy = if upper then -1 else if lower then +1 else 0 in
-          let delta = mul (signx, signy) (Mouse.screen_delta ui.win) in
+          let delta = mul (signx, signy) (Mouse.delta ui.win) in
           let ww', wh' = add (add size delta) over in
           let rx, ry = wx - sx, wy - sy in
           let maxw = if maxw >= 0 then maxw else if right then sw - rx else ww + rx in
@@ -408,8 +404,6 @@ Printf.printf " mouse=%d,%d delta=%+d,%+d\n%!" (fst mouse)(snd mouse)(fst delta)
       else pos', size'
     )
   in
-if (wx,wy,ww,wh) <> (wx',wy',ww',wh') then
-Printf.printf "[win %d %d %d %d -> %d %d %d %d]\n%!" wx wy ww wh wx' wy' ww' wh';
   Window.set_pos ui.win wx' wy';   (* deferred until end fo frame! *)
   Window.set_size ui.win ww' wh';  (* deferred until end fo frame! *)
   ui.repos <- 0, 0;
@@ -431,15 +425,12 @@ let resize ui origin (dw, dh) =
   let dx, dy =
     match find_pane ui origin with
     | Some ((rx, ry, rw, rh), (x, y, w, h)) ->
-Printf.printf "[pane found %d %d %d %d] rx=%d rw=%d ox=%d\n%!" x y w h rx rw ox;
       (if rx < 0 || rw < 0 && 2*(ox - x) > w then -dw else 0),
       (if ry < 0 || rh < 0 && 2*(oy - y) > h then -dh else 0)
     | None ->
-Printf.printf "[pane not found] ox=%d\n%!" ox;
       (if fst origin < 0 then 0 else -dw),
       (if snd origin < 0 then 0 else -dh)
   in
-Printf.printf "[resize dwh=%+d,%+d @ (%d,%d)] dxy=%+d,%+d\n%!" dw dh (fst origin) (snd origin) dx dy;
   ui.repos <- add ui.repos (dx, dy);
   ui.resize <- add ui.resize (dw, dh)
 
@@ -544,10 +535,14 @@ let drag_status ui r (stepx, stepy) =
       | false, false -> `Outside
     in
     `Drag ((dx', dy'), motion, traj)
-| Move _ -> ignore (failwith "move");
-let x,y,w,h=r in
-Printf.printf "Unexpected Move at %d,%d,%d,%d\n%!" x y w h; `None
-| Resize _ -> failwith "resize"
+  | Move _ -> ignore (failwith "move");
+    let x, y, w, h = r in
+    Storage.log (Printf.sprintf "Unexpected Move at %d,%d,%d,%d\n%!" x y w h);
+    `None
+  | Resize _ ->
+    let x, y, w, h = r in
+    Storage.log (Printf.sprintf "Unexpected Resize at %d,%d,%d,%d\n%!" x y w h);
+    `None
   | _ -> assert false
 
 let wheel_status ui r =
@@ -910,7 +905,7 @@ let divider ui area orient v minv maxv =
     | _ -> assert false
   in
   let vx, vy = inj v in
-  let vx', vy' = add (add (vx, vy) (Mouse.screen_delta ui.win)) over in
+  let vx', vy' = add (add (vx, vy) (Mouse.delta ui.win)) over in
   let i, _, _, _, _ = area in
   let _, _, pw, ph = snd ui.panes.(i) in
   let minx, miny = inj minv in

@@ -82,15 +82,15 @@ struct
      * This is a hack that cannot react to dynamic changes, e.g., of resolution.
      * Unfortunately, Raylib provides no way to inquire monitor geometry
      * directly and by need. *)
+
+    (* Open dummy window to initialize GLFW for monitor queries to work. *)
     Raylib.(set_config_flags
       ConfigFlags.[Window_undecorated; Window_resizable; Window_hidden]);
-    (* Open dummy window to initialize GLFW for monitor queries to work. *)
     Raylib.init_window 0 0 "";
-let n = Raylib.get_monitor_count () in
-Printf.printf "%d monitors\n%!" n;
     let monitor_poss = Iarray.init (Raylib.get_monitor_count ())
       (fun i -> point_of_vec2 (Raylib.get_monitor_position i)) in
     Raylib.close_window ();
+
     (* Probe all monitors. *)
     monitors := Iarray.mapi (fun i (x, y) ->
       Raylib.init_window 1 1 "";
@@ -98,15 +98,15 @@ Printf.printf "%d monitors\n%!" n;
       Raylib.maximize_window ();
       let w, h = Raylib.get_monitor_width i, Raylib.get_monitor_height i in
       let min_x, min_y = point_of_vec2 (Raylib.get_window_position ()) in
-      let max_w, max_h = Raylib.get_screen_width (), Raylib.get_screen_height () in
+      let max_w, max_h = Raylib.(get_screen_width (), get_screen_height ()) in
       let hires = Raylib.(Vector2.y (get_window_scale_dpi ())) > 1.0 in
       Raylib.close_window ();
-Printf.printf "[%d] pos=%d,%d size=%d,%d\n%!" i min_x min_y max_w max_h;
       {outer = x, y, w, h; inner = min_x, min_y, max_w, max_h; hires}
     ) monitor_poss;
 
     (* Default scaling factor. *)
-    let min_h = Iarray.fold_left (fun h {outer = _, _, _, h'; _} -> min h h') 0 !monitors in
+    let min_h = Iarray.fold_left
+      (fun h {outer = _, _, _, h'; _} -> min h h') 0 !monitors in
     scale :=
       if min_h > 2880 (* 8K *) then (4, 4) else
       if min_h > 1440 (* 4K *) then (2, 2) else (1, 1)
@@ -133,9 +133,6 @@ module Window =
 struct
   open Screen
 
-(*
-  let screen_changed = ref false
-*)
   let current_screen = ref (-1)
   let current_pos = ref (0, 0)   (* buffered during minimization *)
   let current_size = ref (0, 0)
@@ -147,11 +144,6 @@ struct
     (
       current_pos := uxy (point_of_vec2 (Raylib.get_window_position ()));
       current_size := uxy ((Raylib.get_screen_width (), Raylib.get_screen_height ()));
-(*
-      let scr = Screen.screen !current_pos in
-      screen_changed := scr <> !current_screen;
-      current_screen := scr;
-*)
     )
 
   (* We have to set the window position before events are processed,
@@ -187,9 +179,6 @@ struct
     update ()
 
   let closed () = Raylib.window_should_close ()
-(*
-  let screen_changed () = !screen_changed
-*)
 
   let pos () = !current_pos
   let size () = !current_size
@@ -641,7 +630,7 @@ struct
   let last_win_pos = ref (0, 0) (* store to work around Raylib not updating relative mouse pos on window move *)
   let current_pos = ref (0, 0)  (* work around Raylib mouse pos bug *)
   let last_pos = ref (0, 0)     (* implement our own mouse delta, since Raylib's is off as well *)
-  let last_screen_pos = ref (0, 0)
+  let last_abs_pos = ref (0, 0)
   let last_press_pos = ref (min_int, min_int)
   let last_press_left = ref 0.0
   let last_press_right = ref 0.0
@@ -652,13 +641,9 @@ struct
   let next_cursor = ref Raylib.MouseCursor.Default
 
   let pos () = !current_pos
-(*
-  let delta () = sub !current_pos !last_pos
-*)
+  let abs_pos () = add (pos ()) (Window.pos ())
+  let delta () = sub (abs_pos ()) !last_abs_pos
   let wheel () = Screen.ufxy (floats_of_vec2 (Raylib.get_mouse_wheel_move_v ()))
-
-  let screen_pos () = add (pos ()) (Window.pos ())
-  let screen_delta () = sub (screen_pos ()) !last_screen_pos
 
   let button = function
     | `Left -> Raylib.MouseButton.Left
@@ -710,15 +695,6 @@ struct
       else if is_mac && win_delta <> (0, 0) then
         current_pos := sub !current_pos win_delta;
 
-Printf.printf "[mouse %d,%d delta %+d,%+d screen=%d,%d last=%d,%d win=%d,%d vs %d,%d]\n%!"
-(fst !current_pos) (snd !current_pos)
-(fst (screen_delta ())) (snd (screen_delta ()))
-(fst (screen_pos ())) (snd (screen_pos ()))
-(fst !last_screen_pos) (snd !last_screen_pos)
-(fst win_pos) (snd win_pos)
-(fst (Window.pos ())) (snd (Window.pos ()))
-;
-
       (* Detect multi clicks *)
       let left = is_pressed `Left in
       let right = is_pressed `Right in
@@ -748,7 +724,7 @@ Printf.printf "[mouse %d,%d delta %+d,%+d screen=%d,%d last=%d,%d win=%d,%d vs %
       );
 
       (* Detect dragging *)
-      let moved = screen_delta () <> (0, 0) in
+      let moved = delta () <> (0, 0) in
       if is_down `Left then
         is_drag_left := !is_drag_left || moved
       else if not (is_released `Left) then
@@ -766,7 +742,7 @@ Printf.printf "[mouse %d,%d delta %+d,%+d screen=%d,%d last=%d,%d win=%d,%d vs %
   let _ = before_frame_finish :=
     (fun () ->
       last_pos := !current_pos;
-      last_screen_pos := screen_pos ();
+      last_abs_pos := abs_pos ();
     ) :: !before_frame_finish
 end
 

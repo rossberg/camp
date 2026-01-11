@@ -156,20 +156,24 @@ let win_max_h g = if g.playlist_shown then -1 else control_h g
 let check msg b = if b then [] else [msg]
 
 let ok geo =
-assert (playlist_min geo >= 0);
-assert (library_min geo >= 0);
-assert (browser_min geo >= 0);
-assert (browser_max geo >= browser_min geo);
   check "text size in range"
     (geo.text >= min_text_size && geo.text <= max_text_size) @
   check "album grid size in range"
     (geo.album_grid >= min_grid_size && geo.album_grid <= max_grid_size) @
   check "track grid size in range"
     (geo.track_grid >= min_grid_size && geo.track_grid <= max_grid_size) @
+  check "playlist height minimum positive"
+   (playlist_min geo >= 0) @
   check "playlist height in range"
     (geo.playlist_height >= playlist_min geo) @
+  check "library width minimum positive"
+    (library_min geo >= 0) @
   check "library width in range"
     (geo.library_width >= library_min geo) @
+  check "browser width minimum positive"
+    (browser_min geo >= 0) @
+  check "browser width maximum larger than minimum"
+    (browser_max geo >= browser_min geo) @
   check "browser width in range"
     ( geo.browser_width >= browser_min geo &&
       geo.browser_width <= browser_max geo ) @
@@ -220,10 +224,6 @@ let apply_geo geo (ax, ay, aw, ah) : int * int =
   let sx, sy = Api.Screen.min_pos scr in
   let sw, sh = Api.Screen.max_size scr in
   let sw', sh' = sw - control_min_w, sh - control_min_h in
-let wx,wy = Api.Window.pos win in
-let ww,wh = Api.Window.size win in
-Printf.printf "[apply %.2f,%.2f,%.2f,%.2f] s=%d,%d,%d,%d\n%!" ax ay aw ah sx sy sw sh;
-(*assert((wx,wy,ww) <> (sx,sy,sw));*)
   let w' = clamp (library_min geo) sw' (int_of_float (aw *. float sw')) in
   let h' = clamp (playlist_min geo) sh' (int_of_float (ah *. float sh')) in
   geo.library_width <- w';
@@ -237,17 +237,16 @@ Printf.printf "[apply %.2f,%.2f,%.2f,%.2f] s=%d,%d,%d,%d\n%!" ax ay aw ah sx sy 
   let clamp_y = clamp (- h + cy + margin) (sh - margin) in
   let x = clamp_x (int_of_float (ax *. float sw) + sx - cx) in
   let y = clamp_y (int_of_float (ay *. float sh) + sy - cy) in
-Printf.printf "  %d,%d,%d,%d -> %d,%d,%d,%d\n%!" wx wy ww wh x y geo.library_width geo.playlist_height;
 
-assert (geo.browser_width >= 0);
+(*
   geo.browser_width <-
     clamp (browser_min geo) (browser_max geo) geo.browser_width;
-assert (geo.browser_width >= 0);
   geo.left_width <- clamp (left_min geo) (left_max geo) geo.left_width;
   geo.upper_height <- clamp (upper_min geo) (upper_max geo) geo.upper_height;
   geo.directories_width <-
     clamp (directories_min geo) (directories_max geo) geo.directories_width;
-List.iter (Printf.printf "%s\n%!") (ok geo);
+*)
+
   (x, y)
 
 
