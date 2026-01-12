@@ -208,8 +208,8 @@ let abstract_geo geo : float * float * float * float =
   let sw', sh' = sw - control_min_w, sh - control_min_h in
   let x, y = Api.Window.pos win in
   let w, h = Api.Window.size win in
-  let cx = w + control_x geo in
-  let cy = h + control_y geo in
+  let cx = let cx = control_x geo in if cx >= 0 then cx else w + cx in
+  let cy = let cy = control_y geo in if cy >= 0 then cy else h + cy in
   assert (cx >= 0 && cy >= 0);
   let w', h' = geo.library_width, geo.playlist_height in
   let ax = float (x - sx + cx) /. float sw in
@@ -229,8 +229,8 @@ let apply_geo geo (ax, ay, aw, ah) : int * int =
   geo.library_width <- w';
   geo.playlist_height <- h';
   let w, h = w' + control_min_w, h' + control_min_h in
-  let cx = w + control_x geo in
-  let cy = h + control_y geo in
+  let cx = let cx = control_x geo in if cx >= 0 then cx else w + cx in
+  let cy = let cy = control_y geo in if cy >= 0 then cy else h + cy in
   assert (cx >= 0 && cy >= 0);
   let margin = margin geo in
   let clamp_x = clamp (- w + cx + margin) (sw - margin) in
