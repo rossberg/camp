@@ -14,6 +14,7 @@ Library:
 - [new] Playlist column for tracks views
 - [new] Query attribute #playlist
 - [new] Query functions #min, #max, #avg, #if
+- [fix] Export with position starts with position 01
 
 Build:
 - [chg] Add .opam file (thanks to kit-ty-kate)

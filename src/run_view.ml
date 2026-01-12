@@ -785,7 +785,7 @@ let export with_pos st tracks =
     Domain.spawn (fun () ->
       let w = int_of_float (Float.log10 (float (Array.length paths))) + 1 in
       Array.iteri (fun i src ->
-        let pos = if with_pos then fmt "%0*d - " w i else "" in
+        let pos = if with_pos then fmt "%0*d - " w (i + 1) else "" in
         let dst = File.(dir_path // pos ^ name src) in
         try File.copy src dst with (Sys_error _ | Unix.Unix_error _) as exn ->
           Storage.log_exn "file" exn ("while exporting " ^ dst);
