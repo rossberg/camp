@@ -87,6 +87,7 @@ struct
     Raylib.(set_config_flags
       ConfigFlags.[Window_undecorated; Window_resizable; Window_hidden]);
     Raylib.init_window 0 0 "";
+    let current = Raylib.get_current_monitor () in
     let monitor_poss = Iarray.init (Raylib.get_monitor_count ())
       (fun i -> point_of_vec2 (Raylib.get_monitor_position i)) in
     Raylib.close_window ();
@@ -109,7 +110,9 @@ struct
       (fun h {outer = _, _, _, h'; _} -> min h h') 0 !monitors in
     scale :=
       if min_h > 2880 (* 8K *) then (4, 4) else
-      if min_h > 1440 (* 4K *) then (2, 2) else (1, 1)
+      if min_h > 1440 (* 4K *) then (2, 2) else (1, 1);
+
+    current
 
   let screen pos =
     Option.value ~default: 0
@@ -166,9 +169,7 @@ struct
     Raylib.(set_exit_key Key.Null);
     Raylib.set_target_fps 60;
 
-    Screen.init ();
-    let mouse = Screen.uxy (point_of_vec2 (Raylib.get_mouse_position ())) in
-    current_screen := Screen.screen mouse;
+    current_screen := Screen.init ();
 
     Raylib.(set_config_flags
       ConfigFlags.[Window_undecorated; Window_always_run;

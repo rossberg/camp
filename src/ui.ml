@@ -536,12 +536,16 @@ let drag_status ui r (stepx, stepy) =
     in
     `Drag ((dx', dy'), motion, traj)
   | Move _ ->
+    (* Gracefully handle, sometimes occurs after cross-monitor window drag *)
     let x, y, w, h = r in
     Storage.log (Printf.sprintf "Unexpected Move at %d,%d,%d,%d\n%!" x y w h);
+    ui.drag_extra <- No_drag;
     `None
   | Resize _ ->
+    (* Gracefully handle, sometimes occurs after cross-monitor window drag *)
     let x, y, w, h = r in
     Storage.log (Printf.sprintf "Unexpected Resize at %d,%d,%d,%d\n%!" x y w h);
+    ui.drag_extra <- No_drag;
     `None
   | _ -> assert false
 
