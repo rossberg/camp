@@ -535,7 +535,7 @@ let drag_status ui r (stepx, stepy) =
       | false, false -> `Outside
     in
     `Drag ((dx', dy'), motion, traj)
-  | Move _ -> ignore (failwith "move");
+  | Move _ ->
     let x, y, w, h = r in
     Storage.log (Printf.sprintf "Unexpected Move at %d,%d,%d,%d\n%!" x y w h);
     `None

@@ -5,7 +5,7 @@ multi-resolution handling, and a couple of functions to the query language.
 
 UI:
 - [fix] Add missing font file to repo
-- [new] Store window size and position as fractions of screen size
+- [new] Store window size and position as proportional to screen size
 - [new] Automatically adjust window size when dragged to different screen
 - [chg] Glue view dividers to nearest border on window resize
 - [fix] Correctly restore view dividers on start-up

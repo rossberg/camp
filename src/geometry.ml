@@ -204,39 +204,37 @@ let abstract_geo geo : float * float * float * float =
   let win = Ui.window geo.ui in
   let scr = Api.Window.screen win in
   let sx, sy = Api.Screen.min_pos scr in
-  let sw, sh = Api.Screen.max_size scr in
-  let sw', sh' = sw - control_min_w, sh - control_min_h in
+  let sw, sh = Api.(sub (Screen.max_size scr) (control_min_w, control_min_h)) in
+  let cw, ch = Api.Window.size win in
+  let cx = let cx = control_x geo in if cx >= 0 then cx else cw + cx in
+  let cy = let cy = control_y geo in if cy >= 0 then cy else ch + cy in
+  assert (cx >= 0 && cy >= 0);  (* relative position of control pane *)
   let x, y = Api.Window.pos win in
-  let w, h = Api.Window.size win in
-  let cx = let cx = control_x geo in if cx >= 0 then cx else w + cx in
-  let cy = let cy = control_y geo in if cy >= 0 then cy else h + cy in
-  assert (cx >= 0 && cy >= 0);
-  let w', h' = geo.library_width, geo.playlist_height in
-  let ax = float (x - sx + cx) /. float sw in
-  let ay = float (y - sy + cy) /. float sh in
-  let aw = float w' /. float sw' in
-  let ah = float h' /. float sh' in
+  let w, h = geo.library_width, geo.playlist_height in
+  let ax = float (x + cx - sx) /. float sw in
+  let ay = float (y + cy - sy) /. float sh in
+  let aw = float w /. float sw in
+  let ah = float h /. float sh in
   (ax, ay, aw, ah)
 
 let apply_geo geo (ax, ay, aw, ah) : int * int =
   let win = Ui.window geo.ui in
   let scr = Api.Window.screen win in
   let sx, sy = Api.Screen.min_pos scr in
-  let sw, sh = Api.Screen.max_size scr in
-  let sw', sh' = sw - control_min_w, sh - control_min_h in
-  let w' = clamp (library_min geo) sw' (int_of_float (aw *. float sw')) in
-  let h' = clamp (playlist_min geo) sh' (int_of_float (ah *. float sh')) in
-  geo.library_width <- w';
-  geo.playlist_height <- h';
-  let w, h = w' + control_min_w, h' + control_min_h in
-  let cx = let cx = control_x geo in if cx >= 0 then cx else w + cx in
-  let cy = let cy = control_y geo in if cy >= 0 then cy else h + cy in
-  assert (cx >= 0 && cy >= 0);
+  let sw, sh = Api.(sub (Screen.max_size scr) (control_min_w, control_min_h)) in
+  let w = clamp (library_min geo) sw (int_of_float (aw *. float sw)) in
+  let h = clamp (playlist_min geo) sh (int_of_float (ah *. float sh)) in
+  geo.library_width <- w;
+  geo.playlist_height <- h;
+  let cw, ch = Api.add (w, h) (control_min_w, control_min_h) in
+  let cx = let cx = control_x geo in if cx >= 0 then cx else cw + cx in
+  let cy = let cy = control_y geo in if cy >= 0 then cy else ch + cy in
+  assert (cx >= 0 && cy >= 0);  (* relative position of control pane *)
   let margin = margin geo in
-  let clamp_x = clamp (- w + cx + margin) (sw - margin) in
-  let clamp_y = clamp (- h + cy + margin) (sh - margin) in
-  let x = clamp_x (int_of_float (ax *. float sw) + sx - cx) in
-  let y = clamp_y (int_of_float (ay *. float sh) + sy - cy) in
+  let clamp_x = clamp (- cw + margin) (sw - margin) in
+  let clamp_y = clamp (- ch + margin) (sh - margin) in
+  let x = clamp_x (int_of_float (ax *. float sw) - cx) + sx in
+  let y = clamp_y (int_of_float (ay *. float sh) - cy) + sy in
 
 (*
   geo.browser_width <-
