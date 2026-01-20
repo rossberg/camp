@@ -15,6 +15,7 @@ Library:
 - [new] Query attribute #playlist
 - [new] Query functions #min, #max, #avg, #if
 - [fix] Export with position starts with position 01
+- [fix] When rescanning playlist track, propagate result to library
 
 Build:
 - [chg] Add .opam file (thanks to kit-ty-kate)

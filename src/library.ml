@@ -820,8 +820,24 @@ let rescan_track' lib mode (track : track) =
     track.file.age <- time;
     old.file.age <- time;
     let changed = track <> old in
-    if not changed then track.memo <- memo;
-    if changed then Atomic.set lib.scan.changed true;
+    if changed then
+    (
+      (* For playlist tracks, update possible copy in library *)
+      if track.playlist <> "" then
+      (
+        Option.iter (fun track' ->
+          track'.format <- track.format;
+          track'.meta <- track.meta;
+          track'.status <- track.status;
+          track'.memo <- track.memo;
+        ) (find_track lib track.path)
+      );
+      Atomic.set lib.scan.changed true;
+    )
+    else
+    (
+      track.memo <- memo;
+    );
     changed
   with exn ->
     Storage.log_exn "file" exn ("scanning track " ^ track.path);
