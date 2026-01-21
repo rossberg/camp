@@ -16,6 +16,7 @@ Library:
 - [new] Playlist column for Repair log
 - [fix] Export with position starts with position 01
 - [fix] When rescanning playlist track, propagate result to library
+- [fix] When applying undo to library playlist, also update in-memory copy
 
 Build:
 - [fix] Add missing font file to repo

@@ -1643,6 +1643,7 @@ let save_playlist lib =
   let dir = Option.get lib.current in
   let tracks = Array.map Fun.id lib.tracks.entries in
   Array.sort (fun (t1 : track) (t2 : track) -> compare t1.pos t2.pos) tracks;
+  dir.tracks <- Iarray.of_array tracks;
   try
     let items = Array.to_list (Array.map (Track.to_m3u_item) tracks) in
     let s = M3u.make_ext items in
