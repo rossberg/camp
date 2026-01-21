@@ -353,7 +353,7 @@ let finish ui margin (minw, minh) (maxw, maxh) on_screen_change =
 
       if Mouse.is_down `Left && cursor <> `Default then
       (
-        let scr = Api.Window.screen ui.win in
+        let scr = Api.(Screen.screen (Mouse.pos ui.win)) in
         let sx, sy = Api.Screen.min_pos scr in
         let sw, sh = Api.Screen.max_size scr in
         match ui.drag_extra with
@@ -372,12 +372,10 @@ let finish ui margin (minw, minh) (maxw, maxh) on_screen_change =
           if Screen.screen mouse <> Window.screen ui.win then
             (* Moved to another screen, callback may update repos/resize *)
             on_screen_change (Screen.screen mouse);
-          let pos' = add pos ui.repos in
           let size' = add size ui.resize in
           let target' = add target ui.repos in
-          let off = sub pos' target' in
-          let (wx', wy') as pos'' = sub (add pos' delta) off in
-          ui.drag_extra <- Move {target = pos''};
+          let (wx', wy') as target'' = add target' delta in
+          ui.drag_extra <- Move {target = target''};
           (snap sx (sx + sw - ww) wx', snap sy (sy + sh - wh) wy'), size'
 
         | Resize {overshoot = over} ->
@@ -406,6 +404,7 @@ let finish ui margin (minw, minh) (maxw, maxh) on_screen_change =
   in
   Window.set_pos ui.win wx' wy';   (* deferred until end fo frame! *)
   Window.set_size ui.win ww' wh';  (* deferred until end fo frame! *)
+  ui.drag_origin <- sub ui.drag_origin ui.repos;
   ui.repos <- 0, 0;
   ui.resize <- 0, 0;
 
@@ -535,16 +534,22 @@ let drag_status ui r (stepx, stepy) =
       | false, false -> `Outside
     in
     `Drag ((dx', dy'), motion, traj)
-  | Move _ ->
+  | Move {target = tx, ty} ->
     (* Gracefully handle, sometimes occurs after cross-monitor window drag *)
     let x, y, w, h = r in
-    Storage.log (Printf.sprintf "Unexpected Move at %d,%d,%d,%d\n%!" x y w h);
+    Storage.log (Printf.sprintf
+      "Unexpected Move at %d,%d,%d,%d with target %d,%d drag origin %d,%d\n%!"
+      x y w h tx ty (fst ui.drag_origin) (snd ui.drag_origin)
+    );
     ui.drag_extra <- No_drag;
     `None
-  | Resize _ ->
+  | Resize {overshoot = ox, oy} ->
     (* Gracefully handle, sometimes occurs after cross-monitor window drag *)
     let x, y, w, h = r in
-    Storage.log (Printf.sprintf "Unexpected Resize at %d,%d,%d,%d\n%!" x y w h);
+    Storage.log (Printf.sprintf
+      "Unexpected Resize at %d,%d,%d,%d with overshoot %d,%d drag origin %d,%d\n%!"
+      x y w h ox oy (fst ui.drag_origin) (snd ui.drag_origin)
+    );
     ui.drag_extra <- No_drag;
     `None
   | _ -> assert false
