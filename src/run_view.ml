@@ -552,7 +552,7 @@ let modify_dir modify =
   {
     iter_dir = Data.iter_dir;
     is_pl = Data.is_playlist;
-    show_path = false;
+    show_path = true;
     dir_path = (fun (dir : dir) -> dir.path);
     load = (fun (dir : dir) -> M3u.parse_ext (File.load `Bin dir.path));
     save = (fun (dir : dir) _ items' -> File.save_safe `Bin dir.path (M3u.make_ext items'));
