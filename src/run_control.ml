@@ -389,7 +389,7 @@ let run (st : state) =
       let win = Ui.window geo.ui in
 
       (match Layout.graph_drag geo (1, 1) with
-      | `None | `Click | `Drop -> ()
+      | `None | `Click | `Drop | `Abort -> ()
       | `Take ->
         (* Dobule-click on oscilloscope: reset *)
         if Api.Mouse.is_double_click `Left then

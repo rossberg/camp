@@ -181,6 +181,22 @@ let run (st : state) =
       )
     );
 
+  | `Abort ->
+    if Api.Key.are_modifiers_down [] then
+    (
+      if Ui.mouse_inside geo.ui (Layout.playlist_area geo) then
+      (
+        (* Aborting inside playlist: snap back to original state *)
+        Playlist.undo pl;
+        Playlist.save_playlist pl;
+      )
+      else
+      (
+        (* Aborting outside playlist: drop aux redo for new state *)
+        Table.drop_redo pl.table;
+      )
+    )
+
   | `Menu (i_opt, _) ->
     (* Right-click on content: context menu *)
     State.focus_playlist st;

@@ -66,7 +66,7 @@ type trajectory = [`Inside | `Outside | `Outward | `Inward]
 val key : t -> modifier list * key -> bool -> bool
 val mouse : t -> area -> side -> bool
 val drag : t -> area -> size ->
-  [`None | `Click | `Take | `Drag of size * motion * trajectory | `Drop]
+  [`None | `Click | `Take | `Drag of size * motion * trajectory | `Drop | `Abort]
 val wheel : t -> area -> float * float
 
 (* Focus *)
@@ -148,6 +148,7 @@ type table_action =
   | `Move of int
   | `Drag of int * motion * trajectory
   | `Drop
+  | `Abort
   | `Menu of int option * int option
   | `None
   ]

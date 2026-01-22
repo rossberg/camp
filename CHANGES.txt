@@ -3,12 +3,6 @@
 This version adds the missing font file, better multi-monitor and
 multi-resolution handling, and a couple of functions to the query language.
 
-UI:
-- [new] Store window size and position as proportional to screen size
-- [new] Automatically adjust window size when dragged to different screen
-- [chg] Glue view dividers to nearest border on window resize
-- [fix] Correctly restore view dividers on start-up
-
 Library:
 - [new] Optional Playlist column for tracks views
 - [new] Query attribute #playlist
@@ -17,6 +11,13 @@ Library:
 - [fix] Export with position starts with position 01
 - [fix] When rescanning playlist track, propagate result to library
 - [fix] When applying undo to library playlist, also update in-memory copy
+
+UI:
+- [new] Abort any mouse drag action with click of right button
+- [new] Store window size and position as proportional to screen size
+- [new] Automatically adjust window size when dragged to different screen
+- [chg] Glue view dividers to nearest border on window resize
+- [fix] Correctly restore view dividers on start-up
 
 Build:
 - [fix] Add missing font file to repo

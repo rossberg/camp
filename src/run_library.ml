@@ -286,7 +286,7 @@ let run_browser (st : state) =
 
   let dir = Library.selected_dir lib in
   (match Layout.browser_table geo browser pp_entry with
-  | `None | `Scroll | `Move _ -> ()
+  | `None | `Scroll | `Move _ | `Abort -> ()
 
   | `Select ->
     (* TODO: allow multiple selections *)
@@ -935,7 +935,7 @@ let run_view (st : state)
     (
       if Ui.mouse_inside geo.ui (area geo) then
       (
-        (* Dropping inside own: drop aux undo if no change *)
+        (* Dropping inside own view: drop aux undo if no change *)
         if editable then
           Table.clean_undo lib.tracks
       )
@@ -943,7 +943,7 @@ let run_view (st : state)
       (
         (* Drag & drop originating from current view *)
 
-        (* Dropping outside tracks: drop aux redo for new state *)
+        (* Dropping outside own view: drop aux redo for new state *)
         if editable then
           Table.drop_redo lib.tracks;
 
@@ -951,6 +951,22 @@ let run_view (st : state)
         let tracks = selected_tracks lib in
         Run_view.drop_on_playlist st tracks;
         drop_on_browser st tracks;
+      )
+    )
+
+  | `Abort ->
+    if Api.Key.are_modifiers_down [] && editable then
+    (
+      if Ui.mouse_inside geo.ui (area geo) then
+      (
+        (* Aborting inside own view: snap back to original state *)
+        Library.undo lib;
+        Library.save_playlist lib;
+      )
+      else
+      (
+        (* Aborting outside own view: drop aux redo for new state *)
+        Table.drop_redo lib.tracks;
       )
     )
 
@@ -1163,7 +1179,9 @@ let run_log (st : state) =
 
   let pp_row i = log.table.entries.(i) in
   (match Layout.log_table geo log.columns log.heading log.table pp_row with
-  | `None | `Scroll | `Move _ | `Drag _ | `Drop | `Reorder _ | `HeadMenu _ -> ()
+  | `None | `Scroll | `Move _ | `Drag _ | `Drop | `Abort
+  | `Reorder _ | `HeadMenu _ ->
+    ()
 
   | `Select | `Click _ ->
     (* New selection: ignore *)

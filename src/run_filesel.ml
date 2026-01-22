@@ -67,7 +67,7 @@ let run (st : state) =
 
   let dir = Filesel.selected_dir fs in
   (match Layout.directories_table geo dirs pp_entry with
-  | `None | `Scroll | `Move _ | `Drag _ | `Drop -> ()
+  | `None | `Scroll | `Move _ | `Drag _ | `Drop | `Abort -> ()
 
   | `Select ->
     (* Select dir: refresh file list *)
@@ -118,7 +118,7 @@ let run (st : state) =
 
   let ok =
     match Layout.files_table geo cols (Some Filesel.heading) files pp_row with
-    | `None | `Scroll | `Move _ | `Drag _ | `Drop -> false
+    | `None | `Scroll | `Move _ | `Drag _ | `Drop | `Abort -> false
 
     | `Click (Some i, _)
       when Api.Mouse.(is_pressed `Left && is_double_click `Left) ->

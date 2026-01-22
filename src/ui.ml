@@ -290,6 +290,7 @@ let background ui x y w h =
 
 type drag += Move of {target : point}
 type drag += Resize of {overshoot : size}
+type drag += Abort
 
 let delay ui f =
   ui.delayed <- f :: ui.delayed
@@ -331,6 +332,7 @@ let finish ui margin (minw, minh) (maxw, maxh) on_screen_change =
     (
       let mouse = Mouse.pos ui.win in
       let origin = if Mouse.is_down `Left then ui.drag_origin else mouse in
+      let aborted = Mouse.is_down `Right || ui.drag_extra = Abort in
       let varw = minw <> maxw in
       let varh = minh <> maxh in
       let left = inside origin (0, 0, margin, wh) in
@@ -338,6 +340,7 @@ let finish ui margin (minw, minh) (maxw, maxh) on_screen_change =
       let upper = inside origin (0, 0, ww, margin) in
       let lower = inside origin (0, wh - margin, ww, margin) in
       let cursor =
+        if aborted then `Default else
         match varw && left, varw && right, varh && upper, varh && lower with
         | true, false, false, false
         | false, true, false, false -> `Resize `E_W
@@ -399,12 +402,16 @@ let finish ui margin (minw, minh) (maxw, maxh) on_screen_change =
 
         | _ -> pos', size'
       )
-      else pos', size'
+      else
+      (
+        if aborted then ui.drag_extra <- Abort;
+        pos', size'
+      )
     )
   in
   Window.set_pos ui.win wx' wy';   (* deferred until end fo frame! *)
   Window.set_size ui.win ww' wh';  (* deferred until end fo frame! *)
-  ui.drag_origin <- sub ui.drag_origin ui.repos;
+  ui.drag_origin <- sub ui.drag_origin ui.repos;  (* adjust for resize *)
   ui.repos <- 0, 0;
   ui.resize <- 0, 0;
 
@@ -498,13 +505,18 @@ type trajectory = [`Inside | `Outside | `Outward | `Inward]
 type drag += Drag of {pos : point; moved : bool; inside : bool}
 
 let drag_status ui r (stepx, stepy) =
-  if ui.modal || not (inside ui.drag_origin r) then
+  if ui.modal || not (inside ui.drag_origin r) || ui.drag_extra = Abort then
     `None
   else if Mouse.is_released `Left then
     if Mouse.is_drag `Left then
       `Drop
     else
       `Click
+  else if Mouse.is_pressed `Right && Mouse.is_drag `Left then
+  (
+    ui.drag_extra <- Abort;
+    `Abort
+  )
   else
   let (mx, my) as m = Mouse.pos ui.win in
   ui.mouse_owned <- true;
@@ -552,6 +564,7 @@ let drag_status ui r (stepx, stepy) =
     );
     ui.drag_extra <- No_drag;
     `None
+  | Abort -> `None
   | _ -> assert false
 
 let wheel_status ui r =
@@ -1435,6 +1448,7 @@ type table_action =
   | `Move of int
   | `Drag of int * motion * trajectory
   | `Drop
+  | `Abort
   | `Menu of int option * int option
   | `None
   ]
@@ -1549,10 +1563,11 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
     let find_column cols mx =
       find_column geo.gutter_w cols tab.hscroll (mx - x) in
 
+    let drag = drag_status ui r (max_int, rh) in
     let result =
-      if not ui.modal && Mouse.is_pressed `Right then
+      if not ui.modal && drag = `None && Mouse.is_pressed `Right then
       (
-        if inside (mx, my) r then
+        if inside (mx, my) r && inside ui.drag_origin r then
         (
           let row = if i >= limit then None else Some i in
           if Table.has_selection tab
@@ -1570,7 +1585,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
         `None
       else if not (shift || command) then
       (
-        match drag_status ui r (max_int, rh) with
+        match drag with
         | `None -> `None
 
         | `Take ->
@@ -1616,6 +1631,8 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
         | `Drag ((_, dy), motion, traj) -> `Drag (dy, motion, traj)
 
         | `Drop -> `Drop
+
+        | `Abort -> `Abort
       )
       else if command && not ui.modal && Mouse.is_pressed `Left then
       (
@@ -1908,6 +1925,7 @@ let browser ui area geo (tab : _ Table.t) pp_entry =
   | `Move i -> `Move i
   | `Drag (i, motion, traj) -> `Drag (i, motion, traj)
   | `Drop -> `Drop
+  | `Abort -> `Abort
   | `Menu (i, _) -> `Menu (i, None)
   | `Sort _ | `Resize _ | `Reorder _ | `HeadMenu _ -> assert false
 
@@ -2159,6 +2177,8 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
         | `Drag ((dx, dy), motion, traj) -> `Drag (dx + dy * line, motion, traj)
 
         | `Drop -> `Drop
+
+        | `Abort -> `Abort
       )
       else if command && not ui.modal && Mouse.is_pressed `Left then
       (
