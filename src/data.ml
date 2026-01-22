@@ -676,16 +676,16 @@ struct
       "status", status x.status;
     ])
 
-  let rec dir () =
+  let rec dir x =
     record (fun (x : _ dir) -> [
       "path", string x.path;
       "parent", option string x.parent;
       "nest", int x.nest;
       "name", string x.name;
-      "children", iarray (dir ()) x.children;
+      "children", iarray dir x.children;
       "tracks", iarray track (if is_dir x then x.tracks else [||]);
       "error", string x.error;
-    ])
+    ]) x
 end
 
 module Parse =
@@ -826,16 +826,16 @@ struct
       status x.status;
     ])
 
-  let rec dir () =
+  let rec dir x =
     record (fun (x : _ dir) -> [
       string x.path;
       option string x.parent;
       option nat (if x.nest = -1 then None else Some x.nest);
       string x.name;
-      iarray (dir ()) x.children;
+      iarray dir x.children;
       iarray track (if is_dir x then x.tracks else [||]);
       string x.error;
-    ])
+    ]) x
 end
 
 module Decode =

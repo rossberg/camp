@@ -469,7 +469,7 @@ let save_db lib =
   if Atomic.exchange lib.scan.changed false then
   (
     Storage.save_string library_name (fun () ->
-      Bin.encode (Data.Encode.dir ()) lib.root
+      Bin.encode Data.Encode.dir lib.root
     )
   )
 
