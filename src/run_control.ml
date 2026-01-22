@@ -758,7 +758,7 @@ let run (st : state) =
     let repeat s x = s ^ (match x with `None -> " One" | `One -> " All" | `All -> " Off") in
     let loop s x = s ^ (match x with `None -> " Start" | `A _ -> " End" | `AB _ -> " Off") in
     let unmute x = if x then "Unmute" else "Mute" in
-    Run_menu.command_menu st [|
+    Run_menu.command_menu st (Iarray.append [|
       `Entry (c, "Start/Stop", Layout.key_startstop, paused || len > 0),
         (fun () -> start_stop st);
       `Entry (c, "Play", Layout.key_play, stopped && len > 0),
@@ -773,6 +773,7 @@ let run (st : state) =
         (fun () -> skip st (-1));
       `Entry (c, "Eject", Layout.key_eject, len <> 0 || ctl.current <> None),
         (fun () -> eject st);
+    |] (if not geo.playlist_shown then [||] else [|
       `Separator, ignore;
       `Entry (c, "Seek Backwards", Layout.key_rw, ctl.progress > 0.0),
         (fun () -> seek st (-1.0));
@@ -792,7 +793,7 @@ let run (st : state) =
         (fun () -> shift_volume st (+1.0));
       `Entry (c, "Volume Down", Layout.key_voldn, ctl.volume > 0.0),
         (fun () -> shift_volume st (-1.0));
-    |]
+    |]))
   )
   else if ctl.visual = `Cover && old_visual = `Cover && not (Control.silent ctl)
     && Layout.cover_popup_open geo then
@@ -846,7 +847,7 @@ let run_toggle_panel (st : state) =
     let c = Ui.text_color geo.ui in
     let show s b = (if b then "Show " else "Hide ") ^ s in
     let side s d = s ^ (match d with `Left -> " Right" | `Right -> " Left") in
-    Run_menu.command_menu st [|
+    Run_menu.command_menu st (Iarray.append [|
       `Entry (c, "Quit", Layout.key_quit, true),
         (fun () -> quit st);
       `Entry (c, "Minimize", Layout.key_min, true),
@@ -858,6 +859,7 @@ let run_toggle_panel (st : state) =
         (fun () -> toggle_library st);
       `Entry (c, side "Expand to" geo.library_side, Layout.key_side, true),
         (fun () -> toggle_side st);
+    |] (if not geo.playlist_shown then [||] else [|
       `Separator, ignore;
       `Entry (c, "Cycle Color", Layout.key_color, true),
         (fun () -> cycle_color st (+1));
@@ -882,5 +884,5 @@ let run_toggle_panel (st : state) =
         (fun () -> resize_popup st (+1));
       `Entry (c, "Decrease Popup Cover Size", Layout.key_popupdn, resize_popup_avail st (-1)),
         (fun () -> resize_popup st (-1));
-    |]
+    |]))
   )

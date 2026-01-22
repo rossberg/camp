@@ -366,9 +366,10 @@ let ep = pp + 1
 let edit_pane g = Ui.pane g.ui ep (playlist_x g, - bottom_h g, playlist_w g, bottom_h g)
 
 (* Buttons *)
-let edit_w = 27
+let edit_w _g = 27
 let edit_h g = line_h g + 7
-let edit_area i j g = (ep, margin g + i*5 + j*edit_w, - edit_h g, edit_w, edit_h g)
+let edit_y g = if g.playlist_shown then - edit_h g else control_h g (* effectively hidden *)
+let edit_area i j g = (ep, margin g + i*5 + j*edit_w g, edit_y g, edit_w g, edit_h g)
 let edit_button i j label key g = Ui.labeled_button g.ui (edit_area i j g) (button_label_h g) (Ui.inactive_color g.ui) label key true
 
 let tag_button = edit_button 0 0 "TAG" key_tag
