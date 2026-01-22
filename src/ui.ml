@@ -1563,11 +1563,10 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
     let find_column cols mx =
       find_column geo.gutter_w cols tab.hscroll (mx - x) in
 
-    let drag = drag_status ui r (max_int, rh) in
     let result =
-      if not ui.modal && drag = `None && Mouse.is_pressed `Right then
+      if not ui.modal && ui.drag_extra = No_drag && Mouse.is_pressed `Right then
       (
-        if inside (mx, my) r && inside ui.drag_origin r then
+        if inside (mx, my) r then
         (
           let row = if i >= limit then None else Some i in
           if Table.has_selection tab
@@ -1585,7 +1584,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
         `None
       else if not (shift || command) then
       (
-        match drag with
+        match drag_status ui r (max_int, rh) with
         | `None -> `None
 
         | `Take ->
