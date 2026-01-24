@@ -1,0 +1,13 @@
+opam-version: "2.0"
+synopsis: "Crash test"
+description: "Segfault repro with Raylib callbacks"
+authors: ["Andreas Rossberg"]
+license: "CC-BY-NC-SA-4.0"
+doc: "https://github.com/rossberg/camp/blob/main/README.txt"
+depends: [
+  "ocaml" {>= "5.04"}
+  "dune" {>= "3.20"}
+  "raylib" {>= "1.6.0"}
+  "raylib-callbacks" {>= "1.6.0"}
+]
+build: ["dune" "build" "-p" name "-j" jobs]

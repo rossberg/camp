@@ -1,98 +1,22 @@
-# Configuration
-
-APPNAME = $(strip $(shell make -s app-name))
-VERSION = $(strip $(shell make -s app-version))
-NAME = $(strip $(shell make -s dune-public_name))
+NAME = crash
 MAIN = main
-
-NONDEPS = unix audio_file [a-zA-Z0-9_]*[.][a-zA-Z0-9_.]*
-DEPS = dune $(strip $(shell make -s dune-libraries $(NONDEPS:%=| sed 's/ %//g')))
-
-ASSETS = $(glob assets/*)
+DEPS = raylib raylib-callbacks
 WIN_DLLS = libwinpthread-1 libffi-6
 
-ifeq ($(OS),Windows_NT)
-  SYSTEM = win
-else
-  ifeq ($(shell uname -s),Darwin)
-    SYSTEM = mac
-  endif
-  ifeq ($(shell uname -s),Linux)
-    SYSTEM = linux
-  endif
-endif
-
-
-# Main Targets
-
-default:
-	make $(SYSTEM)
+default: deps exe
 
 vars:
 	@echo 'NAME = $(NAME)'
 	@echo 'MAIN = $(MAIN)'
-	@echo 'APPNAME = $(APPNAME)'
-	@echo 'VERSION = $(VERSION)'
-	@echo 'SYSTEM = $(SYSTEM)'
 	@echo 'DEPS = $(DEPS)'
 
 deps:
 	opam install --yes --deps-only $(DEPS)  # Temporary workaround for Opam Windows bug
 	opam install --yes $(DEPS)
 
-upgrade:
-	opam update
-	opam upgrade --yes
-
 exe:
-	cd src && opam exec -- dune build $(MAIN).exe
-	ln -f _build/default/src/$(MAIN).exe $(NAME).exe
-
-
-# Packaging
-
-prerequisites: deps exe $(ASSETS)
-
-dir: prerequisites
-	mkdir -p $(APPNAME)
-	cp -f $(NAME).exe $(APPNAME)/$(APPNAME).exe
-	cp -rf assets $(APPNAME)
-
-win: dir
-	@if [ "$(WIN_DLLS)" != '' ]; then cp $(WIN_DLLS:%=`opam exec -- which %.dll`) $(APPNAME); fi
-
-linux: dir
-
-mac: prerequisites
-	mkdir -p $(APPNAME).app/Contents
-	cp -rf platform/mac/* assets $(NAME).exe $(APPNAME).app/Contents
-	chmod +x $(APPNAME).app/Contents/MacOS/run.sh
-
-mac-debug: mac
-	codesign -s - -v -f --entitlements platform/mac-debug/debug.plist $(NAME).exe
-
-mac-install: mac
-	cp -rf $(APPNAME).app /Applications
-
-
-# Zips
-
-zip-mac: mac
-	zip -r $(APPNAME)-$(VERSION)-mac.zip $(APPNAME).app
-
-zip-win: win
-	zip -r $(APPNAME)-$(VERSION)-win.zip $(APPNAME)
-	rm -rf $(NAME)
-
-zip-linux: linux
-	zip -r $(APPNAME)-$(VERSION)-linux.zip $(APPNAME)
-	rm -rf $(NAME)
-
-zip:
-	make zip-$(SYSTEM)
-
-
-# Clean-up
+	opam exec -- dune build $(MAIN).exe
+	ln -f _build/default/$(MAIN).exe $(NAME).exe
 
 clean:
 	dune clean
@@ -100,13 +24,4 @@ clean:
 
 distclean: clean
 	rm -rf _build
-	rm -rf *.exe *.zip *.app
-
-
-# Dune file access
-
-app-%:
-	grep "let $* =" src/app.ml | sed 's/[^"]*"//' | sed 's/"//'
-
-dune-%:
-	grep "[(]$*" src/dune src/*/dune | sed 's/.*$*//' | sed 's/[^a-zA-Z0-9_. -]//g'
+	rm -rf $(NAME).exe

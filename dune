@@ -1,0 +1,13 @@
+(executable
+  (public_name crash)
+  (name main)
+  (modules main)
+  (libraries unix raylib raylib-callbacks)
+  (link_deps (include link_deps.sexp))
+  (link_flags (:include link_flags.sexp))
+)
+
+(rule
+  (targets link_deps.sexp link_flags.sexp)
+  (action (run ./src/config/config.exe))
+)
