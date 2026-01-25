@@ -177,8 +177,8 @@ and run' (st : state) =
 
 let startup () =
   Storage.clear_temp ();
-  let audio = Api.Audio.init () in
   let win = Api.Window.init 0 0 0 0 App.name in
+  let audio = Api.Audio.init win in
   Api.Window.hide win;  (* hide during initialisation *)
   let ui = Ui.make win in
   let st0 = State.make ui audio in

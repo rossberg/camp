@@ -1,7 +1,11 @@
 === 0.9.1 (WIP) ===
 
 This version adds the missing font file, better multi-monitor and
-multi-resolution handling, and a couple of functions to the query language.
+multi-resolution handling, and a couple of functions to the query language,
+and fixes a really obscure segfault(!) from the audio system.
+
+General:
+- [fix] Fix very obscure but frequent crash caused by audio callbacks
 
 Library:
 - [new] Optional Playlist column for tracks views

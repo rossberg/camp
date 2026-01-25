@@ -250,7 +250,9 @@ type sound
 
 module Audio :
 sig
-  val init : unit -> audio
+  (* Takes window arg to force it to happen after window init. This is crucial
+   * to avoid obscure segfaults when adding processor callbacks! *)
+  val init : window -> audio
 
   val silence : audio -> sound
   val load : audio -> path -> sound  (* returns silence on error *)
