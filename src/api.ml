@@ -94,7 +94,7 @@ struct
 
     (* Probe all monitors. *)
     monitors := Iarray.mapi (fun i (x, y) ->
-      Raylib.init_window 1 1 "";
+      Raylib.init_window 4000 4000 "";  (* on Mac, need to start big *)
       Raylib.set_window_position x y;
       Raylib.maximize_window ();
       let w, h = Raylib.get_monitor_width i, Raylib.get_monitor_height i in
