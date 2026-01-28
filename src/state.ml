@@ -240,7 +240,10 @@ let save st =
 let load st =
   Random.self_init ();
 
-  let pos = ref (0, 0) in
+  let sw, sh = Api.(Screen.size (Window.screen (Ui.window st.geometry.ui))) in
+  let ww, wh = Geometry.(control_min_w, control_min_h) in
+  let pos = ref ((sw - ww)/2, (sh - wh)/2) in  (* default to mid-screen *)
+
   Library.load_db st.library;
   Library.load_browser st.library;
   Library.rescan_root st.library `Quick;
