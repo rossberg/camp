@@ -252,7 +252,7 @@ let load st =
   );
   st.saved <- Unix.gettimeofday ();
 
-  focus_playlist st;
+  if st.geometry.playlist_shown then focus_playlist st;
   if st.control.current = None && Playlist.length st.playlist > 0 then
   (
     st.control.current <- Table.current_opt st.playlist.table;
