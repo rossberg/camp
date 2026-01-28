@@ -7,6 +7,9 @@ UI:
 - [chg] Force playlist open when opening library, to avoid nonsensical layout
 - [fix] Fix some issues when starting up with empty configuration
 
+Build:
+- [chg] Build on Mac without requiring Rosetta [thanks Michael Dales @mdales]
+
 
 === 0.9.1 (2026-01-25) ===
 
