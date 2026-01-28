@@ -66,6 +66,8 @@ linux: dir
 mac: prerequisites
 	mkdir -p $(APPNAME).app/Contents
 	cp -rf platform/mac/* assets $(NAME).exe $(APPNAME).app/Contents
+	/usr/libexec/PlistBuddy -c "Add :LSArchitecturePriority array" $(APPNAME).app/Contents/Info.plist
+	/usr/libexec/PlistBuddy -c "Add :LSArchitecturePriority:0 string $(shell uname -m)" $(APPNAME).app/Contents/Info.plist
 	chmod +x $(APPNAME).app/Contents/MacOS/run.sh
 
 mac-debug: mac
