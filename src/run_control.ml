@@ -36,7 +36,12 @@ let toggle_playlist (st : state) =
   State.delay st (fun () ->
     let geo = st.geometry in
     geo.playlist_shown <- not geo.playlist_shown;
-    if not geo.playlist_shown then Playlist.defocus st.playlist
+    if not geo.playlist_shown then
+    (
+      Playlist.defocus st.playlist;
+      geo.library_shown <- false;  (* force closed to avoid nonsensical layout *)
+      Library.defocus st.library;
+    )
   )
 
 let toggle_library (st : state) =
@@ -49,6 +54,7 @@ let toggle_library (st : state) =
     )
     else
     (
+      geo.playlist_shown <- true;  (* force open to avoid nonsensical layout *)
       geo.library_shown <- true;
       (* Switch side if window exceeds respective border *)
       if not geo.filesel_shown then
@@ -812,8 +818,8 @@ let run_toggle_panel (st : state) =
   Layout.playlist_indicator geo geo.playlist_shown;
   let playlist_shown' = Layout.playlist_button geo (Some geo.playlist_shown) in
   (* Click on playlist activation button: toggle playlist *)
-  geo.playlist_shown <- playlist_shown';
-  if not playlist_shown' then Playlist.defocus st.playlist;
+  if playlist_shown' <> geo.playlist_shown then
+    toggle_playlist st;
 
   Layout.library_label geo;
   Layout.library_shadow geo;

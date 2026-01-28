@@ -4,6 +4,7 @@ Library:
 - [fix] Fix assertion failure when dropping a directory on All entry
 
 UI:
+- [chg] Force playlist open when opening library, to avoid nonsensical layout
 - [fix] Fix some issues when starting up with empty configuration
 
 
