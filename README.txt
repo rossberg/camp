@@ -352,7 +352,8 @@ Views for the tracks in it.
 .................
 
 The Browser is for browsing through the folders you have added: the roots,
-their sub-folders, and also playlists in these folders.
+their sub-folders, and also playlists in these folders. Note that it hides
+sub-folders that contain no audio or playlist files.
 
 In Camp, playlists are treated like virtual folders, meaning that they can
 participate in all the interesting activities around searching, filtering,
