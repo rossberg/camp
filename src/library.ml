@@ -356,6 +356,7 @@ let make () =
       scan = make_scan ();
     }
   in
+  Table.set lib.browser [|root|];
   ignore (Domain.spawn (saver lib));
   lib
 

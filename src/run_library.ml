@@ -558,8 +558,9 @@ let run_browser (st : state) =
     Option.iter (function (pos_opt, _) ->
       let pos =
         match pos_opt with
-        | None -> Iarray.length lib.root.children
-        | Some i -> Library.find_parent_pos lib entries.(i)
+        | Some i when not (Data.is_all entries.(i)) ->
+          Library.find_parent_pos lib entries.(i)
+        | _ -> Iarray.length lib.root.children
       in
       if not (Library.insert_roots lib dropped pos) then
         Layout.browser_error_box geo;  (* flash *)
