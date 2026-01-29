@@ -211,7 +211,7 @@ let save_selection tab =
   deselect_all tab;
   selection
 
-let restore_selection tab selection key =
+let restore_selection tab key selection =
   if selection <> [||] then
   (
     dirty tab;

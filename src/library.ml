@@ -1130,7 +1130,7 @@ let refresh_browser lib =
   in
   let selection = Table.save_selection lib.browser in
   Table.set lib.browser (Array.of_list (entries lib.root []));
-  Table.restore_selection lib.browser selection (fun dir -> dir.path)
+  Table.restore_selection lib.browser (fun dir -> dir.path) selection
 
 
 let insert_dir lib path =
@@ -1246,10 +1246,9 @@ let albums_sorting (view : views) = view.albums.sorting
 let tracks_sorting (view : views) = view.tracks.sorting
 
 let artist_key (artist : artist) = artist.name
-let album_key (album : album) = (*album.track*)  (* TODO *)
-  match album.meta with
-  | None -> "[unknown]"
-  | Some meta -> meta.albumtitle
+let album_key (album : album) =
+  let s1, s2, s3, s4 = Query.album_key album in
+  String.concat "\x00" [s1; s2; s3; s4]
 
 let track_key lib : track -> string =
   if current_is_playlist lib || current_is_viewlist lib then
@@ -1262,10 +1261,10 @@ let track_key lib : track -> string =
 
 let refresh_delay = 5.0
 
-let filter_artist lib =
+let filter_artist selected =
   let artists =
     Array.fold_left (fun s (artist : artist) -> Set.add artist.name s)
-      Set.empty (Table.selected lib.artists)
+      Set.empty selected
   in fun (track : track) ->
     artists = Set.empty ||
     let artist = Data.track_attr_string track `Artist in
@@ -1275,18 +1274,22 @@ let filter_artist lib =
     List.exists (fun n -> Set.mem n artists) (Meta.artists_of_artist artist) ||
     List.exists (fun n -> Set.mem n artists) (Meta.artists_of_artist albumartist)
 
-let filter_album lib =
+let filter_album selected =
   let albums =
     Array.fold_left (fun s (album : album) ->
       Query.AlbumSet.add (Query.album_key album) s
-    ) Query.AlbumSet.empty (Table.selected lib.albums)
+    ) Query.AlbumSet.empty selected
   in fun (track : track) ->
     albums = Query.AlbumSet.empty ||
     Query.AlbumSet.mem (Query.track_album_key track) albums
 
-let filter lib with_artists with_albums with_tracks with_seps =
-  let filter_artist = filter_artist lib in
-  let filter_album = filter_album lib in
+let selections lib =
+  Table.(selected lib.artists, selected lib.albums, selected lib.tracks)
+
+let filter with_artists with_albums with_tracks with_seps selections =
+  let sel_artists, sel_albums, _ = selections in
+  let filter_artist = filter_artist sel_artists in
+  let filter_album = filter_album sel_albums in
   fun (track : track) ->
     let is_sep = is_separator track in
     let has_artist = filter_artist track in
@@ -1306,7 +1309,7 @@ let sort attr_string sorting entries =
     Array.iteri (fun i (_, entry) -> entries.(i) <- entry) entries';
   )
 
-let refresh_view lib (tab : _ Table.t) attr_string sorting key f =
+let refresh_view lib (tab : _ Table.t) selected attr_string sorting key f =
   match lib.current with
   | None -> Table.remove_all tab
   | Some dir ->
@@ -1319,67 +1322,82 @@ let refresh_view lib (tab : _ Table.t) attr_string sorting key f =
     let entries = f dir query (is_playlist dir) in
     sort attr_string (sorting dir.view) entries;
     Mutex.protect tab.mutex (fun () ->
-      let selection = Table.save_selection tab in
       Table.set tab entries;
-      Table.restore_selection tab selection key
+      Table.restore_selection tab key selected;
     );
     lib.refresh_time <-
       min lib.refresh_time (Unix.gettimeofday () +. refresh_delay)
 
-let refresh_tracks_view lib f =
-  refresh_view lib lib.tracks track_attr_string tracks_sorting (track_key lib) f
-let refresh_albums_view lib f =
-  refresh_view lib lib.albums album_attr_string albums_sorting album_key f
-let refresh_artists_view lib f =
-  refresh_view lib lib.artists artist_attr_string artists_sorting artist_key f
+let refresh_tracks_view lib (_, _, sel) f =
+  refresh_view lib lib.tracks sel track_attr_string tracks_sorting (track_key lib) f
+let refresh_albums_view lib (_, sel, _) f =
+  refresh_view lib lib.albums sel album_attr_string albums_sorting album_key f
+let refresh_artists_view lib (sel, _, _) f =
+  refresh_view lib lib.artists sel artist_attr_string artists_sorting artist_key f
 
-let refresh_tracks_sync lib =
-  refresh_tracks_view lib
+let refresh_tracks_sync' lib selections =
+  refresh_tracks_view lib selections
     (fun dir query with_seps ->
-      let _, _, tracks =
-        Query.exec query (filter lib false false true with_seps) dir in
+      let fil = filter false false true with_seps selections in
+      let _, _, tracks = Query.exec query fil dir in
       tracks
     )
 
-let refresh_albums_tracks_sync lib =
-  refresh_tracks_view lib
+let refresh_albums_tracks_sync' lib selections =
+  refresh_tracks_view lib selections
     (fun dir query with_seps ->
-      let _, albums, tracks =
-        Query.exec query (filter lib false true true with_seps) dir in
-      refresh_albums_view lib (fun _dir _query _with_seps -> albums);
+      let fil = filter false true true with_seps selections in
+      let _, albums, tracks = Query.exec query fil dir in
+      refresh_albums_view lib selections (fun _dir _query _with_seps -> albums);
       tracks
     )
 
-let refresh_artists_albums_sync lib =
-  refresh_albums_view lib
+let refresh_artists_albums_sync' lib selections =
+  refresh_albums_view lib selections
     (fun dir query with_seps ->
-      let artists, albums, _ =
-        Query.exec query (filter lib true true false with_seps) dir in
-      refresh_artists_view lib (fun _dir _query _with_seps -> artists);
+      let fil = filter true true false with_seps selections in
+      let artists, albums, _ = Query.exec query fil dir in
+      refresh_artists_view lib selections (fun _dir _query _with_seps -> artists);
       albums
     )
 
-let refresh_artists_albums_tracks_sync lib =
-  refresh_tracks_view lib
+let refresh_artists_albums_tracks_sync' lib selections =
+  refresh_tracks_view lib selections
     (fun dir query with_seps ->
-      let artists, albums, tracks =
-        Query.exec query (filter lib true true true with_seps) dir in
-      refresh_artists_view lib (fun _dir _query _with_seps -> artists);
-      refresh_albums_view lib (fun _dir _query _with_seps -> albums);
+      let fil = filter true true true with_seps selections in
+      let artists, albums, tracks = Query.exec query fil dir in
+      refresh_artists_view lib selections (fun _dir _query _with_seps -> artists);
+      refresh_albums_view lib selections (fun _dir _query _with_seps -> albums);
       tracks
     )
 
+let refresh_tracks_sync lib =
+  refresh_tracks_sync' lib (selections lib)
+let refresh_albums_tracks_sync lib =
+  refresh_albums_tracks_sync' lib (selections lib)
+let refresh_artists_albums_sync lib =
+  refresh_artists_albums_sync' lib (selections lib)
+let refresh_artists_albums_tracks_sync lib =
+  refresh_artists_albums_tracks_sync' lib (selections lib)
 
 let refresh_tracks ?(busy = true) lib =
+  let selections = selections lib in
+  let vscroll_tracks = lib.tracks.vscroll in
   if busy then
   (
     Atomic.set lib.scan.tracks_busy true;
     Table.set lib.tracks [||];
   );
   Atomic.set lib.scan.tracks_refresh
-    (Some (busy, fun () -> refresh_tracks_sync lib))
+    (Some (busy, fun () ->
+      refresh_tracks_sync' lib selections;
+      Table.set_vscroll lib.tracks vscroll_tracks 1 4;
+    ))
 
 let refresh_albums_tracks ?(busy = true) lib =
+  let selections = selections lib in
+  let vscroll_tracks = lib.tracks.vscroll in
+  let vscroll_albums = lib.albums.vscroll in
   if busy then
   (
     Atomic.set lib.scan.albums_busy true;
@@ -1387,9 +1405,17 @@ let refresh_albums_tracks ?(busy = true) lib =
     Table.set lib.albums [||];
   );
   Atomic.set lib.scan.albums_refresh
-    (Some (busy, fun () -> refresh_albums_tracks_sync lib))
+    (Some (busy, fun () ->
+      refresh_albums_tracks_sync' lib selections;
+      Table.set_vscroll lib.tracks vscroll_tracks 1 4;
+      Table.set_vscroll lib.albums vscroll_albums 1 4;
+    ))
 
 let refresh_artists_albums_tracks ?(busy = true) lib =
+  let selections = selections lib in
+  let vscroll_tracks = lib.tracks.vscroll in
+  let vscroll_albums = lib.albums.vscroll in
+  let vscroll_artists = lib.artists.vscroll in
   if busy then
   (
     Atomic.set lib.scan.artists_busy true;
@@ -1398,7 +1424,12 @@ let refresh_artists_albums_tracks ?(busy = true) lib =
     Table.set lib.artists [||];
   );
   Atomic.set lib.scan.artists_refresh
-    (Some (busy, fun () -> refresh_artists_albums_tracks_sync lib))
+    (Some (busy, fun () ->
+      refresh_artists_albums_tracks_sync' lib selections;
+      Table.set_vscroll lib.tracks vscroll_tracks 1 4;
+      Table.set_vscroll lib.albums vscroll_albums 1 4;
+      Table.set_vscroll lib.artists vscroll_artists 1 4;
+    ))
 
 let refresh_artists_busy lib =
   Atomic.get lib.scan.artists_busy
@@ -1456,7 +1487,7 @@ let reorder lib tab sorting attr_string key =
     (
       let selection = Table.save_selection tab in
       sort attr_string s tab.entries;
-      Table.restore_selection tab selection key;
+      Table.restore_selection tab key selection;
     )
   ) lib.current
 
@@ -1676,12 +1707,12 @@ let normalize_playlist lib =
   | (`Pos, `Desc)::_ ->
     let selection = Table.save_selection lib.tracks in
     array_rev lib.tracks.entries;
-    Table.restore_selection lib.tracks selection (track_key lib);
+    Table.restore_selection lib.tracks (track_key lib) selection;
     `Desc
   | _ ->
     let selection = Table.save_selection lib.tracks in
     Array.sort compare_pos lib.tracks.entries;
-    Table.restore_selection lib.tracks selection (track_key lib);
+    Table.restore_selection lib.tracks (track_key lib) selection;
     `Other
 
 let restore_playlist lib = function
@@ -1689,11 +1720,11 @@ let restore_playlist lib = function
   | `Desc ->
     let selection = Table.save_selection lib.tracks in
     array_rev lib.tracks.entries;
-    Table.restore_selection lib.tracks selection (track_key lib)
+    Table.restore_selection lib.tracks (track_key lib) selection
   | `Other ->
     let selection = Table.save_selection lib.tracks in
     reorder_tracks lib;
-    Table.restore_selection lib.tracks selection (track_key lib)
+    Table.restore_selection lib.tracks (track_key lib) selection
 
 
 let insert lib pos tracks =
@@ -1722,7 +1753,6 @@ let insert lib pos tracks =
           in {track with pos; status}
       ) tracks
     in
-    deselect_all lib;
     for i = pos'' to len - 1 do
       lib.tracks.entries.(i).pos <- lib.tracks.entries.(i).pos + len'
     done;

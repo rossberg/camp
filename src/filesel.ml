@@ -79,7 +79,7 @@ let refresh_dirs fs =
   in
   let selection = Table.save_selection fs.dirs in
   Table.set fs.dirs (Array.of_list (entries fs.roots 0 []));
-  Table.restore_selection fs.dirs selection (fun dir -> dir.path);
+  Table.restore_selection fs.dirs (fun dir -> dir.path) selection;
   Table.adjust_vscroll fs.files
     (Option.value (Table.first_selected fs.files) ~default: 0) 1 4
 
@@ -357,7 +357,7 @@ let reorder_files fs k =
   Array.stable_sort cmp' enriched;
   let selection = Table.save_selection fs.files in
   Table.set fs.files (Array.map snd enriched);
-  Table.restore_selection fs.files selection (fun (file : file) -> file.name)
+  Table.restore_selection fs.files (fun (file : file) -> file.name) selection
 
 
 (* Persistence *)

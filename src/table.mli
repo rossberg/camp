@@ -73,7 +73,7 @@ val select : ('a, 'b) t -> int -> int -> unit
 val deselect : ('a, 'b) t -> int -> int -> unit
 
 val save_selection : ('a, 'b) t -> 'a array
-val restore_selection : ('a, 'b) t -> 'a array -> ('a -> string) -> unit
+val restore_selection : ('a, 'b) t -> ('a -> string) -> 'a array -> unit
 
 
 (* Editing *)

@@ -3,6 +3,7 @@
 Library:
 - [chg] Double-click in browser or view jumps to track(s), only queues if not
         yet present in playlist; use Ctrl/Command-double-click for queuing
+- [chg] Adding filters or changing search query preserves views' selections
 
 UI:
 - [new] Edit fields turn red as long as input is invalid
