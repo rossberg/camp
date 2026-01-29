@@ -334,9 +334,15 @@ let run_browser (st : state) =
         Table.deselect_all lib.artists;   (* deactivate inner filters *)
         Table.deselect_all lib.albums;
         Library.refresh_albums_tracks_sync lib;  (* could be slow... *)
-      );
-      Run_view.queue_on_playlist st (Array.copy lib.tracks.entries)
-        (Api.Mouse.is_triple_click `Left);
+      )
+      else if Api.Key.is_modifier_down `Command then
+        Library.refresh_tracks_sync lib;  (* could be slow... *)
+      if not (Api.Key.is_modifier_down `Command) then
+        Run_view.queue_on_playlist st (Array.copy lib.tracks.entries)
+          (if Api.Mouse.is_triple_click `Left then `Replace else `Jump)
+      else if Table.is_selected browser i
+      && not (Api.Mouse.is_triple_click `Left) then
+        Run_view.queue_on_playlist st (Array.copy lib.tracks.entries) `Queue
     )
 
   | `Click (None, _) ->
@@ -757,7 +763,7 @@ let run_view (st : state)
     reorder (view : _ Library.view) (views : Library.views)
     attr_string prim_attr all_attrs
     path_of text_of color_of
-    selected_tracks _clicked_tracks
+    selected_tracks clicked_tracks
     editable popup make_view =
   let lib = st.library in
   let geo = st.geometry in
@@ -843,7 +849,7 @@ let run_view (st : state)
     views.custom <- true;
     Option.iter (Library.save_dir lib) lib.current;
 
-  | `Click _ when Api.Mouse.(is_pressed `Left &&
+  | `Click loc when Api.Mouse.(is_pressed `Left &&
       (is_double_click `Left || is_triple_click `Left)) ->
     (* Double/triple-click on entry: send tracks to playlist *)
     let n = Table.num_selected dep_tab in
@@ -851,10 +857,19 @@ let run_view (st : state)
     (
       Table.deselect_all dep_tab;       (* deactivate inner filter *)
       Library.refresh_tracks_sync lib;  (* could be slow... *)
-    );
-    let tracks = selected_tracks lib in
-    Run_view.queue_on_playlist st (Array.copy tracks)
-      (Api.Mouse.is_triple_click `Left);
+    )
+    else if Api.Key.is_modifier_down `Command then
+      Library.refresh_tracks_sync lib;  (* could be slow... *)
+    if not (Api.Key.is_modifier_down `Command) then
+      Run_view.queue_on_playlist st (Array.copy (selected_tracks lib))
+        (if Api.Mouse.is_triple_click `Left then `Replace else `Jump)
+    else if not (Api.Mouse.is_triple_click `Left) then
+      Option.iter (fun i ->
+        let tracks =
+          if Table.is_selected tab i
+          then selected_tracks lib else clicked_tracks lib i
+        in Run_view.queue_on_playlist st (Array.copy tracks) `Queue
+      ) (fst loc)
 
   | `Click loc ->
     (* Single-click: grab focus, update filter *)

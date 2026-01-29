@@ -142,33 +142,33 @@ type rich_table =
   }
 
 type table_action =
-  [ `Click of int option * int option
+  [ `Click of int option * int option   (* row, column *)
   | `Select
   | `Scroll
-  | `Move of int
-  | `Drag of int * motion * trajectory
+  | `Move of int                        (* delta *)
+  | `Drag of int * motion * trajectory  (* delta, motion, trajectory *)
   | `Drop
   | `Abort
-  | `Menu of int option * int option
+  | `Menu of int option * int option    (* row, column *)
   | `None
   ]
 
 type rich_table_action =
   [ table_action
-  | `Sort of int
-  | `Resize of int iarray   (* new sizes *)
-  | `Reorder of int iarray  (* permutation *)
-  | `HeadMenu of int option
+  | `Sort of int             (* column *)
+  | `Resize of int iarray    (* new sizes *)
+  | `Reorder of int iarray   (* permutation *)
+  | `HeadMenu of int option  (* column *)
   ]
 
 val rich_table :
   t -> 
   area ->
   rich_table ->
-  column iarray ->                   (* column layout *)
-  heading option ->                  (* headers (None if has_heading = false) *)
-  ('a, cached) Table.t ->            (* data *)
-  (int -> color * cell iarray) ->    (* row generator *)
+  column iarray ->                 (* column layout *)
+  heading option ->                (* headers (None if has_heading = false) *)
+  ('a, cached) Table.t ->          (* data *)
+  (int -> color * cell iarray) ->  (* row generator *)
     rich_table_action
 
 val rich_table_inner_area : t -> area -> rich_table -> area

@@ -384,6 +384,15 @@ Other things to do in the Browser:
 * Reorder: You can change the order in which sub-folders are shown by dragging
   individual entries. You cannot move them to another folder, though.
 
+* Jump: a double-click on the selected browser folder immediately plays the
+  tracks in the current view. If the tracks already exists in the playlist (in
+  order), then the playlist jumps to the first entry, otherwise the tracks are
+  first inserted at the end.
+
+* Queue: a Ctrl/Command-double-click on the selected browser folder queues
+  up all the current view's tracks in the playlist; a triple-click clears out
+  the previous playlist first.
+
 * Rename (context menu): You can also change the name shown for an entry. Don't
   worry, this does not affect the physical name of the folder or file on disk.
 
@@ -422,8 +431,13 @@ like playlists) can be viewed in a number of exciting ways.
   selection of an individual track. Shift-click toggles the selection
   of the entire range between the currently and the last clicked entry.
 
-* Queue: a double-click on a selected table or grid entry queues up all its
-  tracks in the playlist; a triple-click clears out the previous playlist first.
+* Jump: a double-click on a table or grid entry immediately plays that track or
+  all selected tracks. If the tracks already exists in the playlist (in order), then the playlist jumps to the first entry, otherwise the tracks are first
+  inserted at the end.
+
+* Queue: a Ctrl/Command-double-click on a selected table or grid entry queues
+  up all its tracks in the playlist; a triple-click clears out the previous
+  playlist first.
 
   Tip: If you have selected multiple entries, then use double/triple click with
   Ctrl/Command to avoid changing the selection.
