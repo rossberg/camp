@@ -102,8 +102,8 @@ val text : t -> area -> align -> inversion -> bool -> string -> unit
 val color_text : t -> area -> align -> color -> inversion -> bool -> string -> unit
 val ticker : t -> area -> string -> unit
 
-val edit_text : t -> area -> int -> string -> int -> (int * int * int) option -> bool -> string * int * (int * int * int) option * Uchar.t
-val rich_edit_text : t -> area -> int -> Edit.t -> Uchar.t
+val edit_text : t -> area -> int -> string -> int -> (int * int * int) option -> color -> bool -> string * int * (int * int * int) option * Uchar.t
+val rich_edit_text : t -> area -> int -> color -> Edit.t -> Uchar.t
 
 val button : t -> area -> ?protrude: bool -> modifier list * key -> bool -> bool option -> bool
 val labeled_button : t -> area -> ?protrude: bool -> int -> color -> string -> modifier list * key -> bool -> bool option -> bool

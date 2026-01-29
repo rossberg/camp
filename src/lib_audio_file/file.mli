@@ -19,6 +19,7 @@ val drive : path -> drive
 val dir : path -> path
 val name : path -> name
 val extension : path -> path
+val is_name : path -> bool
 val temp : dir option -> string -> string -> path
 
 val remove_extension : path -> path

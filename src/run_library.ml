@@ -515,7 +515,7 @@ let run_browser (st : state) =
     let area = Layout.rename_area geo browser i dir.nest folded in
 
     Layout.rename_box geo area;
-    let _ = Layout.rename_edit geo area 0 lib.rename in
+    let _ = Layout.rename_edit geo area 0 (Ui.text_color geo.ui) lib.rename in
     if Api.Key.is_released `Escape then
     (
       Library.end_rename lib false;
@@ -692,7 +692,9 @@ let run_browser (st : state) =
     );
 
     let search = lib.search.text in
-    let _ = Layout.search_edit geo lib.search in
+    let erroneous = search <> "" && dir.view.query = Some Query.empty_query in
+    let c = Ui.(if erroneous then error_color else text_color) geo.ui in
+    let _ = Layout.search_edit geo c lib.search in
     if lib.search.focus then
     (
       (* Have or gained focus: make sure it's consistent *)

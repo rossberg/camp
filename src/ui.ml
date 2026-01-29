@@ -977,12 +977,11 @@ let find_pos ui x h font s =
   in find 0
 
 
-let edit_text ui area ph s scroll selection focus =
+let edit_text ui area ph s scroll selection c focus =
   let (x, y, w, h), status = widget ui area no_modkey in
   let len = String.length s in
   let ch = max 1 (h - 2 * ph) in
   let font = font ui ch in
-  let c = text_color ui in
 
   let focus' = focus || status = `Pressed in
   let selection' =
@@ -1173,9 +1172,9 @@ let edit_text ui area ph s scroll selection focus =
       s, scroll', Some (lprim, rprim, sec), ch
 
 
-let rich_edit_text ui area ph (edit : Edit.t) =
+let rich_edit_text ui area ph c (edit : Edit.t) =
   let s', scroll', sel', ch =
-    edit_text ui area ph edit.text edit.scroll edit.sel_range edit.focus in
+    edit_text ui area ph edit.text edit.scroll edit.sel_range c edit.focus in
   if edit.focus then focus ui area;
   if s' <> edit.text then
     Edit.update edit s';

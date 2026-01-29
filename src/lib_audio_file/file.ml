@@ -27,6 +27,9 @@ let remove_drive path =
 
 let is_proper name = name <> "" && name.[0] <> '.' && name.[0] <> '$'
 
+let is_name path =
+  is_proper path && not (has_drive path || String.contains path sep.[0])
+
 let is_url path =
   match String.index_opt path ':' with
   | None -> false

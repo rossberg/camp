@@ -178,7 +178,11 @@ let run (st : state) =
       Edit.clear fs.input;
   );
 
-  let ch = Layout.file_edit geo fs.input in
+  let c = 
+    Ui.(if File.is_name fs.input.text then text_color else error_color)
+      geo.ui
+  in
+  let ch = Layout.file_edit geo c fs.input in
   if fs.input.focus then
   (
     (* Have or gained focus: make sure it's consistent *)

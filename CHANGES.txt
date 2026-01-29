@@ -1,3 +1,9 @@
+=== 0.9.3 (WIP) ===
+
+UI:
+- [new] Edit fields turn red as long as input is invalid
+
+
 === 0.9.2 (2026-01-28) ===
 
 This version fixes some embarrassing configuration issues when starting Camp
