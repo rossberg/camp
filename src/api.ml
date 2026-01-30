@@ -102,6 +102,12 @@ struct
       let max_w, max_h = Raylib.(get_screen_width (), get_screen_height ()) in
       let hires = Raylib.(Vector2.y (get_window_scale_dpi ())) > 1.0 in
       Raylib.close_window ();
+      if !App.debug_layout then
+      (
+        Printf.eprintf
+          "[screen %d] pos=%d,%d,%d,%d limit=%d,%d,%d,%d hires=%b\n%!"
+          i x y w h min_x min_y max_w max_h hires
+      );
       {outer = x, y, w, h; inner = min_x, min_y, max_w, max_h; hires}
     ) monitor_poss;
 

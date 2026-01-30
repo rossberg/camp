@@ -231,11 +231,17 @@ let apply_geo geo (ax, ay, aw, ah) : int * int =
   let cy = let cy = control_y geo in if cy >= 0 then cy else ch + cy in
   assert (cx >= 0 && cy >= 0);  (* relative position of control pane *)
   let margin = margin geo in
-  let clamp_x = clamp (- cw + margin) (sw - margin) in
-  let clamp_y = clamp (- ch + margin) (sh - margin) in
+  let clamp_x = clamp (- cw + margin) (sw + control_min_w - margin) in
+  let clamp_y = clamp (- ch + margin) (sh + control_min_h - margin) in
   let x = clamp_x (int_of_float (ax *. float sw) - cx) + sx in
   let y = clamp_y (int_of_float (ay *. float sh) - cy) + sy in
 
+  if !App.debug_layout then
+  (
+    Printf.eprintf
+      "[layout] abs=%.2f,%.2f,%.2f,%.2f concr=%d,%d,%d+%d,%d+%d\n%!"
+      ax ay aw ah x y w control_min_w h control_min_h;
+  );
 (*
   geo.browser_width <-
     clamp (browser_min geo) (browser_max geo) geo.browser_width;

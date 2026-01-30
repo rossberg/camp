@@ -25,7 +25,7 @@ let rec run (st : state) =
     (
       t_last := t;
       let gc = Gc.quick_stat () in
-      Printf.printf
+      Printf.eprintf
         "[%s] GC memory %#d live, %#d total, %d collections, %d compactions\n%!"
         (Data.string_of_time t)
         gc.live_words gc.heap_words gc.major_collections gc.compactions;
@@ -197,12 +197,18 @@ let startup () =
   );
   st
 
+let args = Arg.align
+[
+  "-help", Arg.Unit ignore, "";
+  "--debug_perf", Arg.Set App.debug_perf, "\tLog execution times";
+  "--debug_layout", Arg.Set App.debug_layout, "\tPrint window layout";
+]
+
 let _main =
   try
-    let paths = ref [] in
     Printexc.record_backtrace true;
-    Arg.parse ["--dperf", Arg.Set App.debug_perf, "Log times"]
-      (fun path -> paths := path :: !paths) "";
+    let paths = ref [] in
+    Arg.parse args (fun path -> paths := path :: !paths) "";
     let m3u = M3u.make (List.rev !paths) in
     (* Configure GC very aggressive to avoid giga bytes of memory usage *)
     Gc.(set {(get ()) with space_overhead = 20});

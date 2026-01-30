@@ -527,9 +527,10 @@ let exec q p dir =
   sort q.sort tracks;
   let t_finish = Unix.gettimeofday () in
   if !App.debug_perf then
-    Printf.printf "    [exec %s] %.3f s = %.3f search (%.3f check), %.3f sort\n%!"
-    (let s = string_of_expr q.expr in String.(sub s 0 (min 30 (length s)) ^ "..."))
-    (t_finish -. t_start) (t_sort -. t_start) !t_check (t_finish -. t_sort);
+    Printf.eprintf
+      "    [exec %s...] %.3f s = %.3f search (%.3f check), %.3f sort\n%!"
+      (let s = string_of_expr q.expr in String.(sub s 0 (min 30 (length s))))
+      (t_finish -. t_start) (t_sort -. t_start) !t_check (t_finish -. t_sort);
   tracks
 
 

@@ -91,7 +91,7 @@ let log_time op f =
     let t1 = Unix.gettimeofday () in
     let x = f () in
     let t2 = Unix.gettimeofday () in
-    Printf.printf "    [%s] %.3f ms\n%!" op (t2 -. t1);
+    Printf.eprintf "    [%s] %.3f ms\n%!" op (t2 -. t1);
     x
   )
 
