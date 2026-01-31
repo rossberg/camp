@@ -34,7 +34,7 @@ let load_tag path : tag option =
           | tag_opt, errors ->
             Option.map (fun tag -> VorbisTag tag) tag_opt, errors
           )
-        | ".ogg" ->
+        | ".ogg" | ".oga" ->
           let tag_opt, errors = Vorbis.input_ogg_tag file in
           Option.map (fun tag -> VorbisTag tag) tag_opt, errors
         | ".opus" ->

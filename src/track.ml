@@ -122,7 +122,8 @@ let rec updater () =
     with
     | Sys_error _ -> track.status <- `Invalid
     | exn ->
-      Storage.log_exn "file" exn ("updating playlist entry " ^ track.path)
+      Storage.log_exn "file" exn ("updating playlist entry " ^ track.path);
+      track.status <- `Invalid
   );
   track.file.age <- Unix.time ();
   updater ()

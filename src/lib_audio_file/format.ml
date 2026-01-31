@@ -23,7 +23,7 @@ let unknown =
 }
 
 
-let exts = [".mp3"; ".flac"; ".wav"; ".ogg"; ".opus"; ".mod"]
+let exts = [".mp3"; ".flac"; ".wav"; ".oga"; ".ogg"; ".opus"; ".mod"; ".xm"]
 
 let is_known_ext path =
   List.mem (String.lowercase_ascii (Filename.extension path)) exts
@@ -71,7 +71,7 @@ let read path =
       size = wav.size;
     }
 
-  | ".ogg" ->
+  | ".ogg" | ".oga"->
     let ogg = Ogg.read_format path in
     let time = float ogg.samples /. float ogg.rate in
     {

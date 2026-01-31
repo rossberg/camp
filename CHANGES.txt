@@ -1,5 +1,8 @@
 === 0.9.3 (WIP) ===
 
+General:
+- [new] On Mac properly integrate with Finder and Dock; opening files now works
+
 Library:
 - [chg] Double-click in browser or view jumps to track(s), only queues if not
         yet present in playlist; use Ctrl/Command-double-click for queuing

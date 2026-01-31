@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDisplayName</key>
+    <string>$APPNAME</string>
+  <key>CFBundleVersion</key>
+    <string>$VERSION</string>
+  <key>CFBundleIdentifier</key>
+    <string>org.rossberg.$NAME</string>
+  <key>CFBundleExecutable</key>
+    <string>$APPNAMELauncher</string>
+  <key>CFBundleIconFile</key>
+    <string>app.ico</string>
+  <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+  <key>OSAAppletShowStartupScreen</key>
+    <false/>
+  <key>OSAAppletStayOpen</key>
+    <true/>
+
+  <key>LSArchitecturePriority</key>
+  <array>
+    <string>arm64</string>
+    <string>x86_64</string>
+  </array>
+
+  <key>CFBundleDocumentTypes</key>
+  <array>
+  <dict>
+    <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+    <key>LSHandlerRank</key>
+      <string>Alternate</string>
+    <key>CFBundleTypeIconFile</key>
+      <string>app.ico</string>
+    <key>LSItemContentTypes</key>
+    <array>
+      <string>public.mp3</string>
+      <string>com.microsoft.waveform-audio</string>
+      <string>org.xiph.flac</string>
+      <string>org.videolan.ogg</string>
+      <string>org.videolan.mod</string>
+      <string>org.videolan.xm</string>
+      <string>public.m3u-playlist</string>
+      <string>org.rossberg.camp.m3v-playlist</string>
+    </array>
+  </dict>
+  </array>
+
+  <key>UTImportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key>
+        <string>org.xiph.flac</string>
+      <key>UTTypeDescription</key>
+        <string>FLAC Audio File</string>
+      <key>UTTypeIconFile</key>
+        <string>app.ico</string>
+      <key>UTTypeConformsTo</key>
+        <array>
+          <string>public.audio</string>
+        </array>
+      <key>UTTypeTagSpecification</key>
+        <dict>
+          <key>public.mime-type</key>
+            <string>audio/flac</string>
+          <key>public.filename-extension</key>
+            <array>
+              <string>flac</string>
+            </array>
+        </dict>
+    </dict>
+
+    <dict>
+      <key>UTTypeIdentifier</key>
+        <string>org.videolan.ogg</string>
+      <key>UTTypeDescription</key>
+        <string>Ogg Audio File</string>
+      <key>UTTypeIconFile</key>
+        <string>app.ico</string>
+      <key>UTTypeConformsTo</key>
+        <array>
+          <string>public.audio</string>
+        </array>
+      <key>UTTypeTagSpecification</key>
+        <dict>
+          <key>public.filename-extension</key>
+            <array>
+              <string>ogg</string>
+              <string>oga</string>
+            </array>
+        </dict>
+    </dict>
+
+    <dict>
+      <key>UTTypeIdentifier</key>
+        <string>org.videolan.mod</string>
+      <key>UTTypeDescription</key>
+        <string>MOD Audio File</string>
+      <key>UTTypeIconFile</key>
+        <string>app.ico</string>
+      <key>UTTypeConformsTo</key>
+        <array>
+          <string>public.audio</string>
+        </array>
+      <key>UTTypeTagSpecification</key>
+        <dict>
+          <key>public.mime-type</key>
+            <string>audio/mod</string>
+          <key>public.mime-type</key>
+            <string>audio/x-mod</string>
+          <key>public.mime-type</key>
+            <string>audio/strk</string>
+          <key>public.filename-extension</key>
+            <array>
+              <string>mod</string>
+              <string>strk</string>
+            </array>
+        </dict>
+    </dict>
+
+    <dict>
+      <key>UTTypeIdentifier</key>
+        <string>org.videolan.xm</string>
+      <key>UTTypeDescription</key>
+        <string>XM Audio File</string>
+      <key>UTTypeIconFile</key>
+        <string>app.ico</string>
+      <key>UTTypeConformsTo</key>
+        <array>
+          <string>public.audio</string>
+        </array>
+      <key>UTTypeTagSpecification</key>
+        <dict>
+          <key>public.filename-extension</key>
+            <array>
+              <string>xm</string>
+            </array>
+        </dict>
+    </dict>
+
+    <dict>
+      <key>UTTypeIdentifier</key>
+        <string>public.m3u-playlist</string>
+      <key>UTTypeReferenceURL</key>
+        <string>https://github.com/rossberg/camp/</string>
+      <key>UTTypeDescription</key>
+        <string>Playlist file</string>
+      <key>UTTypeIconFile</key>
+        <string>app.ico</string>
+      <key>UTTypeConformsTo</key>
+        <array>
+          <string>public.data</string>
+          <string>public.audio</string>
+          <string>public.text</string>
+        </array>
+      <key>UTTypeTagSpecification</key>
+        <dict>
+          <key>public.filename-extension</key>
+            <array>
+              <string>m3u</string>
+              <string>m3u8</string>
+            </array>
+        </dict>
+    </dict>
+  </array>
+
+  <key>UTExportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key>
+        <string>org.rossberg.camp.m3v-playlist</string>
+      <key>UTTypeReferenceURL</key>
+        <string>https://github.com/rossberg/camp/</string>
+      <key>UTTypeDescription</key>
+        <string>Camp Query Playlist File</string>
+      <key>UTTypeIconFile</key>
+        <string>app.ico</string>
+      <key>UTTypeConformsTo</key>
+        <array>
+          <string>public.data</string>
+          <string>public.audio</string>
+          <string>public.text</string>
+        </array>
+      <key>UTTypeTagSpecification</key>
+        <dict>
+          <key>public.filename-extension</key>
+            <array>
+              <string>m3v</string>
+            </array>
+        </dict>
+    </dict>
+  </array>
+</dict>
+</plist>

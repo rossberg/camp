@@ -6,4 +6,5 @@ Camp
 *.app
 *.zip
 *.conf
+*.log
 .DS_Store

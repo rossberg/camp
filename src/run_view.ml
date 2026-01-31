@@ -279,7 +279,8 @@ let queue_on_playlist (st : state) (tracks : Data.track array)  mode =
       if entries.(i + n).path = tracks.(n).path then find i (n + 1) else
       find (i + 1) 0
     and append () =
-      Playlist.insert st.playlist (Playlist.length st.playlist) tracks
+      Playlist.insert st.playlist (Playlist.length st.playlist) tracks;
+      Playlist.deselect_all st.playlist;  (* avoid double selection *)
     and jump i =
       Playlist.jump st.playlist i;
       Control.switch st.control tracks.(0);
@@ -296,7 +297,6 @@ let queue_on_playlist (st : state) (tracks : Data.track array)  mode =
     | `QueueAndJump ->
       (* External queue: queue playlist and jump if not playing *)
       append ();
-      Playlist.deselect_all st.playlist;
       let status = Control.status st.control in
       if status = `Stopped || status = `Ejected then
         jump (Playlist.length st.playlist - Array.length tracks)

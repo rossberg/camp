@@ -8,9 +8,6 @@ MAIN = main
 NONDEPS = unix audio_file [a-zA-Z0-9_]*[.][a-zA-Z0-9_.]*
 DEPS = dune $(strip $(shell make -s dune-libraries $(NONDEPS:%=| sed 's/ %//g')))
 
-ASSETS = $(glob assets/*)
-WIN_DLLS = libwinpthread-1 libffi-6
-
 ifeq ($(OS),Windows_NT)
   SYSTEM = win
 else
@@ -21,6 +18,10 @@ else
     SYSTEM = linux
   endif
 endif
+
+ASSETS = $(wildcard assets/*)
+SYSASSETS = $(wildcard platform/$(SYSTEM)/* platform/$(SYSTEM)/*/* platform/$(SYSTEM)/*/*/*)
+WIN_DLLS = libwinpthread-1 libffi-6
 
 
 # Main Targets
@@ -35,6 +36,8 @@ vars:
 	@echo 'VERSION = $(VERSION)'
 	@echo 'SYSTEM = $(SYSTEM)'
 	@echo 'DEPS = $(DEPS)'
+	@echo 'ASSETS = $(ASSETS)'
+	@echo 'SYSASSETS = $(SYSASSETS)'
 
 deps:
 	opam install --yes --deps-only $(DEPS)  # Temporary workaround for Opam Windows bug
@@ -51,7 +54,7 @@ exe:
 
 # Packaging
 
-prerequisites: deps exe $(ASSETS)
+prerequisites: deps exe $(ASSETS) $(SYSASSETS)
 
 dir: prerequisites
 	mkdir -p $(APPNAME)
@@ -64,11 +67,20 @@ win: dir
 linux: dir
 
 mac: prerequisites
-	mkdir -p $(APPNAME).app/Contents
-	cp -rf platform/mac/* assets $(NAME).exe $(APPNAME).app/Contents
-	/usr/libexec/PlistBuddy -c "Add :LSArchitecturePriority array" $(APPNAME).app/Contents/Info.plist
-	/usr/libexec/PlistBuddy -c "Add :LSArchitecturePriority:0 string $(shell uname -m)" $(APPNAME).app/Contents/Info.plist
-	chmod +x $(APPNAME).app/Contents/MacOS/run.sh
+	osacompile -o _build/run.app platform/mac/run.scpt
+	mkdir -p $(APPNAME).app/Contents/MacOS
+	mkdir -p $(APPNAME).app/Contents/Resources
+	cp -rf platform/mac/Contents $(APPNAME).app
+	cp -rf $(NAME).exe $(APPNAME).app/Contents/$(APPNAME)
+	cp -rf assets $(APPNAME).app/Contents
+	cp -rf _build/run.app/Contents/MacOS/droplet $(APPNAME).app/Contents/MacOS/$(APPNAME)Launcher
+	cp -rf _build/run.app/Contents/Resources/Scripts $(APPNAME).app/Contents/Resources
+	cp $(APPNAME).app/Contents/Info.plist Info.plist.0
+	sed "s/[$$]APPNAME/$(APPNAME)/g" Info.plist.0 >Info.plist.1
+	sed "s/[$$]VERSION/$(VERSION)/g" Info.plist.1 >Info.plist.2
+	sed "s/[$$]NAME/$(NAME)/g" Info.plist.2 >Info.plist.3
+	mv -f Info.plist.3 $(APPNAME).app/Contents/Info.plist
+	rm Info.plist.*
 
 mac-debug: mac
 	codesign -s - -v -f --entitlements platform/mac-debug/debug.plist $(NAME).exe
@@ -99,6 +111,7 @@ zip:
 clean:
 	dune clean
 	rm -rf $(NAME)
+	rm -rf Info.plist.*
 
 distclean: clean
 	rm -rf _build

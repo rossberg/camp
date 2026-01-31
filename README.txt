@@ -107,7 +107,7 @@ Camp (usually) detects if it is already running. Any files passed to it will
 then be added to the current playlist.
 
 
-(*) If you are on MacOS 26.2+ and witness Camp being unable to open some music
+(*) If you are on MacOS 26+ and witness Camp being unable to open some music
     files, e.g., from the desktop, even though you allowed it before, then this
     is because apparently Apple thinks all users are idiots and prevents it. In
     that case move Camp.app to the Applications folder and start it from there.
