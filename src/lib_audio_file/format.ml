@@ -71,7 +71,7 @@ let read path =
       size = wav.size;
     }
 
-  | ".ogg" | ".oga"->
+  | ".ogg" | ".oga" ->
     let ogg = Ogg.read_format path in
     let time = float ogg.samples /. float ogg.rate in
     {
