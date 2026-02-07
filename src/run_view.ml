@@ -1146,6 +1146,17 @@ let run_edit_panel (st : state) =
     paste st view
   );
 
+  if focus && Layout.rev_key geo (reverse_avail st view) then
+  (
+    (* Press of Reverse key with selection: reverse selection *)
+    reverse st view
+  )
+  else if focus && Layout.rev_key geo (reverse_all_avail st view) then
+  (
+    (* Press of Reverse key without selection: reverse all *)
+    reverse_all st view
+  );
+
   (* Tag button *)
   if Layout.tag_button geo (active_if tag_avail) then
   (

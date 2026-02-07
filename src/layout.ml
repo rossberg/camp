@@ -389,6 +389,7 @@ let load_button = edit_button 4 7 "LOAD" key_load
 let cut_key g = Ui.key g.ui key_cut true
 let copy_key g = Ui.key g.ui key_copy true
 let paste_key g = Ui.key g.ui key_paste true
+let rev_key g = Ui.key g.ui key_rev
 
 let focus_next_key g = Ui.key g.ui key_next true
 let focus_prev_key g = Ui.key g.ui key_prev true
