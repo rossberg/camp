@@ -1,5 +1,8 @@
 === 0.9.4 (WIP) ===
 
+Playlist:
+- [chg] Tweak Wipe/Dedupe/Repair to apply to All even with singular selection
+
 UI:
 - [fix] Fix border snapping behaviour on secondary screens
 
