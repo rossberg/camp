@@ -6,6 +6,9 @@ Control:
 Playlist:
 - [chg] Tweak Wipe/Dedupe/Repair to apply to All when no missing entry selected
 
+Library:
+- [fix] Fix bug affecting query results for albums with mixed artists
+
 UI:
 - [fix] Fix border snapping behaviour on secondary screens
 

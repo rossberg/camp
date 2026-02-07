@@ -401,8 +401,8 @@ let new_album_of_track (track : track) : album =
 
 let new_artist name : artist =
   { name;
-    albums = 1;
-    tracks = 1;
+    albums = 0;
+    tracks = 0;
   }
 
 let accumulate_string s1 s2 =
@@ -466,7 +466,8 @@ let exec q p dir =
   let tracks = Dynarray.create () in
   let albums = Dynarray.create () in
   let artists = Dynarray.create () in
-  let album_map = ref AlbumMap.empty in
+  let album_set = ref AlbumSet.empty in  (* all albums encountered *)
+  let album_map = ref AlbumMap.empty in  (* albums already in albums array *)
   let artist_map = ref ArtistMap.empty in
   iter_dir (fun track ->
     let t1 = Unix.gettimeofday () in
@@ -481,41 +482,44 @@ let exec q p dir =
       (
         let album = new_album_of_track track in
         let album_key = album_key album in
-        let is_new_album =
+        if to_albums then
+        (
           match AlbumMap.find_opt album_key !album_map with
           | None ->
             album_map := AlbumMap.add album_key album !album_map;
-            if to_albums then Dynarray.add_last albums album;
-            true
+            Dynarray.add_last albums album;
           | Some album' ->
             album'.file <- accumulate_file album'.file album.file;
             album'.format <-
               accumulate_option accumulate_format album'.format album.format;
             album'.meta <-
               accumulate_option accumulate_meta album'.meta album.meta;
-            false
-        in
+        );
         if to_artists then
         (
-          let aname = Data.track_attr_string track `Artist in
-          let tname = Data.track_attr_string track `AlbumArtist in
-          let (++) = ArtistSet.union in
-          let names =
-            ArtistSet.of_list (Meta.artists_of_artist aname) ++
-            ArtistSet.of_list (Meta.artists_of_artist tname) ++
-            ArtistSet.singleton aname ++ ArtistSet.singleton tname
-          in
-          ArtistSet.iter (fun name ->
-            let artist = new_artist name in
-            match ArtistMap.find_opt artist.name !artist_map with
+          let find_artist name =
+            match ArtistMap.find_opt name !artist_map with
             | None ->
+              let artist = new_artist name in
               artist_map := ArtistMap.add artist.name artist !artist_map;
-              Dynarray.add_last artists artist
-            | Some artist' ->
-              artist'.tracks <- artist'.tracks + artist.albums;
-              if is_new_album then
-                artist'.albums <- artist'.albums + artist.albums;
-          ) names
+              Dynarray.add_last artists artist;
+              artist
+            | Some artist -> artist
+          in
+          let tname = Data.track_attr_string track `Artist in
+          ArtistSet.iter (fun name ->
+            let artist = find_artist name in
+            artist.tracks <- artist.tracks + 1;
+          ) (ArtistSet.of_list (tname :: Meta.artists_of_artist tname));
+          if not (AlbumSet.mem album_key !album_set) then
+          (
+            album_set := AlbumSet.add album_key !album_set;
+            let aname = Data.track_attr_string track `AlbumArtist in
+            ArtistSet.iter (fun name ->
+              let artist = find_artist name in
+              artist.albums <- artist.albums + 1;
+            ) (ArtistSet.of_list (aname :: Meta.artists_of_artist aname))
+          )
         )
       )
     )
