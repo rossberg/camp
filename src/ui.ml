@@ -356,9 +356,6 @@ let finish ui margin (minw, minh) (maxw, maxh) on_screen_change =
 
       if Mouse.is_down `Left && cursor <> `Default then
       (
-        let scr = Api.(Screen.screen (Mouse.pos ui.win)) in
-        let sx, sy = Api.Screen.min_pos scr in
-        let sw, sh = Api.Screen.max_size scr in
         match ui.drag_extra with
         | No_drag when cursor = `Point ->
           ui.drag_extra <- Move {target = pos};
@@ -372,9 +369,12 @@ let finish ui margin (minw, minh) (maxw, maxh) on_screen_change =
           assert (cursor = `Point);
           let mouse = Mouse.abs_pos ui.win in
           let delta = Mouse.delta ui.win in
-          if Screen.screen mouse <> Window.screen ui.win then
-            (* Moved to another screen, callback may update repos/resize *)
-            on_screen_change (Screen.screen mouse);
+          let scr = Screen.screen mouse in  (* snap & resize relative to mouse's screen *)
+          let sx, sy = Screen.min_pos scr in
+          let sw, sh = Screen.max_size scr in
+          if scr <> Window.screen ui.win then
+            (* Moved to another screen, callback may update repos or resize *)
+            on_screen_change scr;
           let size' = add size ui.resize in
           let target' = add target ui.repos in
           let (wx', wy') as target'' = add target' delta in
@@ -383,6 +383,9 @@ let finish ui margin (minw, minh) (maxw, maxh) on_screen_change =
 
         | Resize {overshoot = over} ->
           assert (cursor <> `Point);
+          let scr = Window.screen ui.win in  (* clamp relative to window's screen *)
+          let sx, sy = Screen.min_pos scr in
+          let sw, sh = Screen.max_size scr in
           let signx = if left then -1 else if right then +1 else 0 in
           let signy = if upper then -1 else if lower then +1 else 0 in
           let delta = mul (signx, signy) (Mouse.delta ui.win) in

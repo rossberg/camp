@@ -1,3 +1,9 @@
+=== 0.9.4 (WIP) ===
+
+UI:
+- [fix] Fix border snapping behaviour on secondary screens
+
+
 === 0.9.3 (2026-02-06) ===
 
 This update improves a few aspects of the user interface and makes file associations work on Mac.
