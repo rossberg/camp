@@ -886,20 +886,27 @@ let select_invert (st : state) (module View : View) =
 
 (* Initiate Menus *)
 
-let min_sel = 1  (* minimum size of selection to apply op to it *)
-let invalid_min_sel = 2  (* same but for ops on invalid entries *)
+let subject_tracks' (module View : View) all =
+  if all
+  then all, " All", fun () -> View.(tracks it)
+  else all, "", fun () -> View.(if is_same then selected else tracks) View.it
 
-let subject_tracks min_sel (module View : View) =
-  if View.(Select.num_selected tab) >= min_sel
-  then false, "", fun () -> View.(if is_same then selected else tracks) View.it
-  else true, " All", fun () -> View.(tracks it)
+let subject_tracks (module View : View) =
+  subject_tracks' (module View) (View.(Select.num_selected tab) = 0)
+
+let subject_absent_tracks (module View : View) =
+  subject_tracks' (module View) (not @@
+    array_existsi (fun i (track : Data.track) ->
+      View.(is_selected it i) && track.status = `Absent
+    ) View.(tracks it)
+  )
 
 let list_menu (st : state) view searches =
   let geo = st.geometry in
   let module View = (val view : View) in
 
   let c = Ui.text_color geo.ui in
-  let all, quant, get_tracks = subject_tracks min_sel view in
+  let all, quant, get_tracks = subject_tracks view in
   Run_menu.command_menu st (Iarray.concat [
     [|
       `Entry (c, "Tag" ^ quant, Layout.key_tag, tag_avail st view),
@@ -952,8 +959,8 @@ let edit_menu (st : state) view searches pos_opt =
 
   let pos = Option.value pos_opt ~default: View.(length it) in
   let c = Ui.text_color geo.ui in
-  let all, quant, get_tracks = subject_tracks min_sel view in
-  let alli, quanti, _ = subject_tracks invalid_min_sel view in
+  let all, quant, get_tracks = subject_tracks view in
+  let all_a, quant_a, _ = subject_absent_tracks view in
   Run_menu.command_menu st (Iarray.concat [
     [|
       `Entry (c, "Insert Separator", Layout.key_sep, separator_avail st view),
@@ -994,12 +1001,12 @@ let edit_menu (st : state) view searches pos_opt =
       `Entry (c, "Invert Selection", Layout.key_invert, select_invert_avail st view),
         (fun () -> select_invert st view);
       `Separator, ignore;
-      `Entry (c, "Wipe" ^ quanti, Layout.key_wipe, wipe_avail alli st view),
-        (fun () -> wipe alli st view);
-      `Entry (c, "Dedupe" ^ quanti, Layout.key_dedupe, dedupe_avail alli st view),
-        (fun () -> dedupe alli st view);
-      `Entry (c, "Repair" ^ quanti ^ "...", Layout.nokey, repair_avail alli st view),
-        (fun () -> repair alli st view);
+      `Entry (c, "Wipe" ^ quant_a, Layout.key_wipe, wipe_avail all_a st view),
+        (fun () -> wipe all_a st view);
+      `Entry (c, "Dedupe" ^ quant_a, Layout.key_dedupe, dedupe_avail all_a st view),
+        (fun () -> dedupe all_a st view);
+      `Entry (c, "Repair" ^ quant_a ^ "...", Layout.nokey, repair_avail all_a st view),
+        (fun () -> repair all_a st view);
       `Separator, ignore;
       `Entry (c, "Undo", Layout.key_undo, undo_avail st view),
         (fun () -> undo st view);
@@ -1069,7 +1076,6 @@ let run_edit_panel (st : state) =
   let library = tracks_view st in
   let view = if pl_focus then playlist else library in
   let module View = (val view) in
-  let alli = View.(Select.num_selected tab) < invalid_min_sel in
 
   let active_if avail = if focus && avail st view then Some false else None in
 
@@ -1095,16 +1101,18 @@ let run_edit_panel (st : state) =
     crop st view
   );
 
-  if Layout.wipe_button geo (active_if (wipe_avail alli)) then
+  if Layout.wipe_button geo (active_if (wipe_avail true)) then
   (
     (* Click on Wipe button: remove invalid tracks *)
-    wipe alli st view
+    let all, _, _ = subject_absent_tracks view in
+    wipe all st view
   );
 
   if focus && Layout.dedupe_button geo then
   (
     (* Dedupe key pressed or Shift-click on Wipe button: dedupe *)
-    dedupe alli st view
+    let all, _, _ = subject_absent_tracks view in
+    dedupe all st view
   );
 
   if Layout.undo_button geo (active_if undo_avail) then
@@ -1142,14 +1150,14 @@ let run_edit_panel (st : state) =
   if Layout.tag_button geo (active_if tag_avail) then
   (
     (* Click on Tag button: execute tagging program *)
-    let _, _, get_tracks = subject_tracks min_sel view in
+    let _, _, get_tracks = subject_tracks view in
     tag st (get_tracks ()) false;
   );
 
   if focus && tag_avail st view && Layout.tag_add_button geo then
   (
     (* Shift-click on Tag button: execute tagging program, additively *)
-    let _, _, get_tracks = subject_tracks min_sel view in
+    let _, _, get_tracks = subject_tracks view in
     tag st (get_tracks ()) true;
   );
 
@@ -1180,7 +1188,7 @@ let run_edit_panel (st : state) =
   if lib_focus && queue_avail st view && Layout.queue_key geo then
   (
     (* Press of Queue key: queue tracks *)
-    let _, _, get_tracks = subject_tracks min_sel view in
+    let _, _, get_tracks = subject_tracks view in
     queue st view (get_tracks ())
   );
 
