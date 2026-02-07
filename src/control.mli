@@ -75,4 +75,5 @@ val length : t -> time
 val elapsed : t -> time
 val bitrate : t -> float
 val rate : t -> int
+val depth : t -> float
 val channels : t -> int

@@ -144,6 +144,10 @@ let elapsed ctl = if silent ctl then 0.0 else Api.Audio.played ctl.audio
 let bitrate ctl = Api.Audio.bitrate ctl.audio ctl.sound
 let rate ctl = Api.Audio.rate ctl.audio ctl.sound
 let channels ctl = Api.Audio.channels ctl.audio ctl.sound
+let depth ctl =
+  let d = Api.Audio.depth ctl.audio ctl.sound in
+  if d >= 8 then float d else
+  bitrate ctl /. float (rate ctl) /. float (channels ctl)
 
 let status ctl =
   if ctl.current = None then

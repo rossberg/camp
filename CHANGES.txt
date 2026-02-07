@@ -1,5 +1,8 @@
 === 0.9.4 (WIP) ===
 
+Control:
+- [fix] Display accurate sample bit depth for lossless formats
+
 Playlist:
 - [chg] Tweak Wipe/Dedupe/Repair to apply to All when no missing entry selected
 

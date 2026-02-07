@@ -458,7 +458,7 @@ let run (st : state) =
     let bitrate = Control.bitrate ctl in
     let rate = Control.rate ctl in
     let channels = Control.channels ctl in
-    let depth = bitrate /. float rate /. float channels in
+    let depth = Control.depth ctl in
     Layout.prop_text geo `Regular true
       (fmt "%s  %.0f KBPS  %.1f KHZ  %s BIT  %s"
         format (bitrate /. 1000.0) (float rate /. 1000.0)
