@@ -452,6 +452,8 @@ let reverse_selected tab =
     let js = Array.init len Fun.id in
     for i = 0 to n/2 - 1 do
       let j = n - i - 1 in
+      if tab.pos = Some ks.(i) then tab.pos <- Some ks.(j) else
+      if tab.pos = Some ks.(j) then tab.pos <- Some ks.(i);
       let temp = tab.entries.(ks.(i)) in
       tab.entries.(ks.(i)) <- tab.entries.(ks.(j));
       tab.entries.(ks.(j)) <- temp;
@@ -469,6 +471,8 @@ let reverse_all tab =
     push_undo tab;
     for i = 0 to len/2 - 1 do
       let j = len - i - 1 in
+      if tab.pos = Some i then tab.pos <- Some j else
+      if tab.pos = Some j then tab.pos <- Some i;
       let temp = tab.entries.(i) in
       tab.entries.(i) <- tab.entries.(j);
       tab.entries.(j) <- temp;

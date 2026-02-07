@@ -5,6 +5,7 @@ Control:
 
 Playlist:
 - [chg] Tweak Wipe/Dedupe/Repair to apply to All when no missing entry selected
+- [fix] Update current position when reversing playlist or selection
 
 Library:
 - [fix] Fix bug affecting query results for albums with mixed artists
