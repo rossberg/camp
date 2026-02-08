@@ -596,6 +596,7 @@ end
 
 (* Input devices *)
 
+type modifier = [`Shift | `Command | `Alt]
 type key =
 [
   | `None
@@ -617,8 +618,7 @@ type key =
   | `Caps
 ]
 
-type modifier = [`Shift | `Command | `Alt]
-
+type button = [`Left | `Right | `Middle]
 type resize = [`N_S | `E_W | `NE_SW | `NW_SE | `All]
 type cursor =
 [
@@ -641,10 +641,13 @@ struct
   let last_press_pos = ref (min_int, min_int)
   let last_press_left = ref 0.0
   let last_press_right = ref 0.0
+  let last_press_middle = ref 0.0
   let multi_left = ref 0
   let multi_right = ref 0
+  let multi_middle = ref 0
   let is_drag_left = ref false
   let is_drag_right = ref false
+  let is_drag_middle = ref false
   let next_cursor = ref Raylib.MouseCursor.Default
 
   let pos () = !current_pos
@@ -655,6 +658,7 @@ struct
   let button = function
     | `Left -> Raylib.MouseButton.Left
     | `Right -> Raylib.MouseButton.Right
+    | `Middle -> Raylib.MouseButton.Middle
 
   let is_down but = Raylib.is_mouse_button_down (button but)
   let is_pressed but = Raylib.is_mouse_button_pressed (button but)
@@ -663,14 +667,17 @@ struct
   let is_double_click = function
     | `Left -> !multi_left = 2
     | `Right -> !multi_right = 2
+    | `Middle -> !multi_middle = 2
 
   let is_triple_click = function
     | `Left -> !multi_left >= 3
     | `Right -> !multi_right >= 3
+    | `Middle -> !multi_middle = 3
 
   let is_drag = function
     | `Left -> !is_drag_left
     | `Right -> !is_drag_right
+    | `Middle -> !is_drag_middle
 
   let set_cursor () cursor =
     next_cursor :=
@@ -705,7 +712,8 @@ struct
       (* Detect multi clicks *)
       let left = is_pressed `Left in
       let right = is_pressed `Right in
-      if left || right then
+      let middle = is_pressed `Middle in
+      if left || right || middle then
       (
         let now = Unix.gettimeofday () in
         let mx, my = !last_press_pos in
@@ -727,6 +735,14 @@ struct
           else
             multi_right := 1;
           last_press_right := now;
+        );
+        if middle then
+        (
+          if unmoved && now -. !last_press_middle < 0.5 then
+            incr multi_middle
+          else
+            multi_middle := 1;
+          last_press_middle := now;
         )
       );
 
@@ -740,6 +756,10 @@ struct
         is_drag_right := !is_drag_right || moved
       else if not (is_released `Right) then
         is_drag_right := false;
+      if is_down `Middle then
+        is_drag_middle := !is_drag_middle || moved
+      else if not (is_released `Middle) then
+        is_drag_middle := false;
 
       (* Deferred update of mouse cursor *)
       Raylib.set_mouse_cursor !next_cursor;

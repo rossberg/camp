@@ -174,6 +174,7 @@ end
 
 (* Input devices *)
 
+type modifier = [`Shift | `Command | `Alt]
 type key =
 [
   | `None
@@ -195,8 +196,7 @@ type key =
   | `Caps
 ]
 
-type modifier = [`Shift | `Command | `Alt]
-
+type button = [`Left | `Right | `Middle]
 type resize = [`N_S | `E_W | `NE_SW | `NW_SE | `All]
 type cursor =
 [
@@ -216,12 +216,12 @@ sig
   val delta : window -> point
   val abs_pos : window -> point
   val wheel : window -> float * float
-  val is_down : side -> bool
-  val is_pressed : side -> bool
-  val is_released : side -> bool
-  val is_double_click : side -> bool
-  val is_triple_click : side -> bool
-  val is_drag : side -> bool
+  val is_down : button -> bool
+  val is_pressed : button -> bool
+  val is_released : button -> bool
+  val is_double_click : button -> bool
+  val is_triple_click : button -> bool
+  val is_drag : button -> bool
 
   val set_cursor : window -> cursor -> unit
 end

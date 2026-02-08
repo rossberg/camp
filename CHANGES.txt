@@ -13,6 +13,7 @@ Library:
 - [fix] Fix bug affecting query results for albums with mixed artists
 
 UI:
+- [new] Hold middle button as alternative to Shift key during selection/drag
 - [fix] Fix border snapping behaviour on secondary screens
 
 

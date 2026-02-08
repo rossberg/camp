@@ -435,6 +435,7 @@ like playlists) can be viewed in a number of exciting ways.
 * Select: Click on an entry to select it. Ctrl/Command-click toggles the
   selection of an individual track. Shift-click toggles the selection
   of the entire range between the currently and the last clicked entry.
+  As alternative to Shift you can also hold the middle mouse button.
 
 * Jump: a double-click on a table or grid entry immediately plays that track or
   all selected tracks. If the tracks already exists in the playlist (in order), then the playlist jumps to the first entry, otherwise the tracks are first

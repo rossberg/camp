@@ -130,8 +130,9 @@ let mouse_inside ui area =
 
 let snap_dist = 12
 
-let is_shift_down () =
-  Key.is_down (`Shift `Left) || Key.is_down (`Shift `Right)
+let is_shift_down () = Key.is_modifier_down `Shift || Mouse.is_down `Middle
+let is_command_down () =
+  Key.is_modifier_down `Command || Mouse.is_down `Middle && Mouse.is_down `Right
 
 let snap min max v =
   if is_shift_down () then v else
@@ -495,7 +496,7 @@ let mouse_status ui r = function
     let side = `Right in
     if not (inside (Mouse.pos ui.win) r) then
       `Untouched
-    else if Mouse.is_down side then
+    else if Mouse.is_down side && not (Mouse.is_down `Middle) then
       `Pressed
     else if Mouse.is_released side then
       `Released
@@ -1366,7 +1367,7 @@ let header ui area ph gw cols (titles, sorting) hscroll =
       | Some i -> `Click i
       )
     | `None ->
-      if not ui.modal && Mouse.is_pressed `Right then
+      if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
         `Menu None
       else
         `None
@@ -1376,7 +1377,7 @@ let header ui area ph gw cols (titles, sorting) hscroll =
         ui.drag_extra <- Header_resize {mouse_x = mx; col};
       `None
     | `Header col ->
-      if not ui.modal && Mouse.is_pressed `Right then
+      if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
         `Menu (Some col)
       else if status = `Pressed then
       (
@@ -1392,7 +1393,7 @@ let header ui area ph gw cols (titles, sorting) hscroll =
     if dx = 0 then `None else
     let ws = Array.init (Iarray.length cols) (fun i -> fst (Iarray.get cols i)) in
     ws.(i) <- max 0 (ws.(i) + dx);
-    if i + 1 < Array.length ws && Key.is_modifier_down `Shift then
+    if i + 1 < Array.length ws && is_shift_down () then
       ws.(i + 1) <- max 0 (ws.(i + 1) - dx);
     ui.drag_extra <- Header_resize {mouse_x = mx; col = i};
     `Resize (Iarray.of_array ws)
@@ -1525,8 +1526,8 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
     (p, ax, (if ah < 0 then ah - geo.scroll_h else ty + th + 1), tw, geo.scroll_h) in
   let (x, y, w, h) as r = dim ui table_area in
 
-  let shift = Key.are_modifiers_down [`Shift] in
-  let command = Key.are_modifiers_down [`Command] in
+  let shift = is_shift_down () in
+  let command = is_command_down () in
 
   Mutex.protect tab.mutex (fun () ->
     let len = Table.length tab in
@@ -1566,7 +1567,8 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
       find_column geo.gutter_w cols tab.hscroll (mx - x) in
 
     let result =
-      if not ui.modal && ui.drag_extra = No_drag && Mouse.is_pressed `Right then
+      if not ui.modal && ui.drag_extra = No_drag
+      && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
       (
         if inside (mx, my) r then
         (
@@ -2074,8 +2076,8 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
     (p, (if aw < 0 then tw else ax + aw + 1), ay, geo.scroll_w, ah) in
   let (x, y, w, h) as r = dim ui table_area in
 
-  let shift = Key.are_modifiers_down [`Shift] in
-  let command = Key.are_modifiers_down [`Command] in
+  let shift = is_shift_down () in
+  let command = is_command_down () in
 
   Mutex.protect tab.mutex (fun () ->
     let len = Array.length tab.entries in
@@ -2123,7 +2125,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
     let left_mouse_used = (status = `Pressed || status = `Released) in
 
     let result =
-      if not ui.modal && Mouse.is_pressed `Right then
+      if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
       (
         if inside (mx, my) r then
         (
