@@ -5,7 +5,7 @@ Control:
 - [fix] Display accurate sample bit depth for lossless formats
 
 Playlist:
-- [chg] Tweak Wipe/Dedupe/Repair to apply to All when no missing entry selected
+- [chg] Tweak Wipe/Repair to apply to All when no missing entry selected
 - [fix] Add missing key binding Ctrl-B for Reverse
 - [fix] Update current position when reversing playlist or selection
 

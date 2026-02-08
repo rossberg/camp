@@ -1003,10 +1003,10 @@ let edit_menu (st : state) view searches pos_opt =
       `Separator, ignore;
       `Entry (c, "Wipe" ^ quant_a, Layout.key_wipe, wipe_avail all_a st view),
         (fun () -> wipe all_a st view);
-      `Entry (c, "Dedupe" ^ quant_a, Layout.key_dedupe, dedupe_avail all_a st view),
-        (fun () -> dedupe all_a st view);
       `Entry (c, "Repair" ^ quant_a ^ "...", Layout.nokey, repair_avail all_a st view),
         (fun () -> repair all_a st view);
+      `Entry (c, "Dedupe" ^ quant, Layout.key_dedupe, dedupe_avail all st view),
+        (fun () -> dedupe all st view);
       `Separator, ignore;
       `Entry (c, "Undo", Layout.key_undo, undo_avail st view),
         (fun () -> undo st view);
