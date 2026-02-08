@@ -14,7 +14,7 @@ type t =
   mutable sound : Api.sound;
   mutable current : track option;
   mutable timemode : [`Elapse | `Remain];
-  mutable repeat : [`None | `One | `All];
+  mutable repeat : [`None | `One | `All | `Marked];
   mutable loop : [`None | `A of time | `AB of time * time];
   mutable visual : visual;
   mutable fps : bool;
@@ -217,7 +217,7 @@ let switch_if_empty ctl track_opt =
 (* Persistence *)
 
 let timemode_enum = ["elapsed", `Elapse; "remain", `Remain]
-let repeat_enum = ["none", `None; "one", `One; "all", `All]
+let repeat_enum = ["none", `None; "one", `One; "all", `All; "set", `Marked]
 let visual_enum =
   [ "none", `None;
     "cover", `Cover;

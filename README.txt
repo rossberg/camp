@@ -206,7 +206,12 @@ Most controls around the Playlist should be intuitive. A few extra tips:
 * Shuffle: Toggles random play of the playlist (Section 3.3).
 
 * Repeat: Cycles Repeat mode between Off (no indicator light), Repeat One (left
-  indicator light), and Repeat All (right light).
+  indicator light), Repeat All (right light), and Repeat Selection (both), as
+  applying to the Playlist (3.3). The latter mode can only be activated at a
+  moment where at least two tracks are selected in the playlist.
+
+  Clicking the Repeat button with Shift instead sets the current selection in
+  the Playlist to what's currently repeated.
 
 * Loop: Set AB loop delimiters within a track. On first press, sets loop start
   (left light), on second, sets loop end (right light), on third click

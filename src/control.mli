@@ -14,7 +14,7 @@ type t =
   mutable sound : Api.sound;
   mutable current : track option;
   mutable timemode : [`Elapse | `Remain];
-  mutable repeat : [`None | `One | `All];
+  mutable repeat : [`None | `One | `All | `Marked];
   mutable loop : [`None | `A of time | `AB of time * time];
   mutable visual : visual;
   mutable fps : bool;

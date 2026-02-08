@@ -543,6 +543,10 @@ let run (st : state) =
   | _ -> ()
   );
 
+  (* Selection repeat *)
+  if ctl.repeat = `Marked && Table.num_marked pl.table = 0 then
+    ctl.repeat <- `None;
+
   (* Play controls *)
   let len = Playlist.length pl in
   let _, _, _, h = Ui.dim geo.ui (Layout.playlist_area geo) in
@@ -556,7 +560,8 @@ let run (st : state) =
     if delta <> 0 && st.playlist.table.pos <> None then
     (
       let ctl = st.control in
-      let more = Playlist.skip st.playlist delta (ctl.repeat <> `None) in
+      let more = Playlist.skip st.playlist delta
+        (if ctl.repeat = `One then `All else ctl.repeat) in
       Control.switch ctl (Playlist.current st.playlist);
       if more then Control.play ctl;
       (* Unless repeat mode is One, back-skip over silent tracks (separators,
@@ -671,12 +676,7 @@ let run (st : state) =
   if Control.status ctl = `Playing && remaining < 0.2 then
   (
     (* Close to end: switch to next track *)
-    let more =
-      match ctl.repeat with
-      | `One -> true
-      | `All -> Playlist.skip pl (+1) true
-      | `None -> Playlist.skip pl (+1) false
-    in
+    let more = Playlist.skip pl (+1) ctl.repeat in
     let next_track =
       if pl.table.pos = None
       then Option.get ctl.current
@@ -717,31 +717,51 @@ let run (st : state) =
     toggle_shuffle st
   );
 
+  let cycled_repeat = function
+    | `None -> `One
+    | `One -> `All
+    | `All -> if Table.num_selected pl.table > 1 then `Marked else `None
+    | `Marked -> `None
+  in
   let cycle_repeat (st : state) =
-    st.control.repeat <-
-      match st.control.repeat with
-      | `None -> `One
-      | `One -> `All
-      | `All -> `None
+    st.control.repeat <- cycled_repeat st.control.repeat;
+    if st.control.repeat = `Marked then
+      Table.mark_selected pl.table
+    else
+      Table.unmark_all pl.table
+  in
+  let select_repeat (st : state) =
+    let pl = st.playlist in
+    Playlist.deselect_all pl;
+    match st.control.repeat with
+    | `None -> ()
+    | `One -> let i = Option.get pl.table.pos in Playlist.select pl i i
+    | `All -> Playlist.select_all pl
+    | `Marked -> Playlist.select_marked pl
   in
   Layout.repeat_label geo;
-  Layout.repeat_indicator1 geo (ctl.repeat = `One);
-  Layout.repeat_indicator2 geo (ctl.repeat = `All);
+  Layout.repeat_indicator1 geo (ctl.repeat = `One || ctl.repeat = `Marked);
+  Layout.repeat_indicator2 geo (ctl.repeat = `All || ctl.repeat = `Marked);
   Layout.repeat_shadow geo;
   if Layout.repeat_button geo focus (Some false) then
   (
-    (* Click on Repeat button: cycle repeat mode *)
-    cycle_repeat st
+    if Api.Key.are_modifiers_down [`Shift] then
+      (* Shift-Click on Repeat button: select repeat set *)
+      select_repeat st
+    else
+      (* Click on Repeat button: cycle repeat mode *)
+      cycle_repeat st
   );
 
-  let cycle_loop (st : state) =
+  let cycled_loop =
     let t = Control.elapsed st.control in
-    st.control.loop <-
-      match st.control.loop with
-      | `None -> `A t
-      | `A t1 when t1 > t -> `A t
-      | `A t1 -> `AB (t1, t)
-      | `AB _ -> `None
+    function
+    | `None -> `A t
+    | `A t1 -> if t1 > t then `A t else `AB (t1, t)
+    | `AB _ -> `None
+  in
+  let cycle_loop (st : state) =
+    st.control.loop <- cycled_loop st.control.loop
   in
   Layout.loop_label geo;
   Layout.loop_indicator1 geo (ctl.loop <> `None);
@@ -761,8 +781,8 @@ let run (st : state) =
     let c = Ui.text_color geo.ui in
     let unpause x = if x then "Unpause" else "Pause" in
     let shuffle s x = s ^ (if x = None then " On " else " Off ") in
-    let repeat s x = s ^ (match x with `None -> " One" | `One -> " All" | `All -> " Off") in
-    let loop s x = s ^ (match x with `None -> " Start" | `A _ -> " End" | `AB _ -> " Off") in
+    let repeat s x = s ^ (match cycled_repeat x with `None -> " None" | `One -> " One" | `All -> " All" | `Marked -> " Selection") in
+    let loop s x = s ^ (match cycled_loop x with `None -> " Off" | `A _ -> " Start" | `AB _ -> " End") in
     let unmute x = if x then "Unmute" else "Mute" in
     Run_menu.command_menu st (Iarray.append [|
       `Entry (c, "Start/Stop", Layout.key_startstop, paused || len > 0),

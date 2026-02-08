@@ -149,6 +149,9 @@ let modulo n m = let k = n mod m in if k < 0 then k + m else k
 
 let jump pl i =
   Table.set_pos pl.table (Some i);
+  (* If in Repeat Selection mode, add track *)
+  if Table.num_marked pl.table > 0 then
+    Table.mark pl.table i i;
   Option.iter (fun shuffle ->
     let pos = Option.get (Array.find_index ((=) i) shuffle.tracks) in
     if pos < shuffle.unobserved then
@@ -162,10 +165,11 @@ let jump pl i =
     )
   ) pl.shuffle
 
-let skip pl delta repeat =
+let skip' pl delta wrap =
+  assert (abs delta = 1);
   let len = Array.length pl.table.entries in
   len > 0 &&  (* implies pl.table.pos <> None *)
-  let up pos = if repeat then modulo (pos + delta) len else pos + delta in
+  let up pos = if wrap then modulo (pos + delta) len else pos + delta in
   match pl.shuffle with
   | None ->
     let pos = up (Option.get pl.table.pos) in
@@ -182,6 +186,14 @@ let skip pl delta repeat =
       Table.set_pos pl.table (Some shuffle.tracks.(pos));
     );
     valid
+
+let rec skip pl delta repeat =
+  assert (repeat <> `Marked || Table.num_marked pl.table > 0);
+  repeat = `One ||
+  skip' pl delta (repeat <> `None) &&
+  match repeat, pl.table.pos with
+  | `Marked, Some pos -> Table.is_marked pl.table pos || skip pl delta repeat
+  | _, _ -> true
 
 
 (* Undo *)
@@ -238,6 +250,10 @@ let select_all pl =
 let deselect_all pl =
   Table.deselect_all pl.table;
   pl.total_selected <- 0.0, 0
+
+let select_marked pl =
+  Table.select_marked pl.table;
+  refresh_total_selected pl
 
 let select_invert pl =
   Table.select_invert pl.table;

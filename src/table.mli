@@ -14,6 +14,7 @@ type ('data, 'cache) t = private
   mutable hscroll : int;                   (* in pixels *)
   mutable sel_range : (int * int) option;  (* primary and secondary pos *)
   mutable selected : IntSet.t;
+  mutable marked : IntSet.t;
   mutable cache : 'cache option;
   mutable dirty : bool;
   undos : 'data undo list ref;
@@ -65,15 +66,29 @@ val is_selected : ('a, 'b) t -> int -> bool
 val reset_selected : ('a, 'b) t -> IntSet.t -> unit  (* unchecked! *)
 val selected : ('a, 'b) t -> 'a array
 
+val select : ('a, 'b) t -> int -> int -> unit
+val deselect : ('a, 'b) t -> int -> int -> unit
 val select_all : ('a, 'b) t -> unit
 val deselect_all : ('a, 'b) t -> unit
 val select_invert : ('a, 'b) t -> unit
-
-val select : ('a, 'b) t -> int -> int -> unit
-val deselect : ('a, 'b) t -> int -> int -> unit
+val select_marked : ('a, 'b) t -> unit
 
 val save_selection : ('a, 'b) t -> 'a array
 val restore_selection : ('a, 'b) t -> ('a -> string) -> 'a array -> unit
+
+
+(* Marking *)
+
+val num_marked : ('a, 'b) t -> int
+val first_marked : ('a, 'b) t -> int option
+val last_marked : ('a, 'b) t -> int option
+val is_marked : ('a, 'b) t -> int -> bool
+
+val mark : ('a, 'b) t -> int -> int -> unit
+val unmark : ('a, 'b) t -> int -> int -> unit
+val mark_all : ('a, 'b) t -> unit
+val unmark_all : ('a, 'b) t -> unit
+val mark_selected : ('a, 'b) t -> unit
 
 
 (* Editing *)

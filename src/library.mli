@@ -178,12 +178,11 @@ val last_selected : 'a t -> int option
 val is_selected : 'a t -> int -> bool
 val selected : 'a t -> track array
 
+val select : 'a t -> int -> int -> unit
+val deselect : 'a t -> int -> int -> unit
 val select_all : 'a t -> unit
 val deselect_all : 'a t -> unit
 val select_invert : 'a t -> unit
-
-val select : 'a t -> int -> int -> unit
-val deselect : 'a t -> int -> int -> unit
 
 val set_search : 'a t -> string -> unit
 

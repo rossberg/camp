@@ -1,6 +1,7 @@
 === 0.9.4 (WIP) ===
 
 Control:
+- [new] Repeat mode for repeating current selection
 - [fix] Display accurate sample bit depth for lossless formats
 
 Playlist:

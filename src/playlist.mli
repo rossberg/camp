@@ -60,7 +60,7 @@ val refresh_total_selected : 'a t -> unit
 (* Navigation *)
 
 val jump : 'a t -> int -> unit
-val skip : 'a t -> int (* delta *) -> bool (* repeat *) -> bool
+val skip : 'a t -> int (* delta *) -> [`None | `One | `All | `Marked] -> bool
 
 val swap : 'a array -> int -> int -> unit
 
@@ -80,12 +80,12 @@ val last_selected : 'a t -> int option
 val is_selected : 'a t -> int -> bool
 val selected : 'a t -> track array
 
-val select_all : 'a t -> unit
-val deselect_all : 'a t -> unit
-val select_invert : 'a t -> unit
-
 val select : 'a t -> int -> int -> unit
 val deselect : 'a t -> int -> int -> unit
+val select_all : 'a t -> unit
+val deselect_all : 'a t -> unit
+val select_marked : 'a t -> unit
+val select_invert : 'a t -> unit
 
 
 (* Editing *)

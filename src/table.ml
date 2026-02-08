@@ -10,6 +10,7 @@ type 'a undo =
   undo_vscroll : int;
   undo_sel_range : (int * int) option;
   undo_selected : IntSet.t;
+  undo_marked : IntSet.t;
   undo_restore : (unit -> unit) option;
 }
 
@@ -23,6 +24,7 @@ type ('a, 'b) t =
   mutable hscroll : int;                   (* in pixels *)
   mutable sel_range : (int * int) option;  (* primary and secondary pos *)
   mutable selected : IntSet.t;
+  mutable marked : IntSet.t;
   mutable cache : 'b option;
   mutable dirty : bool;
   undos : 'a undo list ref;
@@ -44,6 +46,7 @@ let make ?save undo_depth =
     hscroll = 0;
     sel_range = None;
     selected = IntSet.empty;
+    marked = IntSet.empty;
     cache = None;
     dirty = true;
     undos = ref [];
@@ -122,6 +125,8 @@ let ok name tab =
     (tab.hscroll >= 0) @
   check name "selections in range"
     (IntSet.max_elt_opt tab.selected <= Some (len - 1)) @
+  check name "marks in range"
+    (IntSet.max_elt_opt tab.marked <= Some (len - 1)) @
   check name "selection range when selection" (
     tab.sel_range <> None || IntSet.cardinal tab.selected = 0
   ) @
@@ -176,6 +181,11 @@ let deselect_all tab =
     tab.sel_range <- None;
   )
 
+let select_marked tab =
+  dirty tab;
+  tab.selected <- tab.marked;
+  tab.sel_range <- max_sel_range tab
+
 let select_invert tab =
   if length tab > 0 then
   (
@@ -222,6 +232,49 @@ let restore_selection tab key selection =
   )
 
 
+(* Marking *)
+
+let num_marked tab = IntSet.cardinal tab.marked
+let first_marked tab = IntSet.min_elt_opt tab.marked
+let last_marked tab = IntSet.max_elt_opt tab.marked
+let is_marked tab i = IntSet.mem i tab.marked
+
+let mark_all tab =
+  if num_marked tab < length tab then
+  (
+    dirty tab;
+    let len = Array.length tab.entries in
+    for i = 0 to len - 1 do
+      tab.marked <- IntSet.add i tab.marked
+    done;
+  )
+
+let unmark_all tab =
+  if num_marked tab > 0 then
+  (
+    dirty tab;
+    tab.marked <- IntSet.empty;
+  )
+
+let mark tab i0 j0 =
+  dirty tab;
+  let i, j = min i0 j0, max i0 j0 in
+  for k = i to j do
+    tab.marked <- IntSet.add k tab.marked
+  done
+
+let unmark tab i0 j0 =
+  dirty tab;
+  let i, j = min i0 j0, max i0 j0 in
+  for k = i to j do
+    tab.marked <- IntSet.remove k tab.marked
+  done
+
+let mark_selected tab =
+  dirty tab;
+  tab.marked <- tab.selected
+
+
 (* Undo *)
 
 let make_undo tab =
@@ -230,6 +283,7 @@ let make_undo tab =
     undo_vscroll = tab.vscroll;
     undo_sel_range = tab.sel_range;
     undo_selected = tab.selected;
+    undo_marked = tab.marked;
     undo_restore = Option.map (fun f -> f ()) tab.undo_save;
   }
 
@@ -255,6 +309,7 @@ let pop_unredo tab undos redos =
     tab.vscroll <- undo.undo_vscroll;
     tab.sel_range <- undo.undo_sel_range;
     tab.selected <- undo.undo_selected;
+    tab.marked <- undo.undo_marked;
     Option.iter (fun f -> f ()) undo.undo_restore
 
 let pop_undo tab = pop_unredo tab tab.undos tab.redos
@@ -292,9 +347,16 @@ let move_pos tab i j len =
   );
   if i <> j then
   (
-    tab.selected <- IntSet.remove j tab.selected;
-    if IntSet.mem i tab.selected then
-      tab.selected <- IntSet.add j (IntSet.remove i tab.selected)
+    tab.selected <-
+      if IntSet.mem i tab.selected then
+        IntSet.add j (IntSet.remove i tab.selected)
+      else
+        IntSet.remove j tab.selected;
+    tab.marked <-
+      if IntSet.mem i tab.marked then
+        IntSet.add j (IntSet.remove i tab.marked)
+      else
+        IntSet.remove j tab.marked;
   )
 
 
@@ -303,6 +365,7 @@ let set tab entries =
   (
     dirty tab;
     deselect_all tab;
+    unmark_all tab;
     tab.entries <- entries;
     set_pos tab tab.pos;
     adjust_vscroll tab tab.vscroll 1 4;
@@ -346,6 +409,7 @@ let remove_all tab =
     dirty tab;
     push_undo tab;
     deselect_all tab;
+    unmark_all tab;
     tab.entries <- [||];
     tab.pos <- None;
     tab.vscroll <- 0;
@@ -366,7 +430,7 @@ let remove_if p tab n =
       (
         assert (js.(j) = -2);
         let b = p j in
-        if b then deselect tab j j;
+        if b then (deselect tab j j; unmark tab j j);
         move_pos tab j i len';  (* could affect (p j)! *)
         if b then
         (
@@ -459,6 +523,10 @@ let reverse_selected tab =
       tab.entries.(ks.(j)) <- temp;
       js.(ks.(i)) <- ks.(j);
       js.(ks.(j)) <- ks.(i);
+      match is_marked tab ks.(i), is_marked tab ks.(j) with
+      | true, false -> unmark tab ks.(i) ks.(i); mark tab ks.(j) ks.(j)
+      | false, true -> unmark tab ks.(j) ks.(j); mark tab ks.(i) ks.(i)
+      | _, _ -> ()
     done;
     js
   )
@@ -476,10 +544,16 @@ let reverse_all tab =
       let temp = tab.entries.(i) in
       tab.entries.(i) <- tab.entries.(j);
       tab.entries.(j) <- temp;
-      match is_selected tab i, is_selected tab j with
+      (match is_selected tab i, is_selected tab j with
       | true, false -> deselect tab i i; select tab j j
       | false, true -> select tab i i; deselect tab j j
       | _, _ -> ()
+      );
+      (match is_marked tab i, is_marked tab j with
+      | true, false -> unmark tab i i; mark tab j j
+      | false, true -> unmark tab j j; mark tab i i
+      | _, _ -> ()
+      );
     done;
     tab.sel_range <-
       Option.map (fun (i ,j) -> len - i - 1, len - j - 1) tab.sel_range
