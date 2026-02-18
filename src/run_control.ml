@@ -50,15 +50,16 @@ let toggle_library (st : state) =
     if geo.library_shown then
     (
       geo.library_shown <- false;
-      Library.defocus st.library;
+      if not geo.filesel_shown then State.focus_playlist st;
     )
     else
     (
       geo.playlist_shown <- true;  (* force open to avoid nonsensical layout *)
       geo.library_shown <- true;
-      (* Switch side if window exceeds respective border *)
       if not geo.filesel_shown then
       (
+        State.focus_edit st.library.search st;
+        (* Switch side if window exceeds respective border *)
         let win = Ui.window geo.ui in
         let scr = Api.Window.screen win in
         let wx, _ = Api.Window.pos win in
@@ -69,8 +70,7 @@ let toggle_library (st : state) =
         if geo.library_side = `Right && wx + Geometry.control_w geo >= sx + sw then
           geo.library_side <- `Left;
       )
-    );
-    if not (geo.library_shown || geo.filesel_shown) then State.focus_playlist st
+    )
   )
 
 let toggle_side (st : state) =
