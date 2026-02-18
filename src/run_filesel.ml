@@ -16,12 +16,22 @@ let filesel (st : state) kind access path ext f =
   in
   if path <> "" then Filesel.set_dir_path st.filesel path;
   st.filesel.op <- Some Filesel.{kind; access; run};
-  st.geometry.filesel_shown <- true;
   Filesel.init st.filesel;
   Edit.set st.filesel.input ext;
   Edit.move_begin st.filesel.input;
-  State.defocus_all st;
-  Filesel.focus_input st.filesel
+  State.focus_edit st.filesel.input st;
+  st.geometry.filesel_shown <- true;
+  (* Switch side if window exceeds respective border *)
+  let geo = st.geometry in
+  let win = Ui.window geo.ui in
+  let scr = Api.Window.screen win in
+  let wx, _ = Api.Window.pos win in
+  let sx, _ = Api.Screen.min_pos scr in
+  let sw, _ = Api.Screen.max_size scr in
+  if geo.library_side = `Left && wx <= sx then
+    geo.library_side <- `Right;
+  if geo.library_side = `Right && wx + Geometry.control_w geo >= sx + sw then
+    geo.library_side <- `Left
 
 
 (* Runner *)

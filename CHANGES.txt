@@ -14,6 +14,7 @@ Library:
 
 UI:
 - [new] Hold middle button as alternative to Shift key during selection/drag
+- [chg] Improve placing when opening Library or File Selector pane with no room
 - [fix] Fix border snapping behaviour on secondary screens
 
 
