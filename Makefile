@@ -51,6 +51,10 @@ exe:
 	cd src && opam exec -- dune build $(MAIN).exe
 	ln -f _build/default/src/$(MAIN).exe $(NAME).exe
 
+resize:
+	cd src && opam exec -- dune build test_resize.exe
+	opam exec -- _build/default/src/test_resize.exe
+
 
 # Packaging
 

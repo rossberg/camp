@@ -84,8 +84,7 @@ struct
      * directly and by need. *)
 
     (* Open dummy window to initialize GLFW for monitor queries to work. *)
-    Raylib.(set_config_flags
-      ConfigFlags.[Window_undecorated; Window_resizable; Window_hidden]);
+    Raylib.(set_config_flags ConfigFlags.[Window_undecorated; Window_hidden]);
     Raylib.init_window 0 0 "";
     let current = Raylib.get_current_monitor () in
     let monitor_poss = Iarray.init (Raylib.get_monitor_count ())
@@ -144,29 +143,48 @@ struct
 
   let current_screen = ref (-1)
   let current_pos = ref (0, 0)   (* buffered during minimization *)
-  let current_size = ref (0, 0)
+  let current_size = ref (0, 0)  (* target (virtual current) size for drawing *)
   let next_pos = ref None        (* defer window changes to frame end *)
   let next_size = ref None
 
-  let update () =
-    if not (Raylib.is_window_minimized ()) then
-    (
-      current_pos := uxy (point_of_vec2 (Raylib.get_window_position ()));
-      current_size := uxy ((Raylib.get_screen_width (), Raylib.get_screen_height ()));
-    )
-
-  (* We have to set the window position before events are processed,
-   * and the window size after. Otherwise we're seeing strange bobbing. *)
-  let _ = after_frame_start := update :: !after_frame_start
+  (* Updating the physical window size is delayed for a frame so that the new
+   * contents can be drawn in the frame buffer first, avoiding ugly 1-frame
+   * distortion or offsetting. To this end, the Draw module temporarily
+   * creates a custom frame buffer that matches current_size (the target size)
+   * while Raylib/GL's internal frame buffer always matches the physical size,
+   * so cannot be used to prepare a larger frame. *)
+  (* TODO: In Ui, only do Draw.begin after window resizing. *)
+  (* TODO: We should only need a custom buffer if the size increases? *)
+  (* TODO: Cache the custom buffer, only recreate when a larger is needed.*)
+  (* TODO: Create with some oversize slack to make resizing smoother. *)
+  (* TODO: Remove after_frame_start. *)
   let _ = before_frame_finish :=
     (fun () ->
-      Option.iter (fun (x, y) -> Raylib.set_window_position (sx x) (sy y)) !next_pos;
-      next_pos := None;
+      (* When a reposition request occured during this frame, then move the
+       * window at the end of that frame. *)
+      Option.iter (fun ((x, y) as pos) ->
+Printf.printf "[move] %d,%d\n%!"(sx x)(sy y);
+        Raylib.set_window_position (sx x) (sy y);
+        current_pos := pos;
+        next_pos := None;
+      ) !next_pos;
+      (* When the target size differs from the physical size at the end of a
+       * frame, then it was a delayed request from last frame. The current
+       * custom frame buffer has been updated for the new size and the physical
+       * window size can finally be set, right before finalising the redraw. *)
+      let size = Raylib.(get_screen_width (), get_screen_height ()) in
+      let size' = Screen.sxy !current_size in
+      if size <> size' then Raylib.set_window_size (fst size') (snd size');
     ) :: !before_frame_finish
+
   let _ = after_frame_finish :=
     (fun () ->
-      Option.iter (fun (w, h) -> Raylib.set_window_size (sx w) (sy h)) !next_size;
-      next_size := None;
+      (* When a resize request occured during this frame, make it the new size
+       * targeted for drawing, but don't physically change it yet. *)
+      Option.iter (fun size ->
+        current_size := size;
+        next_size := None;
+      ) !next_size;
       Raylib.(set_exit_key Key.Null);  (* seems to be reset somehow? *)
     ) :: !after_frame_finish
 
@@ -176,22 +194,23 @@ struct
     Raylib.set_target_fps 60;
 
     current_screen := Screen.init ();
+    current_pos := (x, y);
+    current_size := (w, h);
 
     Raylib.(set_config_flags
       ConfigFlags.[Window_undecorated; Window_always_run;
         (*Window_transparent;*) Vsync_hint; Msaa_4x_hint]);
     Raylib.init_window (sx w) (sy h) title;
     Raylib.set_window_position (sx x) (sy y);
-    Raylib.(clear_window_state ConfigFlags.[Window_hidden]);
-    update ()
+    Raylib.(clear_window_state ConfigFlags.[Window_hidden])
 
   let closed () = Raylib.window_should_close ()
 
   let pos () = !current_pos
   let size () = !current_size
   let screen () = !current_screen
-  let set_pos () x y = next_pos := Some (x, y)
-  let set_size () w h = next_size := Some (w, h)
+  let set_pos () x y = next_pos := Some (x, y)  (* request reposition *)
+  let set_size () w h = next_size := Some (w, h)  (* request resize *)
   let set_screen () scr = current_screen := scr
   let set_icon () img = if not is_mac then Raylib.set_window_icon img
 
@@ -430,6 +449,7 @@ struct
   let current_scale = ref (-1, -1)
   let current_clip = ref None
   let current_shader = ref None
+  let current_buffer = ref None  (* custom frame buffer while resizing window *)
 
   let sx v = v * fst !current_scale
   let sy v = v * snd !current_scale
@@ -458,9 +478,33 @@ struct
     );
     current_shader := shader_opt
 
+  let buffer () x y buf =
+    let w, h = Buffer.size buf in
+    let w', h' = w * fst buf.scale, h * snd buf.scale in
+    let x, y, w, h = sxywh x y w h in
+    let r' = Raylib.Rectangle.create 0.0 0.0 (float w') (-. float h') in
+    let r = Raylib.Rectangle.create (float x) (float y) (float w) (float h) in
+    let v = vec2_of_point (0, 0) in
+    let img = Raylib.RenderTexture.texture buf.texture in
+    shader None;
+    Raylib.draw_texture_pro img r' r v 0.0 Raylib.Color.white
+
   let start () c =
     current_scale := Window.scale ();
     Raylib.begin_drawing ();
+    (* If target size differs from physical size, create custom frame buffer. *)
+    let size = Raylib.(get_screen_width (), get_screen_height ()) in
+    let (w, h) as size' = !Window.current_size in
+    if size <> size' then
+    (
+      Option.iter Buffer.dispose !current_buffer;
+      current_buffer := Some (Buffer.create () w h);
+    );
+    (* If used, switch to custom frame buffer. *)
+    Option.iter (fun buf ->
+      Raylib.begin_texture_mode buf.texture;
+      current_scale := Buffer.needed_scale ();
+    ) !current_buffer;
     Raylib.clear_background (color c);
 (* TODO: Raylib OCaml is missing set_blend_factors_separate
     Raylib.(begin_blend_mode BlendMode.Custom_separate);
@@ -471,14 +515,24 @@ struct
     List.iter (fun f -> f ()) (List.rev !after_frame_start)
 
   let finish () =
-    List.iter (fun f -> f ()) (List.rev !before_frame_finish);
-    incr frame;
     shader None;
+    List.iter (fun f -> f ()) (List.rev !before_frame_finish);
+    (* If a custom frame buffer was used, draw and dispose it. This is after
+     * before_frame_finish has adjusted the physical window size and Raylib/GL's
+     * internal frame buffer size. *)
+    Option.iter (fun buf ->
+      Raylib.end_texture_mode ();
+      buffer () 0 0 buf;
+      Buffer.dispose buf;
+      current_buffer := None;
+    ) !current_buffer;
     Raylib.end_drawing ();  (* polls input events *)
-    List.iter (fun f -> f ()) (List.rev !after_frame_finish)
+    List.iter (fun f -> f ()) (List.rev !after_frame_finish);
+    incr frame
 
   let buffered () buf =
     shader None;
+    if !current_buffer <> None then Raylib.end_texture_mode ();
     Raylib.begin_texture_mode buf.texture;
     (* Manual adjustment for High DPI scaling is needed *)
     current_scale := Screen.sxy (point_of_vec2 (Raylib.get_window_scale_dpi ()))
@@ -486,7 +540,11 @@ struct
   let unbuffered () =
     shader None;
     Raylib.end_texture_mode ();
-    current_scale := Window.scale ()
+    match !current_buffer with
+    | None -> current_scale := Window.scale ()
+    | Some buf ->
+      Raylib.begin_texture_mode buf.texture;
+      current_scale := Buffer.needed_scale ()
 
   let clip () x y w h =
     assert (!current_clip = None);
@@ -578,17 +636,6 @@ struct
     let r' = Raylib.Rectangle.create (float x') (float y') (float w') (float h') in
     let r = Raylib.Rectangle.create (float x) (float y) (float w) (float h) in
     let v = vec2_of_point (0, 0) in
-    shader None;
-    Raylib.draw_texture_pro img r' r v 0.0 Raylib.Color.white
-
-  let buffer () x y buf =
-    let w, h = Buffer.size buf in
-    let w', h' = w * fst buf.scale, h * snd buf.scale in
-    let x, y, w, h = sxywh x y w h in
-    let r' = Raylib.Rectangle.create 0.0 0.0 (float w') (-. float h') in
-    let r = Raylib.Rectangle.create (float x) (float y) (float w) (float h) in
-    let v = vec2_of_point (0, 0) in
-    let img = Raylib.RenderTexture.texture buf.texture in
     shader None;
     Raylib.draw_texture_pro img r' r v 0.0 Raylib.Color.white
 end
@@ -1034,7 +1081,7 @@ struct
     Raylib.unload_dropped_files list;
     !paths
 
-  let _ = before_frame_finish := (fun () -> paths := []) :: !before_frame_finish
+  let _ = after_frame_start := (fun () -> paths := []) :: !after_frame_start
 end
 
 

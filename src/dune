@@ -1,4 +1,10 @@
 (executable
+  (name test_resize)
+  (modules test_resize)
+  (libraries unix raylib)
+)
+
+(executable
   (public_name camp)
   (name main)
   (modules
