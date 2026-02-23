@@ -6,6 +6,7 @@ Control:
 
 Playlist:
 - [chg] Tweak Wipe/Repair to apply to All when no missing entry selected
+- [chg] Paste/insert at end of list if nothing is selected
 - [fix] Add missing key binding Ctrl-B for Reverse
 - [fix] Update current position when reversing playlist or selection
 

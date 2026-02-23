@@ -713,7 +713,7 @@ let paste (st : state) (module View : View) =
   in
   if found_proper && tracks <> [||] then
   (
-    let pos = Option.value (View.first_selected View.it) ~default: 0 in
+    let pos = Option.value View.(first_selected it) ~default: View.(length it) in
     View.(insert it) pos tracks;
     View.deselect_other ();
     update_control st;
@@ -1083,7 +1083,7 @@ let run_edit_panel (st : state) =
   if Layout.sep_button geo (active_if separator_avail) then
   (
     (* Click on Separator button: insert separator *)
-    let pos = Option.value View.(first_selected it) ~default: 0 in
+    let pos = Option.value View.(first_selected it) ~default: View.(length it) in
     separator st view pos
   );
 
