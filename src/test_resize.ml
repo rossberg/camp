@@ -2,10 +2,10 @@ let w1 = 800
 let w2 = 400
 let w = w1 + w2
 let h = 800
-let x1 left = if left then 400 else 400 + w2
-let x2 left = if left then 400 + w1 else 400
+let x1 left = if left then 200 else 200 + w2
+let x2 left = if left then 200 + w1 else 200
 let x left = if left then x1 left else x2 left
-let y = 200
+let y = 100
 let m = 50
 let o1 left = if left then 0 else w2
 let o2 left = if left then w1 else 0
@@ -15,6 +15,7 @@ let _main =
   Raylib.set_config_flags [Raylib.ConfigFlags.Window_undecorated];
   Raylib.init_window w h "Test Resizing";
   Raylib.set_window_position (x true) y;
+  Raylib.set_target_fps max_int;
 
   let buf = Raylib.load_render_texture w h in
   (* Override texture format to not use alpha channel *)
@@ -29,14 +30,14 @@ let _main =
 
   let large = ref true in
   let left = ref true in
+  let mouse = ref (-1, -1) in
   while not (Raylib.window_should_close ()) do
     Raylib.begin_drawing ();
     Unix.sleepf 0.01;  (* emulate more computation *)
 
-    let x1', y1', w1', h1' = (if !large then o1 !left + m else m + w2), m, w1 - 2*m, h - 2*m in
+    let x1', y1', w1', h1' = (if !large then o1 !left + m else m + w), m, w1 - 2*m, h - 2*m in
     let x2', y2', w2', h2' = (if !large then o2 !left + m else m), m, w2/4, h - 2*m in
-    let mv = Raylib.get_mouse_position () in
-    let mx, my = Raylib.Vector2.(int_of_float (x mv), int_of_float (y mv)) in
+    let mx, my = !mouse in
     let m_in1 = x1' <= mx && mx < x1' + w1' && y1' <= my && my < y1' + h1' in
     let m_in2 = x2' <= mx && mx < x2' + w2' && y2' <= my && my < y2' + h2' in
     if Raylib.is_mouse_button_down Raylib.MouseButton.Right then
@@ -77,4 +78,17 @@ let _main =
     if resizing then Raylib.set_window_position (if !large then x !left else x2 !left) y;
 
     Raylib.end_drawing ();
+    let mv = Raylib.get_mouse_position () in
+    let mx, my = Raylib.Vector2.(int_of_float (x mv), int_of_float (y mv)) in
+    let dx = if not resizing then 0 else x !left - x2 !left in
+    let sx = if !large then -1 else +1 in
+    mouse := (mx + 0*sx*dx, my);
+
+(*
+let wv = Raylib.get_window_position () in
+let wx = int_of_float (Raylib.Vector2.x wv) in
+let wv' = Raylib.get_window_position () in
+let wx' = int_of_float (Raylib.Vector2.x wv') in
+if resizing then Printf.printf "[] wx=%d wx'=%d d=%+d dm=%+d\n%!" wx wx' (wx'-wx) (sx*dx);
+*)
   done
