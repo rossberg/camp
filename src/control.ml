@@ -3,7 +3,7 @@
 type time = float
 type track = Data.track
 
-type visual = [`None | `Cover | `Spectrum | `Wave | `Oscilloscope]
+type visual = [`Cover | `Spectrum | `Wave | `Oscilloscope]
 
 type t =
 {
@@ -26,13 +26,53 @@ type t =
 }
 
 
-(* Constructor *)
+(* Visuals *)
 
 let spec_bands = 12
 let osc_x = 0.3
 let osc_y = 1.4
 
+let clamp lo hi x = max lo (min hi x)
+
+let audio_processor ctl fs =
+  let len = Array.length ctl.raw in
+  let lim = 2 * Spectrum.fft_samples in
+  ctl.raw <- if len = 0 || len > lim then fs else Array.append ctl.raw fs
+
+let needs_processor = function
+  | `Cover -> false
+  | `Spectrum | `Wave | `Oscilloscope -> true
+
+let init_visual ctl  =
+  if needs_processor ctl.visual then
+    Api.Audio.add_processor ctl.audio (audio_processor ctl)
+  else
+    Api.Audio.remove_all_processors ctl.audio
+
+let set_visual ctl vis =
+  let old_need = needs_processor ctl.visual in
+  let new_need = needs_processor vis in
+  ctl.visual <- vis;
+  if old_need <> new_need then
+  (
+    ctl.raw <- [||];
+    ctl.data <- [||];
+    init_visual ctl;
+  )
+
+let set_osc ctl x y =
+  ctl.osc_x <- clamp 0.2 10.0 x;
+  ctl.osc_y <- clamp 0.2 10.0 y
+
+let reset_osc ctl =
+  ctl.osc_x <- osc_x;
+  ctl.osc_y <- osc_y
+
+
+(* Constructor *)
+
 let make audio =
+  let ctl =
   {
     audio;
     mute = false;
@@ -43,13 +83,16 @@ let make audio =
     timemode = `Elapse;
     repeat = `None;
     loop = `None;
-    visual = `Cover;
+    visual = `Spectrum;
     fps = false;
     spec_bands;
     osc_x; osc_y;
     raw = [||];
     data = [||];
   }
+  in
+  init_visual ctl;
+  ctl
 
 
 (* Validation *)
@@ -98,42 +141,6 @@ let mute ctl b =
 let volume ctl v =
   ctl.volume <- max 0.0 (min 1.0 v);
   adjust_volume ctl
-
-let clamp lo hi x = max lo (min hi x)
-
-
-(* Visuals *)
-
-let audio_processor ctl fs =
-  let len = Array.length ctl.raw in
-  let lim = 2 * Spectrum.fft_samples in
-  ctl.raw <- if len = 0 || len > lim then fs else Array.append ctl.raw fs
-
-let needs_processor = function
-  | `None | `Cover -> false
-  | `Spectrum | `Wave | `Oscilloscope -> true
-
-let set_visual ctl vis =
-  let old_need = needs_processor ctl.visual in
-  let new_need = needs_processor vis in
-  ctl.visual <- vis;
-  if old_need <> new_need then
-  (
-    ctl.raw <- [||];
-    ctl.data <- [||];
-    if new_need then
-      Api.Audio.add_processor ctl.audio (audio_processor ctl)
-    else
-      Api.Audio.remove_all_processors ctl.audio
-  )
-
-let set_osc ctl x y =
-  ctl.osc_x <- clamp 0.2 10.0 x;
-  ctl.osc_y <- clamp 0.2 10.0 y
-
-let reset_osc ctl =
-  ctl.osc_x <- osc_x;
-  ctl.osc_y <- osc_y
 
 
 (* Track Control *)
@@ -219,8 +226,7 @@ let switch_if_empty ctl track_opt =
 let timemode_enum = ["elapsed", `Elapse; "remain", `Remain]
 let repeat_enum = ["none", `None; "one", `One; "all", `All; "set", `Marked]
 let visual_enum =
-  [ "none", `None;
-    "cover", `Cover;
+  [ "cover", `Cover;
     "spectrum", `Spectrum;
     "wave",`Wave;
     "oscilloscope", `Oscilloscope

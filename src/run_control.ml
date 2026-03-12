@@ -85,11 +85,10 @@ let cycle_visual (st : state) =
   ctl.data <- [||];
   Control.set_visual ctl
     (match ctl.visual with
-    | `None -> `Cover
     | `Cover -> `Spectrum
     | `Spectrum -> `Wave
     | `Wave -> `Oscilloscope
-    | `Oscilloscope -> `None
+    | `Oscilloscope -> `Cover
     )
 
 (*
@@ -308,14 +307,11 @@ let run (st : state) =
 
   (* Visual *)
   let old_visual = ctl.visual in
-  if Layout.visual_key geo || Layout.visual_button geo
-  || ctl.visual = `None && Layout.novisual_button geo then
+  if Layout.visual_key geo || Layout.visual_button geo then
     cycle_visual st;
   (*Option.iter (Layout.visual_indicator geo) (idx_visual st);*)
 
   (match ctl.visual with
-  | `None -> ()
-
   | `Cover ->
     Option.iter (fun (track : Data.track) ->
       Option.iter (Layout.cover geo)
@@ -821,7 +817,7 @@ let run (st : state) =
         (fun () -> shift_volume st (-1.0));
     |]))
   )
-  else if ctl.visual = `Cover && old_visual = `Cover && not (Control.silent ctl)
+  else if ctl.visual <> `Oscilloscope && old_visual = ctl.visual && not (Control.silent ctl)
     && Layout.cover_popup_open geo then
   (
     Run_menu.popup st `Current

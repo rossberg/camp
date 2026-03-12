@@ -2,6 +2,7 @@
 
 Control:
 - [new] Repeat mode for repeating current selection
+- [new] Support cover pop-up during most oscilloscope visualisation modes
 - [fix] Display accurate sample bit depth for lossless formats
 
 Playlist:

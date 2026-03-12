@@ -198,7 +198,7 @@ Most controls around the Playlist should be intuitive. A few extra tips:
   Oscilloscope, or None.
 
 * Cover: Clicking on the cover art will zoom it into a pop-up. Click again to
-  close.
+  close. This also works during most other visualisation modes.
 
 * Oscilloscope: Dragging the mouse horizontally or vertically on it adjusts
   its scaling in the respective direction.
