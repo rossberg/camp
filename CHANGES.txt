@@ -1,4 +1,6 @@
-=== 0.9.4 (WIP) ===
+=== 0.9.4 (2026-03-12) ===
+
+This update tweaks and fixes a bunch of minor UI issues.
 
 Control:
 - [new] Repeat mode for repeating current selection
