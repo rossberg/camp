@@ -1289,8 +1289,10 @@ let run_browse_buttons (st : state) =
   let lib = st.library in
 
   let active_if avail = if avail st then Some false else None in
+(*
   let active_if2 avail1 avail2 =
     if avail1 st || avail2 st then Some false else None in
+*)
 
   if Layout.insert_button geo (active_if insert_avail) then
   (
@@ -1298,7 +1300,10 @@ let run_browse_buttons (st : state) =
     insert st
   );
 
+(*
   if Layout.remove_button geo (active_if2 remove_avail remove_list_avail) then
+*)
+  if (remove_avail st || remove_list_avail st) && Layout.del_key geo then
   (
     (* Click on Remove (Del) button: remove directory or playlist *)
     let dir = Option.get (lib.current) in
@@ -1338,6 +1343,17 @@ let run_browse_buttons (st : state) =
       else
         Library.rescan_dirs lib mode [|dir|]
     ) lib.current
+  );
+
+  let view =
+    if st.playlist.table.focus
+    then Run_view.playlist_view st
+    else Run_view.tracks_view st
+  in
+  if Layout.tag_button geo (active_if (Fun.flip Run_view.tag_avail view)) then
+  (
+    (* Click on Tag button: execute tagging program *)
+    Run_view.tag_button st view;
   )
 
 

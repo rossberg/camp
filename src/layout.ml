@@ -342,7 +342,7 @@ let playlist_drag g = Ui.rich_table_drag g.ui (playlist_area g) (rich_table g 0 
 
 (* Total text field *)
 let total_w g = - margin g - scrollbar_w g
-let total_x g = total_w g - 90
+let total_x g = total_w g - 120
 let total_y g = g.playlist_height + footer_y g  (* Hack: this is outside the pane *)
 let playlist_total_box g = Ui.box g.ui (pp, total_x g, total_y g, total_w g, line_h g) `Black
 let playlist_total_text g = Ui.text g.ui (pp, total_x g, total_y g + pad_h g, total_w g - (gutter_w g + 1)/2, text_h g) `Right
@@ -372,20 +372,21 @@ let edit_y g = if g.playlist_shown then - edit_h g else control_h g (* effective
 let edit_area i j g = (ep, margin g + i*5 + j*edit_w g, edit_y g, edit_w g, edit_h g)
 let edit_button i j label key g = Ui.labeled_button g.ui (edit_area i j g) (button_label_h g) (Ui.inactive_color g.ui) label key true
 
-let tag_button = edit_button 0 0 "TAG" key_tag
+(*let tag_button = edit_button 0 0 "TAG" key_tag*)
 let tag_add_button g = Ui.invisible_button g.ui (edit_area 0 0 g) [`Shift] key_tag2 true
-let sep_button = edit_button 1 1 "SEP" key_sep
-let del_button = edit_button 2 2 "DEL" key_del
-let crop_button = edit_button 2 3 "CROP" key_crop
-let wipe_button = edit_button 2 4 "WIPE" key_wipe
+let sep_button = edit_button 0 0 "SEP" key_sep
+let del_button = edit_button 1 1 "DEL" key_del
+let crop_button = edit_button 1 2 "CROP" key_crop
+let wipe_button = edit_button 1 3 "WIPE" key_wipe
 let dedupe_button g = Ui.invisible_button g.ui (edit_area 2 4 g) [`Shift] key_dedupe true
 let del_button_alt g = Ui.key g.ui key_del2 true
-let undo_button = edit_button 3 5 "UNDO" key_undo
+let undo_button = edit_button 2 4 "UNDO" key_undo
 let redo_button g = Ui.invisible_button g.ui (edit_area 3 5 g) [`Shift] key_redo true
-let save_button = edit_button 4 6 "SAVE" key_save
+let save_button = edit_button 3 5 "SAVE" key_save
 let save_view_button g = Ui.invisible_button g.ui (edit_area 4 6 g) [`Shift] key_save2 true
-let load_button = edit_button 4 7 "LOAD" key_load
+let load_button = edit_button 3 6 "LOAD" key_load
 
+let del_key g = Ui.key g.ui key_del true
 let cut_key g = Ui.key g.ui key_cut true
 let copy_key g = Ui.key g.ui key_copy true
 let paste_key g = Ui.key g.ui key_paste true
@@ -467,14 +468,15 @@ let rename_key g b =
   b && (Ui.key g.ui key_namedir b || Ui.key g.ui key_namedir2 b)
 
 (* Buttons *)
-let ledit_w = 25
+let ledit_w = 27
 let ledit_h g = line_h g + 7
 let ledit_button i j label key g = Ui.labeled_button g.ui (bp, margin g + i*5 + j*ledit_w, - ledit_h g, ledit_w, ledit_h g) (button_label_h g) (Ui.inactive_color g.ui) label key true
 
 let insert_button = ledit_button 0 0 "ADD" key_adddir
-let remove_button = ledit_button 0 1 "DEL" key_deldir
-let create_button = ledit_button 0 2 "NEW" key_newdir
-let view_button = ledit_button 0 3 "VIEW" key_viewdir
+(*let remove_button = ledit_button 0 1 "DEL" key_deldir*)
+let create_button = ledit_button 0 1 "NEW" key_newdir
+let view_button = ledit_button 0 2 "VIEW" key_viewdir
+let tag_button = ledit_button 1 3 "TAG" key_tag
 let rescan_button = ledit_button 1 4 "SCAN" key_scandir
 
 

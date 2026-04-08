@@ -33,6 +33,12 @@ val list_menu : State.t -> view -> string list -> unit
 val edit_menu : State.t -> view -> string list -> int option -> unit
 
 
+(* Tagging *)
+
+val tag_avail : State.t -> view -> bool
+val tag_button : State.t -> view -> unit
+
+
 (* Drag & Drop *)
 
 val drag_on_playlist : State.t -> unit

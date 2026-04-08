@@ -901,6 +901,10 @@ let subject_absent_tracks (module View : View) =
     ) View.(tracks it)
   )
 
+let tag_button (st : state) view =
+  let all, _, get_tracks = subject_tracks view in
+  tag st (get_tracks ()) (not all)
+
 let list_menu (st : state) view searches =
   let geo = st.geometry in
   let module View = (val view : View) in
@@ -1157,6 +1161,7 @@ let run_edit_panel (st : state) =
     reverse_all st view
   );
 
+(*
   (* Tag button *)
   if Layout.tag_button geo (active_if tag_avail) then
   (
@@ -1164,6 +1169,7 @@ let run_edit_panel (st : state) =
     let _, _, get_tracks = subject_tracks view in
     tag st (get_tracks ()) false;
   );
+*)
 
   if focus && tag_avail st view && Layout.tag_add_button geo then
   (

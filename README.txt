@@ -251,18 +251,6 @@ Mostly, this is operated by drag & drop, e.g., to add files or reorder items.
 The edit buttons at the bottom normally act on the current selection, or the
 whole playlist if nothing is selected.
 
-* TAG: Invokes an external tag editor. This has to be configured manually,
-  my apologies.
-
-  Go to the Application Storage directory (Section 2.4). Open the file
-  `state.conf`. Find the entry `config`, and in it the field `exec_tag`.
-  Set its string value to the path of the tag editor you want to use, for
-  example, I highly recommend Mp3tag [1] on Windows or Mac:
-
-  +------------------------------------------------------
-  | exec_tag = "C:\\Program Files\\Mp3tag\\Mp3tag.exe"
-  +------------------------------------------------------
-
 * SEP: Insert a playlist separator before the current selection.
 
 * DEL: Remove the current selection from the playlist.
@@ -371,13 +359,21 @@ Browser entries can be manipulated with a few buttons at the bottom:
 
 * ADD: Add a new root to the browser.
 
-* DEL: Remove a root from the browser. This button can also be used to remove
-  a playlist, which will physically remove it from disk. This action is only
-  executed when the playlist is empty! Regular sub-folders cannot be deleted.
-
 * NEW: Create a new empty playlist file in the currrently selected folder.
 
 * VIEW: Create a viewlist file reflecting the current View (see Section 3.5).
+
+* TAG: Invokes an external tag editor. This has to be configured manually,
+  my apologies.
+
+  Go to the Application Storage directory (Section 2.4). Open the file
+  `state.conf`. Find the entry `config`, and in it the field `exec_tag`.
+  Set its string value to the path of the tag editor you want to use, for
+  example, I highly recommend Mp3tag [1] on Windows or Mac:
+
+  +------------------------------------------------------
+  | exec_tag = "C:\\Program Files\\Mp3tag\\Mp3tag.exe"
+  +------------------------------------------------------
 
 * SCAN: Rescan the selected folder (if the browser has focus), or the current
   selection in the View that currently has the focus.
@@ -386,10 +382,14 @@ Browser entries can be manipulated with a few buttons at the bottom:
 
 Other things to do in the Browser:
 
+* Remove: Drop a root from the browser. You can also remove a playlist, which
+  will physically remove it from disk. This action is only executed when the
+  playlist is empty! Regular sub-folders cannot be deleted.
+
 * Reorder: You can change the order in which sub-folders are shown by dragging
   individual entries. You cannot move them to another folder, though.
 
-* Jump: a double-click on the selected browser folder immediately plays the
+* Jump: A double-click on the selected browser folder immediately plays the
   tracks in the current view. If the tracks already exists in the playlist (in
   order), then the playlist jumps to the first entry, otherwise the tracks are
   first inserted at the end.
@@ -767,9 +767,9 @@ the underlying graphics and audio library (Raylib, Section 4.3).
 
 * CPU Usage: Camp uses an extravagant "immediate mode" GUI, which is a bit more
   expensive. On a dated computer, it may use more compute than a background app
-  deserves. (And for some reason, I see much higher CPU consumption on my Mac
-  laptop than on my Windows desktop, about 40% vs 2%, despite comparable specs.
-  GPU time is about the same. Odd.)
+  deserves. (I see much higher CPU consumption on my Mac M2 laptop than on my
+  Windows desktop, about 40% vs 2%, despite comparable specs. GPU time is about
+  the same. Probably due to OpenGL emulation on newer Macs.)
 
   There are plenty of smaller things that aren't super-optimised either. But
   the thing is snappy enough for my purposes, so I remain lazy about it.
