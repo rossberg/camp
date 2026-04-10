@@ -38,10 +38,6 @@ vars:
 	@echo 'DEPS = $(DEPS)'
 	@echo 'ASSETS = $(ASSETS)'
 	@echo 'SYSASSETS = $(SYSASSETS)'
-	@echo 'GREP = $(shell which grep)'
-	@echo 'SED = $(shell which sed)'
-	@echo 'MAKE = $(shell which make) $(shell make -v)'
-	@echo 'OPAM = $(shell which opam)'
 
 deps:
 	opam install --yes --deps-only $(DEPS)  # Temporary workaround for Opam Windows bug
