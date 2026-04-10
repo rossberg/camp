@@ -169,6 +169,7 @@ let unlit_alpha = 0x30
 let semilit_alpha = 0x80
 let unlit_color c = Color.darken unlit_alpha c (*`Trans (c, unlit_alpha)*)
 let semilit_color c = Color.darken semilit_alpha c (*`Trans (c, semilit_alpha)*)
+
 let text_color ui = palettes.(ui.palette).text
 let warn_color ui = palettes.(ui.palette).warn
 let error_color ui = palettes.(ui.palette).error

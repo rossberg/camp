@@ -244,11 +244,18 @@ let rec color = function
 module Color =
 struct
   let darken f col =
-  let c = color col in
-  let r, g, b, a = Raylib.Color.(r c, g c, b c, a c) in
-  let r', g', b' = f * r / 0x100, f * g / 0x100, f * b / 0x100 in
-  let col' = `RGB (r' lsl 16 + g' lsl 8 + b') in
-  if a = 0xff then col' else `Trans (col', a)
+    let c = color col in
+    let r, g, b, a = Raylib.Color.(r c, g c, b c, a c) in
+    let r', g', b' = f * r / 0x100, f * g / 0x100, f * b / 0x100 in
+    let col' = `RGB (r' lsl 16 + g' lsl 8 + b') in
+    if a = 0xff then col' else `Trans (col', a)
+
+  let mix col1 col2 =
+    let c1, c2 = color col1, color col2 in
+    let mix f = (f c1 + f c2) / 2 in
+    let c = Raylib.Color.(create (mix r) (mix g) (mix b) (mix a)) in
+    let col = `RGB Raylib.Color.(r c lsl 16 + g c lsl 8 + b c) in
+    Raylib.Color.(if a c = 0xff then col else `Trans (col, a c))
 end
 
 

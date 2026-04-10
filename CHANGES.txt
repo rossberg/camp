@@ -2,9 +2,11 @@
 
 Playlist:
 - [chg] Moved TAG button to Library
+- [chg] Refine highlighting of playing track when erroneous
 
 Library:
 - [chg] Removed DEL button in favour of TAG button
+- [new] Highlight playing track in Artist and Album views when possible
 
 
 === 0.9.4 (2026-03-12) ===

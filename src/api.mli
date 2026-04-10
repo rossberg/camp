@@ -92,6 +92,7 @@ type color =
 
 module Color :
 sig
+  val mix : color -> color -> color
   val darken : int -> color -> color
 end
 

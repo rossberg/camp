@@ -68,15 +68,20 @@ let run (st : state) =
     let track = tab.entries.(i) in
     if now -. track.file.age > st.config.delay_track_update then
       Track.update track;
-    let c =
+    let c1, normal =
       match track.status with
-      | _ when tab.pos = Some i ->
-        if track.path = (Option.get st.control.current).path then `White else `Gray 0xc0
-      | _ when Data.is_separator track -> Ui.text_color geo.ui
-      | `Absent -> Ui.error_color geo.ui
-      | `Invalid -> Ui.warn_color geo.ui
-      | `Undet -> Ui.semilit_color (Ui.text_color geo.ui)
-      | `Predet | `Det -> Ui.text_color geo.ui
+      | `Det | `Predet -> Ui.text_color geo.ui, true
+      | `Undet -> Ui.semilit_color (Ui.text_color geo.ui), true
+      | `Invalid -> Ui.warn_color geo.ui, false
+      | `Absent -> Ui.error_color geo.ui, false
+    in
+    let c2 =
+      if track.path = (Option.get st.control.current).path
+      then `White else `Gray 0xc0
+    in
+    let c =
+      if tab.pos <> Some i then c1 else
+      if normal then c2 else Api.Color.mix c1 c2
     in
     let time = Track.time track in
     let stime = if time = 0.0 then "" else fmt_time time in

@@ -47,6 +47,7 @@ val inactive_color : t -> color
 val unlit_color : color -> color
 val semilit_color : color -> color
 
+
 (* Fonts *)
 
 val font : t -> int -> Api.font

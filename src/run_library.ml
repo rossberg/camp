@@ -1070,12 +1070,27 @@ let run_views (st : state) =
   (* Artists view *)
   if show_artists then
   (
+    let playing_artist1, playing_artist2 =
+      match st.control.current with
+      | Some track ->
+        Data.track_attr_string track `Artist,
+        Data.track_attr_string track `AlbumArtist
+      | None -> "", ""
+    in
+
+    let color_of (artist : Data.artist) =
+      if artist.name = playing_artist1 || artist.name = playing_artist2 then
+        `White
+      else
+        Ui.text_color geo.ui
+    in
+
     run_view st Layout.left_view 1
       lib.artists busy_artists lib.albums
       Library.refresh_artists_busy Library.refresh_albums_tracks
       Library.reorder_artists view.artists view
       Data.artist_attr_string `Artist Data.artist_attrs
-      (fun _ -> "") (fun _ -> "") (fun _ -> Ui.text_color geo.ui)
+      (fun _ -> "") (fun _ -> "") color_of
       (fun lib -> lib.tracks.entries) (fun lib _ -> lib.Library.tracks.entries)
       false (fun _ -> assert false) Run_view.artists_view;
   );
@@ -1083,11 +1098,21 @@ let run_views (st : state) =
   (* Albums view *)
   if show_albums then
   (
+    let playing_path =
+      match st.control.current with Some track -> track.path | None -> "" in
+
     let text_of album =
       let artist = Data.album_attr_string album `AlbumArtist in
       let title = Data.album_attr_string album `AlbumTitle in
       let year = Data.album_attr_string album `Year in
       artist ^ " - " ^ title ^ (if year = "" then "" else " (" ^ year ^ ")")
+    in
+
+    let color_of (album : Data.album) =
+      if String.starts_with ~prefix: album.path playing_path then
+        `White
+      else
+        Ui.text_color geo.ui
     in
 
     run_view st
@@ -1096,8 +1121,7 @@ let run_views (st : state) =
       Library.refresh_albums_busy Library.refresh_tracks
       Library.reorder_albums view.albums view
       Data.album_attr_string `None Data.album_attrs
-      (fun (album : Data.album) -> album.path) text_of
-      (fun _ -> Ui.text_color geo.ui)
+      (fun (album : Data.album) -> album.path) text_of color_of
       (fun lib -> lib.tracks.entries) (fun lib _ -> lib.Library.tracks.entries)
       false (fun album -> `Album album) Run_view.albums_view;
 
@@ -1135,16 +1159,19 @@ let run_views (st : state) =
       if (track.status = `Undet || track.status = `Predet)
       && Library.rescan_busy lib = None then
         Track.update track;
-      match track.status with
-      | _ when track.path = playing_path -> `White
-      | `Absent -> Ui.error_color geo.ui
-      | `Invalid -> Ui.warn_color geo.ui
-      | `Undet -> Ui.semilit_color (Ui.text_color geo.ui)
-      | `Predet | `Det ->
-        if track.pos = -1 || Data.is_separator track || Library.has_track lib track then
-          Ui.text_color geo.ui
-        else
-          Ui.warn_color geo.ui
+      let c1, normal =
+        match track.status with
+        | `Det | `Predet ->
+          if track.pos = -1 || Data.is_separator track || Library.has_track lib track then
+            Ui.text_color geo.ui, true
+          else
+            Ui.warn_color geo.ui, false
+        | `Undet -> Ui.semilit_color (Ui.text_color geo.ui), true
+        | `Invalid -> Ui.warn_color geo.ui, false
+        | `Absent -> Ui.error_color geo.ui, false
+      in
+      if track.path <> playing_path then c1 else
+      if normal then `White else Api.Color.mix c1 `White
     in
 
     let prim_attr =
