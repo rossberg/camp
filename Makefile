@@ -40,6 +40,7 @@ vars:
 	@echo 'SYSASSETS = $(SYSASSETS)'
 	@echo 'GREP = $(shell which grep)'
 	@echo 'SED = $(shell which sed)'
+	@echo 'MAKE = $(shell which make) $(shell make -v)'
 	@echo 'OPAM = $(shell which opam)'
 
 deps:
