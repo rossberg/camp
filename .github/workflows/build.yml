@@ -33,3 +33,5 @@ jobs:
         run: make vars
       - name: Build Camp
         run: make zip
+      - name: Check Camp
+        run: ls -l *.zip
