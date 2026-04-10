@@ -24,6 +24,10 @@ jobs:
           ocaml-compiler: 5.4.x
       - name: Setup zip
         if: matrix.os == 'windows-latest'
-        run: setup-x86_64.exe --root C:\\cygwin --quiet-mode unattended --no-shortcuts --no-startmenu --no-desktop --no-admin --no-version-check --no-write-registry --packages zip
+        uses: cygwin/cygwin-install-action@v6
+        with:
+          packages:
+            zip
+        # run: setup-x86_64.exe --root C:\\cygwin --quiet-mode unattended --no-shortcuts --no-startmenu --no-desktop --no-admin --no-version-check --no-write-registry --packages zip
       - name: Build Camp
         run: make zip
