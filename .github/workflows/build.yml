@@ -27,8 +27,11 @@ jobs:
         uses: cygwin/cygwin-install-action@v6
         with:
           packages:
+            make
             zip
         # run: setup-x86_64.exe --root C:\\cygwin --quiet-mode unattended --no-shortcuts --no-startmenu --no-desktop --no-admin --no-version-check --no-write-registry --packages zip
+      - name: Check Camp
+        run: make app-name
       - name: Configure Camp
         run: make vars
       - name: Build Camp
