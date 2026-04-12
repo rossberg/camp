@@ -31,8 +31,6 @@ type 'attr view =
 
 type views =
 {
-  mutable search : string;
-  mutable query : Query.query option;
   mutable folded : bool;
   mutable custom : bool;
   mutable divider_width : int;
@@ -78,6 +76,7 @@ type 'cache t =
   mutable covers_shown : bool;
   mutable renaming : int option;
   mutable log : 'cache Log.t option;
+  mutable query : Query.query option;
   search : Edit.t;
   rename : Edit.t;
   browser : (dir, 'cache) Table.t;
@@ -212,8 +211,6 @@ let tracks_default_view = make_view (Some `Table) tracks_columns tracks_sorting
 
 let make_views () : views =
   {
-    search = "";
-    query = None;
     folded = true;
     custom = false;
     divider_width = 100;
@@ -241,8 +238,6 @@ let playlist_default_views =
 
 let copy_views (views : views) =
   {
-    search = "";
-    query = None;
     folded = true;
     custom = false;
     divider_width = views.divider_width;
@@ -342,6 +337,7 @@ let make () =
       covers_shown = true;
       renaming = None;
       log = None;
+      query = None;
       search = Edit.make 100;
       rename = Edit.make 100;
       browser = Table.make 0;
@@ -459,6 +455,17 @@ let has_track lib (track : track) =
   find_track lib track.path <> None
 
 
+(* Search, part 1 *)
+
+let set_search' lib search =
+  Edit.set lib.search search;
+  lib.error <- "";
+  lib.query <-
+    match Query.parse_query lib.search.text with
+    | Ok query -> Some query
+    | Error msg -> error lib (msg ^ " in search query"); Some Query.empty_query
+
+
 (* Data Persistence *)
 
 let library_name = "library.bin"
@@ -549,8 +556,6 @@ struct
 
   let views full =
     record (fun (x : views) -> [
-      "search", string x.search;
-      (* query omitted and reconstructed from search *)
       "fold", bool x.folded;
       "custom", bool x.custom;
     ] @ if not (x.custom || full) then [] else [
@@ -606,8 +611,6 @@ struct
 
   let views : t -> views =
     record (fun r -> {
-      search = default "" string (r $? "search");
-      query = None;
       folded = bool (r $ "fold");
       custom = default true bool (r $? "custom");
       divider_width = int (r $ "div_w");
@@ -619,8 +622,6 @@ struct
 
   let views_noncustom (view : views) =
     record (fun r ->
-      apply (r $? "search") string
-        (fun s -> view.search <- s; view.query <- None);
       apply (r $? "fold") bool (fun b -> view.folded <- b);
       apply (r $? "custom") bool (fun b -> view.custom <- b);
     )
@@ -651,11 +652,11 @@ let dir_name dir =
       |> Str.global_replace sep_re "%2f"
   in File.(browser_dir // file ^ view_ext)
 
-let save_dir _lib dir =
+let save_dir lib dir =
   Storage.save_string (dir_name dir) (fun () ->
     Text.print (Print.dir dir)
   );
-  if is_viewlist dir then File.save_safe `Bin dir.path dir.view.search
+  if is_viewlist dir then File.save_safe `Bin dir.path lib.search.text
 
 let load_dir lib dir =
   dir.view <- make_views_for lib dir.path;
@@ -665,7 +666,7 @@ let load_dir lib dir =
     with Text.Syntax_error _ | Text.Type_error as exn ->
       Storage.log_exn "parse" exn ("while loading view state for " ^ dir.path)
   );
-  if is_viewlist dir then dir.view.search <- File.load `Bin dir.path
+  if is_viewlist dir then set_search' lib (File.load `Bin dir.path)
 
 let delete_dir _lib dir =
   Storage.delete (dir_name dir)
@@ -1075,31 +1076,13 @@ let focus_search lib =
   Edit.focus lib.search
 
 
-let update_view_query lib (dir : dir) =
-  dir.view.query <-
-    if dir.view.search = "" then (lib.error <- ""; None) else
-    match Query.parse_query dir.view.search with
-    | Ok query -> lib.error <- ""; Some query
-    | Error msg -> error lib (msg ^ " in search query"); Some Query.empty_query
-
-
 let set_dir_opt lib dir_opt =
-  Option.iter (fun (dir : dir) ->
-    (* In case some input has been made but not yet sent *)
-    if lib.search.text <> dir.view.search then
-    (
-      dir.view.search <- lib.search.text;
-      save_dir lib dir;
-    )
-  ) lib.current;
   Table.deselect_all lib.browser;
   Table.clear_undo lib.tracks;
   lib.current <- dir_opt;
   Option.iter (fun (dir : dir) ->
     load_dir lib dir;
-    Edit.set lib.search dir.view.search;
     Edit.scroll lib.search 0;  (* reset *)
-    if dir.view.query = None then update_view_query lib dir;
   ) lib.current
 
 let selected_dir lib =
@@ -1204,8 +1187,8 @@ let current_is_shown_viewlist lib =
 
 let current_is_plain_playlist lib =
   current_is (fun (dir : dir) ->
+    lib.search.text = "" &&
     dir.view.tracks.shown <> None && Data.is_playlist dir &&
-    dir.view.search = "" &&
     dir.view.tracks.sorting <> [] &&
     List.hd dir.view.tracks.sorting = (`Pos, `Asc)
   ) lib
@@ -1317,7 +1300,7 @@ let refresh_view lib (tab : _ Table.t) selected attr_string sorting key f =
       if dir.error <> "" then
         (error lib dir.error; Query.empty_query)
       else
-        Option.value dir.view.query ~default: Query.full_query
+        Option.value lib.query ~default: Query.full_query
     in
     let entries = f dir query (is_playlist dir) in
     sort attr_string (sorting dir.view) entries;
@@ -1521,8 +1504,6 @@ let current_to_default_views lib =
 let current_of_default_views lib =
   Option.iter (fun (dir : dir) ->
     let view = make_views_for lib dir.path in
-    view.search <- dir.view.search;
-    view.query <- dir.view.query;
     view.folded <- dir.view.folded;
     dir.view <- view;
     save_dir lib dir;
@@ -1637,18 +1618,26 @@ let remove_roots lib paths =
   List.for_all (remove_root lib) paths
 
 
-(* Search *)
+(* Search, part 2 *)
+
+let refresh_search lib =
+  set_search' lib lib.search.text;
+  refresh_artists_albums_tracks lib
 
 let set_search lib search =
-  Option.iter (fun (dir : dir) ->
-    if dir.view.search <> search || dir.view.query = None then
-    (
-      dir.view.search <- search;
-      update_view_query lib dir;
-      save_dir lib dir;
-      refresh_artists_albums_tracks lib;
-    )
-  ) lib.current
+  if lib.search.text <> search then
+  (
+    set_search' lib search;
+    refresh_search lib;
+  )
+
+let clear_search lib =
+  if lib.search.text <> "" then
+  (
+    Edit.clear lib.search;
+    lib.query <- Some Query.full_query;
+    refresh_artists_albums_tracks lib;
+  )
 
 
 (* Playlist Editing *)
@@ -1683,12 +1672,12 @@ let save_playlist lib =
   with exn ->
     Storage.log_exn "file" exn ("writing playlist " ^ dir.path)
 
-let make_viewlist (dir : dir) =
+let make_viewlist lib (dir : dir) =
   let prefix =
     if Data.is_all dir || Data.is_viewlist dir then ""
     else "\"" ^ dir.path ^ "\" @ #filepath "
   in
-  prefix ^ dir.view.search
+  prefix ^ lib.search.text
 
 
 (* Before editing, normalise playlist to pos-order to enable correct undo *)
@@ -1974,8 +1963,10 @@ let redo lib = unredo lib Table.pop_redo lib.tracks.redos
 let print_state lib =
   let open Text.Print in
   record (fun lib -> [
+    "search", list string (Edit.history lib.search);
     "browser_scroll", int lib.browser.vscroll;
-    "browser_current", option string (Option.map (fun dir -> dir.path) lib.current);
+    "browser_current",
+      option string (Option.map (fun dir -> dir.path) lib.current);
     "lib_cover", bool lib.covers_shown;
     "views_dir_default", Print.views true lib.views_dir_default;
     "views_album_default", Print.views true lib.views_album_default;
@@ -2004,6 +1995,14 @@ let parse_state lib =
   let open Text.Parse in
   record (fun r ->
     refresh_browser lib;
+    apply (r $? "search") (list string)
+      (fun ss ->
+        if ss <> [] then
+        (
+          set_search' lib (List.hd ss);
+          Edit.set_history lib.search ss;
+        )
+      );
     apply (r $? "browser_scroll") (num 0 (max 0 (length_browser lib - 1)))
       (fun i -> Table.set_vscroll lib.browser i 1 4);
     apply (r $? "views_dir_default") Parse.views

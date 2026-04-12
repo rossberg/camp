@@ -5,6 +5,8 @@ Playlist:
 - [chg] Refine highlighting of playing track when erroneous
 
 Library:
+- [new] Keep Search when switching directories
+- [new] Keep Search history across sessions
 - [chg] Removed DEL button in favour of TAG button
 - [new] Highlight playing track in Artist and Album views when possible
 

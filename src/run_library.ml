@@ -154,7 +154,7 @@ let create_viewlist_avail (st : state) =
 
 let create_viewlist (st : state) =
   Option.iter (fun (dir : dir) ->
-    let query = Library.make_viewlist dir in
+    let query = Library.make_viewlist st.library dir in
     let view = Library.copy_views dir.view in
     let path = if Data.is_dir dir then dir.path else File.dir dir.path in
     Run_filesel.filesel st `File `Write path ".m3v"
@@ -679,73 +679,58 @@ let run_browser (st : state) =
   (* Search *)
   Layout.search_label geo;
   Layout.search_box geo;
-  if have_dir then
+
+  if Layout.search_key geo then
   (
-    if Layout.search_key geo then
-    (
-      (* Search button pressed: focus search *)
-      Library.focus_search lib;
-    )
-    else if Layout.search_button geo then
-    (
-      (* Click on Search label: clear and focus search *)
-      if lib.search.text <> "" then
-      (
-        Edit.clear lib.search;
-        Library.set_search lib "";
-      );
-      Library.focus_search lib;
-    );
+    (* Search button pressed: focus search *)
+    Library.focus_search lib;
+  )
+  else if Layout.search_button geo then
+  (
+    (* Click on Search label: clear and focus search *)
+    Library.clear_search lib;
+    State.focus_edit lib.search st;
+  );
 
-    let search = lib.search.text in
-    let erroneous = search <> "" && dir.view.query = Some Query.empty_query in
-    let c = Ui.(if erroneous then error_color else text_color) geo.ui in
-    let _ = Layout.search_edit geo c lib.search in
-    if lib.search.focus then
-    (
-      (* Have or gained focus: make sure it's consistent *)
-      State.defocus_all st;
-      Library.focus_search lib;
-    );
-    if lib.search.text <> search then
-    (
-      (* Changed search text: update search in dir *)
-      Library.set_search lib lib.search.text;
-    );
+  let search = lib.search.text in
+  let erroneous = search <> "" && lib.query = Some Query.empty_query in
+  let c = Ui.(if erroneous then error_color else text_color) geo.ui in
+  let _ = Layout.search_edit geo c lib.search in
+  if lib.search.focus then
+  (
+    (* Have or gained focus: make sure it's consistent *)
+    State.focus_edit lib.search st;
+  );
+  if lib.search.text <> search then
+  (
+    (* Changed search text: update search in dir *)
+    Library.refresh_search lib;
+  );
 
-    if Layout.search_context geo then
-    (
-      let rec nub = function
-        | [] -> []
-        | x::xs -> x :: nub (List.filter ((<>) x) xs)
-      in
-      let c = Ui.text_color geo.ui in
-      let history = Edit.history lib.search in
-      let history' = nub history in
-      Run_menu.command_menu st ([
-        `Entry (c, "Clear Search", Layout.key_clear_search, lib.search.text <> ""),
-          (fun () -> Edit.clear lib.search; Library.set_search lib "";
-            State.focus_edit lib.search st);
-        `Entry (c, "Clear Search History", Layout.key_clear_history, history <> []),
-          (fun () ->
-            Edit.clear_history lib.search;
-            Data.iter_dir (fun (dir : Library.dir) ->
-              if dir.view.search <> "" then
-              (
-                dir.view.search <- "";
-                Library.save_dir lib dir;
-              )
-            ) lib.root;
-            State.focus_edit lib.search st
-          );
-      ] @ (
-        if history = [] then [] else [`Separator, ignore]
-      ) @ List.map (fun s ->
-        `Entry (c, "Search for " ^ s, Layout.nokey, true),
-          (fun () -> Edit.set lib.search s; Library.set_search lib s;
-            State.focus_edit lib.search st)
-      ) history' |> Iarray.of_list)
-    )
+  if Layout.search_context geo then
+  (
+    let rec nub = function
+      | [] -> []
+      | x::xs -> x :: nub (List.filter ((<>) x) xs)
+    in
+    let c = Ui.text_color geo.ui in
+    let history = Edit.history lib.search in
+    let history' = nub history in
+    Run_menu.command_menu st ([
+      `Entry (c, "Clear Search", Layout.key_clear_search, lib.search.text <> ""),
+        (fun () -> Library.clear_search lib; State.focus_edit lib.search st);
+      `Entry (c, "Clear Search History", Layout.key_clear_history, history <> []),
+        (fun () ->
+          Library.clear_search lib;
+          Edit.clear_history lib.search;
+          State.focus_edit lib.search st
+        );
+    ] @ (
+      if history = [] then [] else [`Separator, ignore]
+    ) @ List.map (fun s ->
+      `Entry (c, "Search for " ^ s, Layout.nokey, true),
+        (fun () -> Library.set_search lib s; State.focus_edit lib.search st)
+    ) history' |> Iarray.of_list)
   )
 
 
@@ -1365,7 +1350,7 @@ let run_browse_buttons (st : state) =
         dir.view.artists.shown <> None && Table.has_selection lib.albums
       then
         Library.rescan_tracks lib `Thorough lib.tracks.entries
-      else if dir.view.search <> "" then
+      else if lib.search.text <> "" then
         Library.rescan_tracks lib mode lib.tracks.entries
       else
         Library.rescan_dirs lib mode [|dir|]

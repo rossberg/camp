@@ -142,7 +142,7 @@ let set ed s =
   update ed s
 
 let clear ed =
-  if ed.next <> [""] then add_history ed;
+  if ed.next <> [] && ed.next <> [""] then add_history ed;
   set ed ""
 
 
@@ -170,6 +170,11 @@ let next_history ed =
 let clear_history ed =
   clear ed;
   ed.prev <- [];
+  ed.next <- []
+
+let set_history ed ss =
+  set ed (List.hd ss);
+  ed.prev <- List.tl ss;
   ed.next <- []
 
 let history ed =

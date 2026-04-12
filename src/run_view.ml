@@ -410,7 +410,6 @@ let modify ops (st : state) dir on_start on_pl =
                 Table.deselect_all log.table;
                 Option.iter (Library.select_dir lib)
                   (Library.find_entry_dir lib dir);
-                Edit.set lib.search search;
                 Library.set_search lib search;
                 close false log;
             ))
@@ -779,7 +778,7 @@ let save_view_avail (st : state) _view =
 let save_view (st : state) _view =
   Option.iter (fun dir ->
     Run_filesel.filesel st `File `Write "" ".m3v" (fun path ->
-      File.save `Bin path (Library.make_viewlist dir ^ "\n")
+      File.save `Bin path (Library.make_viewlist st.library dir ^ "\n")
     )
   ) st.library.current
 
@@ -864,7 +863,6 @@ let search_for_avail (st : state) =
 
 let search_for (st : state) ss =
   let s = String.concat " " (List.map (fun s -> "\"" ^ s ^ "\"") ss) in
-  Edit.set st.library.search s;
   Library.set_search st.library s
 
 

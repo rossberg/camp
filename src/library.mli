@@ -13,8 +13,6 @@ type 'attr view =
 
 type views =
 {
-  mutable search : string;
-  mutable query : Query.query option;
   mutable folded : bool;
   mutable custom : bool;
   mutable divider_width : int;
@@ -38,6 +36,7 @@ type 'cache t = private
   mutable covers_shown : bool;
   mutable renaming : int option;
   mutable log : 'cache Log.t option;
+  mutable query : Query.query option;
   search : Edit.t;
   rename : Edit.t;
   browser : (dir, 'cache) Table.t;
@@ -185,11 +184,13 @@ val deselect_all : 'a t -> unit
 val select_invert : 'a t -> unit
 
 val set_search : 'a t -> string -> unit
+val clear_search : 'a t -> unit
+val refresh_search : 'a t -> unit
 
 val current_to_default_views : 'a t -> unit
 val current_of_default_views : 'a t -> unit
 
-val make_viewlist : dir -> string
+val make_viewlist : 'a t -> dir -> string
 
 
 (* Playlist Editing *)
