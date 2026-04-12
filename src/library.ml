@@ -652,11 +652,11 @@ let dir_name dir =
       |> Str.global_replace sep_re "%2f"
   in File.(browser_dir // file ^ view_ext)
 
-let save_dir lib dir =
+let save_dir _lib dir =
   Storage.save_string (dir_name dir) (fun () ->
     Text.print (Print.dir dir)
   );
-  if is_viewlist dir then File.save_safe `Bin dir.path lib.search.text
+  if is_viewlist dir then File.save_safe `Bin dir.path dir.search
 
 let load_dir lib dir =
   dir.view <- make_views_for lib dir.path;
@@ -666,7 +666,11 @@ let load_dir lib dir =
     with Text.Syntax_error _ | Text.Type_error as exn ->
       Storage.log_exn "parse" exn ("while loading view state for " ^ dir.path)
   );
-  if is_viewlist dir then set_search' lib (File.load `Bin dir.path)
+  if is_viewlist dir then
+  (
+    dir.search <- File.load `Bin dir.path;
+    set_search' lib dir.search;
+  )
 
 let delete_dir _lib dir =
   Storage.delete (dir_name dir)

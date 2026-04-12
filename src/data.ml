@@ -131,6 +131,7 @@ type 'view dir =
   mutable name : string;
   mutable children : 'view dir iarray;
   mutable tracks : track iarray;
+  mutable search : string; (* for view lists *)
   mutable error : string;  (* for view lists *)
   mutable view : 'view;
 }
@@ -195,6 +196,7 @@ let make_dir path parent nest view : 'a dir =
     nest;
     children = [||];
     tracks = [||];
+    search = "";
     error = "";
     view;
   }
@@ -761,6 +763,7 @@ struct
       name = string (r $ "name");
       children = iarray (dir make_view) (r $ "children");
       tracks = iarray track (r $ "tracks");
+      search = string (r $ "search");
       error = string (r $ "error");
       view = make_view ();
     })
@@ -834,6 +837,7 @@ struct
       string x.name;
       iarray dir x.children;
       iarray track (if is_dir x then x.tracks else [||]);
+      string x.search;
       string x.error;
     ]) x
 end
@@ -914,15 +918,16 @@ struct
 
   let rec dir make_view =
     record (fun n buf ->
-      if n <> 7 then error buf;
+      if n <> 7 && n <> 8 then error buf;
       let path = string buf in
       let parent = option string buf in
       let nest = Option.value (option nat buf) ~default: (-1) in
       let name = string buf in
       let children = iarray (dir make_view) buf in
       let tracks = iarray track buf in
+      let search = if n = 8 then string buf else "" in
       let error = string buf in
       let view = make_view path in
-      {path; parent; nest; name; children; tracks; error; view}
+      {path; parent; nest; name; children; tracks; search; error; view}
     )
 end
