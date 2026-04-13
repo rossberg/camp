@@ -458,7 +458,7 @@ let has_track lib (track : track) =
 (* Search, part 1 *)
 
 let set_search' lib search =
-  Edit.set lib.search search;
+  if search <> lib.search.text then Edit.set lib.search search;
   lib.error <- "";
   lib.query <-
     match Query.parse_query lib.search.text with
