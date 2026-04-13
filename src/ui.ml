@@ -1735,7 +1735,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
     in
 
     (* Focus and mouse reflection *)
-    if tab.focus && len > 0 then focus ui table_area;
+    if tab.focus then focus ui table_area;
     mouse_focus ui area geo.refl_r 0x20 0;
 
     (* Keys *)
@@ -2258,7 +2258,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
     in
 
     (* Focus and mouse reflection *)
-    if tab.focus && len > 0 then focus ui table_area;
+    if tab.focus then focus ui table_area;
     mouse_focus ui area geo.refl_r 0x20 0;
 
     (* Keys *)
