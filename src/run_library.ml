@@ -1315,7 +1315,8 @@ let run_browse_buttons (st : state) =
 (*
   if Layout.remove_button geo (active_if2 remove_avail remove_list_avail) then
 *)
-  if (remove_avail st || remove_list_avail st) && Layout.del_key geo then
+  if (remove_avail st || remove_list_avail st)
+  && lib.browser.focus && Layout.del_key geo then
   (
     (* Click on Remove (Del) button: remove directory or playlist *)
     let dir = Option.get (lib.current) in
