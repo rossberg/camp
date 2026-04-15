@@ -28,8 +28,8 @@ type meta_attr =
 ]
 
 type artist_attr = [ `Artist | `Albums | `Tracks ]
-type album_attr = [ file_attr | format_attr | meta_attr ]
-type track_attr = [ file_attr | format_attr | meta_attr | `Playlist | `Pos ]
+type album_attr = [ file_attr | format_attr | meta_attr | `AlbumName ]
+type track_attr = [ album_attr | `Name | `Playlist | `Pos ]
 type query_attr = [ track_attr | `True | `False | `Now | `Random ]
 type any_attr = [ artist_attr | album_attr | track_attr | query_attr | `None ]
 
@@ -47,8 +47,8 @@ let meta_attrs =
     `AlbumArtist; `AlbumTitle; `Date; `Year; `Country; `Label; `Rating ]
 
 let artist_attrs = [ `Artist; `Albums; `Tracks ]
-let album_attrs = file_attrs @ format_attrs @ meta_attrs
-let track_attrs = file_attrs @ format_attrs @ meta_attrs @ [ `Playlist; `Pos ]
+let album_attrs = file_attrs @ format_attrs @ meta_attrs @ [ `AlbumName ]
+let track_attrs = album_attrs @ [ `Name; `Playlist; `Pos ]
 
 (* Can't use a set since the key cannot be polymorphic. *)
 module AttrMap = Map.Make (struct type t = any_attr let compare = compare end)
@@ -83,8 +83,10 @@ type memo =
   mutable file_time : string;
   mutable artist : string;
   mutable title : string;
+  mutable name : string;
   mutable album_artist : string;
   mutable album_title : string;
+  mutable album_name : string;
   mutable length : string;
   mutable channels : string;
   mutable depth : string;
@@ -243,8 +245,10 @@ let make_memo () : memo =
     file_time = "";
     artist = "";
     title = "";
+    name = "";
     album_artist = "";
     album_title = "";
+    album_name = "";
     length = "";
     channels = "";
     depth = "";
@@ -316,7 +320,7 @@ let fields_of_name name =
 
 let fields_of_path path =
   if M3u.is_separator path then
-    [name_separator; name_separator]
+    [""; name_separator; name_separator]
   else
     fields_of_name File.(remove_extension (name path))
 
@@ -343,6 +347,7 @@ let pos_artist_title = function
 
 let nonzero zero f x = if x = zero then "" else f x
 let nonzero_int w x = nonzero 0 (fmt "%*d" w) x (* leading spaces for sorting *)
+let nonzero_pos w x = nonzero 0 (fmt "%*d." w) x (* leading spaces for sorting *)
 let nonempty f x attr = match x with None -> "" | Some x -> f x attr
 let unknown f x attr = match nonempty f x attr with "" -> "[unknown]" | s -> s
 
@@ -397,6 +402,19 @@ let rec meta_attr_string (meta : Meta.t) = function
     String.init (meta.rating * len) (fun i -> star.[i mod len])
   | `Cover -> nonempty (fun (pic : Meta.picture) () -> pic.data) meta.cover ()
 
+let name_attr_string (meta : Meta.t) attr =
+  let artist, title =
+    match attr with
+    | `Name -> meta.artist, meta.title
+    | `AlbumName -> meta.albumartist, meta.albumtitle
+  in
+  if artist <> "" && title <> "" then
+    artist ^ " - " ^ title
+  else if title <> "" then
+    title
+  else
+    ""
+
 let artist_attr_string' attr path meta =
   let s = nonempty meta_attr_string meta attr in
   if s <> "" then s else
@@ -411,6 +429,16 @@ let title_attr_string' attr path meta =
   | Some (_, _, title) -> title
   | None -> "[unknown]"
 
+let name_attr_string' attr path meta =
+  let s = nonempty name_attr_string meta attr in
+  if s <> "" then s else
+  match pos_artist_title (fields_of_path path) with
+  | Some (_, artist, title) -> artist ^ " - " ^ title
+  | None when attr = `Name ->
+    let file = File.name path in
+    if Format.is_known_ext file then File.remove_extension file else file
+  | None -> ""
+
 let length_attr_string' format meta =
   let s = nonempty format_attr_string format `Length in
   if s <> "" then s else nonempty meta_attr_string meta `Length
@@ -423,6 +451,7 @@ let artist_attr_string (artist : artist) = function
 let album_attr_string' (album : album) = function
   | `AlbumArtist -> unknown meta_attr_string album.meta `AlbumArtist
   | `AlbumTitle -> unknown meta_attr_string album.meta `AlbumTitle
+  | `AlbumName -> unknown name_attr_string album.meta `AlbumName
   | `Length -> length_attr_string' album.format album.meta
   | #file_attr as attr -> file_attr_string album.path album.file attr
   | #format_attr as attr -> nonempty format_attr_string album.format attr
@@ -430,14 +459,15 @@ let album_attr_string' (album : album) = function
 
 let track_attr_string' (track : track) = function
   | `Playlist -> track.playlist
-  | `Pos -> nonzero_int 3 (track.pos + 1)
+  | `Pos -> nonzero_pos 3 (track.pos + 1)
+  | #track_attr when M3u.is_separator track.path -> name_separator
   | `Artist -> artist_attr_string' `Artist track.path track.meta
   | `Title -> title_attr_string' `Title track.path track.meta
+  | `Name -> name_attr_string' `Name track.path track.meta
   | `Length -> length_attr_string' track.format track.meta
-  | `AlbumArtist when not (M3u.is_separator track.path) ->
-    unknown meta_attr_string track.meta `AlbumArtist
-  | `AlbumTitle when not (M3u.is_separator track.path) ->
-    unknown meta_attr_string track.meta `AlbumTitle
+  | `AlbumArtist -> unknown meta_attr_string track.meta `AlbumArtist
+  | `AlbumTitle -> unknown meta_attr_string track.meta `AlbumTitle
+  | `AlbumName -> unknown name_attr_string track.meta `AlbumName
   | #file_attr as attr -> file_attr_string track.path track.file attr
   | #format_attr as attr -> nonempty format_attr_string track.format attr
   | #meta_attr as attr -> nonempty meta_attr_string track.meta attr
@@ -484,12 +514,18 @@ let attr_string' get_memo set_memo f x attr =
     | `Title ->
       if memo.title <> "" then memo.title else
       let s = f x attr in memo.title <- s; s
+    | `Name ->
+      if memo.name <> "" then memo.name else
+      let s = f x attr in memo.name <- s; s
     | `AlbumArtist ->
       if memo.album_artist <> "" then memo.album_artist else
       let s = f x attr in memo.album_artist <- s; s
     | `AlbumTitle ->
       if memo.album_title <> "" then memo.album_title else
       let s = f x attr in memo.album_title <- s; s
+    | `AlbumName ->
+      if memo.album_name <> "" then memo.album_name else
+      let s = f x attr in memo.album_name <- s; s
     | `Track ->
       if memo.track <> "" then memo.track else
       let s = f x attr in memo.track <- s; s
@@ -558,7 +594,7 @@ let attr_fold attr =
     Fun.id
   | `FilePath | `FileDir | `FileName | `FileExt
   | `Codec
-  | `Artist | `Title | `AlbumArtist | `AlbumTitle
+  | `Artist | `Title | `Name | `AlbumArtist | `AlbumTitle | `AlbumName
   | `Label | `Country
   | `Playlist ->
     Unicode.sort_key_utf_8

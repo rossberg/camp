@@ -384,10 +384,12 @@ let attr_prop = function
   | `Rate -> "Rate", `Right
   | `Artist -> "Artist", `Left
   | `Title -> "Title", `Left
+  | `Name -> "Artist/Title", `Left
   | `Length -> "Length", `Right
   | `Rating -> "Rating", `Left
   | `AlbumArtist -> "Album Artist", `Left
   | `AlbumTitle -> "Album Title", `Left
+  | `AlbumName -> "Album Artist/Title", `Left
   | `Track -> "Track", `Right
   | `Tracks -> "Tracks", `Right
   | `Disc -> "Disc", `Right
@@ -512,10 +514,12 @@ struct
     "RES", `Rate;
     "ART", `Artist;
     "TIT", `Title;
+    "NAM", `Name;
     "LEN", `Length;
     "RAT", `Rating;
     "ALA", `AlbumArtist;
     "ALB", `AlbumTitle;
+    "ALN", `AlbumName;
     "TRK", `Track;
     "TRS", `Tracks;
     "DSC", `Disc;

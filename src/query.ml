@@ -94,7 +94,7 @@ let value key (track : track) =
   | #file_attr as attr -> file_value track.path track.file attr
   | #format_attr as attr -> format_value track.format attr
   | #meta_attr as attr -> meta_value track.meta attr
-  | `Albums | `None -> assert false
+  | `Name | `AlbumName | `Albums | `None -> assert false
 
 let string_of_value = function
   | BoolV b -> string_of_bool b
@@ -236,7 +236,7 @@ let rec validate q =
   | Date _ | Key (`Now | `Date | `FileTime) -> DateT
   | Text _
   | Key (`FilePath | `FileDir | `FileName | `FileExt)
-  | Key (`Artist | `Title | `AlbumArtist | `AlbumTitle)
+  | Key (`Artist | `Title | `Name | `AlbumArtist | `AlbumTitle | `AlbumName)
   | Key (`Label | `Country | `Codec | `DiscTrack)
   | Key `Playlist -> TextT
   | Fn (fn, qs) ->
