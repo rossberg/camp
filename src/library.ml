@@ -1967,7 +1967,8 @@ let redo lib = unredo lib Table.pop_redo lib.tracks.redos
 let print_state lib =
   let open Text.Print in
   record (fun lib -> [
-    "search", list string (Edit.history lib.search);
+    "search", list string
+      ((if lib.search.text = "" then [""] else []) @ Edit.history lib.search);
     "browser_scroll", int lib.browser.vscroll;
     "browser_current",
       option string (Option.map (fun dir -> dir.path) lib.current);
