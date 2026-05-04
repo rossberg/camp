@@ -546,7 +546,7 @@ field. And this works even with playlists.
   | ~(rush|optical) virus
   +------------------------
 
-  That is, search for tracks theat involved neither Rush nor Optical but were
+  That is, search for tracks that involved neither Rush nor Optical but were
   on Virus Recordings.
 
 * Quoting: Throw in quotes for search terms that are not simple words:
@@ -641,7 +641,8 @@ field. And this works even with playlists.
 * Playlists: Search can also be applied to playlists, or even whole directories
   of playlists. In this case, each occurrence of the same track in a playlist
   produces a separate result. In order to distinguish those, it cannot harm to
-  activate the Playlist and perhaps the Position (#) column of the tracks view.
+  activate the Playlist column and perhaps the Position (#) column of the
+  tracks view (Section 3.4.2).
 
 
 3.5 Viewlists
@@ -654,8 +655,8 @@ understands "smart" playlists, called *viewlists*.
 
 * File format: It consists of a search formula like described in Section 3.4.3.
   This is applied to the entire music library (the virtual "All" folder) to
-  generate a live playlist. (To restrict it to certain roots, use a formula
-  constraining #filepath or #filedir.)
+  generate a live playlist. (To restrict it to certain roots or folders, use a
+  formula constraining #filepath or #filedir.)
 
 * Sorting: The search formula in a viewlist may be followed by `^` and a
   sequence of sort keys that define how the viewlist ought to be sorted. A sort
