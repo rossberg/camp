@@ -72,8 +72,8 @@ packages. Don't be alarmed.
 
 On Windows and Linux, the outcome is a stand-alone directory `Camp` bundling
 the executable with all files necessary. On Mac, you'll get a proper application
-`Camp.app`. In both cases, the result is self-contained and can be moved to
-any hard drive location of your chosing.
+`Camp.app`. In both cases, the result is a self-contained directoru that can be
+moved to any hard drive location of your chosing.
 
 If you prefer to have either packaged up as a zip file, then go with:
 
@@ -155,8 +155,8 @@ said, they will look pretty empty at first.
   button to manually switch sides.
 
 * The window can be resized vertically only when the Playlist pane is open,
-  and horizontally when the Library pane is open. The library pane will be tiny
-  and not very useful when the Playlist is closed.
+  and horizontally when the Library pane is open. Opening the library pane
+  forces the Playlist open as well.
 
 * Generally, a right-click into most areas of the window will open a nifty
   context menu.
@@ -303,9 +303,6 @@ Other useful playlist actions:
   with the same artist and title (only available when Library is open).
 
 
-[1] https://www.mp3tag.de
-
-
 3.4 Playing Tracks Like a Pro: the Library
 ------------------------------------------
 
@@ -346,7 +343,7 @@ Views for the tracks in it.
 
 The Browser is for browsing through the folders you have added: the roots,
 their sub-folders, and also playlists in these folders. Note that it hides
-sub-folders that contain no audio or playlist files in formats it recognises.
+sub-folders that contain no audio or playlist files (in formats it recognises).
 
 In Camp, playlists are treated like virtual folders, meaning that they can
 participate in all the interesting activities around searching, filtering,
@@ -389,14 +386,14 @@ Other things to do in the Browser:
 * Reorder: You can change the order in which sub-folders are shown by dragging
   individual entries. You cannot move them to another folder, though.
 
-* Jump: A double-click on the selected browser folder immediately plays the
-  tracks in the current view. If the tracks already exists in the playlist (in
+* Jump: A double-click on the selected browser folder immediately plays all
+  tracks from the current view. If the tracks already exists in the playlist (in
   order), then the playlist jumps to the first entry, otherwise the tracks are
   first inserted at the end.
 
 * Queue: a Ctrl/Command-double-click on the selected browser folder queues
   up all the current view's tracks in the playlist; a triple-click clears out
-  the previous playlist first.
+  the existing playlist first.
 
 * Rename (context menu): You can also change the name shown for an entry. Don't
   worry, this does not affect the physical name of the folder or file on disk.
@@ -410,12 +407,15 @@ Other things to do in the Browser:
 
   Absolute paths have the advantage that you can move the playlist around your
   drives and it will still find the tracks. Relative paths have the advantage
-  that you can move the library as whole (audio files + playlists) and the
+  that you can move the library as a whole (audio files + playlists) and the
   playlists continue to function.
 
   By default, Camp produces absolute playlists. If you moved stuff around and
   broke your playlists, you can also use the Repair feature to recover from the
   tragedy (Section 3.6).
+
+
+[1] https://www.mp3tag.de
 
 
 3.4.2 The Views
