@@ -132,9 +132,9 @@ val current_is_dir : 'a t -> bool
 val current_is_album : 'a t -> bool
 val current_is_playlist : 'a t -> bool
 val current_is_viewlist : 'a t -> bool
-val current_is_shown_playlist : 'a t -> bool
-val current_is_shown_viewlist : 'a t -> bool
-val current_is_plain_playlist : 'a t -> bool
+val current_is_shown_playlist : 'a t -> bool  (* tracks view is active *)
+val current_is_shown_viewlist : 'a t -> bool  (* tracks view is active *)
+val current_is_plain_playlist : 'a t -> bool  (* tracks view is sorted by pos *)
 
 val has_track : 'a t -> track -> bool
 

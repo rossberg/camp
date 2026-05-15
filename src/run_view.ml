@@ -790,6 +790,22 @@ let queue (st : state) (module View : View) tracks =
   Playlist.deselect_all st.playlist;
   ignore (Control.switch_if_empty st.control (Some tracks.(0)))
 
+let replace_avail _st (module View : View) =
+  View.(length it > 0)
+let replace (st : state) (module View : View) tracks =
+  Playlist.replace_all st.playlist tracks;
+  ignore (Control.switch_if_empty st.control (Some tracks.(0)))
+
+let inherit_avail (st : state) (module View : View) =
+  Library.current_is_shown_playlist st.library &&
+  Playlist.length st.playlist > 0
+let inherit_ (st : state) (module View : View) =
+  if Library.current_is_shown_playlist st.library then
+  (
+    let tracks = Playlist.tracks st.playlist in
+    Library.replace_all st.library tracks
+  )
+
 let export_avail _st (module View : View) =
   View.(length it > 0)
 let export with_pos st tracks =
@@ -952,6 +968,9 @@ let list_menu (st : state) view searches =
       `Entry (c, "Queue" ^ quant ^ " to Playlist...", Layout.key_queue,
         queue_avail st view),
         (fun () -> queue st view (get_tracks ()));
+      `Entry (c, "Copy" ^ quant ^ " to Playlist...", Layout.key_replace,
+        replace_avail st view),
+        (fun () -> replace st view (get_tracks ()));
     |];
   ])
 
@@ -1039,6 +1058,12 @@ let edit_menu (st : state) view searches pos_opt =
       `Entry (c, "Queue" ^ quant ^ " to Playlist...", Layout.key_queue,
         queue_avail st view),
         (fun () -> queue st view (get_tracks ()));
+      `Entry (c, "Copy" ^ quant ^ " to Playlist...", Layout.key_replace,
+        replace_avail st view),
+        (fun () -> replace st view (get_tracks ()));
+      `Entry (c, "Copy All from Playlist...", Layout.key_inherit,
+        inherit_avail st view),
+        (fun () -> inherit_ st view);
     |]);
     [|
       `Separator, ignore;
@@ -1205,6 +1230,21 @@ let run_edit_panel (st : state) =
     (* Press of Queue key: queue tracks *)
     let _, _, get_tracks = subject_tracks view in
     queue st view (get_tracks ())
+  );
+
+  (* Replace key *)
+  if lib_focus && replace_avail st view && Layout.replace_key geo then
+  (
+    (* Press of Replace key: copy tracks to playlist *)
+    let _, _, get_tracks = subject_tracks view in
+    replace st view (get_tracks ())
+  );
+
+  (* Inherit key *)
+  if lib_focus && inherit_avail st view && Layout.inherit_key geo then
+  (
+    (* Press of Inherit key: replace tracks from playlist *)
+    inherit_ st view
   );
 
   (* Focus buttons *)

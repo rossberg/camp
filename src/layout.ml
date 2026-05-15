@@ -90,6 +90,8 @@ let key_visual = cmd 'Y'
 let key_libcover = shiftcmd 'Y'
 let key_undo = cmd 'Z'
 let key_redo = shiftcmd 'Z'
+let key_replace = cmd '.'  (* that's '>' *)
+let key_inherit = cmd ','  (* that's '<' *)
 let key_textup = cmd '+'
 let key_textdn = cmd '-'
 let key_padup = nokey
@@ -543,6 +545,8 @@ let lower_view =
 
 (* Keys *)
 let queue_key g = Ui.key g.ui key_queue true
+let replace_key g = Ui.key g.ui key_replace true
+let inherit_key g = Ui.key g.ui key_inherit true
 let lib_cover_key g = Ui.key g.ui key_libcover true
 
 
