@@ -786,7 +786,8 @@ let save_view (st : state) _view =
 let queue_avail (st : state) (module View : View) =
   Library.length st.library > 0
 let queue (st : state) (module View : View) replace =
-  let tracks = Library.tracks st.library in
+  let lib = st.library in
+  let tracks = Library.(if has_selection lib then selected else tracks) lib in
   Playlist.(if replace then replace_all else append) st.playlist tracks;
   if not st.playlist.table.focus then Playlist.deselect_all st.playlist;
   ignore (Control.switch_if_empty st.control (Some tracks.(0)))
@@ -797,7 +798,8 @@ let inherit_avail (st : state) (module View : View) =
 let inherit_ (st : state) (module View : View) replace =
   if Library.current_is_shown_playlist st.library then
   (
-    let tracks = Playlist.tracks st.playlist in
+    let pl = st.playlist in
+    let tracks = Playlist.(if has_selection pl then selected else tracks) pl in
     Library.(if replace then replace_all else append) st.library tracks;
     if not st.library.tracks.focus then Library.deselect_all st.library;
   )
