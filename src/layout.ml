@@ -573,15 +573,11 @@ let log_cancel_button = log_button 1 Ui.inactive_color "CANCEL" key_cancel
 let mp = lp + 1
 let info_pane g = Ui.pane g.ui mp (library_x g + g.browser_width, - bottom_h g, library_w g - g.browser_width, bottom_h g)
 
-let msg_x = 0
-let msg_w _g = -1
-let msg_box g = Ui.box g.ui (mp, msg_x, footer_y g, msg_w g, line_h g) `Black
-let msg_text g = Ui.color_text g.ui (mp, msg_x + pad_w g, footer_y g + pad_h g, msg_w g - 2 - 2 * pad_w g, text_h g) `Left
-
 (* Buttons *)
 let lcopy_w = 27
 let lcopy_h g = line_h g + 7
-let lcopy_area i j g = (mp, - i*5 - (2 - j)*lcopy_w, - lcopy_h g, lcopy_w, lcopy_h g)
+let lcopy_x i j _g = - i*5 - (2 - j)*lcopy_w
+let lcopy_area i j g = (mp, lcopy_x i j g, - lcopy_h g, lcopy_w, lcopy_h g)
 let lcopy_button i j label key g = Ui.labeled_button g.ui (lcopy_area i j g) (button_label_h g) (Ui.inactive_color g.ui) label key true
 let lcopy_button2 i j key g = Ui.invisible_button g.ui (lcopy_area i j g) [`Shift] key true
 
@@ -607,6 +603,12 @@ let key_appendpl g =
   if g.library_side = `Left then key_appendright else key_appendleft
 let key_replacepl g =
   if g.library_side = `Left then key_replaceright else key_replaceleft
+
+(* Message *)
+let msg_x = 0
+let msg_w g = lcopy_x 0 0 g - 4
+let msg_box g = Ui.box g.ui (mp, msg_x, footer_y g, msg_w g, line_h g) `Black
+let msg_text g = Ui.color_text g.ui (mp, msg_x + 2, footer_y g + pad_h g, msg_w g - 4, text_h g) `Left
 
 
 (* Directories Pane *)

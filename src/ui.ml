@@ -726,10 +726,12 @@ let color_text ui area align c inv active s =
   let dx =
     match align with
     | `Left -> 0
-    | `Center -> (w - tw) / 2
-    | `Right -> w - tw
+    | `Center -> (w - min w tw) / 2
+    | `Right -> w - min w tw
   in
-  Draw.text ui.win (x + dx) y h fg (font ui h) s
+  if tw > w then Draw.clip ui.win x y w h;
+  Draw.text ui.win (x + dx) y h fg (font ui h) s;
+  if tw > w then Draw.unclip ui.win
 
 let text ui area align =
   color_text ui area align (text_color ui)
