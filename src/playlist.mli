@@ -91,6 +91,7 @@ val select_invert : 'a t -> unit
 (* Editing *)
 
 val insert : 'a t -> int -> track array -> unit
+val append : 'a t -> track array -> unit
 val replace_map : 'a t -> track Map.Make(String).t -> bool -> unit
 val replace_all : 'a t -> track array -> unit
 

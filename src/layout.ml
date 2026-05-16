@@ -30,6 +30,7 @@ let grid_table g img_h has_heading : Ui.grid_table =
 let nokey = ([], `None)
 let plain ch = ([], `Char ch)
 let cmd ch = ([`Command], `Char ch)
+let shift ch = ([`Shift], `Char ch)
 let shiftcmd ch = ([`Shift; `Command], `Char ch)
 
 let key_bwd = plain 'Z'
@@ -90,8 +91,10 @@ let key_visual = cmd 'Y'
 let key_libcover = shiftcmd 'Y'
 let key_undo = cmd 'Z'
 let key_redo = shiftcmd 'Z'
-let key_replace = cmd '.'  (* that's '>' *)
-let key_inherit = cmd ','  (* that's '<' *)
+let key_appendleft = plain ','  (* that's '<' *)
+let key_appendright = plain '.'  (* that's '>' *)
+let key_replaceleft = shift ','  (* that's '<' *)
+let key_replaceright = shift '.'  (* that's '>' *)
 let key_textup = cmd '+'
 let key_textdn = cmd '-'
 let key_padup = nokey
@@ -373,19 +376,20 @@ let edit_h g = line_h g + 7
 let edit_y g = if g.playlist_shown then - edit_h g else control_h g (* effectively hidden *)
 let edit_area i j g = (ep, margin g + i*5 + j*edit_w g, edit_y g, edit_w g, edit_h g)
 let edit_button i j label key g = Ui.labeled_button g.ui (edit_area i j g) (button_label_h g) (Ui.inactive_color g.ui) label key true
+let edit_button2 i j key g = Ui.invisible_button g.ui (edit_area i j g) [`Shift] key true
 
 (*let tag_button = edit_button 0 0 "TAG" key_tag*)
-let tag_add_button g = Ui.invisible_button g.ui (edit_area 0 0 g) [`Shift] key_tag2 true
+let tag_add_button = edit_button2 0 0 key_tag2
 let sep_button = edit_button 0 0 "SEP" key_sep
 let del_button = edit_button 1 1 "DEL" key_del
 let crop_button = edit_button 1 2 "CROP" key_crop
 let wipe_button = edit_button 1 3 "WIPE" key_wipe
-let dedupe_button g = Ui.invisible_button g.ui (edit_area 2 4 g) [`Shift] key_dedupe true
+let dedupe_button = edit_button2 2 4 key_dedupe
 let del_button_alt g = Ui.key g.ui key_del2 true
 let undo_button = edit_button 2 4 "UNDO" key_undo
-let redo_button g = Ui.invisible_button g.ui (edit_area 3 5 g) [`Shift] key_redo true
+let redo_button = edit_button2 3 5 key_redo
 let save_button = edit_button 3 5 "SAVE" key_save
-let save_view_button g = Ui.invisible_button g.ui (edit_area 4 6 g) [`Shift] key_save2 true
+let save_view_button = edit_button2 4 6 key_save2
 let load_button = edit_button 3 6 "LOAD" key_load
 
 let del_key g = Ui.key g.ui key_del true
@@ -544,9 +548,6 @@ let lower_view =
   lower_pane, lower_area, lower_table, lower_grid, lower_mouse, lower_grid_mouse, lower_spin
 
 (* Keys *)
-let queue_key g = Ui.key g.ui key_queue true
-let replace_key g = Ui.key g.ui key_replace true
-let inherit_key g = Ui.key g.ui key_inherit true
 let lib_cover_key g = Ui.key g.ui key_libcover true
 
 
@@ -576,6 +577,36 @@ let msg_x = 0
 let msg_w _g = -1
 let msg_box g = Ui.box g.ui (mp, msg_x, footer_y g, msg_w g, line_h g) `Black
 let msg_text g = Ui.color_text g.ui (mp, msg_x + pad_w g, footer_y g + pad_h g, msg_w g - 2 - 2 * pad_w g, text_h g) `Left
+
+(* Buttons *)
+let lcopy_w = 27
+let lcopy_h g = line_h g + 7
+let lcopy_area i j g = (mp, - i*5 - (2 - j)*lcopy_w, - lcopy_h g, lcopy_w, lcopy_h g)
+let lcopy_button i j label key g = Ui.labeled_button g.ui (lcopy_area i j g) (button_label_h g) (Ui.inactive_color g.ui) label key true
+let lcopy_button2 i j key g = Ui.invisible_button g.ui (lcopy_area i j g) [`Shift] key true
+
+let appendleft_button = lcopy_button 0 0 " < " key_appendleft
+let appendright_button = lcopy_button 0 1 " > " key_appendright
+let replaceleft_button = lcopy_button2 0 0 key_replaceleft
+let replaceright_button = lcopy_button2 0 1 key_replaceright
+
+let appendlib_button g =
+  (if g.library_side = `Left then appendleft_button else appendright_button) g
+let replacelib_button g =
+  (if g.library_side = `Left then replaceleft_button else replaceright_button) g
+let appendpl_button g =
+  (if g.library_side = `Left then appendright_button else appendleft_button) g
+let replacepl_button g =
+  (if g.library_side = `Left then replaceright_button else replaceleft_button) g
+
+let key_appendlib g =
+  if g.library_side = `Left then key_appendleft else key_appendright
+let key_replacelib g =
+  if g.library_side = `Left then key_replaceleft else key_replaceright
+let key_appendpl g =
+  if g.library_side = `Left then key_appendright else key_appendleft
+let key_replacepl g =
+  if g.library_side = `Left then key_replaceright else key_replaceleft
 
 
 (* Directories Pane *)

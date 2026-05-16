@@ -5,7 +5,7 @@ Playlist:
 - [chg] Refine highlighting of playing track when erroneous
 
 Library:
-- [new] Copy to/from Playlist in view context menus
+- [new] Buttons to copy to/from Playlist
 - [new] Keep Search when switching directories
 - [new] Keep Search history across sessions
 - [chg] Removed DEL button in favour of TAG button

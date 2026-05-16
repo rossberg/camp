@@ -200,6 +200,7 @@ val tracks : 'a t -> track array
 val table : 'a t -> (track, 'a) Table.t
 
 val insert : 'a t -> int -> track array -> unit
+val append : 'a t -> track array -> unit
 val replace_all : 'a t -> track array -> unit
 val replace_map : Ui.cached t -> track Map.Make(String).t -> bool -> unit
 

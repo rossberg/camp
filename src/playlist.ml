@@ -316,6 +316,9 @@ let insert pl pos tracks =
     save_playlist pl;
   )
 
+let append pl tracks =
+  insert pl (Table.length pl.table) tracks
+
 let remove_all pl =
   if pl.table.entries <> [||] then
   (
@@ -399,7 +402,6 @@ let replace_all pl tracks =
     (
       remove_all pl;
       insert pl 0 tracks;
-      deselect_all pl;
       Table.drop_undo pl.table;
     )
   )

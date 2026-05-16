@@ -1763,6 +1763,9 @@ let insert lib pos tracks =
     refresh_artists_albums_tracks_sync lib;  (* could be slow... *)
   )
 
+let append lib tracks =
+  insert lib (Table.length lib.tracks) tracks
+
 let remove_all lib =
   assert (current_is_playlist lib);
   if lib.tracks.entries <> [||] then

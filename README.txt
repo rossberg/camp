@@ -496,6 +496,11 @@ displays a playlist folder, and only if that is currently sorted by position:
   library playlist, then the playlist edit buttons at the bottom of the
   Playlist pane are rewired to act on the tracks table.
 
+* Synchronisation: The two buttons labelled "<" and ">" at the bottom of the
+  view panes allow to quickly copy tracks between the Playlist and a viewed
+  Library playlist, in the respective direction. Single click appends to,
+  double-click or shift-click replaces the target list.
+
 If you don't want to tediously customise the view for each and every folder
 individually, then you can set the current folder's view as a default for other
 folders (via Browser context menu). There are separate defaults for

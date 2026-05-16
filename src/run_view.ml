@@ -279,7 +279,7 @@ let queue_on_playlist (st : state) (tracks : Data.track array)  mode =
       if entries.(i + n).path = tracks.(n).path then find i (n + 1) else
       find (i + 1) 0
     and append () =
-      Playlist.insert st.playlist (Playlist.length st.playlist) tracks;
+      Playlist.append st.playlist tracks;
       Playlist.deselect_all st.playlist;  (* avoid double selection *)
     and jump i =
       Playlist.jump st.playlist i;
@@ -783,27 +783,23 @@ let save_view (st : state) _view =
   ) st.library.current
 
 
-let queue_avail _st (module View : View) =
-  View.(length it > 0)
-let queue (st : state) (module View : View) tracks =
-  Playlist.insert st.playlist (Playlist.length st.playlist) tracks;
-  Playlist.deselect_all st.playlist;
-  ignore (Control.switch_if_empty st.control (Some tracks.(0)))
-
-let replace_avail _st (module View : View) =
-  View.(length it > 0)
-let replace (st : state) (module View : View) tracks =
-  Playlist.replace_all st.playlist tracks;
+let queue_avail (st : state) (module View : View) =
+  Library.length st.library > 0
+let queue (st : state) (module View : View) replace =
+  let tracks = Library.tracks st.library in
+  Playlist.(if replace then replace_all else append) st.playlist tracks;
+  if not st.playlist.table.focus then Playlist.deselect_all st.playlist;
   ignore (Control.switch_if_empty st.control (Some tracks.(0)))
 
 let inherit_avail (st : state) (module View : View) =
   Library.current_is_shown_playlist st.library &&
   Playlist.length st.playlist > 0
-let inherit_ (st : state) (module View : View) =
+let inherit_ (st : state) (module View : View) replace =
   if Library.current_is_shown_playlist st.library then
   (
     let tracks = Playlist.tracks st.playlist in
-    Library.replace_all st.library tracks
+    Library.(if replace then replace_all else append) st.library tracks;
+    if not st.library.tracks.focus then Library.deselect_all st.library;
   )
 
 let export_avail _st (module View : View) =
@@ -965,12 +961,12 @@ let list_menu (st : state) view searches =
         (fun () -> save_sel st view);
       `Entry (c, "Save as Viewlist...", Layout.key_save2, save_view_avail st view),
         (fun () -> save_view st view);
-      `Entry (c, "Queue" ^ quant ^ " to Playlist...", Layout.key_queue,
+      `Entry (c, "Queue" ^ quant ^ " to Playlist...", Layout.key_appendpl geo,
         queue_avail st view),
-        (fun () -> queue st view (get_tracks ()));
-      `Entry (c, "Copy" ^ quant ^ " to Playlist...", Layout.key_replace,
-        replace_avail st view),
-        (fun () -> replace st view (get_tracks ()));
+        (fun () -> queue st view false);
+      `Entry (c, "Copy" ^ quant ^ " to Playlist...", Layout.key_replacepl geo,
+        queue_avail st view),
+        (fun () -> queue st view true);
     |];
   ])
 
@@ -1055,15 +1051,15 @@ let edit_menu (st : state) view searches pos_opt =
     [|
       `Entry (c, "Save View...", Layout.key_save2, save_view_avail st view),
         (fun () -> save_view st view);
-      `Entry (c, "Queue" ^ quant ^ " to Playlist...", Layout.key_queue,
+      `Entry (c, "Queue" ^ quant ^ " to Playlist...", Layout.key_appendpl geo,
         queue_avail st view),
-        (fun () -> queue st view (get_tracks ()));
-      `Entry (c, "Copy" ^ quant ^ " to Playlist...", Layout.key_replace,
-        replace_avail st view),
-        (fun () -> replace st view (get_tracks ()));
-      `Entry (c, "Copy All from Playlist...", Layout.key_inherit,
+        (fun () -> queue st view false);
+      `Entry (c, "Copy" ^ quant ^ " to Playlist...", Layout.key_replacepl geo,
+        queue_avail st view),
+        (fun () -> queue st view true);
+      `Entry (c, "Copy All from Playlist...", Layout.key_replacelib geo,
         inherit_avail st view),
-        (fun () -> inherit_ st view);
+        (fun () -> inherit_ st view true);
     |]);
     [|
       `Separator, ignore;
@@ -1224,29 +1220,30 @@ let run_edit_panel (st : state) =
       save_view st view
   );
 
-  (* Queue key *)
-  if lib_focus && queue_avail st view && Layout.queue_key geo then
+  (* Append Library button *)
+  if Layout.appendlib_button geo (active_if inherit_avail) then
   (
-    (* Press of Queue key: queue tracks *)
-    let _, _, get_tracks = subject_tracks view in
-    queue st view (get_tracks ())
+    (* (Double) Click on Inherit button: copy tracks from playlist *)
+    inherit_ st view (Api.Mouse.is_double_click `Left)
+  )
+  else if inherit_avail st view && Layout.replacelib_button geo then
+  (
+    (* Click on secondary Inherit button: replace tracks from playlist *)
+    inherit_ st view true
   );
 
-  (* Replace key *)
-  if lib_focus && replace_avail st view && Layout.replace_key geo then
+  (* Append Playlist button *)
+  if Layout.appendpl_button geo (active_if queue_avail) then
   (
-    (* Press of Replace key: copy tracks to playlist *)
-    let _, _, get_tracks = subject_tracks view in
-    replace st view (get_tracks ())
+    (* (Double) Click on Queue button: copy tracks to playlist *)
+    queue st view (Api.Mouse.is_double_click `Left)
+  )
+  else if queue_avail st view && Layout.replacepl_button geo then
+  (
+    (* Click on secondary Queue button: replace tracks in playlist *)
+    queue st view true
   );
 
-  (* Inherit key *)
-  if lib_focus && inherit_avail st view && Layout.inherit_key geo then
-  (
-    (* Press of Inherit key: replace tracks from playlist *)
-    inherit_ st view
-  );
-
-  (* Focus buttons *)
+  (* Focus keys *)
   if Layout.focus_next_key geo then State.focus_next st;
   if Layout.focus_prev_key geo then State.focus_prev st
