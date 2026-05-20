@@ -3,6 +3,7 @@
 Playlist:
 - [chg] Moved TAG button to Library
 - [chg] Refine highlighting of playing track when erroneous
+- [fix] Fix race behaviour of Save Selection
 
 Library:
 - [new] Buttons to copy to/from Playlist

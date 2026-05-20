@@ -765,8 +765,9 @@ let save (st : state) (module View : View) =
 let save_sel_avail (st : state) (module View : View) =
   save_avail st (module View : View) && View.(num_selected it > 0)
 let save_sel (st : state) (module View : View) =
+  let m3u = Track.to_m3u View.(selected it) in
   Run_filesel.filesel st `File `Write "" ".m3u" (fun path ->
-    File.save `Bin path (Track.to_m3u View.(selected it))
+    File.save `Bin path m3u
   )
 
 let save_view_avail (st : state) _view =
@@ -777,8 +778,9 @@ let save_view_avail (st : state) _view =
     Table.num_selected st.library.albums > 0 )
 let save_view (st : state) _view =
   Option.iter (fun dir ->
+    let m3v = Library.make_viewlist st.library dir ^ "\n" in
     Run_filesel.filesel st `File `Write "" ".m3v" (fun path ->
-      File.save `Bin path (Library.make_viewlist st.library dir ^ "\n")
+      File.save `Bin path m3v
     )
   ) st.library.current
 
