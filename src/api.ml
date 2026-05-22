@@ -917,8 +917,7 @@ struct
 
     let rec refill () =
       Mutex.protect audio.mutex (fun () ->
-        if audio.sound != silence ()
-        && Raylib.is_music_stream_playing audio.sound.music then
+        if audio.sound != silence () then
           Raylib.update_music_stream audio.sound.music;
       );
       Unix.sleepf 0.01;
@@ -937,6 +936,12 @@ struct
     let music = Raylib.load_music_stream path' in
     if Raylib.Music.ctx_type music = 0 then silence () else
     (
+      let s = Raylib.Music.stream music in
+      let channels = Unsigned.UInt.to_int (Raylib.AudioStream.channels s) in
+      let depth = Unsigned.UInt.to_int (Raylib.AudioStream.sample_size s) in
+      let rate = Unsigned.UInt.to_int (Raylib.AudioStream.sample_rate s) in
+      let buf_size = rate / 10 * channels * depth / 8 in  (* 1/10th second *)
+      Raylib.set_audio_stream_buffer_size_default buf_size;
       (*Raylib.Music.set_looping music false;*)  (* TODO *)
       {music; format; temp = if path' = path then None else Some path'}
     )
