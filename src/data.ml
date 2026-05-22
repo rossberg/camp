@@ -671,7 +671,7 @@ struct
 
   let file =
     record (fun (x : file) -> [
-      "size", int x.size;
+      "size", nat x.size;
       "time", float x.time;
       "age", float x.age;
     ])
@@ -679,12 +679,12 @@ struct
   let format =
     record (fun (x : Format.t) -> [
       "codec", string x.codec;
-      "channels", int x.channels;
-      "depth", int x.depth;
-      "rate", int x.rate;
+      "channels", nat x.channels;
+      "depth", nat x.depth;
+      "rate", nat x.rate;
       "bitrate", float x.bitrate;
       "time", float x.time;
-      "size", int x.size;
+      "size", nat x.size;
     ])
 
   let meta =
@@ -734,7 +734,7 @@ struct
 
   let file : t -> file =
     record (fun r -> {
-      size = int (r $ "size");
+      size = nat (r $ "size");
       time = float (r $ "time");
       age = float (r $ "age");
     })
@@ -742,12 +742,12 @@ struct
   let format : t -> Format.t =
     record (fun r -> Format.{
       codec = string (r $ "codec");
-      channels = int (r $ "channels");
-      depth = int (r $ "depth");
-      rate = int (r $ "rate");
+      channels = nat (r $ "channels");
+      depth = nat (r $ "depth");
+      rate = nat (r $ "rate");
       bitrate = float (r $ "bitrate");
       time = float (r $ "time");
-      size = int (r $ "size");
+      size = nat (r $ "size");
     })
 
   let meta : t -> Meta.t =
