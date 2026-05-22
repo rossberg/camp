@@ -1,3 +1,4 @@
+._opam
 _build
 stuff
 Camp
@@ -8,3 +9,4 @@ Camp
 *.conf
 *.log
 .DS_Store
+src/.raylib-ocaml
