@@ -371,24 +371,18 @@ struct
     Raylib.image_from_image img
       (Raylib.Rectangle.create (float x) (float y) (float w) (float h))
 
-  let finalise_textures = ref []
-  let finalise_images = ref []
-  let finalise_mutex = Mutex.create ()
+  let finalise_textures = Atomic.make []
+  let finalise_images = Atomic.make []
 
   let _ = after_frame_start :=
     (fun () ->
-      Mutex.protect finalise_mutex (fun () ->
-        List.iter Raylib.unload_texture !finalise_textures;
-        List.iter Raylib.unload_image !finalise_images;
-        finalise_textures := [];
-        finalise_images := [];
-      )
+      List.iter Raylib.unload_texture (Atomic.exchange finalise_textures []);
+      List.iter Raylib.unload_image (Atomic.exchange finalise_images []);
     ) :: !after_frame_start
 
-  let finaliser r x =
-    Mutex.protect finalise_mutex (fun () ->
-      r := x :: !r
-    )
+  let rec finaliser a x =
+    let xs = Atomic.get a in
+    if not (Atomic.compare_and_set a xs (x::xs)) then finaliser a x
 
   let finalise raw =
     Gc.finalise (finaliser finalise_images) raw;
