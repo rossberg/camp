@@ -7,10 +7,11 @@ Playlist:
 
 Library:
 - [new] Buttons to copy to/from Playlist
+- [chg] Removed DEL button in favour of TAG button
 - [new] Keep Search when switching directories
 - [new] Keep Search history across sessions
-- [chg] Removed DEL button in favour of TAG button
 - [new] Highlight playing track in Artist and Album views when possible
+- [fix] Fix crash from unloading textures or images on different thread
 
 
 === 0.9.4 (2026-03-12) ===

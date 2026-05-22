@@ -371,14 +371,33 @@ struct
     Raylib.image_from_image img
       (Raylib.Rectangle.create (float x) (float y) (float w) (float h))
 
+  let finalise_textures = ref []
+  let finalise_images = ref []
+  let finalise_mutex = Mutex.create ()
+
+  let _ = after_frame_start :=
+    (fun () ->
+      Mutex.protect finalise_mutex (fun () ->
+        List.iter Raylib.unload_texture !finalise_textures;
+        List.iter Raylib.unload_image !finalise_images;
+        finalise_textures := [];
+        finalise_images := [];
+      )
+    ) :: !after_frame_start
+
+  let finaliser r x =
+    Mutex.protect finalise_mutex (fun () ->
+      r := x :: !r
+    )
+
   let finalise raw =
-    Gc.finalise Raylib.unload_image raw;
+    Gc.finalise (finaliser finalise_images) raw;
     raw
 
   let prepare () raw =
     let img = Raylib.load_texture_from_image raw in
     Raylib.set_texture_filter img Raylib.TextureFilter.Bilinear;
-    Gc.finalise Raylib.unload_texture img;
+    Gc.finalise (finaliser finalise_textures) img;
     img
 
   let prepare' raw' =
