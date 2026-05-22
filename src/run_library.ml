@@ -749,7 +749,7 @@ let run_view (st : state)
     attr_string prim_attr all_attrs
     path_of text_of color_of
     selected_tracks clicked_tracks
-    editable popup make_view =
+    is_filter editable popup make_view =
   let lib = st.library in
   let geo = st.geometry in
   let win = Ui.window geo.ui in
@@ -841,10 +841,12 @@ let run_view (st : state)
     if n <> 0 && n <> Table.length dep_tab then
     (
       Table.deselect_all dep_tab;       (* deactivate inner filter *)
-      Library.refresh_tracks_sync lib;  (* could be slow... *)
+      if is_filter then Library.refresh_tracks_sync lib;  (* could be slow... *)
     )
     else if Api.Key.is_modifier_down `Command then
-      Library.refresh_tracks_sync lib;  (* could be slow... *)
+    (
+      if is_filter then Library.refresh_tracks_sync lib;  (* could be slow... *)
+    );
     if not (Api.Key.is_modifier_down `Command) then
       Run_view.queue_on_playlist st (Array.copy (selected_tracks lib))
         (if Api.Mouse.is_triple_click `Left then `Replace else `Jump)
@@ -1077,7 +1079,7 @@ let run_views (st : state) =
       Data.artist_attr_string `Artist Data.artist_attrs
       (fun _ -> "") (fun _ -> "") color_of
       (fun lib -> lib.tracks.entries) (fun lib _ -> lib.Library.tracks.entries)
-      false (fun _ -> assert false) Run_view.artists_view;
+      true false (fun _ -> assert false) Run_view.artists_view;
   );
 
   (* Albums view *)
@@ -1108,7 +1110,7 @@ let run_views (st : state) =
       Data.album_attr_string `None Data.album_attrs
       (fun (album : Data.album) -> album.path) text_of color_of
       (fun lib -> lib.tracks.entries) (fun lib _ -> lib.Library.tracks.entries)
-      false (fun album -> `Album album) Run_view.albums_view;
+      true false (fun album -> `Album album) Run_view.albums_view;
 
     (* Divider *)
     if geo.right_shown then
@@ -1172,7 +1174,7 @@ let run_views (st : state) =
       Data.track_attr_string prim_attr Data.track_attrs
       (fun (track : Data.track) -> track.path) text_of color_of
       Library.selected (fun lib i -> [|lib.Library.tracks.entries.(i)|])
-      (Library.current_is_plain_playlist lib)
+      false (Library.current_is_plain_playlist lib)
       (fun track -> `Track track) Run_view.tracks_view;
 
     (* Playlist file drag & drop *)
