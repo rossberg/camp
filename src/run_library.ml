@@ -311,7 +311,10 @@ let run_browser (st : state) =
     if Library.selected_dir lib <> dir then
     (
       (* Click on different dir name: switch view *)
-      Library.select_dir lib i;  (* do bureaucracy *)
+      (match Library.selected_dir lib with
+      | None -> Library.deselect_dir lib
+      | Some i -> Library.select_dir lib i  (* do bureaucracy *)
+      );
       Library.deselect_all lib;
       Library.refresh_artists_albums_tracks lib;
     );
@@ -319,13 +322,24 @@ let run_browser (st : state) =
     (
       (* Shift-Click on dir name: rename *)
       rename st (Some i)
-    );
-    if
+    )
+    else if
       Api.Mouse.(is_pressed `Left &&
         (is_double_click `Left || is_triple_click `Left))
     then
     (
       (* Double/triple-click on directory name: send track view to playlist *)
+      let triple = Api.Mouse.is_triple_click `Left in
+      let cmd = Api.Key.is_modifier_down `Command in
+      let is_sel = Table.is_selected browser i in
+      let run () =
+        (* May be asynchronous; pre-compute all but selected_tracks *)
+        if not cmd then
+          Run_view.queue_on_playlist st (Array.copy lib.tracks.entries)
+            (if triple then `Replace else `Jump)
+        else if is_sel && not triple then
+          Run_view.queue_on_playlist st (Array.copy lib.tracks.entries) `Queue
+      in
       let n_artists = Table.num_selected lib.artists in
       let n_albums = Table.num_selected lib.albums in
       if n_artists <> 0 && n_artists <> Table.length lib.artists
@@ -333,16 +347,12 @@ let run_browser (st : state) =
       (
         Table.deselect_all lib.artists;   (* deactivate inner filters *)
         Table.deselect_all lib.albums;
-        Library.refresh_albums_tracks_sync lib;  (* could be slow... *)
+        Library.refresh_albums_tracks lib ~after: run;  (* could be slow... *)
       )
-      else if Api.Key.is_modifier_down `Command then
-        Library.refresh_tracks_sync lib;  (* could be slow... *)
-      if not (Api.Key.is_modifier_down `Command) then
-        Run_view.queue_on_playlist st (Array.copy lib.tracks.entries)
-          (if Api.Mouse.is_triple_click `Left then `Replace else `Jump)
-      else if Table.is_selected browser i
-      && not (Api.Mouse.is_triple_click `Left) then
-        Run_view.queue_on_playlist st (Array.copy lib.tracks.entries) `Queue
+      else if cmd then
+        Library.refresh_tracks lib ~after: run  (* could be slow... *)
+      else
+        run ()
     )
 
   | `Click (None, _) ->
@@ -744,7 +754,7 @@ let convert_sorting columns sorting =
 let run_view (st : state)
     layout grid_w
     (tab : _ Table.t) busy_tab dep_tab
-    refresh_busy refresh_deps
+    refresh_is_busy refresh_deps
     reorder (view : _ Library.view) (views : Library.views)
     attr_string prim_attr all_attrs
     path_of text_of color_of
@@ -757,7 +767,7 @@ let run_view (st : state)
   let pane, area, table, grid, mouse, _grid_mouse, spinner = layout in
   pane geo;
 
-  let busy = refresh_busy lib in
+  let busy = refresh_is_busy lib in
   let tab = if busy then busy_tab else tab in
   let mode = Option.get view.shown in
   let old_selected = tab.selected in
@@ -837,26 +847,28 @@ let run_view (st : state)
   | `Click loc when Api.Mouse.(is_pressed `Left &&
       (is_double_click `Left || is_triple_click `Left)) ->
     (* Double/triple-click on entry: send tracks to playlist *)
-    let n = Table.num_selected dep_tab in
-    if n <> 0 && n <> Table.length dep_tab then
-    (
-      Table.deselect_all dep_tab;       (* deactivate inner filter *)
-      if is_filter then Library.refresh_tracks_sync lib;  (* could be slow... *)
-    )
-    else if Api.Key.is_modifier_down `Command then
-    (
-      if is_filter then Library.refresh_tracks_sync lib;  (* could be slow... *)
-    );
-    if not (Api.Key.is_modifier_down `Command) then
-      Run_view.queue_on_playlist st (Array.copy (selected_tracks lib))
-        (if Api.Mouse.is_triple_click `Left then `Replace else `Jump)
-    else if not (Api.Mouse.is_triple_click `Left) then
-      Option.iter (fun i ->
-        let tracks =
-          if Table.is_selected tab i
-          then selected_tracks lib else clicked_tracks lib i
-        in Run_view.queue_on_playlist st (Array.copy tracks) `Queue
-      ) (fst loc)
+    Option.iter (fun i ->
+      let triple = Api.Mouse.is_triple_click `Left in
+      let cmd = Api.Key.is_modifier_down `Command in
+      let is_sel = Table.is_selected tab i in
+      let clicked_tracks = if is_sel then [||] else clicked_tracks lib i in
+      let run () =
+        (* May be asynchronous; pre-compute all but selected_tracks *)
+        if not cmd then
+          Run_view.queue_on_playlist st (Array.copy (selected_tracks lib))
+            (if triple then `Replace else `Jump)
+        else if not triple then
+          let tracks = if is_sel then selected_tracks lib else clicked_tracks in
+          Run_view.queue_on_playlist st (Array.copy tracks) `Queue
+      in
+      let n = Table.num_selected dep_tab in
+      let part_sel = n <> 0 && n <> Table.length dep_tab in
+      if part_sel then Table.deselect_all dep_tab;  (* deactivate inner filter *)
+      if is_filter && (part_sel || cmd) then
+        Library.refresh_tracks lib ~after: run  (* could be slow... *)
+      else
+        run ()
+    ) (fst loc)
 
   | `Click loc ->
     (* Single-click: grab focus, update filter *)
@@ -1074,11 +1086,11 @@ let run_views (st : state) =
 
     run_view st Layout.left_view 1
       lib.artists busy_artists lib.albums
-      Library.refresh_artists_busy Library.refresh_albums_tracks
+      Library.refresh_artists_is_busy Library.refresh_albums_tracks
       Library.reorder_artists view.artists view
       Data.artist_attr_string `Artist Data.artist_attrs
       (fun _ -> "") (fun _ -> "") color_of
-      (fun lib -> lib.tracks.entries) (fun lib _ -> lib.Library.tracks.entries)
+      (fun lib -> lib.tracks.entries) (fun lib _ -> lib.tracks.entries)
       true false (fun _ -> assert false) Run_view.artists_view;
   );
 
@@ -1105,11 +1117,11 @@ let run_views (st : state) =
     run_view st
       Layout.(if geo.right_shown then right_view else left_view) geo.album_grid
       lib.albums busy_albums busy_tracks
-      Library.refresh_albums_busy Library.refresh_tracks
+      Library.refresh_albums_is_busy Library.refresh_tracks
       Library.reorder_albums view.albums view
       Data.album_attr_string `None Data.album_attrs
       (fun (album : Data.album) -> album.path) text_of color_of
-      (fun lib -> lib.tracks.entries) (fun lib _ -> lib.Library.tracks.entries)
+      (fun lib -> lib.tracks.entries) (fun lib _ -> lib.tracks.entries)
       true false (fun album -> `Album album) Run_view.albums_view;
 
     (* Divider *)
@@ -1169,11 +1181,11 @@ let run_views (st : state) =
     run_view st
       Layout.(if geo.lower_shown then lower_view else left_view) geo.track_grid
       lib.tracks busy_tracks busy_tracks
-      Library.refresh_tracks_busy ignore
+      Library.refresh_tracks_is_busy ignore
       Library.reorder_tracks view.tracks view
       Data.track_attr_string prim_attr Data.track_attrs
       (fun (track : Data.track) -> track.path) text_of color_of
-      Library.selected (fun lib i -> [|lib.Library.tracks.entries.(i)|])
+      Library.selected (fun lib i -> [|lib.tracks.entries.(i)|])
       false (Library.current_is_plain_playlist lib)
       (fun track -> `Track track) Run_view.tracks_view;
 

@@ -1371,7 +1371,7 @@ let refresh_artists_albums_sync lib =
 let refresh_artists_albums_tracks_sync lib =
   refresh_artists_albums_tracks_sync' lib (selections lib)
 
-let refresh_tracks ?(busy = true) lib =
+let refresh_tracks ?(busy = true) ?(after = ignore) lib =
   let selections = selections lib in
   let vscroll_tracks = lib.tracks.vscroll in
   if busy then
@@ -1383,9 +1383,10 @@ let refresh_tracks ?(busy = true) lib =
     (Some (busy, fun () ->
       refresh_tracks_sync' lib selections;
       Table.set_vscroll lib.tracks vscroll_tracks 1 4;
+      after ();
     ))
 
-let refresh_albums_tracks ?(busy = true) lib =
+let refresh_albums_tracks ?(busy = true) ?(after = ignore) lib =
   let selections = selections lib in
   let vscroll_tracks = lib.tracks.vscroll in
   let vscroll_albums = lib.albums.vscroll in
@@ -1400,9 +1401,10 @@ let refresh_albums_tracks ?(busy = true) lib =
       refresh_albums_tracks_sync' lib selections;
       Table.set_vscroll lib.tracks vscroll_tracks 1 4;
       Table.set_vscroll lib.albums vscroll_albums 1 4;
+      after ();
     ))
 
-let refresh_artists_albums_tracks ?(busy = true) lib =
+let refresh_artists_albums_tracks ?(busy = true) ?(after = ignore) lib =
   let selections = selections lib in
   let vscroll_tracks = lib.tracks.vscroll in
   let vscroll_albums = lib.albums.vscroll in
@@ -1420,14 +1422,15 @@ let refresh_artists_albums_tracks ?(busy = true) lib =
       Table.set_vscroll lib.tracks vscroll_tracks 1 4;
       Table.set_vscroll lib.albums vscroll_albums 1 4;
       Table.set_vscroll lib.artists vscroll_artists 1 4;
+      after ();
     ))
 
-let refresh_artists_busy lib =
+let refresh_artists_is_busy lib =
   Atomic.get lib.scan.artists_busy
-let refresh_albums_busy lib =
-  Atomic.get lib.scan.albums_busy || refresh_artists_busy lib
-let refresh_tracks_busy lib =
-  Atomic.get lib.scan.tracks_busy || refresh_albums_busy lib
+let refresh_albums_is_busy lib =
+  Atomic.get lib.scan.albums_busy || refresh_artists_is_busy lib
+let refresh_tracks_is_busy lib =
+  Atomic.get lib.scan.tracks_busy || refresh_albums_is_busy lib
 
 
 (*

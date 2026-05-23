@@ -85,11 +85,11 @@ let foci_library (lib : _ Library.t) =
   match lib.current, lib.log with
   | Some dir, None ->
     let view = dir.view in
-    (if view.artists.shown <> None && not (Library.refresh_artists_busy lib) then
+    (if view.artists.shown <> None && not (Library.refresh_artists_is_busy lib) then
       [foci_table f lib.artists] else []) @
-    (if view.albums.shown <> None && not (Library.refresh_albums_busy lib) then
+    (if view.albums.shown <> None && not (Library.refresh_albums_is_busy lib) then
       [foci_table f lib.albums] else []) @
-    (if view.tracks.shown <> None && not (Library.refresh_tracks_busy lib) then
+    (if view.tracks.shown <> None && not (Library.refresh_tracks_is_busy lib) then
       [foci_table f lib.tracks] else [])
   | _, _ -> []
 

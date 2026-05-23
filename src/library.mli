@@ -153,13 +153,16 @@ val refresh_tracks_sync : 'a t -> unit
 val refresh_albums_tracks_sync : 'a t -> unit
 val refresh_artists_albums_tracks_sync : 'a t -> unit
 
-val refresh_tracks : ?busy: bool -> 'a t -> unit
-val refresh_albums_tracks : ?busy: bool -> 'a t -> unit
-val refresh_artists_albums_tracks : ?busy: bool -> 'a t -> unit
+val refresh_tracks :
+  ?busy: bool -> ?after: (unit -> unit) -> 'a t -> unit
+val refresh_albums_tracks :
+  ?busy: bool -> ?after: (unit -> unit) -> 'a t -> unit
+val refresh_artists_albums_tracks :
+  ?busy: bool -> ?after: (unit -> unit) -> 'a t -> unit
 
-val refresh_artists_busy : 'a t -> bool
-val refresh_albums_busy : 'a t -> bool
-val refresh_tracks_busy : 'a t -> bool
+val refresh_artists_is_busy : 'a t -> bool
+val refresh_albums_is_busy : 'a t -> bool
+val refresh_tracks_is_busy : 'a t -> bool
 
 val reorder_artists : 'a t -> unit
 val reorder_albums : 'a t -> unit

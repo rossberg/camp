@@ -4,6 +4,7 @@ Playlist:
 - [chg] Moved TAG button to Library
 - [chg] Refine highlighting of playing track when erroneous
 - [fix] Fix race behaviour of Save Selection
+- [fix] Fix possible crash when queuing to empty playlist via double-click
 
 Library:
 - [new] Buttons to copy to/from Playlist
@@ -12,6 +13,7 @@ Library:
 - [new] Keep Search history across sessions
 - [new] Highlight playing track in Artist and Album views when possible
 - [fix] Fix crash from unloading textures or images on different thread
+- [fix] Fix audio drops from some expensive library/playlist ops
 
 
 === 0.9.4 (2026-03-12) ===

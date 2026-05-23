@@ -645,11 +645,17 @@ let remove_sorting attr = insert_sorting `None attr (-1) max_int
 let rec iter_dir f (dir : _ dir) =
   f dir; Iarray.iter (iter_dir f) dir.children
 
+let rec fold_dir f x (dir : _ dir) =
+  Iarray.fold_left (fold_dir f) (f x dir) dir.children
+
 let rec exists_dir f (dir : _ dir) =
   f dir || Iarray.exists (exists_dir f) dir.children
 
 let rec for_all_dir f (dir : _ dir) =
   f dir && Iarray.for_all (for_all_dir f) dir.children
+
+let size_dir dir =
+  fold_dir (fun n (dir : _ dir) -> n + Iarray.length dir.tracks) 0 dir
 
 
 (* Persistence *)
