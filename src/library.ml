@@ -954,13 +954,15 @@ let rec rescan_dir' lib mode (origin : dir) =
         Map.add dir.path dir map
       ) Map.empty dir.children
     in
+    let files = File.read_dir dir.path in
+    Array.sort compare files;
     match
       let dirs_of = Option.value ~default: [] in
       Array.fold_left (fun r file ->
         match r, scan_file dir old_dirs file with
         | None, None -> None
         | dirs1, dirs2 -> Some (dirs_of dirs1 @ dirs_of dirs2)
-      ) None (File.read_dir dir.path)
+      ) None files
     with
     | None ->
       if dir.children <> [||] then Atomic.set lib.scan.changed true;
