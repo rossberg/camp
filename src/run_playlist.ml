@@ -75,10 +75,12 @@ let run (st : state) =
       | `Invalid -> Ui.warn_color geo.ui, false
       | `Absent -> Ui.error_color geo.ui, false
     in
-    let c2 =
-      if track.path = (Option.get st.control.current).path
-      then `White else `Gray 0xc0
+    let current_path =
+      match st.control.current with
+      | Some dir -> dir.path
+      | None -> ""
     in
+    let c2 = if track.path = current_path then `White else `Gray 0xc0 in
     let c =
       if tab.pos <> Some i then c1 else
       if normal then c2 else Api.Color.mix c1 c2

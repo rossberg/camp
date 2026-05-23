@@ -281,6 +281,7 @@ let queue_on_playlist (st : state) (tracks : Data.track array)  mode =
     and append () =
       Playlist.append st.playlist tracks;
       Playlist.deselect_all st.playlist;  (* avoid double selection *)
+      ignore (Control.switch_if_empty st.control (Some tracks.(0)));
     and jump i =
       Playlist.jump st.playlist i;
       Control.switch st.control tracks.(0);
