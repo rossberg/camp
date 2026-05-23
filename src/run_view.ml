@@ -269,7 +269,7 @@ let external_drop_on_tracks st = external_drop drop_on_tracks st (tracks_view st
 
 type queue_mode = [`Jump | `Queue | `QueueAndJump | `Replace]
 
-let queue_on_playlist (st : state) (tracks : Data.track array)  mode =
+let queue_on_playlist (st : state) (tracks : Data.track array) mode =
   if tracks <> [||] then
   (
     let entries = st.playlist.table.entries in
@@ -279,8 +279,10 @@ let queue_on_playlist (st : state) (tracks : Data.track array)  mode =
       if entries.(i + n).path = tracks.(n).path then find i (n + 1) else
       find (i + 1) 0
     and append () =
-      Playlist.append st.playlist tracks;
-      Playlist.deselect_all st.playlist;  (* avoid double selection *)
+      Mutex.protect st.playlist.table.mutex (fun () ->
+        Playlist.append st.playlist tracks;
+        Playlist.deselect_all st.playlist;  (* avoid double selection *)
+      );
       ignore (Control.switch_if_empty st.control (Some tracks.(0)));
     and jump i =
       Playlist.jump st.playlist i;
@@ -303,7 +305,9 @@ let queue_on_playlist (st : state) (tracks : Data.track array)  mode =
         jump (Playlist.length st.playlist - Array.length tracks)
     | `Replace ->
       (* Triple-click: replace playlist *)
-      Playlist.replace_all st.playlist (Array.copy tracks);
+      Mutex.protect st.playlist.table.mutex (fun () ->
+        Playlist.replace_all st.playlist (Array.copy tracks)
+      );
       jump 0;
     );
     Table.dirty st.library.tracks;  (* current song has changed *)
