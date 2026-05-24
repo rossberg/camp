@@ -67,8 +67,8 @@ struct
 
   let sx x = x * fst !scale
   let sy y = y * snd !scale
-  let ux x = x / fst !scale
-  let uy y = y / snd !scale
+  let ux x = (x + fst !scale / 2) / fst !scale
+  let uy y = (y + snd !scale / 2) / snd !scale
   let ufx x = x /. float (fst !scale)
   let ufy y = y /. float (snd !scale)
   let sxy (x, y) = (sx x, sy y)
@@ -147,12 +147,13 @@ struct
   let current_size = ref (0, 0)
   let next_pos = ref None        (* defer window changes to frame end *)
   let next_size = ref None
+  let next_rescale = ref (0, 0)
 
   let update () =
     if not (Raylib.is_window_minimized ()) then
     (
-      current_pos := uxy (point_of_vec2 (Raylib.get_window_position ()));
-      current_size := uxy ((Raylib.get_screen_width (), Raylib.get_screen_height ()));
+      current_pos := point_of_vec2 (Raylib.get_window_position ());
+      current_size := (Raylib.get_screen_width (), Raylib.get_screen_height ());
     )
 
   (* We have to set the window position before events are processed,
@@ -160,13 +161,25 @@ struct
   let _ = after_frame_start := update :: !after_frame_start
   let _ = before_frame_finish :=
     (fun () ->
-      Option.iter (fun (x, y) -> Raylib.set_window_position (sx x) (sy y)) !next_pos;
+      Option.iter (fun (x, y) -> Raylib.set_window_position x y) !next_pos;
       next_pos := None;
     ) :: !before_frame_finish
   let _ = after_frame_finish :=
     (fun () ->
-      Option.iter (fun (w, h) -> Raylib.set_window_size (sx w) (sy h)) !next_size;
+      if !next_rescale <> (0, 0) then
+      (
+        let x, y = !Screen.scale in
+        let dx, dy = !next_rescale in
+        Screen.scale := max 1 (x + dx), max 1 (y + dy);
+        if !next_size = None then next_size := Some !current_size;
+      );
+      Option.iter (fun (w, h) -> Raylib.set_window_size w h) !next_size;
       next_size := None;
+      if !next_rescale <> (0, 0) then
+      (
+        next_rescale := 0, 0;
+        update ();
+      );
       Raylib.(set_exit_key Key.Null);  (* seems to be reset somehow? *)
     ) :: !after_frame_finish
 
@@ -187,11 +200,11 @@ struct
 
   let closed () = Raylib.window_should_close ()
 
-  let pos () = !current_pos
-  let size () = !current_size
+  let pos () = uxy !current_pos
+  let size () = uxy !current_size
   let screen () = !current_screen
-  let set_pos () x y = next_pos := Some (x, y)
-  let set_size () w h = next_size := Some (w, h)
+  let set_pos () x y = next_pos := Some (sx x, sy y)
+  let set_size () w h = next_size := Some (sx w, sy h)
   let set_screen () scr = current_screen := scr
   let set_icon () img = if not is_mac then Raylib.set_window_icon img
 
@@ -203,11 +216,10 @@ struct
   let reveal () = Raylib.clear_window_state [Raylib.ConfigFlags.Window_hidden]
   let is_hidden () = Raylib.is_window_hidden ()
 
-  let rescale () dx dy =
-    let x, y = !Screen.scale in
-    Screen.scale := max 1 (x + dx), max 1 (y + dy)
-
   let scale () = !Screen.scale
+  let rescale () dx dy =
+    let dx', dy' = !next_rescale in
+    next_rescale := dx' + dx, dy' + dy
 
   let fps () = Raylib.get_fps ()
 end
@@ -670,7 +682,7 @@ struct
   let is_drag_middle = ref false
   let next_cursor = ref Raylib.MouseCursor.Default
 
-  let pos () = !current_pos
+  let pos () = Screen.uxy !current_pos
   let abs_pos () = add (pos ()) (Window.pos ())
   let delta () = sub (abs_pos ()) !last_abs_pos
   let wheel () = Screen.ufxy (floats_of_vec2 (Raylib.get_mouse_wheel_move_v ()))
@@ -720,9 +732,9 @@ struct
     (fun () ->
       (* Work around Raylib issue: if window was moved but mouse hasn't, then
        * mouse pos is off; detect and correct by adding window delta. *)
-      current_pos := Screen.uxy (point_of_vec2 (Raylib.get_mouse_position ()));
-      let win_pos = Screen.uxy (point_of_vec2 (Raylib.get_window_position ())) in
-      let mouse_delta = Screen.uxy (point_of_vec2 (Raylib.get_mouse_delta ())) in
+      current_pos := point_of_vec2 (Raylib.get_mouse_position ());
+      let win_pos = point_of_vec2 (Raylib.get_window_position ()) in
+      let mouse_delta = point_of_vec2 (Raylib.get_mouse_delta ()) in
       let win_delta = sub win_pos !last_win_pos in
       if not is_mac || mouse_delta <> (0, 0) then
         last_win_pos := win_pos  (* true mouse location caught up *)

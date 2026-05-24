@@ -15,6 +15,9 @@ Library:
 - [fix] Fix crash from unloading textures or images on different thread
 - [fix] Fix audio drops from some expensive library/playlist ops
 
+UI:
+- [chg] Readjust window geometry when changing UI scaling
+
 
 === 0.9.4 (2026-03-12) ===
 

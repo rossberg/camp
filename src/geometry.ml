@@ -242,14 +242,13 @@ let apply_geo geo (ax, ay, aw, ah) : int * int =
       "[layout] abs=%.2f,%.2f,%.2f,%.2f concr=%d,%d,%d+%d,%d+%d\n%!"
       ax ay aw ah x y w control_min_w h control_min_h;
   );
-(*
+
   geo.browser_width <-
     clamp (browser_min geo) (browser_max geo) geo.browser_width;
   geo.left_width <- clamp (left_min geo) (left_max geo) geo.left_width;
   geo.upper_height <- clamp (upper_min geo) (upper_max geo) geo.upper_height;
   geo.directories_width <-
     clamp (directories_min geo) (directories_max geo) geo.directories_width;
-*)
 
   (x, y)
 

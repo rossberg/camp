@@ -114,14 +114,7 @@ and run' (st : state) =
     fst geo.scaling + (fst scale_new - fst scale_old),
     snd geo.scaling + (snd scale_new - snd scale_old)
   in
-  if scaling' <> geo.scaling then
-  (
-    geo.scaling <- scaling';
-    Option.iter (fun wingeo ->
-      let x, y = Geometry.apply_geo geo wingeo in
-      Api.Window.set_pos win x y;
-    ) geo.window
-  );
+  geo.scaling <- scaling';
 
   if Layout.lib_cover_key geo then
     Library.activate_covers st.library (not st.library.covers_shown);
@@ -166,7 +159,25 @@ and run' (st : state) =
   if Api.Window.is_hidden win then  (* after startup *)
     Api.Window.reveal win;
 
-  geo.window <- Some (Geometry.abstract_geo geo);
+  if scale_delta = 0 then
+    geo.window <- Some (Geometry.abstract_geo geo)
+  else
+  (
+    (* Reset geometry when scaling was changed and it is large *)
+    Option.iter (fun (ax, ay, aw, ah as wingeo) ->
+      let scale_x, scale_y = Api.Window.scale win in
+      let rx = float scale_x /. (float scale_x -. float scale_delta) in
+      let ry = float scale_y /. (float scale_y -. float scale_delta) in
+      let dims = [ax; ay; aw; ah] in
+      let scaled_dims = [rx *. ax; ry *. ay; rx *. aw; ry *. ah] in
+      if List.fold_left max 0.0 dims >= 0.97 (* = 1.0 +- eps *)
+      || List.fold_left max 0.0 scaled_dims > 1.0 then
+      (
+        let x, y = Geometry.apply_geo geo wingeo in
+        Api.Window.set_pos win x y;
+      )
+    ) geo.window;
+  );
 
   (* Save state regularly every second *)
   State.save_after st 1.0
@@ -200,8 +211,8 @@ let startup () =
 let args = Arg.align
 [
   "-help", Arg.Unit ignore, "";
-  "--debug_perf", Arg.Set App.debug_perf, "\tLog execution times";
-  "--debug_layout", Arg.Set App.debug_layout, "\tPrint window layout";
+  "--debug-perf", Arg.Set App.debug_perf, "\tLog execution times";
+  "--debug-layout", Arg.Set App.debug_layout, "\tPrint window layout";
 ]
 
 let _main =
