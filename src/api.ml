@@ -1003,8 +1003,11 @@ struct
 
   let seek a t =
     Mutex.protect a.mutex (fun () ->
+      let playing = Raylib.is_music_stream_playing a.sound.music in
+      Raylib.stop_music_stream a.sound.music;
       Raylib.seek_music_stream a.sound.music t;
       Raylib.update_music_stream a.sound.music;
+      if playing then Raylib.play_music_stream a.sound.music;
     )
 
   let volume a x =
