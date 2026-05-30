@@ -4,7 +4,7 @@
 / /    / /_| || |\/| || |_/ /  |  \
 \ \   / ___  || |  | ||  __/   |  /
  \ \_/ /   | || |  | || |      | /
-  \___/    |_||_|  |_||_|      |/ 0.9.4
+  \___/    |_||_|  |_||_|      |/ 0.9.5
    _                    _ 
   / \_/ A MUSIC PLAYER / \_/
 
@@ -72,8 +72,8 @@ packages. Don't be alarmed.
 
 On Windows and Linux, the outcome is a stand-alone directory `Camp` bundling
 the executable with all files necessary. On Mac, you'll get a proper application
-`Camp.app`. In both cases, the result is a self-contained directoru that can be
-moved to any hard drive location of your chosing.
+`Camp.app`. In both cases, the result is self-contained and can be moved to
+any hard drive location of your chosing.
 
 If you prefer to have either packaged up as a zip file, then go with:
 
@@ -497,9 +497,9 @@ displays a playlist folder, and only if that is currently sorted by position:
   Playlist pane are rewired to act on the tracks table.
 
 * Synchronisation: The two buttons labelled "<" and ">" at the bottom of the
-  view panes allow to quickly copy tracks between the Playlist and a viewed
-  Library playlist, in the respective direction. Single click appends to,
-  double-click or shift-click replaces the target list.
+  view panes allow to quickly copy tracks between the main Playlist and a
+  viewed Library playlist, in the respective direction. Single click appends
+  to, double-click or shift-click replaces the target list.
 
 If you don't want to tediously customise the view for each and every folder
 individually, then you can set the current folder's view as a default for other

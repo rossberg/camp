@@ -1,14 +1,17 @@
-=== 0.9.5 (WIP) ===
+=== 0.9.5 (2026-05-30) ===
+
+This update tweaks search history, adds functionality for copying playlists
+between Library and main Playlist, and fixes a number of concurrency issues.
 
 Playlist:
-- [chg] Moved TAG button to Library
+- [chg] Move TAG button to Library
 - [chg] Refine highlighting of playing track when erroneous
 - [fix] Fix race behaviour of Save Selection
 - [fix] Fix possible crash when queuing to empty playlist via double-click
 
 Library:
-- [new] Buttons to copy to/from Playlist
-- [chg] Removed DEL button in favour of TAG button
+- [new] Buttons and keys to copy to/from Playlist
+- [chg] Remove DEL button in favour of TAG button
 - [new] Keep Search when switching directories
 - [new] Keep Search history across sessions
 - [new] Highlight playing track in Artist and Album views when possible
