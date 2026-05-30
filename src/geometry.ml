@@ -217,7 +217,7 @@ let abstract_geo geo : float * float * float * float =
   let ah = float h /. float sh in
   (ax, ay, aw, ah)
 
-let apply_geo geo (ax, ay, aw, ah) : int * int =
+let apply_geo geo (ax, ay, aw, ah) : int * int * int * int =
   let win = Ui.window geo.ui in
   let scr = Api.Window.screen win in
   let sx, sy = Api.Screen.min_pos scr in
@@ -238,9 +238,10 @@ let apply_geo geo (ax, ay, aw, ah) : int * int =
 
   if !App.debug_layout then
   (
+    let sw, sh = Api.Screen.max_size scr in
     Printf.eprintf
-      "[layout] abs=%.2f,%.2f,%.2f,%.2f concr=%d,%d,%d+%d,%d+%d\n%!"
-      ax ay aw ah x y w control_min_w h control_min_h;
+      "[layout] abs=%.2f,%.2f,%.2f,%.2f concr=%d,%d,%d+%d,%d+%d scr=%d,%d,%d,%d\n%!"
+      ax ay aw ah x y w control_min_w h control_min_h sx sy sw sh;
   );
 
   geo.browser_width <-
@@ -250,7 +251,7 @@ let apply_geo geo (ax, ay, aw, ah) : int * int =
   geo.directories_width <-
     clamp (directories_min geo) (directories_max geo) geo.directories_width;
 
-  (x, y)
+  x, y, win_w geo, win_h geo
 
 
 let abstract_view_geo geo : int * int =
@@ -300,7 +301,7 @@ let print_state' geo (ax, ay, aw, ah) =
 let print_state geo = print_state' geo (abstract_geo geo)
 let print_intern geo = print_state' geo (concrete_geo geo)
 
-let parse_state geo pos =  (* assumes playlist and library loaded *)
+let parse_state geo rect =  (* assumes playlist and library loaded *)
   let open Text.Parse in
   let float' max t =
     (* Backwards compatibility with old integer coordinates *)
@@ -354,5 +355,5 @@ let parse_state geo pos =  (* assumes playlist and library loaded *)
       (fun ws -> if Iarray.length ws = 3 then geo.repair_log_columns <- ws);
     apply (r $? "popup_size") (num min_popup_size max_popup_size)
       (fun w -> geo.popup_size <- w);
-    pos := apply_geo geo (!ax, !ay, !aw, !ah)
+    rect := apply_geo geo (!ax, !ay, !aw, !ah);
   )

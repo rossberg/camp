@@ -164,18 +164,16 @@ and run' (st : state) =
   else
   (
     (* Reset geometry when scaling was changed and it is large *)
-    Option.iter (fun (ax, ay, aw, ah as wingeo) ->
-      let scale_x, scale_y = Api.Window.scale win in
+    Option.iter (fun ((*ax, ay, aw, ah as*) wingeo) ->
+(*      let scale_x, scale_y = Api.Window.scale win in
       let rx = float scale_x /. (float scale_x -. float scale_delta) in
       let ry = float scale_y /. (float scale_y -. float scale_delta) in
       let dims = [ax; ay; aw; ah] in
       let scaled_dims = [rx *. ax; ry *. ay; rx *. aw; ry *. ah] in
       if List.fold_left max 0.0 dims >= 0.97 (* = 1.0 +- eps *)
       || List.fold_left max 0.0 scaled_dims > 1.0 then
-      (
-        let x, y = Geometry.apply_geo geo wingeo in
-        Api.Window.set_pos win x y;
-      )
+*)
+        Ui.reset geo.ui (Geometry.apply_geo geo wingeo);
     ) geo.window;
   );
 
@@ -192,14 +190,9 @@ let startup () =
   Api.Window.hide win;  (* hide during initialisation *)
   let ui = Ui.make win in
   let st0 = State.make ui audio in
-  let success, (x, y) = State.load st0 in
+  let success, r = State.load st0 in
   let st = if success then st0 else State.make ui audio in
-  let w = Geometry.win_w st.geometry in
-  let h = Geometry.win_h st.geometry in
-  Api.Draw.start win `Black;
-  Api.Window.set_pos win x y;
-  Api.Window.set_size win w h;
-  Api.Draw.finish win;
+  Ui.reset ui r;
   at_exit (fun () ->
     Api.Audio.pause st.control.audio;
     State.save st;
