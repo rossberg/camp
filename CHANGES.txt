@@ -1,3 +1,9 @@
+=== 0.9.6 (WIP) ===
+
+Control:
+- [fix] Correctly restore Mute state after restart
+
+
 === 0.9.5 (2026-05-30) ===
 
 This update tweaks search history, adds functionality for copying playlists

@@ -281,7 +281,7 @@ let parse_state ctl =
     apply (r $? "volume") (interval 0.0 1.0)
       (fun q -> ctl.volume <- q; Api.Audio.volume ctl.audio q);
     apply (r $? "mute") bool
-      (fun b -> ctl.mute <- b);
+      (fun b -> ctl.mute <- b; mute ctl b);
     apply (r $? "play") (option string)
       (Option.iter (fun s -> switch ctl (Data.make_track s)));
     apply (r $? "seek") (interval 0.0 1.0)
