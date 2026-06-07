@@ -45,6 +45,7 @@ type 'cache t = private
   tracks : (track, 'cache) Table.t;
   covers : cover Map.Make(String).t Atomic.t;
   mutable age_covers : (path * cover) Seq.t;
+  mutable views_clip : views option;
   mutable views_dir_default : views;
   mutable views_album_default : views;
   mutable views_playlist_default : views;
@@ -56,7 +57,8 @@ type 'cache t = private
 
 val make : unit -> 'a t
 val make_views : unit -> views
-val copy_views : views -> views
+val clone_views : views -> views
+val update_views : views -> views -> unit
 
 
 (* Validation *)
@@ -124,6 +126,7 @@ val fold_dir : 'a t -> dir -> bool -> unit
 val find_entry_dir : 'a t -> dir -> int option
 
 val find_parent : 'a t -> dir -> dir option
+val find_parents : 'a t -> dir -> dir list
 val find_parent_pos : 'a t -> dir -> int
 
 val current_is_all : 'a t -> bool
@@ -190,8 +193,12 @@ val set_search : 'a t -> string -> unit
 val clear_search : 'a t -> unit
 val refresh_search : 'a t -> unit
 
-val current_to_default_views : 'a t -> unit
-val current_of_default_views : 'a t -> unit
+val copy_views : 'a t -> unit
+val paste_views : 'a t -> unit
+val default_views : 'a t -> unit
+val template_views : 'a t -> unit
+val inherit_views : 'a t -> bool -> bool -> unit
+val propagate_views : 'a t -> bool -> bool -> unit
 
 val make_viewlist : 'a t -> dir -> string
 

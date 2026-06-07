@@ -155,23 +155,58 @@ let create_viewlist_avail (st : state) =
 let create_viewlist (st : state) =
   Option.iter (fun (dir : dir) ->
     let query = Library.make_viewlist st.library dir in
-    let view = Library.copy_views dir.view in
+    let view = Library.clone_views dir.view in
     let path = if Data.is_dir dir then dir.path else File.dir dir.path in
     Run_filesel.filesel st `File `Write path ".m3v"
       (create_list st ".m3v" query (Some view));
   ) st.library.current
 
 
-let template_avail (st : state) = st.library.current <> None
-let template (st : state) =
-  Library.current_to_default_views st.library;
+let copy_view_avail (st : state) = st.library.current <> None
+let copy_view (st : state) =
+  Library.copy_views st.library;
   State.save st
 
-let adopt_avail (st : state) =
-  match st.library.current with
-  | None -> false
-  | Some dir -> dir.view.custom
-let adopt (st : state) = Library.current_of_default_views st.library
+let paste_view_avail (st : state) =
+  st.library.current <> None && st.library.views_clip <> None
+let paste_view (st : state) =
+  Library.paste_views st.library
+
+let propagate_view_avail (st : state) =
+  st.library.current <> None &&
+  Iarray.length (Option.get st.library.current).children > 0
+let propagate_view (st : state) =
+  Library.propagate_views st.library true true
+
+(*
+let inherit_view_avail (st : state) = propagate_view_avail st
+let inherit_view (st : state) =
+  Library.propagate_views st.library false true
+
+let disinherit_view_avail (st : state) = propagate_view_avail st
+let disinherit_view (st : state) =
+  Library.inherit_views st.library true false
+*)
+
+(*
+let copy_view (st : state) (parent : dir) =
+  Option.iter (fun (current : dir) ->
+    if parent != current then
+    (
+      Library.update_views parent.view current.view;
+      parent.view.custom <- true;
+      Library.save_dir st.library parent;
+    );
+    Iarray.iter (fun child ->
+      Data.iter_dir (fun dir ->
+        Library.update_views child.view parent.view;
+        dir.view.custom <- false;
+        Library.save_dir st.library dir;
+      ) child;
+      child.view.custom <- true;
+    ) parent.children
+  ) st.library.current
+*)
 
 
 let playlists_avail (st : state) =
@@ -471,11 +506,6 @@ let run_browser (st : state) =
           if all then rescan_all_avail st else rescan_one_avail st),
           (fun () -> (if all then rescan_all else rescan_one) st `Thorough);
         `Separator, ignore;
-        `Entry (c, "Use View as Default", Layout.nokey, template_avail st),
-          (fun () -> template st);
-        `Entry (c, "Change View to Default", Layout.nokey, adopt_avail st),
-          (fun () -> adopt st);
-        `Separator, ignore;
         `Entry (c, "Add Root...", Layout.key_adddir, insert_avail st),
           (fun () -> insert st);
         `Entry (c, "Remove Root", Layout.key_deldir, remove_avail st),
@@ -491,7 +521,7 @@ let run_browser (st : state) =
           (if Library.current_is_viewlist lib then "Viewlist" else "Playlist"),
           Layout.key_deldir, remove_list_avail st),
           (fun () -> remove_list st);
-        `Entry (c, "Reverse Children", Layout.key_revdir, reverse_avail st),
+        `Entry (c, "Reverse Subfolders", Layout.key_revdir, reverse_avail st),
           (fun () -> reverse st);
         `Separator, ignore;
         `Entry (c, "Repair Playlist" ^ pls ^ "...", Layout.nokey, repair_playlist_avail st),
@@ -516,7 +546,25 @@ let run_browser (st : state) =
         `Separator, ignore;
         `Entry (c, "Search...", Layout.key_search, lib.current <> None),
           (fun () -> State.focus_edit lib.search st);
-      |]
+      |];
+      (if lib.current = None then [||] else
+        [|
+          `Separator, ignore;
+          `Entry (c, "Copy View", Layout.nokey, copy_view_avail st),
+            (fun () -> copy_view st);
+          `Entry (c, "Paste View", Layout.nokey, paste_view_avail st),
+            (fun () -> paste_view st);
+          `Entry (c, "Apply View to All Subfolders", Layout.nokey, propagate_view_avail st),
+            (fun () -> propagate_view st);
+        |]
+(*
+        Iarray.map (fun (parent : dir) ->
+          let target = if parent.parent = None then "" else " Subfolders of " ^ parent.name in
+          `Entry (c, "Apply View to All" ^ target, Layout.nokey, propagate_view_avail st parent),
+            (fun () -> propagate_view st parent);
+        ) (Iarray.of_list (current :: Library.find_parents lib current))
+*)
+      );
     ])
   );
 

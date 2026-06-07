@@ -85,6 +85,7 @@ type 'cache t =
   tracks : (track, 'cache) Table.t;
   covers : cover Map.t Atomic.t;
   mutable age_covers : (path * cover) Seq.t;
+  mutable views_clip : views option;
   mutable views_dir_default : views;
   mutable views_album_default : views;
   mutable views_playlist_default : views;
@@ -138,8 +139,7 @@ let albums_sorting = [`AlbumArtist, `Asc; `AlbumTitle, `Asc; `Codec, `Asc]
 let albums_columns : album_attr columns =
 [|
   `Cover, 30;
-  `FileTime, 110;
-  `Rating, 30;
+  `Rating, 35;
   `AlbumArtist, 150;
   `AlbumTitle, 180;
   `Length, 30;
@@ -149,6 +149,7 @@ let albums_columns : album_attr columns =
   `Label, 50;
   `Codec, 30;
   `Rate, 50;
+  `FileTime, 110;
   `FileSize, 50;
   `FilePath, 400;
 |]
@@ -157,47 +158,33 @@ let tracks_sorting = [`Artist, `Asc; `Title, `Asc; `Codec, `Asc]
 let tracks_columns : track_attr columns =
 [|
   `Cover, 30;
-  `FileTime, 70;
-  `Rating, 30;
+  `Rating, 35;
   `Artist, 150;
   `Title, 180;
   `Length, 30;
   `AlbumArtist, 100;
   `AlbumTitle, 150;
-  `DiscTrack, 20;
+  `DiscTrack, 30;
   `Date, 60;
   `Country, 50;
   `Label, 50;
   `Codec, 30;
   `Rate, 50;
+  `FileTime, 75;
   `FileSize, 50;
   `FilePath, 400;
 |]
-
-let playlist_sorting = [`Pos, `Asc]
-let playlist_columns : track_attr columns =
-  Iarray.append [|`Pos, 20|] tracks_columns
 
 let album_sorting = [`DiscTrack, `Asc]
 let album_columns : track_attr columns =
-[|
-  `Cover, 30;
-  `DiscTrack, 20;
-  `Rating, 30;
-  `Artist, 150;
-  `Title, 180;
-  `Length, 30;
-  `AlbumArtist, 100;
-  `AlbumTitle, 150;
-  `Date, 60;
-  `Country, 50;
-  `Label, 50;
-  `Codec, 30;
-  `Rate, 50;
-  `FileSize, 50;
-  `FileTime, 70;
-  `FilePath, 400;
-|]
+  Iarray.append [|`DiscTrack, 30|]
+    (Iarray.of_list
+      (List.filter (fun (x, _) -> x <> `Track && x <> `DiscTrack)
+        (Iarray.to_list tracks_columns)))
+
+let playlist_sorting = [`Pos, `Asc]
+let playlist_columns : track_attr columns =
+  Iarray.append [|`Pos, 30|] tracks_columns
 
 let make_view shown columns sorting : _ view =
   { shown; columns; sorting }
@@ -224,19 +211,22 @@ let root_default_views =
   { (make_views ()) with
     folded = false;
     artists = make_view (Some `Table) artists_columns artists_sorting;
-    albums = make_view (Some `Table) albums_columns albums_sorting }
+    albums = make_view (Some `Table) albums_columns albums_sorting
+  }
 
 let dir_default_views = make_views ()
 
 let album_default_views =
   { (make_views ()) with
-    tracks = make_view (Some `Table) album_columns album_sorting }
+    tracks = make_view (Some `Table) album_columns album_sorting
+  }
 
 let playlist_default_views =
   { (make_views ()) with
-    tracks = make_view (Some `Table) playlist_columns playlist_sorting }
+    tracks = make_view (Some `Table) playlist_columns playlist_sorting
+  }
 
-let copy_views (views : views) =
+let clone_views (views : views) =
   {
     folded = true;
     custom = false;
@@ -247,15 +237,31 @@ let copy_views (views : views) =
     tracks = copy_view views.tracks;
   }
 
+let update_view (view : _ view) (from : _ view) =
+  view.shown <- from.shown;
+  view.columns <- from.columns;
+  view.sorting <- from.sorting
+
+let update_views (views : views) (from : views) =
+  (* .folded and .custom are left untouched! *)
+  views.divider_width <- from.divider_width;
+  views.divider_height <- from.divider_height;
+  update_view views.artists from.artists;
+  update_view views.albums from.albums;
+  update_view views.tracks from.tracks
+
+
 let make_views_for lib path : views =
   if path = "" then
     root_default_views
   else if is_playlist_path path || is_viewlist_path path then
-    copy_views lib.views_playlist_default
+    clone_views lib.views_playlist_default
+(*
   else if is_album_path path then
-    copy_views lib.views_album_default
+    clone_views lib.views_album_default
+*)
   else
-    copy_views lib.views_dir_default
+    clone_views lib.views_dir_default
 
 
 let rec complete scan path =
@@ -346,6 +352,7 @@ let make () =
       tracks = Table.make 100;
       covers = Atomic.make Map.empty;
       age_covers = Seq.empty;
+      views_clip = None;
       views_dir_default = dir_default_views;
       views_album_default = album_default_views;
       views_playlist_default = playlist_default_views;
@@ -428,6 +435,11 @@ let find_parent lib (dir : _ Data.dir) =
   | None -> None
   | Some "" -> Some lib.root
   | Some path -> find_dir lib path
+
+let rec find_parents lib dir =
+  match find_parent lib dir with
+  | None -> []
+  | Some parent -> parent :: find_parents lib parent
 
 let find_parent_pos lib (dir : _ Data.dir) =
   let parent = Option.get (find_parent lib dir) in
@@ -657,18 +669,48 @@ let dir_name dir =
   in File.(browser_dir // file ^ view_ext)
 
 let save_dir _lib dir =
-  Storage.save_string (dir_name dir) (fun () ->
-    Text.print (Print.dir dir)
+  let file = dir_name dir in
+  if dir.view.custom || not dir.view.folded then
+  (
+    Storage.save_string file (fun () ->
+      Text.print (Print.dir dir)
+    )
+  )
+  else if Storage.exists file then
+  (
+    Storage.delete file;
   );
   if is_viewlist dir then File.save_safe `Bin dir.path dir.search
 
-let load_dir lib dir =
+let rec load_dir lib dir =
   dir.view <- make_views_for lib dir.path;
   Storage.load_string_opt (dir_name dir) (fun s ->
     try
       Parse.dir (Text.parse s) dir
     with Text.Syntax_error _ | Text.Type_error as exn ->
       Storage.log_exn "parse" exn ("while loading view state for " ^ dir.path)
+  );
+  if not dir.view.custom then
+  (
+    Option.iter (fun parent ->
+      load_dir lib parent;
+      update_views dir.view parent.view;
+    ) (find_parent lib dir);
+    if (is_playlist dir || is_viewlist dir)
+    && not (Iarray.exists (fun (x, _) -> x = `Pos) dir.view.tracks.columns) then
+    (
+      dir.view.tracks.columns <-
+        Iarray.(append [|get playlist_columns 0|] dir.view.tracks.columns);
+      dir.view.tracks.sorting <- playlist_sorting @ dir.view.tracks.sorting;
+    )
+    else if is_album dir && not (Iarray.exists
+      (fun (x, _) -> x = `Track || x = `DiscTrack) dir.view.tracks.columns) then
+    (
+      dir.view.tracks.columns <-
+        Iarray.(append [|get album_columns 0|] dir.view.tracks.columns);
+      dir.view.tracks.sorting <- album_sorting @ dir.view.tracks.sorting;
+    );
+    dir.view.custom <- true;
   );
   if is_viewlist dir then
   (
@@ -1497,29 +1539,64 @@ let reorder_tracks lib =
   reorder lib lib.tracks tracks_sorting track_attr_string (track_key lib)
 
 
-let set_views_dir_default lib v = lib.views_dir_default <- copy_views v
-let set_views_album_default lib v = lib.views_album_default <- copy_views v
-let set_views_playlist_default lib v = lib.views_playlist_default <- copy_views v
+let set_views_dir_default lib v = update_views lib.views_dir_default v
+let _set_views_album_default lib v = update_views lib.views_album_default v
+let set_views_playlist_default lib v = update_views lib.views_playlist_default v
 
-let current_to_default_views lib =
-  Option.iter (fun (dir : dir) ->
-    (if is_playlist_path dir.path || is_viewlist_path dir.path then
-      set_views_playlist_default
-    else if is_album_path dir.path then
-      set_views_album_default
-    else
-      set_views_dir_default
-    ) lib dir.view;
-    dir.view.custom <- false;
-    save_dir lib dir;
+let copy_views lib =
+  Option.iter (fun (current : dir) ->
+    let views =
+      match lib.views_clip with Some x -> x | None -> make_views_for lib "" in
+    update_views views current.view;
+    lib.views_clip <- Some views;
   ) lib.current
 
-let current_of_default_views lib =
-  Option.iter (fun (dir : dir) ->
-    let view = make_views_for lib dir.path in
-    view.folded <- dir.view.folded;
-    dir.view <- view;
-    save_dir lib dir;
+let paste_views lib =
+  Option.iter (fun (current : dir) ->
+    Option.iter (fun clip -> update_views current.view clip) lib.views_clip
+  ) lib.current
+
+let default_views lib =
+  Option.iter (fun (current : dir) ->
+    let view = make_views_for lib current.path in
+    view.folded <- current.view.folded;
+    current.view <- view;
+    save_dir lib current;
+  ) lib.current
+
+let template_views lib =
+  Option.iter (fun (current : dir) ->
+    (if is_playlist_path current.path || is_viewlist_path current.path then
+      set_views_playlist_default
+(*
+    else if is_album_path dir.path then
+      set_views_album_default
+*)
+    else
+      set_views_dir_default
+    ) lib current.view;
+    save_dir lib current;
+  ) lib.current
+
+let inherit_views lib custom deep =
+  Option.iter (fun (current : dir) ->
+    Iarray.iter (
+      (if deep then Data.iter_dir else (@@)) (fun dir ->
+        dir.view.custom <- custom;
+        save_dir lib dir;
+      )
+    ) current.children
+  ) lib.current
+
+let propagate_views lib custom deep =
+  Option.iter (fun (current : dir) ->
+    Iarray.iter (
+      (if deep then Data.iter_dir else Fun.id) (fun dir ->
+        update_views dir.view current.view;
+        dir.view.custom <- custom;
+        save_dir lib dir;
+      )
+    ) current.children
   ) lib.current
 
 

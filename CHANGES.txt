@@ -3,6 +3,9 @@
 Control:
 - [fix] Correctly restore Mute state after restart
 
+Library:
+- [new] Browser context menu to copy, paste, propagate folder view settings
+
 
 === 0.9.5 (2026-05-30) ===
 
