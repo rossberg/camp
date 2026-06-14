@@ -199,7 +199,7 @@ struct
 
     (* Open dummy window to initialize GLFW for monitor queries to work. *)
     Raylib.(set_config_flags
-      ConfigFlags.[Window_undecorated; Window_resizable; Window_hidden]);
+      ConfigFlags.(window_undecorated + window_resizable + window_hidden));
     Raylib.init_window 1 1 "";
     let current = Raylib.get_current_monitor () in
     let monitor_poss = Iarray.init (Raylib.get_monitor_count ())
@@ -316,11 +316,11 @@ struct
     current_screen := Screen.init ();
 
     Raylib.(set_config_flags
-      ConfigFlags.[Window_undecorated; Window_always_run;
-        (*Window_transparent;*) Vsync_hint; Msaa_4x_hint]);
+      ConfigFlags.(window_undecorated + window_always_run +
+        (*Window_transparent +*) vsync_hint + msaa_4x_hint));
     Raylib.init_window (max 1 (sx w)) (max 1 (sy h)) title; (* avoid 0 on Mac *)
     Raylib.set_window_position (sx x) (sy y);
-    Raylib.(clear_window_state ConfigFlags.[Window_hidden]);
+    Raylib.(clear_window_state ConfigFlags.window_hidden);
     update ()
 
   let closed () = Raylib.window_should_close ()
@@ -337,8 +337,8 @@ struct
   let restore () = Raylib.restore_window ()
   let is_minimized () = Raylib.is_window_minimized ()
 
-  let hide () = Raylib.set_window_state [Raylib.ConfigFlags.Window_hidden]
-  let reveal () = Raylib.clear_window_state [Raylib.ConfigFlags.Window_hidden]
+  let hide () = Raylib.(set_window_state ConfigFlags.window_hidden)
+  let reveal () = Raylib.(clear_window_state ConfigFlags.window_hidden)
   let is_hidden () = Raylib.is_window_hidden ()
 
   let scale () = !Screen.scale
@@ -459,12 +459,12 @@ struct
       let font = Ctypes.make Raylib.Font.t in
       Raylib.Font.set_base_size font size;
       let data = File.load `Bin path in
-      let glyphs = Raylib.load_font_data data (String.length data) size
-        Ctypes.(from_voidp int null) max Raylib.FontType.(to_int Sdf) in
-      Raylib.Font.set_glyphs font (Ctypes.CArray.from_ptr glyphs (max - min));
+      let glyphs = Raylib.load_font_data data size
+        Ctypes.(from_voidp int null) max (*RL2BUG: Raylib.(FontType.to int Sdf)*)2 in
+      Raylib.Font.set_glyphs font glyphs;
 
       let recs' = Ctypes.allocate (Ctypes.ptr Raylib.Rectangle.t) (Raylib.Font.recs font) in
-      let atlas = Raylib.gen_image_font_atlas glyphs recs' max size 0 1 in
+      let atlas = Raylib.gen_image_font_atlas (Ctypes.CArray.start glyphs) recs' max size 0 1 in
       Raylib.Font.set_recs font Ctypes.(!@recs');
       Raylib.Font.set_texture font (Raylib.load_texture_from_image atlas);
       Raylib.unload_image atlas;
@@ -561,13 +561,14 @@ struct
     let buf = Raylib.load_render_texture w h in
     (* Override texture format to not use alpha channel *)
     Raylib.unload_texture (Raylib.RenderTexture.texture buf);
-    let format = Raylib.PixelFormat.(to_int Uncompressed_r8g8b8) in
+    let format = (*RL2BUG: Raylib.PixelFormat.(to_int Uncompressed_r8g8b8)*)4 in
     let id' = Raylib.Rlgl.load_texture Ctypes.null w h format 1 in
     let tex' = Raylib.Texture.create id' w h 1 Raylib.PixelFormat.Uncompressed_r8g8b8 in
     Raylib.RenderTexture.set_texture buf tex';
     (* Mirror Raylib LoadRenderTexture: *)
     Raylib.Rlgl.framebuffer_attach (Raylib.RenderTexture.id buf) id'
-      0 (* = RL_ATTACHMENT_COLOR0 *) 100 (* = RL_ATTACHMENT_TEXTURE2D *) 0;
+      Raylib.Rlgl.FramebufferAttachType.Color_channel0
+      Raylib.Rlgl.FramebufferAttachTextureType.Texture2d 0;
     {texture = buf; scale = sx, sy}
 
   let dispose buf = Raylib.unload_render_texture buf.texture
@@ -680,7 +681,8 @@ struct
 
   let gradient_circ () x y w h c1 c2 =
     let x, y, w, h = sxywh x y w h in
-    Raylib.draw_circle_gradient (x + w/2) (y + h/2) (float (w + h) /. 4.0) (color c1) (color c2)
+    Raylib.draw_circle_gradient
+      (vec2_of_point (x + w/2, y + h/2)) (float (w + h) /. 4.0) (color c1) (color c2)
 
   let circ () x y w h c =
     let x, y, w, h = sxywh x y w h in
@@ -931,11 +933,30 @@ end
 
 module Key =
 struct
+  (*RL2BUG: this shouldn't be needed*)
+  let table = Raylib.Key.
+    [|
+      Null; Null; Null; Null; Null; Null; Null; Null;         (* 0x00..0x07 *)
+      Null; Null; Null; Null; Null; Null; Null; Null;         (* 0x08..0x0f *)
+      Null; Null; Null; Null; Null; Null; Null; Null;         (* 0x10..0x17 *)
+      Null; Null; Null; Null; Null; Null; Null; Null;         (* 0x18..0x1f *)
+      Space; Null; Null; Null; Null; Null; Null; Apostrophe;  (* 0x20..0x27 *)
+      Null; Null; Null; Null; Comma; Minus; Period; Slash;    (* 0x28..0x2f *)
+      Zero; One; Two; Three; Four; Five; Six; Seven;          (* 0x30..0x37 *)
+      Eight; Nine; Null; Semicolon; Null; Equal; Null; Null;  (* 0x38..0x3f *)
+      Null; A; B; C; D; E; F; G;                              (* 0x40..0x47 *)
+      H; I; J; K; L; M; N; O;                                 (* 0x48..0x4f *)
+      P; Q; R; S; T; U; V; W;                                 (* 0x50..0x57 *)
+      X; Y; Z; Left_bracket; Backslash; Right_bracket; Null; Null; (* 0x58..0x5f *)
+      Grave;
+    |]
+
   let key = function
     | `None -> Raylib.Key.Null
     | `Char '-' -> Raylib.Key.Minus
     | `Char '+' -> Raylib.Key.Equal
-    | `Char c -> Raylib.Key.of_int (Char.code (Char.uppercase_ascii c))
+    (*RL2BUG: | `Char c -> Raylib.Key.of_int (Char.code (Char.uppercase_ascii c))*)
+    | `Char c -> table.(Char.code (Char.uppercase_ascii c))
     | `Arrow `Left -> Raylib.Key.Left
     | `Arrow `Right -> Raylib.Key.Right
     | `Arrow `Up -> Raylib.Key.Up
