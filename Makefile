@@ -6,7 +6,9 @@ NAME = $(strip $(shell make -s dune-public_name))
 MAIN = main
 
 NONDEPS = unix audio_file [a-zA-Z0-9_]*[.][a-zA-Z0-9_.]*
-DEPS = dune $(strip $(shell make -s dune-libraries $(NONDEPS:%=| sed 's/ %//g')))
+DEPS0 = dune $(strip $(shell make -s dune-libraries $(NONDEPS:%=| sed 's/ %//g')))
+# Temporary hack, since Raylib-OCaml 2.0 is currently broken
+DEPS = $(shell echo $(DEPS0) | sed 's/raylib\([-a-z]*\)/raylib\1.1.6.0/g')
 
 ifeq ($(OS),Windows_NT)
   SYSTEM = win
