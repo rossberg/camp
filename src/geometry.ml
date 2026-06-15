@@ -18,7 +18,7 @@ type t =
   mutable library_shown : bool;
   mutable library_width : int;
   mutable library_side : Api.side;
-  mutable window : (float * float * float * float) option;
+  mutable window : float * float * float * float;
   mutable repair_log_columns : int iarray;
   mutable filesel_shown : bool;
   mutable menu_shown : bool;
@@ -55,7 +55,7 @@ let make ui =
     library_shown = false;
     library_width = 600;
     library_side = `Right;
-    window = None;
+    window = 1.0, 1.0, 1.0, 1.0;
     repair_log_columns = [|200; 300; 300|];
     filesel_shown = false;
     menu_shown = false;
@@ -200,22 +200,26 @@ let concrete_geo geo : float * float * float * float =
   let x, y = Api.Window.pos (Ui.window geo.ui) in
   float x, float y, float geo.library_width, float geo.playlist_height
 
-let abstract_geo geo : float * float * float * float =
+let abstract_geo' geo (wx, wy, ww, wh) : float * float * float * float =
   let win = Ui.window geo.ui in
   let scr = Api.Window.screen win in
   let sx, sy = Api.Screen.min_pos scr in
   let sw, sh = Api.(sub (Screen.max_size scr) (control_min_w, control_min_h)) in
-  let cw, ch = Api.Window.size win in
-  let cx = let cx = control_x geo in if cx >= 0 then cx else cw + cx in
-  let cy = let cy = control_y geo in if cy >= 0 then cy else ch + cy in
+  let cx = let cx = control_x geo in if cx >= 0 then cx else ww + cx in
+  let cy = let cy = control_y geo in if cy >= 0 then cy else wh + cy in
   assert (cx >= 0 && cy >= 0);  (* relative position of control pane *)
-  let x, y = Api.Window.pos win in
-  let w, h = geo.library_width, geo.playlist_height in
-  let ax = float (x + cx - sx) /. float sw in
-  let ay = float (y + cy - sy) /. float sh in
-  let aw = float w /. float sw in
-  let ah = float h /. float sh in
+  let lw, ph = geo.library_width, geo.playlist_height in
+  let ax = float (wx + cx - sx) /. float sw in
+  let ay = float (wy + cy - sy) /. float sh in
+  let aw = float lw /. float sw in
+  let ah = float ph /. float sh in
   (ax, ay, aw, ah)
+
+let abstract_geo geo : float * float * float * float =
+  let win = Ui.window geo.ui in
+  let wx, wy = Api.Window.pos win in
+  let ww, wh = Api.Window.size win in
+  abstract_geo' geo (wx, wy, ww, wh)
 
 let apply_geo geo (ax, ay, aw, ah) : int * int * int * int =
   let win = Ui.window geo.ui in
@@ -301,7 +305,7 @@ let print_state' geo (ax, ay, aw, ah) =
 let print_state geo = print_state' geo (abstract_geo geo)
 let print_intern geo = print_state' geo (concrete_geo geo)
 
-let parse_state geo rect =  (* assumes playlist and library loaded *)
+let parse_state geo =  (* assumes playlist and library loaded *)
   let open Text.Parse in
   let float' max t =
     (* Backwards compatibility with old integer coordinates *)
@@ -311,12 +315,15 @@ let parse_state geo rect =  (* assumes playlist and library loaded *)
     x
   in
   let sw, sh = Api.Screen.max_size (Api.Window.screen (Ui.window geo.ui)) in
+  let ww, wh = control_min_w, control_min_h in
+  let wx, wy = (sw - ww)/2, (sh - wh)/2 in  (* default to mid-screen *)
+  let ax, ay, aw, ah = abstract_geo' geo (wx, wy, ww, wh) in
+  let rax, ray, raw, rah = ref ax, ref ay, ref aw, ref ah in
   record (fun r ->
-    let ax, ay, aw, ah = ref 0.0, ref 0.0, ref 0.0, ref 0.0 in
     apply (r $? "scaling") (pair (num (-1) 8) (num (-1) 8))
-      (fun delta -> Ui.rescale geo.ui delta; geo.scaling <- delta);
+      (fun delta -> geo.scaling <- delta);
     apply (r $? "win_pos") (pair (float' sw) (float' sh))
-      (fun (x, y) -> ax := x; ay := y);
+      (fun (x, y) -> rax := x; ray := y);
     apply (r $? "buffered") bool
       (fun b -> Ui.buffered geo.ui b);
     apply (r $? "text_sdf") bool
@@ -332,13 +339,13 @@ let parse_state geo rect =  (* assumes playlist and library loaded *)
     apply (r $? "play_open") bool
       (fun b -> geo.playlist_shown <- b);
     apply (r $? "play_height") (float' (sw - control_min_w))
-      (fun h -> ah := h);
+      (fun h -> rah := h);
     apply (r $? "lib_open") bool
       (fun b -> geo.library_shown <- b);
     apply (r $? "lib_side") (enum side_enum)
       (fun s -> geo.library_side <- s);
     apply (r $? "lib_width") (float' (sh - control_min_h))
-      (fun w -> aw := w);
+      (fun w -> raw := w);
     apply (r $? "browser_width") (num (browser_min geo) (browser_max geo))
       (fun w -> geo.browser_width <- w);
     apply (r $? "left_width") (num (left_min geo) (left_max geo))
@@ -355,5 +362,7 @@ let parse_state geo rect =  (* assumes playlist and library loaded *)
       (fun ws -> if Iarray.length ws = 3 then geo.repair_log_columns <- ws);
     apply (r $? "popup_size") (num min_popup_size max_popup_size)
       (fun w -> geo.popup_size <- w);
-    rect := apply_geo geo (!ax, !ay, !aw, !ah);
+    geo.window <- (!rax, !ray, !raw, !rah);
+    Ui.rescale geo.ui geo.scaling;
+    Ui.reset geo.ui (apply_geo geo geo.window);
   )

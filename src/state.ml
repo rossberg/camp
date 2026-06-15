@@ -144,10 +144,10 @@ let print_intern st =
 
 let to_string st = Text.print (print_intern st)
 
-let parse_state st rect =
+let parse_state st =
   let open Text.Parse in
   record (fun r ->
-    apply (r $? "layout") (Geometry.parse_state st.geometry rect) ignore;
+    apply (r $? "layout") (Geometry.parse_state st.geometry) ignore;
     apply (r $? "config") (Config.parse_state st.config) ignore;
     apply (r $? "control") (Control.parse_state st.control) ignore;
     apply (r $? "playlist") (Playlist.parse_state st.playlist) ignore;
@@ -240,16 +240,12 @@ let save st =
 let load st =
   Random.self_init ();
 
-  let sw, sh = Api.(Screen.size (Window.screen (Ui.window st.geometry.ui))) in
-  let ww, wh = Geometry.(control_min_w, control_min_h) in
-  let rect = ref ((sw - ww)/2, (sh - wh)/2, ww, wh) in  (* default to mid-screen *)
-
   Library.load_db st.library;
   Library.load_browser st.library;
   Library.rescan_root st.library `Quick;
   Playlist.load_playlist st.playlist;
   Storage.load_string_opt state_file (fun s ->
-    try parse_state st rect (Text.parse s)
+    try parse_state st (Text.parse s)
     with Text.Syntax_error _ | Text.Type_error as exn ->
       Storage.log_exn "parse" exn "while loading state"
   );
@@ -264,4 +260,4 @@ let load st =
     ) st.control.current;
   );
 
-  (try ok st; true with _ -> false), !rect
+  try ok st; true with _ -> false

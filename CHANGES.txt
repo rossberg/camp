@@ -6,6 +6,9 @@ Control:
 Library:
 - [new] Browser context menu to copy, paste, propagate folder view settings
 
+UI:
+- [fix] Correctly persist and restore UI scaling
+
 
 === 0.9.5 (2026-05-30) ===
 

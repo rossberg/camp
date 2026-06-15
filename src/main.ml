@@ -109,12 +109,6 @@ and run' (st : state) =
   in
   let scale_old = Api.Window.scale win in
   Ui.rescale geo.ui (scale_delta, scale_delta);
-  let scale_new = Api.Window.scale win in
-  let scaling' =
-    fst geo.scaling + (fst scale_new - fst scale_old),
-    snd geo.scaling + (snd scale_new - snd scale_old)
-  in
-  geo.scaling <- scaling';
 
   if Layout.lib_cover_key geo then
     Library.activate_covers st.library (not st.library.covers_shown);
@@ -146,35 +140,38 @@ and run' (st : state) =
   let win_max = Geometry.(win_max_w geo, win_max_h geo) in
   Ui.finish geo.ui (Geometry.margin geo) win_min win_max (fun scr ->
     Ui.pin geo.ui scr;
-    Option.iter (fun wingeo ->
-      let w, h = geo.library_width, geo.playlist_height in
-      ignore (Geometry.apply_geo geo wingeo);
-      let dw = if Geometry.overlay_shown geo then geo.library_width - w else 0 in
-      let dh = if geo.playlist_shown then geo.playlist_height - h else 0 in
-      (* Substract mouse delta to get position relative to current geometry *)
-      Ui.resize geo.ui Api.Mouse.(Api.sub (pos win) (delta win)) (dw, dh)
-    ) geo.window
+    let w, h = geo.library_width, geo.playlist_height in
+    ignore (Geometry.apply_geo geo geo.window);  (* clamp internals *)
+    let dw = if Geometry.overlay_shown geo then geo.library_width - w else 0 in
+    let dh = if geo.playlist_shown then geo.playlist_height - h else 0 in
+    (* Substract mouse delta to get position relative to current geometry *)
+    Ui.resize geo.ui Api.Mouse.(Api.sub (pos win) (delta win)) (dw, dh)
   );
 
   if Api.Window.is_hidden win then  (* after startup *)
     Api.Window.reveal win;
 
+  let scale_new = Api.Window.scale win in
+  let scaling' =
+    fst geo.scaling + (fst scale_new - fst scale_old),
+    snd geo.scaling + (snd scale_new - snd scale_old)
+  in
+  geo.scaling <- scaling';
   if scale_delta = 0 then
-    geo.window <- Some (Geometry.abstract_geo geo)
+    geo.window <- Geometry.abstract_geo geo
   else
   (
-    (* Reset geometry when scaling was changed and it is large *)
-    Option.iter (fun ((*ax, ay, aw, ah as*) wingeo) ->
-(*      let scale_x, scale_y = Api.Window.scale win in
-      let rx = float scale_x /. (float scale_x -. float scale_delta) in
-      let ry = float scale_y /. (float scale_y -. float scale_delta) in
-      let dims = [ax; ay; aw; ah] in
-      let scaled_dims = [rx *. ax; ry *. ay; rx *. aw; ry *. ah] in
-      if List.fold_left max 0.0 dims >= 0.97 (* = 1.0 +- eps *)
-      || List.fold_left max 0.0 scaled_dims > 1.0 then
+    (* Reset geometry when scaling was changed *)
+(*
+    let scale_x, scale_y = Api.Window.scale win in
+    let rx = float scale_x /. (float scale_x -. float scale_delta) in
+    let ry = float scale_y /. (float scale_y -. float scale_delta) in
+    let dims = [ax; ay; aw; ah] in
+    let scaled_dims = [rx *. ax; ry *. ay; rx *. aw; ry *. ah] in
+    if List.fold_left max 0.0 dims >= 0.97 (* = 1.0 +- eps *)
+    || List.fold_left max 0.0 scaled_dims > 1.0 then
 *)
-        Ui.reset geo.ui (Geometry.apply_geo geo wingeo);
-    ) geo.window;
+      Ui.reset geo.ui (Geometry.apply_geo geo geo.window);
   );
 
   (* Save state regularly every second *)
@@ -190,9 +187,8 @@ let startup () =
   Api.Window.hide win;  (* hide during initialisation *)
   let ui = Ui.make win in
   let st0 = State.make ui audio in
-  let success, r = State.load st0 in
+  let success = State.load st0 in
   let st = if success then st0 else State.make ui audio in
-  Ui.reset ui r;
   at_exit (fun () ->
     Api.Audio.pause st.control.audio;
     State.save st;

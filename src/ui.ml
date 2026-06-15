@@ -298,10 +298,10 @@ let delay ui f =
   ui.delayed <- f :: ui.delayed
 
 let reset ui (x, y, w, h) =
-  Api.Draw.start ui.win `Black;
-  Api.Window.set_pos ui.win x y;
-  Api.Window.set_size ui.win w h;
-  Api.Draw.finish ui.win
+  Draw.start ui.win `Black;
+  Window.set_pos ui.win x y;
+  Window.set_size ui.win w h;
+  Draw.finish ui.win
 
 let start ui =
   Draw.start ui.win (`Trans (`Black, 0x40));
@@ -454,7 +454,9 @@ let resize ui origin (dw, dh) =
 let rescale ui (dx, dy) =
   if dx <> 0 || dy <> 0 then
   (
+    Draw.start ui.win `Black;
     Window.rescale ui.win dx dy;
+    Draw.finish ui.win;
     font_purge ui;
   )
 
