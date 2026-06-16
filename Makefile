@@ -136,11 +136,11 @@ check:
 
 check-release: check
 	@ [ "$(PROJECTVERSION)" = "$(VERSION)" ] || \
-	  ! echo "dune-project: version mismatch, $(PROJECTVERSION) vs $(VERSION)"
+	  ! echo "dune-project: release version mismatch, $(PROJECTVERSION) vs $(VERSION)"
 	@ grep -q -F "$(PROJECTVERSION)" $(README) || \
-	  ! echo "$(README): version mismatch, $(PROJECTVERSION) expected"
+	  ! echo "$(README): release version mismatch, $(PROJECTVERSION) expected"
 	@ grep -q -F "$(PROJECTVERSION).+[0-9]+[.][0-9]+[.][0-9]+" $(CHANGES) || \
-	  ! echo "$(CHANGES): missing date for version $(PROJECTVERSION)"
+	  ! echo "$(CHANGES): missing date for release version $(PROJECTVERSION)"
 
 
 # Clean-up
