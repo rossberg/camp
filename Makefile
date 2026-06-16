@@ -61,7 +61,7 @@ exe:
 	ln -f _build/default/src/$(MAIN).exe $(NAME).exe
 
 opam: dune-project
-	dune build "@opam"
+	opam exec -- dune build "@opam"
 
 release: check-release zip
 
