@@ -32,4 +32,4 @@ jobs:
       - name: Configure Camp
         run: make vars
       - name: Build Camp
-        run: make zip
+        run: make release
