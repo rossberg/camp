@@ -125,7 +125,7 @@ zip:
 check:
 	@ [ "$(PROJECTNAME)" = "$(NAME)" ] || \
 	  ! echo "dune-project: name mismatch, $(PROJECTNAME) vs $(NAME)"
-	@ [ "$(PROJECTVERSION)" = $(VERSION) ] || [ "$(PROJECTVERSION)--" == $(VERSION) ] || \
+	@ [ "$(PROJECTVERSION)" = "$(VERSION)" ] || [ "$(PROJECTVERSION)--" == "$(VERSION)" ] || \
 	  ! echo "dune-project: version mismatch, $(PROJECTVERSION) vs $(VERSION)"
 	@ grep -q -F "$(PROJECTVERSION)" $(CHANGES) || \
 	  ! echo "$(CHANGES): missing entry for version $(PROJECTVERSION)"
@@ -135,7 +135,7 @@ check:
 	done
 
 check-release: check
-	@ [ "$(PROJECTVERSION)" = $(VERSION) ] || \
+	@ [ "$(PROJECTVERSION)" = "$(VERSION)" ] || \
 	  ! echo "dune-project: version mismatch, $(PROJECTVERSION) vs $(VERSION)"
 	@ grep -q -F "$(PROJECTVERSION)" $(README) || \
 	  ! echo "$(README): version mismatch, $(PROJECTVERSION) expected"
