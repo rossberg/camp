@@ -1,2 +1,25 @@
 (lang dune 3.20)
-(name camp)
+
+(authors "Andreas Rossberg")
+(license "CC-BY-NC-SA-4.0")
+(source (github rossberg/camp))
+(homepage https://mpi-sws.org/~rossberg/camp/)
+(documentation https://github.com/rossberg/camp/blob/main/README.txt)
+(maintenance_intent "(latest)")
+
+(generate_opam_files)
+
+(package
+  (name camp)
+  (version 0.9.6)
+  (synopsis "Camp music player")
+  (description "A portable music player in the Winamp tradition")
+  (depends
+    (raylib (= 1.6.0))
+    (raylib-callbacks (= 1.6.0))
+    (uunf (>= 17.0.0))
+    (uucp (>= 17.0.0))
+    (confero (>= 0.1.1))
+    (directories (>= 0.6))
+  )
+)

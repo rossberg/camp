@@ -3,7 +3,12 @@
 APPNAME = $(strip $(shell make -s app-name))
 VERSION = $(strip $(shell make -s app-version))
 NAME = $(strip $(shell make -s dune-public_name))
+PROJECTNAME = $(strip $(shell make -s project-name))
+PROJECTVERSION = $(strip $(shell make -s project-version))
+
 MAIN = main
+README = README.txt
+CHANGES = CHANGES.txt
 
 NONDEPS = unix audio_file [a-zA-Z0-9_]*[.][a-zA-Z0-9_.]*
 DEPS0 = dune $(strip $(shell make -s dune-libraries $(NONDEPS:%=| sed 's/ %//g')))
@@ -33,19 +38,21 @@ default:
 
 vars:
 	@echo 'NAME = $(NAME)'
-	@echo 'MAIN = $(MAIN)'
 	@echo 'APPNAME = $(APPNAME)'
 	@echo 'VERSION = $(VERSION)'
+	@echo 'PROJECTNAME = $(PROJECTNAME)'
+	@echo 'PROJECTVERSION = $(PROJECTVERSION)'
 	@echo 'SYSTEM = $(SYSTEM)'
+	@echo 'MAIN = $(MAIN)'
 	@echo 'DEPS = $(DEPS)'
 	@echo 'ASSETS = $(ASSETS)'
 	@echo 'SYSASSETS = $(SYSASSETS)'
 
-deps:
+deps: opam
 	opam install --yes --deps-only $(DEPS)  # Temporary workaround for Opam Windows bug
 	opam install --yes $(DEPS)
 
-upgrade:
+upgrade: opam
 	opam update
 	opam upgrade --yes
 
@@ -53,10 +60,13 @@ exe:
 	cd src && opam exec -- dune build $(MAIN).exe
 	ln -f _build/default/src/$(MAIN).exe $(NAME).exe
 
+opam: dune-project
+	dune build "@opam"
+
 
 # Packaging
 
-prerequisites: deps exe $(ASSETS) $(SYSASSETS)
+prerequisites: check deps exe $(ASSETS) $(SYSASSETS)
 
 dir: prerequisites
 	mkdir -p $(APPNAME)
@@ -108,6 +118,27 @@ zip:
 	make zip-$(SYSTEM)
 
 
+# Release
+
+check:
+	@ [ "$(PROJECTNAME)" == "$(NAME)" ] || \
+	  ! echo "dune-project: name mismatch, $(PROJECTNAME) vs $(NAME)"
+	@ [ "$(PROJECTVERSION)" == $(VERSION) ] || [ "$(PROJECTVERSION)--" == $(VERSION) ] || \
+	  ! echo "dune-project: version mismatch, $(PROJECTVERSION) vs $(VERSION)"
+	@ grep -q -F "$(PROJECTVERSION)" $(CHANGES) || \
+	  ! echo "$(CHANGES): missing entry for version $(PROJECTVERSION)"
+
+check-release: check
+	@ [ "$(PROJECTVERSION)" == $(VERSION) ] || \
+	  ! echo "dune-project: version mismatch, $(PROJECTVERSION) vs $(VERSION)"
+	@ grep -q -F "$(PROJECTVERSION)" $(README) || \
+	  ! echo "$(README): version mismatch, $(PROJECTVERSION) expected"
+	@ grep -q -F "$(PROJECTVERSION).+[0-9]+[.][0-9]+[.][0-9]+" $(CHANGES) || \
+	  ! echo "$(CHANGES): missing date for version $(PROJECTVERSION)"
+
+release: check-release zip
+
+
 # Clean-up
 
 clean:
@@ -116,7 +147,7 @@ clean:
 	rm -rf Info.plist.*
 
 distclean: clean
-	rm -rf _build
+	rm -rf _build $(NAME).opam
 	rm -rf *.exe *.zip *.app
 
 
@@ -127,3 +158,6 @@ app-%:
 
 dune-%:
 	grep "[(]$*" src/dune src/*/dune | sed 's/.*$*//' | sed 's/[^a-zA-Z0-9_. -]//g'
+
+project-%:
+	grep "[(]$*" dune-project | sed 's/.*$*//' | sed 's/[^a-zA-Z0-9_. -]//g'

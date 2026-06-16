@@ -2,6 +2,7 @@
 _build
 stuff
 Camp
+*.opam
 *.exe
 *.dll
 *.app
