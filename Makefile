@@ -48,11 +48,11 @@ vars:
 	@echo 'ASSETS = $(ASSETS)'
 	@echo 'SYSASSETS = $(SYSASSETS)'
 
-deps: opam
+deps:
 	opam install --yes --deps-only $(PROJECTDEPS:%="%")  # Temporary workaround for Opam Windows bug
 	opam install --yes $(PROJECTDEPS:%="%")
 
-upgrade: opam
+upgrade:
 	opam update
 	opam upgrade --yes
 
