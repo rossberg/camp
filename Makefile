@@ -5,15 +5,14 @@ VERSION = $(strip $(shell make -s app-version))
 NAME = $(strip $(shell make -s dune-public_name))
 PROJECTNAME = $(strip $(shell make -s project-name))
 PROJECTVERSION = $(strip $(shell make -s project-version))
+PROJECTDEPS = dune $(strip $(shell grep "=" dune-project | sed 's/[() ]//g'))
 
 MAIN = main
 README = README.txt
 CHANGES = CHANGES.txt
 
 NONDEPS = unix audio_file [a-zA-Z0-9_]*[.][a-zA-Z0-9_.]*
-DEPS0 = dune $(strip $(shell make -s dune-libraries $(NONDEPS:%=| sed 's/ %//g')))
-# Temporary hack, since Raylib-OCaml 2.0 is currently broken
-DEPS = $(shell echo $(DEPS0) | sed 's/raylib\([-a-z]*\)/raylib\1.1.6.0/g')
+DEPS = $(strip $(shell make -s dune-libraries $(NONDEPS:%=| sed 's/ %//g')))
 
 ifeq ($(OS),Windows_NT)
   SYSTEM = win
@@ -42,6 +41,7 @@ vars:
 	@echo 'VERSION = $(VERSION)'
 	@echo 'PROJECTNAME = $(PROJECTNAME)'
 	@echo 'PROJECTVERSION = $(PROJECTVERSION)'
+	@echo 'PROJECTDEPS = $(PROJECTDEPS)'
 	@echo 'SYSTEM = $(SYSTEM)'
 	@echo 'MAIN = $(MAIN)'
 	@echo 'DEPS = $(DEPS)'
@@ -49,8 +49,8 @@ vars:
 	@echo 'SYSASSETS = $(SYSASSETS)'
 
 deps: opam
-	opam install --yes --deps-only $(DEPS)  # Temporary workaround for Opam Windows bug
-	opam install --yes $(DEPS)
+	opam install --yes --deps-only $(PROJECTDEPS:%="%")  # Temporary workaround for Opam Windows bug
+	opam install --yes $(PROJECTDEPS:%="%")
 
 upgrade: opam
 	opam update
@@ -62,6 +62,8 @@ exe:
 
 opam: dune-project
 	dune build "@opam"
+
+release: check-release zip
 
 
 # Packaging
@@ -118,7 +120,7 @@ zip:
 	make zip-$(SYSTEM)
 
 
-# Release
+# Checks
 
 check:
 	@ [ "$(PROJECTNAME)" == "$(NAME)" ] || \
@@ -127,6 +129,10 @@ check:
 	  ! echo "dune-project: version mismatch, $(PROJECTVERSION) vs $(VERSION)"
 	@ grep -q -F "$(PROJECTVERSION)" $(CHANGES) || \
 	  ! echo "$(CHANGES): missing entry for version $(PROJECTVERSION)"
+	@ for PACKAGE in $(DEPS); do \
+	  [[ "$(PROJECTDEPS)" =~ "$$PACKAGE" ]] || \
+	    ! echo "dune-project: missing dependency for package $$PACKAGE"; \
+	done
 
 check-release: check
 	@ [ "$(PROJECTVERSION)" == $(VERSION) ] || \
@@ -135,8 +141,6 @@ check-release: check
 	  ! echo "$(README): version mismatch, $(PROJECTVERSION) expected"
 	@ grep -q -F "$(PROJECTVERSION).+[0-9]+[.][0-9]+[.][0-9]+" $(CHANGES) || \
 	  ! echo "$(CHANGES): missing date for version $(PROJECTVERSION)"
-
-release: check-release zip
 
 
 # Clean-up
