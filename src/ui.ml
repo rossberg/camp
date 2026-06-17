@@ -734,7 +734,7 @@ let color_text ui area align c inv active s =
   let dx =
     match align with
     | `Left -> 0
-    | `Center -> (w - min w tw) / 2
+    | `Center -> (w - min w tw + 1) / 2
     | `Right -> w - min w tw
   in
   if tw > w then Draw.clip ui.win x y w h;
