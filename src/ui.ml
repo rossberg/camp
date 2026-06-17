@@ -729,7 +729,7 @@ let color_text ui area align c inv active s =
   let fg = mode c active in
   let bg = `Black in
   let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
-  Draw.fill ui.win x y w (h - 1) bg;  (* assume text has no descender *)
+  Draw.fill ui.win x y w h bg;
   let tw = Draw.text_width ui.win h (font ui h) s in
   let dx =
     match align with
