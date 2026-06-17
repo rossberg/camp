@@ -122,7 +122,7 @@ struct
 
   let screen pos =
     Option.value ~default: 0
-      (Iarray.find_index (fun mon -> inside pos mon.outer) !monitors)
+      (Iarray.find_index (fun mon -> inside (sxy pos) mon.outer) !monitors)
 
   let mon scr = Iarray.get !monitors scr
   let pos scr = let {outer = x, y, _, _; _} = mon scr in uxy (x, y)
