@@ -193,10 +193,10 @@ let border ui = function
 
 (* Focus *)
 
-let focus' ui x y w h c style =
-  let c1 = `Trans (c, 0x60 (* 0x40 *)) in
+let focus' ui x y w h b c style =
+  let c1 = `Trans (c, 0x80 (* 0x40 *)) in
   let c2 = `Trans (c, 0x00) in
-  let b = 8 (* 6 *) in
+  (*let b = 8 (* 6 *) in*)
   match style with
   | `Above ->
     Draw.gradient ui.win x y w b c1 `Vertical c2;
@@ -206,9 +206,9 @@ let focus' ui x y w h c style =
     Draw.gradient ui.win x y w b c1 `Vertical c2;
     Draw.gradient ui.win x (y + h - b) w b c2 `Vertical c1
 
-let focus ui area =
+let focus ui area b =
   let x, y, w, h = dim ui area in
-  focus' ui x y w h (text_color ui) `Inside
+  focus' ui x y w h b (text_color ui) `Inside
 
 
 let mouse_focus' ui r v offset =
@@ -1199,9 +1199,10 @@ let edit_text ui area ph s scroll selection c focus =
 
 
 let rich_edit_text ui area ph c (edit : Edit.t) =
+  let _, _, _, h = dim ui area in
   let s', scroll', sel', ch =
     edit_text ui area ph edit.text edit.scroll edit.sel_range c edit.focus in
-  if edit.focus then focus ui area;
+  if edit.focus then focus ui area (h / 2);
   if s' <> edit.text then
     Edit.update edit s';
   Edit.scroll edit scroll';
@@ -1527,7 +1528,7 @@ let rich_table_drag ui area geo style tab =
     let x, y, w, _ = dim ui area' in
     let rh = geo.text_h + 2 * geo.pad_h in
     let i' = Option.value i_opt ~default: (Table.length tab) - tab.vscroll in
-    focus' ui x (y + i' * rh) w rh `White style
+    focus' ui x (y + i' * rh) w rh (rh / 2) `White style
   | _ -> ()
 
 let adjust_cache ui tab w h =
@@ -1767,7 +1768,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
     in
 
     (* Focus and mouse reflection *)
-    if tab.focus then focus ui table_area;
+    if tab.focus then focus ui table_area (rh / 2);
     mouse_focus ui area geo.refl_r 0x20 0;
 
     (* Keys *)
@@ -2095,7 +2096,7 @@ let grid_table_drag ui area geo style tab =
     let line = max 1 Float.(to_int (floor (float w /. float iw))) in
     let vscroll = tab.vscroll / line * line in
     let i' = Option.value i_opt ~default: (Table.length tab) - vscroll in
-    focus' ui (x + i' mod line * iw) (y + i' / line * ih) iw ih `White style
+    focus' ui (x + i' mod line * iw) (y + i' / line * ih) iw ih (geo.text_h / 2) `White style
   | _ -> ()
 
 let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
@@ -2290,7 +2291,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
     in
 
     (* Focus and mouse reflection *)
-    if tab.focus then focus ui table_area;
+    if tab.focus then focus ui table_area (geo.text_h / 2);
     mouse_focus ui area geo.refl_r 0x20 0;
 
     (* Keys *)
