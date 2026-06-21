@@ -707,20 +707,9 @@ searches the library for a file with the same or a similar name.
 There are various ways to tweak the user interface. All settings are remembered
 across sessions:
 
-* Color: Click the audio properties line (or the Control pane's context menu)
-  to cycle through color schemes.
-
-* Visualisation: Ctrl/Command-U (or the Control pane's context menu) cycles
-  through different track vissualisations in the Control pane: Cover art,
-  Spectrum analyzer, Wave, Oscilloscope, or All off.
-
-* Resize: Drag on any window border to resize it. However, vertical resize is
-  only possible when the Playlist pane is open, horizontal only when the
-  Library pane is open.
-
-* Dividers: Drag the dividers between Browser and Views, or between the
-  individual view tables. The configuration of view dividers will be remembered
-  per folder!
+* UI Resize: Resize the Control pane (resize window when Playlist or Library
+  are closed) to seamlessly scale the UI. This also affects UI elements such as
+  buttons in all other panes.
 
 * Text Size: Use the + and - keys with Ctrl/Command (or the context menu from
   the Control pane) to adjust the size of all text in table, list, and edit
@@ -739,6 +728,18 @@ across sessions:
 
 * Scaling: Use the [ and ] keys with Shift+Ctrl/Command to change the global
   scaling factor for the entire UI. This defaults to 1.
+  (Since version 0.9.6, UI resizing is a more fine-grained alternative.)
+
+* Color: Click the audio properties line (or the Control pane's context menu)
+  to cycle through color schemes.
+
+* Visualisation: Ctrl/Command-U (or the Control pane's context menu) cycles
+  through different track vissualisations in the Control pane: Cover art,
+  Spectrum analyzer, Wave, Oscilloscope, or All off.
+
+* Dividers: Drag the dividers between Browser and Views, or between the
+  individual view tables. The configuration of view dividers will be remembered
+  per folder!
 
 * Text Rendering: Shift+Ctrl/Command+U switches the rendering procedure for
   text. On low-resolution screens (up to 1440p) Camp defaults to plain

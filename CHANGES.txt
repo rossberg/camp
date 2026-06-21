@@ -1,6 +1,10 @@
 === 0.9.6 (WIP) ===
 
+This update allows continuous scaling of the whole UI as well as customising
+the meta-data columns shown in the Playlist.
+
 Control:
+- [new] Control pane can be arbitrarily resized, seamlessly scaling its UI
 - [fix] Correctly restore Mute state after restart
 
 Playlist:
@@ -10,6 +14,7 @@ Library:
 - [new] Browser context menu to copy, paste, propagate folder view settings
 
 UI:
+- [new] UI elements scale proportionally with Control pane size
 - [fix] Correctly persist and restore UI scaling
 - [fix] Correctly adjust window geometry upon screen change with UI scaling
 

@@ -53,7 +53,7 @@ let make win =
     img_background = ref (`Unloaded "bg.jpg");
     img_button = ref (`Unloaded "but.jpg");
     img_nocover = ref (`Unloaded "nocover.jpg");
-    fonts = Array.make 64 None;
+    fonts = Array.make 65 None;
   }
 
 let window ui = ui.win
@@ -321,7 +321,7 @@ let start ui =
   )
 
 
-let finish ui margin (minw, minh) (maxw, maxh) on_screen_change =
+let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
   List.iter (fun f -> f ()) (List.rev ui.delayed);
   ui.delayed <- [];
 
@@ -421,7 +421,11 @@ let finish ui margin (minw, minh) (maxw, maxh) on_screen_change =
     )
   in
   Window.set_pos ui.win wx' wy';   (* deferred until end fo frame! *)
-  Window.set_size ui.win ww' wh';  (* deferred until end fo frame! *)
+  if (ww', wh') <> (ww, wh) then
+  (
+    Window.set_size ui.win ww' wh';  (* deferred until end fo frame! *)
+    on_size_change (wx' - wx, wy' - wy, ww' - ww, wh' - wh);
+  );
   ui.drag_origin <- sub ui.drag_origin ui.repos;  (* adjust for resize *)
   ui.repos <- 0, 0;
   ui.resize <- 0, 0;
@@ -687,8 +691,8 @@ let image_size' ui area adjust img =
   let iq = float iw /. float ih in
   let iw', ih' =
     match adjust with
-    | `Crop `Vertical -> iw, int_of_float (float ih *. iq /. q)
-    | `Crop `Horizontal -> int_of_float (float iw /. iq *. q), ih
+    | `Crop `Vertical -> iw, int_of_float (float ih *. min 1.0 (iq /. q))
+    | `Crop `Horizontal -> int_of_float (float iw /. min 1.0 (iq /. q)), ih
     | `Shrink -> iw, ih
   in
   let iq' = float iw' /. float ih' in
@@ -700,8 +704,12 @@ let image_size' ui area adjust img =
 let image ui area adjust img =
   let x, y, w, h = dim ui area in
   let w', h', iw', ih' = image_size' ui area adjust img in
-  let dw, dh = w - w', h - h' in
-  Draw.image_part ui.win (x + dw/2) (y + dh/2) w' h' 0 0 iw' ih' img
+  let x', y' =
+    if adjust = `Shrink then
+      x + (w - w')/2, y + (h - h')/2
+    else x, y
+  in
+  Draw.image_part ui.win x' y' w' h' 0 0 iw' ih' img
 
 let image_size ui area adjust img =
   let w, h, _, _ = image_size' ui area adjust img in

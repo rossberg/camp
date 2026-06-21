@@ -138,15 +138,31 @@ and run' (st : state) =
   (* Finish drawing *)
   let win_min = Geometry.(win_min_w geo, win_min_h geo) in
   let win_max = Geometry.(win_max_w geo, win_max_h geo) in
-  Ui.finish geo.ui (Geometry.margin geo) win_min win_max (fun scr ->
-    Ui.pin geo.ui scr;
-    let w, h = geo.library_width, geo.playlist_height in
-    ignore (Geometry.apply_geo geo geo.window);  (* clamp internals *)
-    let dw = if Geometry.overlay_shown geo then geo.library_width - w else 0 in
-    let dh = if geo.playlist_shown then geo.playlist_height - h else 0 in
-    (* Substract mouse delta to get position relative to current geometry *)
-    Ui.resize geo.ui Api.Mouse.(Api.sub (pos win) (delta win)) (dw, dh)
-  );
+  Ui.finish geo.ui (Geometry.margin geo) win_min win_max
+    (fun (_dx, _dy, dw, dh) ->  (* window was resized *)
+      if dw <> 0 && overlay_shown' = overlay_shown then
+      (
+        if not (Geometry.overlay_shown geo) then
+          geo.control_width <-
+            max Geometry.control_min_w (geo.control_width + dw)
+      );
+      if dh <> 0 && playlist_shown' = playlist_shown then
+      (
+        if not geo.playlist_shown then
+          geo.control_height <-
+            max Geometry.control_min_h (geo.control_height + dh)
+      );
+      ignore (Geometry.apply_geo geo geo.window);  (* recompute *)
+    )
+    (fun scr ->  (* window moved to another screen *)
+      Ui.pin geo.ui scr;
+      let w, h = geo.library_width, geo.playlist_height in
+      ignore (Geometry.apply_geo geo geo.window);  (* clamp internals *)
+      let dw = if Geometry.overlay_shown geo then geo.library_width - w else 0 in
+      let dh = if geo.playlist_shown then geo.playlist_height - h else 0 in
+      (* Substract mouse delta to get position relative to current geometry *)
+      Ui.resize geo.ui Api.Mouse.(Api.sub (pos win) (delta win)) (dw, dh)
+    );
 
   if Api.Window.is_hidden win then  (* after startup *)
     Api.Window.reveal win;

@@ -140,135 +140,47 @@ let cp = 0
 let control_pane g = Ui.pane g.ui cp (control_x g, control_y g, control_w g, control_h g)
 
 (* Power and pane activation buttons *)
-let shown_w = 35
-let shown_h = 12
-let shown_x g = - margin g - shown_w
-let shown_indicator_x g = shown_x g + (shown_w - indicator_w g)/2 + 1
-
-let power_h = 22
+let power_w g = 35 + flex_w g / 10
+let power_h g = 22 + flex_h g / 8
+let power_x g = - margin g - power_w g
 let power_y g = margin g
-let power_area g = (cp, shown_x g, power_y g, shown_w, power_h)
+let power_total_h g = power_h g + 3 + label_h g
+
+let power_area g = (cp, power_x g, power_y g, power_w g, power_h g)
 let power_button g = Ui.button g.ui (power_area g) key_quit true
-let power_label g = Ui.label g.ui (cp, shown_x g, power_y g + power_h + 3, shown_w, label_h g) `Center "POWER"
-let power_shadow g = Ui.box g.ui (cp, shown_x g, power_y g, shown_w + 1, power_h + 2) `Black
+let power_label g = Ui.label g.ui (cp, power_x g, power_y g + power_h g + 3, power_w g, label_h g) `Center "POWER"
+let power_shadow g = Ui.box g.ui (cp, power_x g, power_y g, power_w g + 1, power_h g + 2) `Black
 let minimize_button g = Ui.invisible_button g.ui (power_area g) [`Shift] key_min true
 
-let shown_indicator y g = Ui.indicator g.ui `Green (cp, shown_indicator_x g, y - indicator_w g - 1, indicator_w g, indicator_w g)
-let shown_button y key g = Ui.button g.ui (cp, shown_x g, y, shown_w, shown_h) key true
-let shown_label y txt g = Ui.label g.ui (cp, shown_x g, y + shown_h + 2, shown_w, label_h g) `Center txt
-let shown_shadow y g = Ui.box g.ui (cp, shown_x g, y, shown_w, shown_h + 1) `Black
+let shown_w g = power_w g
+let shown_h g = 12 + flex_h g / 10
+let shown_x g = power_x g
+let shown_total_h g = indicator_w g + 1 + shown_h g + 2 + label_h g
+let shown_y i g = power_y g + power_total_h g + i * shown_total_h g + (i + 1) * (5 + flex_h g / 10) + indicator_w g + 1
+let shown_indicator_x g = shown_x g + (shown_w g - indicator_w g)/2 + 1
 
-let play_y = 57
-let playlist_indicator = shown_indicator play_y
-let playlist_button = shown_button play_y key_pl
-let playlist_label = shown_label play_y "PLAYLIST"
-let playlist_shadow = shown_shadow play_y
+let shown_indicator i g = Ui.indicator g.ui `Green (cp, shown_indicator_x g, shown_y i g - indicator_w g - 1, indicator_w g, indicator_w g)
+let shown_button i key g = Ui.button g.ui (cp, shown_x g, shown_y i g, shown_w g, shown_h g) key true
+let shown_label i txt g = Ui.label g.ui (cp, shown_x g, shown_y i g + shown_h g + 2, shown_w g, label_h g) `Center txt
+let shown_shadow i g = Ui.box g.ui (cp, shown_x g, shown_y i g, shown_w g, shown_h g + 1) `Black
 
-let lib_y = 93
-let library_indicator = shown_indicator lib_y
-let library_button = shown_button lib_y key_lib
-let library_label = shown_label lib_y "LIBRARY"
-let library_shadow = shown_shadow lib_y
+let playlist_indicator = shown_indicator 0
+let playlist_button = shown_button 0 key_pl
+let playlist_label = shown_label 0 "PLAYLIST"
+let playlist_shadow = shown_shadow 0
+
+let library_indicator = shown_indicator 1
+let library_button = shown_button 1 key_lib
+let library_label = shown_label 1 "LIBRARY"
+let library_shadow = shown_shadow 1
 let library_side_key g = Ui.key g.ui key_side true
 
-(* Display box *)
-let info_w _g = -55
-let info_h _g = -52
-let info_margin _g = 4
-let info_area g = (cp, margin g, margin g, info_w g, info_h g)
-let info_box g = Ui.box g.ui (info_area g) `Black
-let info_refl g = Ui.mouse_focus g.ui (info_area g) (control_h g + info_h g) 0x30 0
-
-(* Volume *)
-let volume_w = 27
-let volume_h = 50
-let volume_x g = info_w g - info_margin g - volume_w
-let volume_y g = margin g + info_margin g
-
-let mute_w = 22
-let mute_h = 15
-let mute_x g = volume_x g - 4
-let mute_y g = volume_y g + volume_h - 8
-let mute_area g = (cp, mute_x g, mute_y g, mute_w, mute_h)
-
-let volume_bar g = Ui.volume_bar g.ui (cp, volume_x g, volume_y g, volume_w, volume_h)
-let volume_wheel g = Ui.wheel g.ui (cp, 0, 0, control_w g, control_h g)
-
-let mute_text g = Ui.color_text g.ui (cp, mute_x g, mute_y g, mute_w, label_h g) `Center
-let mute_button g = Ui.invisible_button g.ui (mute_area g) [] key_mute true
-let mute_drag g = Ui.drag g.ui (mute_area g)
-
-let volup_key g = Ui.key g.ui key_volup
-let voldown_key g = Ui.key g.ui key_voldn
-
-(* Time *)
-let lcd_space = 3
-let colon_w = 4
-let lcd_w = 14
-let lcd_h = 20
-let lcd_x g i = margin g + info_margin g + i*(lcd_w + lcd_space)
-let lcd_y g = margin g + info_margin g + 10
-let lcd_sign g = Ui.lcd g.ui (cp, lcd_x g 0, lcd_y g, lcd_w, lcd_h)
-let lcd_min1 g = Ui.lcd g.ui (cp, lcd_x g 1, lcd_y g, lcd_w, lcd_h)
-let lcd_min2 g = Ui.lcd g.ui (cp, lcd_x g 2, lcd_y g, lcd_w, lcd_h)
-let lcd_colon g = Ui.lcd g.ui (cp, lcd_x g 3, lcd_y g, colon_w, lcd_h)
-let lcd_sec1 g = Ui.lcd g.ui (cp, lcd_x g 3 + colon_w + lcd_space, lcd_y g, lcd_w, lcd_h)
-let lcd_sec2 g = Ui.lcd g.ui (cp, lcd_x g 4 + colon_w + lcd_space, lcd_y g, lcd_w, lcd_h)
-let lcd_button g = Ui.mouse g.ui (cp, lcd_x g 0, lcd_y g, colon_w + lcd_x g 4, lcd_h) `Left
-
-(* Visuals *)
-let visual_x g = lcd_x g 5 + 28
-let visual_y g = margin g + info_margin g
-let visual_w g = volume_x g - 16
-let visual_h _g = 40
-let visual_indicator g i = Ui.box g.ui (cp, visual_x g - 8, visual_y g + 8 * i, 4, 4) (Ui.text_color g.ui)
-let visual_button g = Ui.mouse g.ui (cp, visual_x g - 20, visual_y g, 20, visual_h g) `Left
-let visual_key g = Ui.key g.ui key_visual true
-
-let cover_x g = visual_x g + 10
-let cover_y g = visual_y g
-let cover_w g = visual_h g * 2
-let cover_h g = visual_h g
-let cover_area g = (cp, cover_x g, cover_y g, cover_w g, cover_h g)
-let cover g = Ui.image g.ui (cover_area g) (`Crop `Vertical)
-
-let graph_x g = visual_x g
-let graph_y g = visual_y g
-let graph_w g = visual_w g
-let graph_h g = visual_h g
-let graph_area g = (cp, graph_x g, graph_y g, graph_w g, graph_h g)
-let graph_drag g = Ui.drag g.ui (graph_area g)
-
-let novisual_button g = Ui.mouse g.ui (graph_area g) `Left
-
-(* Info *)
-let seek_h _g = 14
-let seek_y g = info_h g - info_margin g/2 - seek_h g
-let ticker_h _g = 16
-let ticker_y g = seek_y g - ticker_h g - 3
-let prop_h _g = (*12*) 13
-let prop_y g = ticker_y g - prop_h g - 2
-
-let prop_text g = Ui.text g.ui (cp, margin g + info_margin g, prop_y g, mute_x g, prop_h g) `Left
-let title_ticker g = Ui.ticker g.ui (cp, margin g + info_margin g, ticker_y g, info_w g - info_margin g, ticker_h g)
-let seek_bar g = Ui.progress_bar g.ui (cp, margin g + info_margin g / 2, seek_y g, info_w g - info_margin g, seek_h g)
-
-(* Hidden mode buttons *)
-let color_y g = visual_y g + visual_h g
-let color_button g = Ui.mouse g.ui (cp, margin g, color_y g, mute_x g, ticker_y g) `Left
-
-let fps_w = 40
-let fps_text g = Ui.text g.ui (cp, visual_w g - fps_w, margin g + info_margin g, fps_w, 12) `Left
-let fps_key g = Ui.key g.ui key_fps true
-
-let sdf_key g = Ui.key g.ui key_sdf true
-
 (* Control buttons *)
-let ctl_w = 39
-let ctl_h = 30
-let ctl_y = - 8 - ctl_h
+let ctl_w g = 39 + flex_w g / 10
+let ctl_h g = 30 + flex_h g / 10
+let ctl_y g = - 8 - ctl_h g - min (margin g) (flex_h g / 20)
 let control_button i sym key g =
-  Ui.labeled_button g.ui (cp, margin g + i * ctl_w, ctl_y, ctl_w, ctl_h)
+  Ui.labeled_button g.ui (cp, margin g + i * ctl_w g, ctl_y g, ctl_w g, ctl_h g)
     ~protrude: false 10 (Ui.active_color g.ui) sym key
 
 let bwd_button = control_button 0 "<<" key_bwd
@@ -278,26 +190,27 @@ let stop_button = control_button 3 "[]" key_stop
 let fwd_button = control_button 4 ">>" key_fwd
 let eject_button = control_button 5 "^" key_eject
 
-let button_shadow g = Ui.box g.ui (cp, margin g - 1, ctl_y, 6 * ctl_w + 3, ctl_h + 5) `Black
+let button_shadow g = Ui.box g.ui (cp, margin g - 1, ctl_y g, 6 * ctl_w g + 3, ctl_h g + 5) `Black
 
 let start_stop_key g = Ui.key g.ui key_startstop
 let rw_key g = Ui.key g.ui key_rw
 let ff_key g = Ui.key g.ui key_ff
 
 (* Play mode buttons *)
-let mode_w = 25
-let mode_h = 12
-let mode_x g i = - margin g - mode_w - i * (mode_w + 10)
-let mode_y _g = -30
+let mode_w g = 25 + flex_w g / 10
+let mode_h g = 12 + flex_h g / 10
+let mode_x i g = - margin g - mode_w g - i * (mode_w g + 10)
+let mode_y g = ctl_y g + indicator_w g + (ctl_h g - indicator_w g - mode_h g - label_h g) / 2
+let mode_sep g = 4 + flex_w g / 40
 let mode_indicator_x g x = function
-  | `Center -> x + (mode_w - indicator_w g)/2 + 1
-  | `Left -> x + 4
-  | `Right -> x + mode_w - indicator_w g - 4
+  | `Center -> x + (mode_w g - indicator_w g)/2 + 1
+  | `Left -> x + (mode_w g - 2 * indicator_w g - mode_sep g) / 2
+  | `Right -> x + mode_w g - (mode_w g - 2 * indicator_w g - mode_sep g) / 2 - indicator_w g
 
-let mode_indicator i al g = Ui.indicator g.ui `Green (cp, mode_indicator_x g (mode_x g i) al, mode_y g - indicator_w g - 1, indicator_w g, indicator_w g)
-let mode_button i key g = Ui.button g.ui (cp, mode_x g i, mode_y g, mode_w, mode_h) key
-let mode_label i label g = Ui.label g.ui (cp, mode_x g i, mode_y g + mode_h + 2, mode_w, label_h g) `Center label
-let mode_shadow i g = Ui.box g.ui (cp, mode_x g i, mode_y g, mode_w, mode_h + 1) `Black
+let mode_indicator i al g = Ui.indicator g.ui `Green (cp, mode_indicator_x g (mode_x i g) al, mode_y g - indicator_w g - 1, indicator_w g, indicator_w g)
+let mode_button i key g = Ui.button g.ui (cp, mode_x i g, mode_y g, mode_w g, mode_h g) key
+let mode_label i label g = Ui.label g.ui (cp, mode_x i g, mode_y g + mode_h g + 2, mode_w g, label_h g) `Center label
+let mode_shadow i g = Ui.box g.ui (cp, mode_x i g, mode_y g, mode_w g, mode_h g + 1) `Black
 
 let shuffle_indicator = mode_indicator 2 `Center
 let shuffle_button = mode_button 2 key_shuffle
@@ -316,12 +229,108 @@ let loop_button = mode_button 0 key_loop
 let loop_label = mode_label 0 "LOOP"
 let loop_shadow = mode_shadow 0
 
+(* Display box *)
+let info_x g = margin g
+let info_y g = margin g
+let info_w g = - power_w g - 2 * margin g - flex_w g / 30
+let info_h g = ctl_y g - margin g - flex_h g / 30
+let info_margin g = 4 + flex g / 30
+let info_area g = (cp, info_x g, info_y g, info_w g, info_h g)
+let info_box g = Ui.box g.ui (info_area g) `Black
+let info_refl g = Ui.mouse_focus g.ui (info_area g) (control_h g + info_h g) 0x30 0
+
+(* Volume *)
+let volume_w g = 27 + flex_w g / 5
+let volume_h g = 50 + flex_h g / 3
+let volume_x g = info_w g - info_margin g - volume_w g
+let volume_y g = info_y g + info_margin g
+
+let mute_w g = 22 + flex g / 6
+let mute_h g = min 64 (label_h g + flex g / 20)
+let mute_x g = volume_x g - 4
+let mute_y g = volume_y g + volume_h g - mute_h g
+let mute_area g = (cp, mute_x g, mute_y g, mute_w g, mute_h g)
+
+let volume_bar g = Ui.volume_bar g.ui (cp, volume_x g, volume_y g, volume_w g, volume_h g)
+let volume_wheel g = Ui.wheel g.ui (cp, 0, 0, control_w g, control_h g)
+
+let mute_text g = Ui.color_text g.ui (cp, mute_x g, mute_y g, mute_w g, mute_h g) `Center
+let mute_button g = Ui.invisible_button g.ui (mute_area g) [] key_mute true
+let mute_drag g = Ui.drag g.ui (mute_area g)
+
+let volup_key g = Ui.key g.ui key_volup
+let voldown_key g = Ui.key g.ui key_voldn
+
+(* Info *)
+let seek_margin g = info_margin g / 2
+let seek_h g = 14 + flex_h g / 20
+let seek_y g = info_h g - seek_margin g - seek_h g
+let ticker_h g = 16 + flex_h g / 20
+let ticker_y g = seek_y g - ticker_h g - 3
+let prop_h g = (*12*) 13 + flex g / 20
+let prop_y g = ticker_y g - prop_h g - 2
+let prop_w g = if flex_h g > 20 then info_w g - info_margin g else mute_x g
+
+let prop_text g = Ui.text g.ui (cp, info_x g + info_margin g, prop_y g, prop_w g, prop_h g) `Left
+let title_ticker g = Ui.ticker g.ui (cp, info_x g + info_margin g, ticker_y g, info_w g - info_margin g, ticker_h g)
+let seek_bar g = Ui.progress_bar g.ui (cp, info_x g + seek_margin g, seek_y g, info_w g - seek_margin g, seek_h g)
+
+(* Time *)
+let lcd_space g = 3 + flex_w g / 80
+let colon_w _g = 4
+let lcd_w g = 14 + flex_w g / 30
+let lcd_h g = 20 + flex_h g / 6
+let lcd_x g i = margin g + info_margin g + i*(lcd_w g + lcd_space g)
+let lcd_y g = margin g + info_margin g + 10
+let lcd_sign g = Ui.lcd g.ui (cp, lcd_x g 0, lcd_y g, lcd_w g, lcd_h g)
+let lcd_min1 g = Ui.lcd g.ui (cp, lcd_x g 1, lcd_y g, lcd_w g, lcd_h g)
+let lcd_min2 g = Ui.lcd g.ui (cp, lcd_x g 2, lcd_y g, lcd_w g, lcd_h g)
+let lcd_colon g = Ui.lcd g.ui (cp, lcd_x g 3, lcd_y g, colon_w g, lcd_h g)
+let lcd_sec1 g = Ui.lcd g.ui (cp, lcd_x g 3 + colon_w g + lcd_space g, lcd_y g, lcd_w g, lcd_h g)
+let lcd_sec2 g = Ui.lcd g.ui (cp, lcd_x g 4 + colon_w g + lcd_space g, lcd_y g, lcd_w g, lcd_h g)
+let lcd_button g = Ui.mouse g.ui (cp, lcd_x g 0, lcd_y g, colon_w g + lcd_x g 4, lcd_h g) `Left
+
+(* Visuals *)
+let visual_x g = lcd_x g 5 + 28 + flex_w g / 20
+let visual_y g = info_y g + info_margin g
+let visual_w g = volume_x g - 16
+let visual_h g = prop_y g - margin g - flex_h g / 20
+let visual_indicator g i = Ui.box g.ui (cp, visual_x g - 8, visual_y g + 8 * i, 4, 4) (Ui.text_color g.ui)
+let visual_button g = Ui.mouse g.ui (cp, visual_x g - 20, visual_y g, 20, visual_h g) `Left
+let visual_key g = Ui.key g.ui key_visual true
+
+let cover_w g = visual_w g - 20
+let cover_h g = visual_h g
+let cover_x g = visual_x g + (visual_w g - cover_w g) / 2
+let cover_y g = visual_y g
+let cover_area g = (cp, cover_x g, cover_y g, cover_w g, cover_h g)
+let cover g = Ui.image g.ui (cover_area g) (`Crop `Vertical)
+
+let graph_x g = visual_x g
+let graph_y g = visual_y g
+let graph_w g = visual_w g
+let graph_h g = visual_h g
+let graph_area g = (cp, graph_x g, graph_y g, graph_w g, graph_h g)
+let graph_drag g = Ui.drag g.ui (graph_area g)
+
+let novisual_button g = Ui.mouse g.ui (graph_area g) `Left
+
+(* Hidden mode buttons *)
+let color_y g = visual_y g + visual_h g
+let color_button g = Ui.mouse g.ui (cp, margin g, color_y g, mute_x g, ticker_y g) `Left
+
+let fps_w = 40
+let fps_text g = Ui.text g.ui (cp, visual_w g - fps_w, margin g + info_margin g, fps_w, 12) `Left
+let fps_key g = Ui.key g.ui key_fps true
+
+let sdf_key g = Ui.key g.ui key_sdf true
+
 (* Pop-ups *)
-let info_context g = Ui.mouse g.ui (cp, margin g, margin g, margin g + info_w g - volume_w, info_h g - seek_h g) `Right
+let info_context g = Ui.mouse g.ui (cp, margin g, margin g, margin g + info_w g - volume_w g, info_h g - seek_h g) `Right
 let seek_context g = Ui.mouse g.ui (cp, margin g, seek_y g, info_w g - margin g, seek_h g) `Right
-let volume_context g = Ui.mouse g.ui (cp, volume_x g, volume_y g, volume_w, volume_h) `Right
+let volume_context g = Ui.mouse g.ui (cp, volume_x g, volume_y g, volume_w g, volume_h g) `Right
 let shown_context g = Ui.mouse g.ui (cp, margin g + info_w g, margin g, - margin g, info_h g) `Right
-let control_context g = Ui.mouse g.ui (cp, margin g, ctl_y, - margin g, -1) `Right
+let control_context g = Ui.mouse g.ui (cp, margin g, ctl_y g, - margin g, -1) `Right
 
 let cover_popup_open g = Ui.mouse g.ui (cover_area g) `Left
 
@@ -371,8 +380,8 @@ let ep = pp + 1
 let edit_pane g = Ui.pane g.ui ep (playlist_x g, - bottom_h g, playlist_w g, bottom_h g)
 
 (* Buttons *)
-let edit_w _g = 27
-let edit_h g = line_h g + 7
+let edit_w g = 27 + flex_w g / 16
+let edit_h g = line_h g + 7 + flex_h g / 24
 let edit_y g = if g.playlist_shown then - edit_h g else control_h g (* effectively hidden *)
 let edit_area i j g = (ep, margin g + i*5 + j*edit_w g, edit_y g, edit_w g, edit_h g)
 let edit_button i j label key g = Ui.labeled_button g.ui (edit_area i j g) (button_label_h g) (Ui.inactive_color g.ui) label key true
@@ -411,26 +420,27 @@ let browser_pane g = Ui.pane g.ui bp (library_x g, library_y g, g.browser_width,
 let browser_divider g = Ui.divider g.ui (bp, - divider_w g, margin g, divider_w g, - bottom_h g) `Horizontal
 
 (* Scan and view buttons *)
-let scan_w = 32
+let scan_w g = 32 + flex_w g / 12
 let scan_y g = margin g
-let scan_indicator_w g = indicator_w g + 5
-let scan_indicator_area g = (bp, margin g + (scan_w - scan_indicator_w g)/2, scan_y g + label_h g + 2, scan_indicator_w g, scan_indicator_w g)
+let scan_indicator_w g = indicator_w g * 12 / 7
+let scan_indicator_area g = (bp, margin g + (scan_w g - scan_indicator_w g)/2, scan_y g + label_h g + 2, scan_indicator_w g, scan_indicator_w g)
 let scan_indicator g = Ui.indicator g.ui `Yellow (scan_indicator_area g)
 let scan_button g = Ui.mouse g.ui (scan_indicator_area g) `Left
-let scan_label g = Ui.label g.ui (bp, margin g, scan_y g, scan_w, label_h g) `Center "SCANNING"
+let scan_label g = Ui.label g.ui (bp, margin g, scan_y g, scan_w g, label_h g) `Center "SCANNING"
 
-let view_w = 25
-let view_h = 12
-let view_x g i = - margin g - view_w - i*(view_w + 12) - 2
+let view_w g = 25 + flex_w g / 12
+let view_h g = 12 + flex_h g / 12
+let view_x i g = - margin g - view_w g - i*(view_w g + 12) - 2
 let view_y g = margin g + indicator_w g + 1
+let view_sep g = mode_sep g
 let view_indicator_x g x = function
-  | `Center -> x + (view_w - indicator_w g)/2 + 1
-  | `Left -> x + 4
-  | `Right -> x + view_w - indicator_w g - 4
+  | `Center -> x + (view_w g - indicator_w g)/2 + 1
+  | `Left -> x + (view_w g - 2 * indicator_w g - view_sep g) / 2
+  | `Right -> x + view_w g - (view_w g - 2 * indicator_w g - view_sep g) / 2 - indicator_w g
 
-let view_indicator i al g = Ui.indicator g.ui `Green (bp, view_indicator_x g (view_x g i) al, view_y g - indicator_w g - 1, indicator_w g, indicator_w g)
-let view_button i key g = Ui.button g.ui (bp, view_x g i, view_y g, view_w, view_h) key false
-let view_label i label g = Ui.label g.ui (bp, view_x g i - 4, view_y g + view_h + 1, view_w + 8, label_h g) `Center label
+let view_indicator i al g = Ui.indicator g.ui `Green (bp, view_indicator_x g (view_x i g) al, view_y g - indicator_w g - 1, indicator_w g, indicator_w g)
+let view_button i key g = Ui.button g.ui (bp, view_x i g, view_y g, view_w g, view_h g ) key false
+let view_label i label g = Ui.label g.ui (bp, view_x i g - 4, view_y g + view_h g + 1, view_w g + 8, label_h g) `Center label
 
 let artists_indicator = view_indicator 2 `Center
 let artists_button = view_button 2 key_artists
@@ -447,9 +457,9 @@ let tracks_button = view_button 0 key_tracks
 let tracks_label = view_label 0 "TRACKS"
 
 (* Search *)
-let search_label_w _g = 30
+let search_label_w g = 30 + flex_h g / 24
 let search_x g = margin g + search_label_w g + 3
-let search_y g = 2 * margin g + indicator_w g + view_h + label_h g
+let search_y g = 2 * margin g + indicator_w g + view_h g + label_h g
 let search_label g = Ui.label g.ui (bp, margin g, search_y g + (line_h g - label_h g + 1)/2, search_label_w g, label_h g) `Left "SEARCH"
 let search_button g = Ui.mouse g.ui (bp, margin g, search_y g, search_label_w g, line_h g) `Left
 let search_key g = Ui.key g.ui key_search true
@@ -474,9 +484,9 @@ let rename_key g b =
   b && (Ui.key g.ui key_namedir b || Ui.key g.ui key_namedir2 b)
 
 (* Buttons *)
-let ledit_w = 27
-let ledit_h g = line_h g + 7
-let ledit_button i j label key g = Ui.labeled_button g.ui (bp, margin g + i*5 + j*ledit_w, - ledit_h g, ledit_w, ledit_h g) (button_label_h g) (Ui.inactive_color g.ui) label key true
+let ledit_w g = edit_w g
+let ledit_h g = edit_h g
+let ledit_button i j label key g = Ui.labeled_button g.ui (bp, margin g + i*5 + j*ledit_w g, - ledit_h g, ledit_w g, ledit_h g) (button_label_h g) (Ui.inactive_color g.ui) label key true
 
 let insert_button = ledit_button 0 0 "ADD" key_adddir
 (*let remove_button = ledit_button 0 1 "DEL" key_deldir*)
@@ -574,10 +584,10 @@ let mp = lp + 1
 let info_pane g = Ui.pane g.ui mp (library_x g + g.browser_width, - bottom_h g, library_w g - g.browser_width, bottom_h g)
 
 (* Buttons *)
-let lcopy_w = 27
-let lcopy_h g = line_h g + 7
-let lcopy_x i j _g = - i*5 - (2 - j)*lcopy_w
-let lcopy_area i j g = (mp, lcopy_x i j g, - lcopy_h g, lcopy_w, lcopy_h g)
+let lcopy_w g = edit_w g
+let lcopy_h g = edit_h g
+let lcopy_x i j g = - i*5 - (2 - j) * lcopy_w g
+let lcopy_area i j g = (mp, lcopy_x i j g, - lcopy_h g, lcopy_w g, lcopy_h g)
 let lcopy_button i j label key g = Ui.labeled_button g.ui (lcopy_area i j g) (button_label_h g) (Ui.inactive_color g.ui) label key true
 let lcopy_button2 i j key g = Ui.invisible_button g.ui (lcopy_area i j g) [`Shift] key true
 
