@@ -354,25 +354,6 @@ let playlist_table g = Ui.rich_table g.ui (playlist_area g) (rich_table g 0 g.pl
 let playlist_mouse g = Ui.rich_table_mouse g.ui (playlist_area g) (rich_table g 0 g.playlist_headers)
 let playlist_drag g = Ui.rich_table_drag g.ui (playlist_area g) (rich_table g 0 g.playlist_headers) `Above
 
-(* Total text field *)
-let total_w g = - margin g - scrollbar_w g
-let total_x g = total_w g - 120
-let total_y g = g.playlist_height + footer_y g  (* Hack: this is outside the pane *)
-let playlist_total_box g = Ui.box g.ui (pp, total_x g, total_y g, total_w g, line_h g) `Black
-let playlist_total_text g = Ui.text g.ui (pp, total_x g, total_y g + pad_h g, total_w g - (gutter_w g + 1)/2, text_h g) `Right
-
-let enlarge_text_key g = Ui.key g.ui key_textup true
-let reduce_text_key g = Ui.key g.ui key_textdn true
-
-let enlarge_grid_key g = Ui.key g.ui key_gridup true
-let reduce_grid_key g = Ui.key g.ui key_griddn true
-
-let enlarge_scale_key g = Ui.key g.ui key_scaleup true
-let reduce_scale_key g = Ui.key g.ui key_scaledn true
-
-let enlarge_popup_key g = Ui.key g.ui key_popupup true
-let reduce_popup_key g = Ui.key g.ui key_popupdn true
-
 
 (* Edit Pane *)
 
@@ -380,10 +361,12 @@ let ep = pp + 1
 let edit_pane g = Ui.pane g.ui ep (playlist_x g, - bottom_h g, playlist_w g, bottom_h g)
 
 (* Buttons *)
+let edit_sep g = 5 + flex_w g / 40
 let edit_w g = 27 + flex_w g / 16
 let edit_h g = line_h g + 7 + flex_h g / 24
+let edit_x i j g = margin g + i * edit_sep g + j * edit_w g
 let edit_y g = if g.playlist_shown then - edit_h g else control_h g (* effectively hidden *)
-let edit_area i j g = (ep, margin g + i*5 + j*edit_w g, edit_y g, edit_w g, edit_h g)
+let edit_area i j g = (ep, edit_x i j g, edit_y g, edit_w g, edit_h g)
 let edit_button i j label key g = Ui.labeled_button g.ui (edit_area i j g) (button_label_h g) (Ui.inactive_color g.ui) label key true
 let edit_button2 i j key g = Ui.invisible_button g.ui (edit_area i j g) [`Shift] key true
 
@@ -409,6 +392,25 @@ let rev_key g = Ui.key g.ui key_rev
 
 let focus_next_key g = Ui.key g.ui key_next true
 let focus_prev_key g = Ui.key g.ui key_prev true
+
+(* Total text field *)
+let total_w g = - margin g - scrollbar_w g
+let total_x g = edit_x 4 7 g
+let total_y g = g.playlist_height + footer_y g  (* Hack: this is outside the pane *)
+let playlist_total_box g = Ui.box g.ui (pp, total_x g, total_y g, total_w g, line_h g) `Black
+let playlist_total_text g = Ui.text g.ui (pp, total_x g, total_y g + pad_h g, total_w g - (gutter_w g + 1)/2, text_h g) `Right
+
+let enlarge_text_key g = Ui.key g.ui key_textup true
+let reduce_text_key g = Ui.key g.ui key_textdn true
+
+let enlarge_grid_key g = Ui.key g.ui key_gridup true
+let reduce_grid_key g = Ui.key g.ui key_griddn true
+
+let enlarge_scale_key g = Ui.key g.ui key_scaleup true
+let reduce_scale_key g = Ui.key g.ui key_scaledn true
+
+let enlarge_popup_key g = Ui.key g.ui key_popupup true
+let reduce_popup_key g = Ui.key g.ui key_popupdn true
 
 
 (* Browser Pane *)
