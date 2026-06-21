@@ -623,7 +623,7 @@ let draw_lcd ui r c elem =
   let open Draw in
   let x, y, w, h = r in
   let m = h / 2 in
-  let l = max 1 (min w h / 6) in
+  let l = max 1 ((if elem = `Dots then h else min w h) / 6) in
   let s = l * 3 / 2 in
   let d = s - l in
   match elem with

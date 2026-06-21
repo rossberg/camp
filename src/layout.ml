@@ -276,7 +276,7 @@ let title_ticker g = Ui.ticker g.ui (cp, info_x g + info_margin g, ticker_y g, i
 let seek_bar g = Ui.progress_bar g.ui (cp, info_x g + seek_margin g, seek_y g, info_w g - seek_margin g, seek_h g)
 
 (* Time *)
-let lcd_space g = 3 + flex_w g / 80
+let lcd_space g = 3 + flex_w g / 40
 let colon_w _g = 4
 let lcd_w g = 14 + flex_w g / 24
 let lcd_h g = 20 + flex_h g / 6
