@@ -302,6 +302,9 @@ Other useful playlist actions:
 * Search (context menu on an entry): Search current Library view for a track
   with the same artist and title (only available when Library is open).
 
+* Adding/Removing columns (header context menu): Costumise which meta data
+  columns are shown.
+
 
 3.4 Playing Tracks Like a Pro: the Library
 ------------------------------------------
@@ -750,8 +753,9 @@ across sessions:
   system.)
 
 * Hide Covers: Ctrl/Command+Y hides the cover in the Control pane, whereas
-  Shift+Ctrl/Command+Y hides the the covers in Library list views. That would
-  primarily be for performance's sake.
+  Shift+Ctrl/Command+Y hides the the covers in Playlist and Library list
+  views. That would primarily be for performance's sake, because covers
+  take a _lot_ of memory.
 
 * FPS: Ctrl/Command+U toggles the display of an FPS counter in the Control
   pane. Note that this is soft-limited to 60.

@@ -15,6 +15,7 @@ type t =
   mutable reflection : int;
   mutable playlist_shown : bool;
   mutable playlist_height : int;
+  mutable playlist_headers : bool;
   mutable library_shown : bool;
   mutable library_width : int;
   mutable library_side : Api.side;
@@ -52,6 +53,7 @@ let make ui =
     reflection = 200;
     playlist_shown = false;
     playlist_height = 200;
+    playlist_headers = false;
     library_shown = false;
     library_width = 600;
     library_side = `Right;
@@ -289,6 +291,7 @@ let print_state' geo (ax, ay, aw, ah) =
     "text_sdf", bool (Ui.font_is_sdf geo.ui);
     "play_open", bool geo.playlist_shown;
     "play_height", float ah;
+    "play_headers", bool geo.playlist_headers;
     "lib_open", bool geo.library_shown;
     "lib_side", enum side_enum geo.library_side;
     "lib_width", float aw;
@@ -340,6 +343,8 @@ let parse_state geo =  (* assumes playlist and library loaded *)
       (fun b -> geo.playlist_shown <- b);
     apply (r $? "play_height") (float' (sw - control_min_w))
       (fun h -> rah := h);
+    apply (r $? "play_headers") bool
+      (fun b -> geo.playlist_headers <- b);
     apply (r $? "lib_open") bool
       (fun b -> geo.library_shown <- b);
     apply (r $? "lib_side") (enum side_enum)

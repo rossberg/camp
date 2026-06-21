@@ -730,6 +730,59 @@ struct
       "tracks", iarray track (if is_dir x then x.tracks else [||]);
       "error", string x.error;
     ]) x
+
+  let order_enum = ["asc", `Asc; "desc", `Desc]
+  let order (o : order) = enum order_enum o
+
+  let attr_enum =
+  [
+    "PLL", `Playlist;
+    "POS", `Pos;
+    "EXS", `FileExists;
+    "PTH", `FilePath;
+    "DIR", `FileDir;
+    "FIL", `FileName;
+    "EXT", `FileExt;
+    "SIZ", `FileSize;
+    "TIM", `FileTime;
+    "COD", `Codec;
+    "CHA", `Channels;
+    "DEP", `Depth;
+    "KHZ", `SampleRate;
+    "BPS", `BitRate;
+    "RES", `Rate;
+    "ART", `Artist;
+    "TIT", `Title;
+    "NAM", `Name;
+    "LEN", `Length;
+    "RAT", `Rating;
+    "ALA", `AlbumArtist;
+    "ALB", `AlbumTitle;
+    "ALN", `AlbumName;
+    "TRK", `Track;
+    "TRS", `Tracks;
+    "DSC", `Disc;
+    "DSS", `Discs;
+    "DTR", `DiscTrack;
+    "ALS", `Albums;
+    "DAT", `Date;
+    "YER", `Year;
+    "LAB", `Label;
+    "CTY", `Country;
+    "COV", `Cover;
+    "TRU", `True;
+    "FLS", `False;
+    "NOW", `Now;
+    "RND", `Random;
+  ]
+
+  let any_attr = enum attr_enum
+  let artist_attr (x : artist_attr) = any_attr (x :> any_attr)
+  let album_attr (x : album_attr) = any_attr (x :> any_attr)
+  let track_attr (x : track_attr) = any_attr (x :> any_attr)
+
+  let sorting attr = list (pair attr order)
+  let columns attr = iarray (pair attr nat)
 end
 
 module Parse =
@@ -809,6 +862,28 @@ struct
       error = string (r $ "error");
       view = make_view ();
     })
+
+  let order = enum Print.order_enum
+
+  let any_attr = enum Print.attr_enum
+
+  let artist_attr u =
+    match any_attr u with
+    | #artist_attr as x -> x
+    | _ -> raise Text.Type_error
+
+  let album_attr u =
+    match any_attr u with
+    | #album_attr as x -> x
+    | _ -> raise Text.Type_error
+
+  let track_attr u =
+    match any_attr u with
+    | #track_attr as x -> x
+    | _ -> raise Text.Type_error
+
+  let sorting attr = list (pair attr order)
+  let columns attr = iarray (pair attr nat)
 end
 
 module Encode =

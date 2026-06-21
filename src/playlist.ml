@@ -7,6 +7,7 @@ module Map = Map.Make(String)
 type path = Data.path
 type time = Data.time
 type track = Data.track
+type track_attr = Data.track_attr
 
 type shuffle =
 {
@@ -21,6 +22,7 @@ type 'a t =
   mutable total : time * int;
   mutable total_selected : time * int;
   mutable shuffle : shuffle option;
+  view : track_attr Library.view;
 }
 
 
@@ -204,6 +206,7 @@ let unredo pl f list =
     let shuffled = pl.shuffle <> None in
     unshuffle pl;  (* prevent nastiness *)
     f pl.table;
+    Array.iteri (fun i (track : track) -> track.pos <- i) pl.table.entries;
     if shuffled then shuffle pl pl.table.pos;
     refresh_total pl;
   )
@@ -228,6 +231,12 @@ let make () =
       total = 0.0, 0;
       total_selected = 0.0, 0;
       shuffle = None;
+      view =
+        {
+          shown = Some `Table;
+          sorting = [];
+          columns = [|`Pos, 0; `Name, 0; `Length, 0|];
+        }
     }
   in
   r := Some pl;
@@ -299,6 +308,9 @@ let insert pl pos tracks =
     let pos' = min pos len in
     Table.deselect_all pl.table;
     Table.insert pl.table pos' tracks;
+    for i = pos' to len + len' - 1 do
+      pl.table.entries.(i).pos <- i
+    done;
     Table.select pl.table pos' (pos' + len' - 1);
     pl.total <-
       add_total pl.total (fst (range_total pl pos' (pos' + len' - 1)));
@@ -339,6 +351,7 @@ let remove_if p pl n =
     let len = Table.length pl.table in
     let len' = len - n in
     let js = Table.remove_if p pl.table n in
+    Array.iter (fun (track : track) -> track.pos <- js.(track.pos)) pl.table.entries;
     refresh_total pl;
     Option.iter (fun shuffle ->
       let d = ref 0 in
@@ -461,6 +474,7 @@ let print_state pl =
     "pos", option nat pl.table.pos;
     "scroll", nat pl.table.vscroll;
     "shuffle", bool (pl.shuffle <> None);
+    "columns", Data.Print.(columns track_attr pl.view.columns);
   ]) pl
 
 let print_intern pl =
@@ -496,4 +510,6 @@ let parse_state pl =
       (fun i -> Table.set_vscroll pl.table i 1 4);
     apply (r $? "shuffle") bool
       (fun b -> if b then shuffle pl pl.table.pos);
+    apply (r $? "columns") Data.Parse.(columns track_attr)
+      (fun cols -> pl.view.columns <- cols);
   )

@@ -391,12 +391,12 @@ let attr_prop = function
   | `Rate -> "Rate", `Right
   | `Artist -> "Artist", `Left
   | `Title -> "Title", `Left
-  | `Name -> "Artist/Title", `Left
+  | `Name -> "Artist - Title", `Left
   | `Length -> "Length", `Right
   | `Rating -> "Rating", `Left
   | `AlbumArtist -> "Album Artist", `Left
   | `AlbumTitle -> "Album Title", `Left
-  | `AlbumName -> "Album Artist/Title", `Left
+  | `AlbumName -> "Album Artist - Title", `Left
   | `Track -> "Track", `Right
   | `Tracks -> "Tracks", `Right
   | `Disc -> "Disc", `Right
@@ -407,7 +407,7 @@ let attr_prop = function
   | `Year -> "Year", `Left
   | `Label -> "Label", `Left
   | `Country -> "Country", `Left
-  | `Cover -> "Cover", `Left
+  | `Cover -> "Cover", `Center
   | `True | `False | `Now | `Random | `None -> assert false
 
 let attr_name attr = fst (attr_prop (attr :> any_attr))
@@ -507,67 +507,14 @@ module Print =
 struct
   open Text.Print
 
-  let attr_enum =
-  [
-    "PLL", `Playlist;
-    "POS", `Pos;
-    "EXS", `FileExists;
-    "PTH", `FilePath;
-    "DIR", `FileDir;
-    "NAM", `FileName;
-    "EXT", `FileExt;
-    "SIZ", `FileSize;
-    "TIM", `FileTime;
-    "COD", `Codec;
-    "CHA", `Channels;
-    "DEP", `Depth;
-    "KHZ", `SampleRate;
-    "BPS", `BitRate;
-    "RES", `Rate;
-    "ART", `Artist;
-    "TIT", `Title;
-    "NAM", `Name;
-    "LEN", `Length;
-    "RAT", `Rating;
-    "ALA", `AlbumArtist;
-    "ALB", `AlbumTitle;
-    "ALN", `AlbumName;
-    "TRK", `Track;
-    "TRS", `Tracks;
-    "DSC", `Disc;
-    "DSS", `Discs;
-    "DTR", `DiscTrack;
-    "ALS", `Albums;
-    "DAT", `Date;
-    "YER", `Year;
-    "LAB", `Label;
-    "CTY", `Country;
-    "COV", `Cover;
-    "TRU", `True;
-    "FLS", `False;
-    "NOW", `Now;
-    "RND", `Random;
-  ]
-
-  let any_attr = enum attr_enum
-  let artist_attr (x : artist_attr) = any_attr (x :> any_attr)
-  let album_attr (x : album_attr) = any_attr (x :> any_attr)
-  let track_attr (x : track_attr) = any_attr (x :> any_attr)
-
   let display_enum = ["table", `Table; "grid", `Grid]
   let display = enum display_enum
-
-  let order_enum = ["asc", `Asc; "desc", `Desc]
-  let order = enum order_enum
-
-  let sorting attr = list (pair attr order)
-  let columns attr = iarray (pair attr nat)
 
   let view attr =
     record (fun (x : 'a view) -> [
       "shown", option display x.shown;
-      "columns", columns attr x.columns;
-      "sort", sorting attr x.sorting;
+      "columns", Data.Print.columns attr x.columns;
+      "sort", Data.Print.sorting attr x.sorting;
     ])
 
   let views full =
@@ -577,9 +524,9 @@ struct
     ] @ if not (x.custom || full) then [] else [
       "div_w", int x.divider_width;
       "div_h", int x.divider_height;
-      "artists", view artist_attr x.artists;
-      "albums", view album_attr x.albums;
-      "tracks", view track_attr x.tracks;
+      "artists", view Data.Print.artist_attr x.artists;
+      "albums", view Data.Print.album_attr x.albums;
+      "tracks", view Data.Print.track_attr x.tracks;
     ])
 
   let dir (x : dir) = views false x.view
@@ -595,34 +542,13 @@ module Parse =
 struct
   open Text.Parse
 
-  let any_attr = enum Print.attr_enum
-
-  let artist_attr u =
-    match any_attr u with
-    | #artist_attr as x -> x
-    | _ -> raise Text.Type_error
-
-  let album_attr u =
-    match any_attr u with
-    | #album_attr as x -> x
-    | _ -> raise Text.Type_error
-
-  let track_attr u =
-    match any_attr u with
-    | #track_attr as x -> x
-    | _ -> raise Text.Type_error
-
   let display = enum Print.display_enum
-  let order = enum Print.order_enum
-
-  let sorting attr = list (pair attr order)
-  let columns attr = iarray (pair attr nat)
 
   let view attr : t -> 'a view =
     record (fun r -> {
       shown = option display (r $ "shown");
-      columns = columns attr (r $ "columns");
-      sorting = sorting attr (r $ "sort");
+      columns = Data.Parse.columns attr (r $ "columns");
+      sorting = Data.Parse.sorting attr (r $ "sort");
     })
 
   let views : t -> views =
@@ -631,9 +557,9 @@ struct
       custom = default true bool (r $? "custom");
       divider_width = int (r $ "div_w");
       divider_height = int (r $ "div_h");
-      artists = view artist_attr (r $ "artists");
-      albums = view album_attr (r $ "albums");
-      tracks = view track_attr (r $ "tracks");
+      artists = view Data.Parse.artist_attr (r $ "artists");
+      albums = view Data.Parse.album_attr (r $ "albums");
+      tracks = view Data.Parse.track_attr (r $ "tracks");
     })
 
   let views_noncustom (view : views) =

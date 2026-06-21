@@ -839,7 +839,7 @@ let run_view (st : state)
         | Some img -> `Image img
         | None -> `Text ""
         )
-      | _ -> `Text (attr_string entry attr)
+      | _ -> `Text (String.trim (attr_string entry attr))
     ) view.columns
   in
 

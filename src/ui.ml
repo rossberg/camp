@@ -1235,13 +1235,18 @@ type heading = string iarray * sorting
 
 let table_pad gw = (gw + 1)/2
 
+let flex_total w gw cols =
+  let mw = table_pad gw in  (* inner width padding *)
+  max 0 (w - Iarray.fold_left (fun w (cw, _) -> w + cw + gw) (2 * mw - gw + 1) cols)
+
+let fix_w flex cw = if cw < 0 then flex / (- cw) else cw
+
 let draw_table ui area gw ch ph cols rows hscroll =
   let x, y, w, h = dim ui area in
   Draw.fill ui.win x y w h `Black;
   let rh = ch + 2 * ph in
   let mw = table_pad gw in  (* inner width padding *)
-  let flex = max 0
-    (w - Iarray.fold_left (fun w (cw, _) -> w + cw + gw) (2 * mw - gw + 1) cols) in
+  let flex = flex_total w gw cols in
   let font = font ui ch in
   (* Draw row background first since it must be unclipped. *)
   Iarray.iteri (fun j (fg, inv, _contents) ->
@@ -1252,7 +1257,7 @@ let draw_table ui area gw ch ph cols rows hscroll =
   ) rows;
   let cx = ref (x + mw - hscroll) in
   Iarray.iteri (fun i (cw, align) ->
-    let cw = if cw < 0 then flex / (- cw) else cw in
+    let cw = fix_w flex cw in
     let cw' = min cw (x + w - mw - !cx) in
     let left = max !cx (x + mw) in
     Draw.clip ui.win left y (cw' - max 0 (left - !cx)) h;
@@ -1292,34 +1297,36 @@ let draw_table ui area gw ch ph cols rows hscroll =
     cx := !cx + cw + gw;
   ) cols
 
-let find_column gw cols hscroll dx =
+let find_column w gw cols hscroll dx =
   let mw = table_pad gw in
+  let flex = flex_total w gw cols in
   let rec find i cx =
     if i = Iarray.length cols then None else
-    let cx' = cx + fst (Iarray.get cols i) in
+    let cx' = cx + fix_w flex (fst (Iarray.get cols i)) in
     if dx >= cx && dx < cx' then Some i else
     if dx >= cx' then find (i + 1) (cx' + gw) else
     None
   in find 0 (mw - hscroll)
 
-let find_gutter gw cols hscroll dx =
+let find_gutter w gw cols hscroll dx =
   let mw = table_pad gw in
+  let flex = flex_total w gw cols in
   let gutter_tolerance = 5 in
   let rec find i cx =
     if i = Iarray.length cols then `None else
-    let cx' = cx + fst (Iarray.get cols i) in
+    let cx' = cx + fix_w flex (fst (Iarray.get cols i)) in
     if abs (cx' + gw/2 - dx) < gutter_tolerance then `Gutter i else
     if cx' + gw/2 < dx then find (i + 1) (cx' + gw) else
     `Header i
   in find 0 (mw - hscroll)
 
 let table ui area gw ch ph cols rows hscroll =
-  let (x, y, _, _), status = widget ui area no_modkey in
+  let (x, y, w, _), status = widget ui area no_modkey in
   draw_table ui area gw ch ph cols rows hscroll;
   if status = `Pressed || status = `Released then
     let mx, my = Mouse.pos ui.win in
     let rh = ch + 2 * ph in
-    Some ((my - y) / rh), find_column gw cols hscroll (mx - x)
+    Some ((my - y) / rh), find_column w gw cols hscroll (mx - x)
   else
     None, None
 
@@ -1340,9 +1347,12 @@ let header ui area ph gw cols (titles, sorting) hscroll =
     [|text_color ui, `Inverted, texts|] hscroll);
 
   let mw = table_pad gw in
+  let flex = max 0  (* mirrors draw_table *)
+    (w - Iarray.fold_left (fun w (cw, _) -> w + cw + gw) (2 * mw - gw + 1) cols) in
   Draw.clip ui.win x y w h;
   ignore (
     Iarray.fold_left (fun cx (cw, _) ->
+      let cw = if cw < 0 then flex / (- cw) else cw in
       Draw.fill ui.win (cx + cw + gw/2 - hscroll) y 1 h `Black;
       cx + cw + gw;
     ) (x + mw) cols - x - mw
@@ -1364,8 +1374,8 @@ let header ui area ph gw cols (titles, sorting) hscroll =
   ) sorting;
   Draw.unclip ui.win;
 
-  let find_gutter cols mx = find_gutter gw cols hscroll (mx - x) in
-  let find_column cols mx = find_column gw cols hscroll (mx - x) in
+  let find_gutter cols mx = find_gutter w gw cols hscroll (mx - x) in
+  let find_column cols mx = find_column w gw cols hscroll (mx - x) in
 
   let mx, my = Mouse.pos ui.win in
   match ui.drag_extra with
@@ -1402,9 +1412,10 @@ let header ui area ph gw cols (titles, sorting) hscroll =
     Mouse.set_cursor ui.win (`Resize `E_W);
     let dx = mx - mouse_x in
     if dx = 0 then `None else
-    let ws = Array.init (Iarray.length cols) (fun i -> fst (Iarray.get cols i)) in
+    let len = Iarray.length cols in
+    let ws = Array.init len (fun j -> fix_w flex (fst (Iarray.get cols j))) in
     ws.(i) <- max 0 (ws.(i) + dx);
-    if i + 1 < Array.length ws && is_shift_down () then
+    if i + 1 < len && (fst (Iarray.get cols i) < 0 || is_shift_down ()) then
       ws.(i + 1) <- max 0 (ws.(i + 1) - dx);
     ui.drag_extra <- Header_resize {mouse_x = mx; col = i};
     `Resize (Iarray.of_array ws)
@@ -1487,13 +1498,13 @@ let rich_table_inner_area _ui area geo =
 
 let rich_table_mouse ui area geo cols (tab : _ Table.t) =
   let area' = rich_table_inner_area ui area geo in
-  let (x, y, _, _) as r = dim ui area' in
+  let (x, y, w, _) as r = dim ui area' in
   let (mx, my) as m = Mouse.pos ui.win in
   if inside m r then
     let row = (my - y) / (geo.text_h + 2 * geo.pad_h) + tab.vscroll in
     Some (
       (if row < Table.length tab then Some row else None),
-      find_column geo.gutter_w cols tab.hscroll (mx - x)
+      find_column w geo.gutter_w cols tab.hscroll (mx - x)
     )
   else
     None
@@ -1575,7 +1586,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
     let left_mouse_used = (status = `Pressed || status = `Released) in
 
     let find_column cols mx =
-      find_column geo.gutter_w cols tab.hscroll (mx - x) in
+      find_column w geo.gutter_w cols tab.hscroll (mx - x) in
 
     let result =
       if not ui.modal && ui.drag_extra = No_drag

@@ -7,6 +7,8 @@ type state = State.t
 
 let refresh_delay = 9
 
+let (.$()) = Iarray.get
+
 let start_time = Unix.gettimeofday ()
 let time () = Unix.gettimeofday () -. start_time
 
@@ -34,6 +36,11 @@ let fmt_time3 t =
 
 (* Runner *)
 
+let convert_sorting columns sorting =
+  let index attr = Iarray.find_index (fun (a, _) -> a = attr) columns in
+  List.map (fun (attr, order) -> Option.get (index attr), order) sorting
+
+
 let run (st : state) =
   let pl = st.playlist in
   let geo = st.geometry in
@@ -59,7 +66,22 @@ let run (st : state) =
   let s_time = String.make !digits_time '0' ^ ":00" in
   let cw_pos = Api.Draw.text_width win geo.text font s_pos + 1 in
   let cw_time = Api.Draw.text_width win geo.text font s_time + 1 in
+(*
   let cols : _ iarray = [|cw_pos, `Right; -1, `Left; cw_time, `Right|] in
+*)
+  let cols =
+    Iarray.map (fun (attr, cw) ->
+      let cw' =
+        match attr with
+        | `Pos -> max cw cw_pos
+        | `Length -> max cw cw_time
+        | `Name -> -1
+        | _ -> cw
+      in cw', Library.attr_align attr
+    ) pl.view.columns
+  in
+  let headings =
+    Iarray.map (fun (attr, _) -> Library.attr_name attr) pl.view.columns in
 
   if Api.Draw.frame win mod refresh_delay = 0 then
     Table.dirty tab;  (* to capture track updates *)
@@ -85,6 +107,7 @@ let run (st : state) =
       if tab.pos <> Some i then c1 else
       if normal then c2 else Api.Color.mix c1 c2
     in
+(*
     let time = Track.time track in
     let stime = if time = 0.0 then "" else fmt_time time in
     c, [|
@@ -92,11 +115,36 @@ let run (st : state) =
       `Text (Track.name track);
       `Text stime
     |]
+*)
+    c, Iarray.map (fun (attr, _) ->
+      match attr with
+      | `Cover ->
+        if not st.library.covers_shown then `Text "" else
+        (match Library.load_cover st.library win track.path with
+        | Some img -> `Image img
+        | None -> `Text ""
+        )
+      | _ -> `Text (String.trim (Data.track_attr_string track attr))
+    ) pl.view.columns
   in
 
-  (match Layout.playlist_table geo cols None tab pp_row with
-  | `None | `Scroll -> ()
-  | `Sort _ | `Resize _ | `Reorder _ | `HeadMenu _ -> assert false
+  let sorting = convert_sorting pl.view.columns pl.view.sorting in
+  let header = if geo.playlist_headers then Some (headings, sorting) else None in
+  (match Layout.playlist_table geo cols header tab pp_row with
+  | `None | `Scroll | `Sort _ -> ()
+
+  | `Resize ws ->
+    (* Column resizing: update column widths *)
+    pl.view.columns <-
+      Iarray.mapi (fun i (attr, w) ->
+        attr, if attr = `Name then w else ws.$(i)
+      ) pl.view.columns;
+    State.save st;
+
+  | `Reorder perm ->
+    (* Column reordering: update columns *)
+    pl.view.columns <- Data.permute perm pl.view.columns;
+    State.save st;
 
   | `Select ->
     State.focus_playlist st;
@@ -111,9 +159,17 @@ let run (st : state) =
     Table.dirty st.library.tracks;  (* redraw for current track *)
     Table.dirty st.library.browser;
 
-  | `Click _ ->
+  | `Click loc ->
     (* Single-click: grab focus *)
-    if Api.Mouse.is_pressed `Left then State.focus_playlist st;
+    if Api.Mouse.is_pressed `Left then
+    (
+      State.focus_playlist st;
+      match loc with
+      | Some i, Some j when fst pl.view.columns.$(j) = `Cover ->
+        (* Click on cover cell: open cover popup *)
+        Run_menu.popup st (`Track tab.entries.(i));
+      | _ -> ()
+    );
     Playlist.refresh_total_selected pl;
 
   | `Move delta ->
@@ -215,6 +271,30 @@ let run (st : state) =
       | _ -> []
     in
     Run_view.(edit_menu st (playlist_view st) search i_opt)
+
+  | `HeadMenu i_opt ->
+    (* Right-click on header: header menu *)
+    State.focus_playlist st;
+    let used_attrs = Iarray.to_list (Iarray.map fst pl.view.columns) in
+    let unused_attrs = Data.diff_attrs Data.track_attrs used_attrs in
+    let i, current_attrs =
+      match i_opt with
+      | None -> Iarray.length pl.view.columns, []
+      | Some i ->
+        match fst pl.view.columns.$(i) with
+        | `Pos | `Name -> i, []  (* cannot be removed *)
+        | attr -> i, [attr]
+    in
+    Run_menu.header_menu st pl.view i current_attrs unused_attrs
+  );
+
+  if geo.popup_shown <> None && Api.Mouse.is_down `Left then
+  (
+    match Layout.playlist_mouse geo cols tab with
+    | Some (Some i, _) ->
+      (* Drag with active cover popup: update cover *)
+      Run_menu.popup st (`Track tab.entries.(i));
+    | _ -> ()
   );
 
   (* Playlist file drag & drop *)

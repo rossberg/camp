@@ -341,9 +341,9 @@ let playlist_pane g = Ui.pane g.ui pp (playlist_x g, playlist_y g, playlist_w g,
 
 (* Playlist *)
 let playlist_area g = (pp, margin g, margin g, - margin g, - 1)
-let playlist_table g = Ui.rich_table g.ui (playlist_area g) (rich_table g 0 false)
-let playlist_mouse g = Ui.rich_table_mouse g.ui (playlist_area g) (rich_table g 0 false)
-let playlist_drag g = Ui.rich_table_drag g.ui (playlist_area g) (rich_table g 0 false) `Above
+let playlist_table g = Ui.rich_table g.ui (playlist_area g) (rich_table g 0 g.playlist_headers)
+let playlist_mouse g = Ui.rich_table_mouse g.ui (playlist_area g) (rich_table g 0 g.playlist_headers)
+let playlist_drag g = Ui.rich_table_drag g.ui (playlist_area g) (rich_table g 0 g.playlist_headers) `Above
 
 (* Total text field *)
 let total_w g = - margin g - scrollbar_w g

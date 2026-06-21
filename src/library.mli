@@ -150,7 +150,7 @@ val end_log : 'a t -> unit
 (* Views *)
 
 val attr_name : [< any_attr] -> string
-val attr_align : [< any_attr] -> [> `Left | `Right]
+val attr_align : [< any_attr] -> [`Left | `Right | `Center]
 
 val refresh_tracks_sync : 'a t -> unit
 val refresh_albums_tracks_sync : 'a t -> unit
