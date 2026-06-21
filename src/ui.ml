@@ -623,38 +623,41 @@ let draw_lcd ui r c elem =
   let open Draw in
   let x, y, w, h = r in
   let m = h / 2 in
+  let l = max 1 (min w h / 6) in
+  let s = l * 3 / 2 in
+  let d = s - l in
   match elem with
   | `N ->
-    fill ui.win (x + 3) (y + 0) (w - 6) 2 c;
-    tri ui.win (x + 1) (y + 0) (x + 3) (y + 2) (x + 3) (y + 0) c;
-    tri ui.win (x + w - 1) (y + 0) (x + w - 3) (y + 0) (x + w - 3) (y + 2) c;
+    fill ui.win (x + s) (y + 0) (w - 2*s) l c;
+    tri ui.win (x + d) (y + 0) (x + s) (y + l) (x + s) (y + 0) c;
+    tri ui.win (x + w - d) (y + 0) (x + w - s) (y + 0) (x + w - s) (y + l) c;
   | `S ->
-    fill ui.win (x + 3) (y + h - 2) (w - 6) 2 c;
-    tri ui.win (x + 1) (y + h) (x + 3) (y + h) (x + 3) (y + h - 2) c;
-    tri ui.win (x + w - 1) (y + h) (x + w - 3) (y + h - 2) (x + w - 3) (y + h) c;
+    fill ui.win (x + s) (y + h - l) (w - 2*s) l c;
+    tri ui.win (x + d) (y + h) (x + s) (y + h) (x + s) (y + h - l) c;
+    tri ui.win (x + w - d) (y + h) (x + w - s) (y + h - l) (x + w - s) (y + h) c;
   | `C ->
-    fill ui.win (x + 3) (y + m - 1) (w - 6) 2 c;
-    tri ui.win (x + 1) (y + m - 1) (x + 3) (y + m + 1) (x + 3) (y + m - 1) c;
-    tri ui.win (x + w - 1) (y + m - 1) (x + w - 3) (y + m - 1) (x + w - 3) (y + m + 1) c;
+    fill ui.win (x + s) (y + m - l/2) (w - 2*s) l c;
+    tri ui.win (x + d) (y + m - l/2) (x + s) (y + m + l/2) (x + s) (y + m - l/2) c;
+    tri ui.win (x + w - d) (y + m - l/2) (x + w - s) (y + m - l/2) (x + w - s) (y + m + l/2) c;
   | `NW ->
-    fill ui.win (x + 0) (y + 3) 2 (m - 6) c;
-    tri ui.win (x + 0) (y + 1) (x + 0) (y + 3) (x + 2) (y + 3) c;
-    tri ui.win (x + 0) (y + m - 1) (x + 2) (y + m - 3) (x + 0) (y + m - 3) c;
+    fill ui.win (x + 0) (y + s) l (m - 2*s) c;
+    tri ui.win (x + 0) (y + d) (x + 0) (y + s) (x + l) (y + s) c;
+    tri ui.win (x + 0) (y + m - d) (x + l) (y + m - s) (x + 0) (y + m - s) c;
   | `NE ->
-    fill ui.win (x + w - 2) (y + 3) 2 (m - 6) c;
-    tri ui.win (x + w) (y + 1) (x + w - 2) (y + 3) (x + w) (y + 3) c;
-    tri ui.win (x + w) (y + m - 1) (x + w) (y + m - 3) (x + w - 2) (y + m - 3) c;
+    fill ui.win (x + w - l) (y + s) l (m - 2*s) c;
+    tri ui.win (x + w) (y + d) (x + w - l) (y + s) (x + w) (y + s) c;
+    tri ui.win (x + w) (y + m - d) (x + w) (y + m - s) (x + w - l) (y + m - s) c;
   | `SW ->
-    fill ui.win (x + 0) (y + m + 3) 2 (h - m - 6) c;
-    tri ui.win (x + 0) (y + m + 1) (x + 0) (y + m + 3) (x + 2) (y + m + 3) c;
-    tri ui.win (x + 0) (y + h - 1) (x + 2) (y + h - 3) (x + 0) (y + h - 3) c;
+    fill ui.win (x + 0) (y + m + s) l (h - m - 2*s) c;
+    tri ui.win (x + 0) (y + m + d) (x + 0) (y + m + s) (x + l) (y + m + s) c;
+    tri ui.win (x + 0) (y + h - d) (x + l) (y + h - s) (x + 0) (y + h - s) c;
   | `SE ->
-    fill ui.win (x + w - 2) (y + m + 3) 2 (h - m - 6) c;
-    tri ui.win (x + w) (y + m + 1) (x + w - 2) (y + m + 3) (x + w) (y + m + 3) c;
-    tri ui.win (x + w) (y + h - 1) (x + w) (y + h - 3) (x + w - 2) (y + h - 3) c;
+    fill ui.win (x + w - l) (y + m + s) l (h - m - 2*s) c;
+    tri ui.win (x + w) (y + m + d) (x + w - l) (y + m + s) (x + w) (y + m + s) c;
+    tri ui.win (x + w) (y + h - d) (x + w) (y + h - s) (x + w - l) (y + h - s) c;
   | `Dots ->
-    fill ui.win x (y + h / 4) 2 2 c;
-    fill ui.win x (y + 3 * h / 4) 2 2 c
+    fill ui.win x (y + h / 4) l l c;
+    fill ui.win x (y + 3 * h / 4) l l c
 
 let lcd ui area d =
   let r = dim ui area in

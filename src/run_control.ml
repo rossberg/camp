@@ -359,7 +359,7 @@ let run (st : state) =
       Api.Draw.fill win x' (y + h - hy) w' hy yellow;
       let hg = min hr hg in
       Api.Draw.fill win x' (y + h - hg) w' hg green;
-      for j = 0 to h/2 - 1 do
+      for j = 0 to (h + 1)/2 - 1 do
         Api.Draw.fill win x (y + 2 * j) w 1 `Black;
       done
     done

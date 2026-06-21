@@ -181,7 +181,7 @@ let ctl_h g = 30 + flex_h g / 10
 let ctl_y g = - 8 - ctl_h g - min (margin g) (flex_h g / 20)
 let control_button i sym key g =
   Ui.labeled_button g.ui (cp, margin g + i * ctl_w g, ctl_y g, ctl_w g, ctl_h g)
-    ~protrude: false 10 (Ui.active_color g.ui) sym key
+    ~protrude: false (10 + flex g / 30) (Ui.active_color g.ui) sym key
 
 let bwd_button = control_button 0 "<<" key_bwd
 let play_button = control_button 1 ">" key_play
@@ -278,7 +278,7 @@ let seek_bar g = Ui.progress_bar g.ui (cp, info_x g + seek_margin g, seek_y g, i
 (* Time *)
 let lcd_space g = 3 + flex_w g / 80
 let colon_w _g = 4
-let lcd_w g = 14 + flex_w g / 30
+let lcd_w g = 14 + flex_w g / 24
 let lcd_h g = 20 + flex_h g / 6
 let lcd_x g i = margin g + info_margin g + i*(lcd_w g + lcd_space g)
 let lcd_y g = margin g + info_margin g + 10
@@ -294,7 +294,7 @@ let lcd_button g = Ui.mouse g.ui (cp, lcd_x g 0, lcd_y g, colon_w g + lcd_x g 4,
 let visual_x g = lcd_x g 5 + 28 + flex_w g / 20
 let visual_y g = info_y g + info_margin g
 let visual_w g = volume_x g - 16
-let visual_h g = prop_y g - margin g - flex_h g / 20
+let visual_h g = prop_y g - info_margin g
 let visual_indicator g i = Ui.box g.ui (cp, visual_x g - 8, visual_y g + 8 * i, 4, 4) (Ui.text_color g.ui)
 let visual_button g = Ui.mouse g.ui (cp, visual_x g - 20, visual_y g, 20, visual_h g) `Left
 let visual_key g = Ui.key g.ui key_visual true
