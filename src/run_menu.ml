@@ -15,43 +15,55 @@ let command_menu st cmds =
   menu' st (Iarray.map fst cmds) (fun k -> snd (Iarray.get cmds k) ())
 
 
-let header_menu (st : state) (view : _ Library.view) i current_attrs unused_attrs =
+let header_menu (st : state) (view : _ Library.view) i current_attrs unused_attrs hide =
   let c = Ui.text_color st.geometry.ui in
-  if current_attrs = [] && unused_attrs = [] then
-  (
-    menu' st [|`Entry (c, "(Nothing to add)", Layout.nokey, false)|] ignore
-  )
-  else
-  (
-    let removes = current_attrs |>
-      List.map (fun a ->
-        `Entry (c, "Remove " ^ Library.attr_name a, Layout.nokey, true), a)
-      |> List.sort compare in
-    let adds = unused_attrs |>
-      List.map (fun a ->
-        `Entry (c, "Add " ^ Library.attr_name a, Layout.nokey, true), a)
-      |> List.sort compare in
-    let sep = if removes = [] || adds = [] then [] else [`Separator] in
-    let items = Iarray.of_list List.(map fst removes @ sep @ map fst adds) in
-    menu' st items (fun k ->
-      let n = if removes = [] then -1 (* no sep! *) else List.length removes in
-      let attrs = Iarray.to_list view.columns in
-      let attrs' =
-        match compare k n with
-        | -1 ->  (* remove entry *)
-          let _, attr = List.nth removes k in
-          view.sorting <- List.filter (fun (a, _) -> a <> attr) view.sorting;
-          List.filter (fun (a, _) -> a <> attr) attrs
-        | +1 when adds <> [] ->  (* add entry *)
-          let _, attr = List.nth adds (k - n - 1) in
-          let i' = min (i + 1) (List.length attrs) in
-          List.take i' attrs @ [attr, 40] @ List.drop i' attrs
-        | _ ->  (* separator *)
-          attrs
-      in
-      view.columns <- Iarray.of_list attrs';
-      Option.iter (Library.save_dir st.library) st.library.current
+  let (items1 : _ iarray), f =
+    if current_attrs <> [] || unused_attrs <> [] then
+    (
+      let removes = current_attrs |>
+        List.map (fun a ->
+          `Entry (c, "Remove " ^ Library.attr_name a, Layout.nokey, true), a)
+        |> List.sort compare in
+      let adds = unused_attrs |>
+        List.map (fun a ->
+          `Entry (c, "Add " ^ Library.attr_name a, Layout.nokey, true), a)
+        |> List.sort compare in
+      let sep = if removes = [] || adds = [] then [] else [`Separator] in
+      Iarray.of_list List.(map fst removes @ sep @ map fst adds),
+      (fun k ->
+        let n = if removes = [] then -1 (* no sep! *) else List.length removes in
+        let attrs = Iarray.to_list view.columns in
+        let attrs' =
+          match compare k n with
+          | -1 ->  (* remove entry *)
+            let _, attr = List.nth removes k in
+            view.sorting <- List.filter (fun (a, _) -> a <> attr) view.sorting;
+            List.filter (fun (a, _) -> a <> attr) attrs
+          | +1 when adds <> [] ->  (* add entry *)
+            let _, attr = List.nth adds (k - n - 1) in
+            let i' = min (i + 1) (List.length attrs) in
+            List.take i' attrs @ [attr, 40] @ List.drop i' attrs
+          | _ ->  (* separator *)
+            attrs
+        in
+        view.columns <- Iarray.of_list attrs';
+        Option.iter (Library.save_dir st.library) st.library.current
+      )
     )
+    else
+    (
+      [|`Entry (c, "(Nothing to add)", Layout.nokey, false)|], ignore
+    )
+  in
+  let items2 : _ iarray =
+    if hide = None then [||] else
+    [|`Separator; `Entry (c, "Hide Column Headers", Layout.nokey, true)|]
+  in
+  menu' st (Iarray.append items1 items2) (fun k ->
+    match hide with
+    | Some g when k = Iarray.length items1 + 1 -> g ()
+    | Some _ when k = Iarray.length items1 -> ()
+    | _ -> f k
   )
 
 
@@ -79,10 +91,11 @@ let run (st : state) =
     Menu.clear menu
 
   | `Click k ->
-    Option.get st.menu.op k;
+    let f = Option.get st.menu.op in
     Ui.nonmodal geo.ui;
     geo.menu_shown <- false;
-    Menu.clear menu
+    Menu.clear menu;
+    f k
 
 
 let run_popup (st : state) =

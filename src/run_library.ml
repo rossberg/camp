@@ -1055,14 +1055,14 @@ let run_view (st : state)
   | `HeadMenu i_opt ->
     (* Right-click on header: header menu *)
     State.focus_library tab st;
-    let used_attrs = Iarray.to_list (Iarray.map fst view.columns) in
-    let unused_attrs = Data.diff_attrs all_attrs used_attrs in
-    let i, current_attrs =
-      match i_opt with
-      | None -> Iarray.length view.columns, []
-      | Some i -> i, [fst view.columns.$(i)]
-    in
-    Run_menu.header_menu st view i current_attrs unused_attrs
+    let current_attrs = Iarray.to_list (Iarray.map fst view.columns) in
+    let unused_attrs = Data.diff_attrs all_attrs current_attrs in
+(*
+    let used_attrs = Data.diff_attrs current_attrs unused_attrs in
+*)
+    let i = Option.value i_opt ~default: (Iarray.length view.columns) in
+    let removable_attrs = if i_opt = None then [] else [fst view.columns.$(i)] in
+    Run_menu.header_menu st view i removable_attrs unused_attrs None
   );
 
   if busy then

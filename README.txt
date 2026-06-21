@@ -302,8 +302,9 @@ Other useful playlist actions:
 * Search (context menu on an entry): Search current Library view for a track
   with the same artist and title (only available when Library is open).
 
-* Adding/Removing columns (header context menu): Costumise which meta data
-  columns are shown.
+* Adding/Removing columns (header context menu): Customise which meta data
+  columns are shown. You first need to toggle Show Column Headers from the
+  Playlist context menu.
 
 
 3.4 Playing Tracks Like a Pro: the Library

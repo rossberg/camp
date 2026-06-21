@@ -275,17 +275,20 @@ let run (st : state) =
   | `HeadMenu i_opt ->
     (* Right-click on header: header menu *)
     State.focus_playlist st;
-    let used_attrs = Iarray.to_list (Iarray.map fst pl.view.columns) in
-    let unused_attrs = Data.diff_attrs Data.track_attrs used_attrs in
-    let i, current_attrs =
-      match i_opt with
-      | None -> Iarray.length pl.view.columns, []
-      | Some i ->
-        match fst pl.view.columns.$(i) with
-        | `Pos | `Name -> i, []  (* cannot be removed *)
-        | attr -> i, [attr]
+    let current_attrs = Iarray.to_list (Iarray.map fst pl.view.columns) in
+    let unused_attrs = Data.diff_attrs Data.track_attrs current_attrs in
+    (* Cannot remove Pos or Name *)
+(*
+    let used_attrs = Data.diff_attrs current_attrs (`Pos :: `Name :: unused_attrs) in
+*)
+    let i = Option.value i_opt ~default: (Iarray.length pl.view.columns) in
+    let removable_attrs =
+      if i_opt = None then [] else
+      let attr = fst pl.view.columns.$(i) in
+      if attr = `Pos || attr = `Name then [] else [attr]
     in
-    Run_menu.header_menu st pl.view i current_attrs unused_attrs
+    Run_menu.header_menu st pl.view i removable_attrs unused_attrs
+      (Some (fun () -> geo.playlist_headers <- false))
   );
 
   if geo.popup_shown <> None && Api.Mouse.is_down `Left then

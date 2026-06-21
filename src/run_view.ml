@@ -39,6 +39,10 @@ let spin_changed (st : state) =
 
 (* Generic abstraction *)
 
+(* Because we cannot define a bounded abstract type attr < Data.any_attr
+ * in the signature, we have to encode the existential quantification. *)
+type modifyer = {f : 'a. ([< Data.any_attr] as 'a) Library.view -> 'a list -> unit}
+
 module type View =
 sig
   open Data
@@ -62,6 +66,12 @@ sig
   val deselect_other : unit -> unit
   val refresh_deps : 'a Library.t -> unit
 
+  val modify_view : (modifyer -> unit) option
+(*
+  val view_mode : attr Library.view option
+  val attrs : attr list
+  val diff_attrs : attr list -> attr list -> attr list
+*)
   (* Ops on the underlying tracks table *)
 
   val length : Ui.cached t -> int
@@ -107,6 +117,12 @@ let playlist_view (st : state) : view =
     let focus = State.focus_playlist
     let deselect_other () = Library.deselect_all st.library
     let refresh_deps = ignore
+    let modify_view = Some (fun {f} -> f it.view Data.track_attrs)
+(*
+    let view_mode = Some it.view
+    let attrs = List.filter (fun a -> a <> `Pos && a <> `Name) Data.track_attrs
+    let diff_attrs = Data.diff_attrs
+*)
   end)
 
 let tracks_view (st : state) : view =
@@ -120,6 +136,15 @@ let tracks_view (st : state) : view =
     let focus = State.focus_library st.library.tracks
     let deselect_other () = Playlist.deselect_all st.playlist
     let refresh_deps = ignore
+    let modify_view =
+      Option.map (fun (dir : dir) {f} ->
+        f dir.view.tracks Data.track_attrs
+      ) it.current
+(*
+    let view_mode = Option.map (fun (dir : dir) -> dir.view.tracks) it.current
+    let attrs = Data.track_attrs
+    let diff_attrs = Data.diff_attrs
+*)
   end)
 
 let albums_view (st : state) : view =
@@ -133,6 +158,15 @@ let albums_view (st : state) : view =
     let focus = State.focus_library tab
     let deselect_other = ignore
     let refresh_deps lib = Library.refresh_tracks lib
+    let modify_view =
+      Option.map (fun (dir : dir) {f} ->
+        f dir.view.albums Data.album_attrs
+      ) it.current
+(*
+    let view_mode = Option.map (fun (dir : dir) -> dir.view.albums) it.current
+    let attrs = Data.album_attrs
+    let diff_attrs = Data.diff_attrs
+*)
   end)
 
 let artists_view (st : state) : view =
@@ -146,6 +180,15 @@ let artists_view (st : state) : view =
     let focus = State.focus_library tab
     let deselect_other = ignore
     let refresh_deps lib = Library.refresh_albums_tracks lib
+    let modify_view =
+      Option.map (fun (dir : dir) {f} ->
+        f dir.view.artists Data.artist_attrs
+      ) it.current
+(*
+    let view_mode = Option.map (fun (dir : dir) -> dir.view.artists) it.current
+    let attrs = Data.artist_attrs
+    let diff_attrs = Data.diff_attrs
+*)
   end)
 
 
@@ -905,6 +948,21 @@ let select_invert (st : state) (module View : View) =
 
 (* Initiate Menus *)
 
+let _header_menu (st : state) (module View : View) =
+  Option.iter (fun modify -> modify {f = fun (view : _ Library.view) attrs ->
+    if view.shown = Some `Table then
+    (
+      let current_attrs = Iarray.to_list (Iarray.map fst view.columns) in
+      let unused_attrs = Data.diff_attrs attrs current_attrs in
+      let used_attrs = Data.diff_attrs current_attrs unused_attrs in
+      let i = Iarray.length view.columns in
+      Run_menu.header_menu st view i used_attrs unused_attrs
+        (if View.(table it) != st.playlist.table then None else
+          Some (fun () -> st.geometry.playlist_shown <- false))
+    )
+  }) View.modify_view
+
+
 let subject_tracks' (module View : View) all =
   if all
   then all, " All", fun () -> View.(tracks it)
@@ -977,6 +1035,15 @@ let list_menu (st : state) view searches =
         queue_avail st view),
         (fun () -> queue st view true);
     |];
+(*
+    (if View.modify_view = None then [||] else
+      [|
+        `Separator, ignore;
+        `Entry (c, "Customise Columns...", Layout.nokey, true),
+          (fun () -> header_menu st view);
+      |]
+    )
+*)
   ])
 
 let edit_menu (st : state) view searches pos_opt =
@@ -1077,6 +1144,23 @@ let edit_menu (st : state) view searches pos_opt =
       `Entry (c, "Export" ^ quant ^ " Files with Position...", Layout.key_export, export_avail st view),
         (fun () -> export true st (get_tracks ()));
     |];
+(*
+    (if View.modify_view = None then [||] else
+      [|
+        `Separator, ignore;
+        `Entry (c, "Customise Columns...", Layout.nokey, true),
+          (fun () -> header_menu st view);
+      |]
+    )
+*)
+    (if View.(table it) != st.playlist.table then [||] else
+      let s = if geo.playlist_headers then "Hide" else "Show" in
+      [|
+        `Separator, ignore;
+        `Entry (c, s ^ " Column Headers", Layout.nokey, true),
+          (fun () -> geo.playlist_headers <- not geo.playlist_headers);
+      |];
+    )
   ])
 
 
