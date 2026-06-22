@@ -198,8 +198,8 @@ struct
      * directly and by need. *)
 
     (* Open dummy window to initialize GLFW for monitor queries to work. *)
-    Raylib.(set_config_flags
-      ConfigFlags.(window_undecorated + window_resizable + window_hidden));
+    Raylib.(set_config_flags ConfigFlags.(
+      window_undecorated + window_resizable + window_highdpi + window_hidden));
     Raylib.init_window 1 1 "";
     let current = Raylib.get_current_monitor () in
     let monitor_poss = Iarray.init (Raylib.get_monitor_count ())
@@ -283,9 +283,9 @@ struct
   let _ = before_frame_finish :=
     (fun () ->
       Option.iter (fun (x, y) ->
-        if (x, y) <> !current_pos then Raylib.set_window_position x y;
-        next_pos := None;
+        if (x, y) <> !current_pos then Raylib.set_window_position x y
       ) !next_pos;
+      next_pos := None;
     ) :: !before_frame_finish
   let _ = after_frame_finish :=
     (fun () ->
@@ -463,8 +463,12 @@ struct
         Ctypes.(from_voidp int null) max (*RL2BUG: Raylib.(FontType.to int Sdf)*)2 in
       Raylib.Font.set_glyphs font glyphs;
 
-      let recs' = Ctypes.allocate (Ctypes.ptr Raylib.Rectangle.t) (Raylib.Font.recs font) in
-      let atlas = Raylib.gen_image_font_atlas (Ctypes.CArray.start glyphs) recs' max size 0 1 in
+      let recs' =
+        Ctypes.(allocate (ptr Raylib.Rectangle.t) (Raylib.Font.recs font)) in
+      let atlas =
+        Raylib.gen_image_font_atlas (Ctypes.CArray.start glyphs) recs'
+          (Ctypes.CArray.length glyphs) size 0 1
+      in
       Raylib.Font.set_recs font Ctypes.(!@recs');
       Raylib.Font.set_texture font (Raylib.load_texture_from_image atlas);
       Raylib.unload_image atlas;
