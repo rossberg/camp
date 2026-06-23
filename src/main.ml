@@ -249,6 +249,7 @@ let _main =
     else
     (
       Storage.save_string queue_file (fun () -> m3u);
+      Storage.clear_temp ();  (* possible left-overs *)
       run (startup ());
     )
   with exn ->
