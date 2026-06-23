@@ -460,7 +460,7 @@ struct
       Raylib.Font.set_base_size font size;
       let data = File.load `Bin path in
       let glyphs = Raylib.load_font_data data size
-        Ctypes.(from_voidp int null) max (*RL2BUG: Raylib.(FontType.to int Sdf)*)2 in
+        Ctypes.(from_voidp int null) max Raylib.FontType.Sdf in
       Raylib.Font.set_glyphs font glyphs;
 
       let recs' =
@@ -565,9 +565,9 @@ struct
     let buf = Raylib.load_render_texture w h in
     (* Override texture format to not use alpha channel *)
     Raylib.unload_texture (Raylib.RenderTexture.texture buf);
-    let format = (*RL2BUG: Raylib.PixelFormat.(to_int Uncompressed_r8g8b8)*)4 in
+    let format = Raylib.PixelFormat.Uncompressed_r8g8b8 in
     let id' = Raylib.Rlgl.load_texture Ctypes.null w h format 1 in
-    let tex' = Raylib.Texture.create id' w h 1 Raylib.PixelFormat.Uncompressed_r8g8b8 in
+    let tex' = Raylib.Texture.create id' w h 1 format in
     Raylib.RenderTexture.set_texture buf tex';
     (* Mirror Raylib LoadRenderTexture: *)
     Raylib.Rlgl.framebuffer_attach (Raylib.RenderTexture.id buf) id'
@@ -937,30 +937,11 @@ end
 
 module Key =
 struct
-  (*RL2BUG: this shouldn't be needed*)
-  let table = Raylib.Key.
-    [|
-      Null; Null; Null; Null; Null; Null; Null; Null;         (* 0x00..0x07 *)
-      Null; Null; Null; Null; Null; Null; Null; Null;         (* 0x08..0x0f *)
-      Null; Null; Null; Null; Null; Null; Null; Null;         (* 0x10..0x17 *)
-      Null; Null; Null; Null; Null; Null; Null; Null;         (* 0x18..0x1f *)
-      Space; Null; Null; Null; Null; Null; Null; Apostrophe;  (* 0x20..0x27 *)
-      Null; Null; Null; Null; Comma; Minus; Period; Slash;    (* 0x28..0x2f *)
-      Zero; One; Two; Three; Four; Five; Six; Seven;          (* 0x30..0x37 *)
-      Eight; Nine; Null; Semicolon; Null; Equal; Null; Null;  (* 0x38..0x3f *)
-      Null; A; B; C; D; E; F; G;                              (* 0x40..0x47 *)
-      H; I; J; K; L; M; N; O;                                 (* 0x48..0x4f *)
-      P; Q; R; S; T; U; V; W;                                 (* 0x50..0x57 *)
-      X; Y; Z; Left_bracket; Backslash; Right_bracket; Null; Null; (* 0x58..0x5f *)
-      Grave;
-    |]
-
   let key = function
     | `None -> Raylib.Key.Null
     | `Char '-' -> Raylib.Key.Minus
     | `Char '+' -> Raylib.Key.Equal
-    (*RL2BUG: | `Char c -> Raylib.Key.of_int (Char.code (Char.uppercase_ascii c))*)
-    | `Char c -> table.(Char.code (Char.uppercase_ascii c))
+    | `Char c -> Raylib.Key.of_int (Char.code (Char.uppercase_ascii c))
     | `Arrow `Left -> Raylib.Key.Left
     | `Arrow `Right -> Raylib.Key.Right
     | `Arrow `Up -> Raylib.Key.Up
