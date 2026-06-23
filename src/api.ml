@@ -200,7 +200,7 @@ struct
     (* Open dummy window to initialize GLFW for monitor queries to work. *)
     Raylib.(set_config_flags
       ConfigFlags.[Window_undecorated; Window_resizable; Window_hidden]);
-    Raylib.init_window 0 0 "";
+    Raylib.init_window 1 1 "";
     let current = Raylib.get_current_monitor () in
     let monitor_poss = Iarray.init (Raylib.get_monitor_count ())
       (fun i -> point_of_vec2 (Raylib.get_monitor_position i)) in
@@ -208,7 +208,8 @@ struct
 
     (* Probe all monitors. *)
     monitors := Iarray.mapi (fun i (x, y) ->
-      Raylib.init_window 4000 4000 "";  (* on Mac, need to start big *)
+      let mw, mh = Raylib.(get_monitor_width i, get_monitor_height i) in
+      Raylib.init_window mw mh "";  (* on Mac, need to start big *)
       Raylib.set_window_position x y;
       Raylib.maximize_window ();
       let w, h = Raylib.get_monitor_width i, Raylib.get_monitor_height i in
@@ -275,8 +276,10 @@ struct
   let _ = after_frame_start := update :: !after_frame_start
   let _ = before_frame_finish :=
     (fun () ->
-      Option.iter (fun (x, y) -> Raylib.set_window_position x y) !next_pos;
-      next_pos := None;
+      Option.iter (fun (x, y) ->
+        if (x, y) <> !current_pos then Raylib.set_window_position x y;
+        next_pos := None;
+      ) !next_pos;
     ) :: !before_frame_finish
   let _ = after_frame_finish :=
     (fun () ->
@@ -287,8 +290,10 @@ struct
         Screen.scale := max 1 (x + dx), max 1 (y + dy);
         if !next_size = None then next_size := Some !current_size;
       );
-      Option.iter (fun (w, h) -> Raylib.set_window_size w h) !next_size;
-      next_size := None;
+      Option.iter (fun (w, h) ->
+        if (w, h) <> !current_size then Raylib.set_window_size w h;
+        next_size := None;
+      ) !next_size;
       if !next_rescale <> (0, 0) then
       (
         next_rescale := 0, 0;
@@ -307,7 +312,7 @@ struct
     Raylib.(set_config_flags
       ConfigFlags.[Window_undecorated; Window_always_run;
         (*Window_transparent;*) Vsync_hint; Msaa_4x_hint]);
-    Raylib.init_window (sx w) (sy h) title;
+    Raylib.init_window (max 1 (sx w)) (max 1 (sy h)) title; (* avoid 0 on Mac *)
     Raylib.set_window_position (sx x) (sy y);
     Raylib.(clear_window_state ConfigFlags.[Window_hidden]);
     update ()
@@ -552,8 +557,7 @@ struct
     Raylib.unload_texture (Raylib.RenderTexture.texture buf);
     let format = Raylib.PixelFormat.(to_int Uncompressed_r8g8b8) in
     let id' = Raylib.Rlgl.load_texture Ctypes.null w h format 1 in
-    let open Raylib.Texture in
-    let tex' = create id' w h 1 Raylib.PixelFormat.Uncompressed_r8g8b8 in
+    let tex' = Raylib.Texture.create id' w h 1 Raylib.PixelFormat.Uncompressed_r8g8b8 in
     Raylib.RenderTexture.set_texture buf tex';
     (* Mirror Raylib LoadRenderTexture: *)
     Raylib.Rlgl.framebuffer_attach (Raylib.RenderTexture.id buf) id'
