@@ -30,33 +30,6 @@ let make_dir path =
 let _ = make_dir data_dir
 
 
-(* Temporary Files *)
-
-let temp_dir = File.(data_dir // "temp")
-
-let create_temp () =
-  if not (File.exists temp_dir) then File.create_dir temp_dir;
-  File.temp (Some temp_dir) "temp" ""
-
-let copy_to_temp path =
-  if not (File.exists temp_dir) then File.create_dir temp_dir;
-  let ext = File.extension path in
-  let path' = File.temp (Some temp_dir) "temp" ext in
-  File.copy path path';
-  path'
-
-let delete_temp path =
-  try File.delete path with Sys_error _ -> ()
-
-let clear_temp () =
-  if File.exists_dir temp_dir then
-  (
-    Array.iter (fun file ->
-      try File.delete File.(temp_dir // file) with Sys_error _ -> ()
-    ) (File.read_dir temp_dir)
-  )
-
-
 (* Logging *)
 
 let log_file = "error.log"
@@ -93,6 +66,33 @@ let log_time op f =
     let t2 = Unix.gettimeofday () in
     Printf.eprintf "    [%s] %.3f ms\n%!" op (t2 -. t1);
     x
+  )
+
+
+(* Temporary Files *)
+
+let temp_dir = File.(data_dir // "temp")
+
+let create_temp () =
+  if not (File.exists temp_dir) then File.create_dir temp_dir;
+  File.temp (Some temp_dir) "temp" ""
+
+let copy_to_temp path =
+  if not (File.exists temp_dir) then File.create_dir temp_dir;
+  let ext = File.extension path in
+  let path' = File.temp (Some temp_dir) "temp" ext in
+  File.copy path path';
+  path'
+
+let delete_temp path =
+  try File.delete path with Sys_error _ -> ()
+
+let clear_temp () =
+  if File.exists_dir temp_dir then
+  (
+    Array.iter (fun file ->
+      try File.delete File.(temp_dir // file) with exn -> log_exn "clearing temp files" exn ""
+    ) (File.read_dir temp_dir)
   )
 
 
