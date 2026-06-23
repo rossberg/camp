@@ -45,6 +45,8 @@ and run' (st : state) =
   (
     (* TODO: this could race, should lock the file *)
     Storage.save_string queue_file (fun () -> "");
+    (* If we're just starting up, double-click caused it, force playing *)
+    if Api.Draw.frame win <= 1 then Control.stop st.control;
     Run_view.external_queue_on_playlist st (M3u.parse !m3u) `QueueAndJump;
   );
 
