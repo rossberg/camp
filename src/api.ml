@@ -40,7 +40,7 @@ struct
     _log "close_window ()";
     close_window ()
 *)
-(*
+(* *)
   let init_audio_device () =
     _log "init_audio_device ()";
     init_audio_device ()
@@ -107,7 +107,7 @@ struct
     _log "detach_audio_mixed_processor func";
     detach_audio_mixed_processor f
 *)
-*)
+(* *)
 end
 *)
 
@@ -1102,9 +1102,11 @@ struct
     )
 
   let free a sound =
+    assert (sound != silence ());
     Mutex.protect a.mutex (fun () ->
       Raylib.stop_music_stream sound.music;
-      Raylib.unload_music_stream sound.music;
+      if Raylib.Music.ctx_type sound.music <> 3 then (* RL2BUG: causes fatal exit for FLAC *)
+        Raylib.unload_music_stream sound.music;
       Option.iter Storage.delete_temp sound.temp;
     )
 
