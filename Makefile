@@ -48,9 +48,13 @@ vars:
 	@echo 'ASSETS = $(ASSETS)'
 	@echo 'SYSASSETS = $(SYSASSETS)'
 
-deps:
-	opam install --yes --deps-only $(PROJECTDEPS:%="%")  # Temporary workaround for Opam Windows bug
+deps-try:
+  # Install deps first, as workaround for Opam Windows bug
+	opam install --yes --deps-only $(PROJECTDEPS:%="%")
 	opam install --yes $(PROJECTDEPS:%="%")
+
+deps:
+	make deps-try || (opam update && make deps-try)
 
 upgrade:
 	opam update
