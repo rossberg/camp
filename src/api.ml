@@ -208,8 +208,14 @@ struct
 
     (* Probe all monitors. *)
     monitors := Iarray.mapi (fun i (x, y) ->
+      (* On Mac, the window size has to be at least as large as the screen
+       * before maximization for the probing to work. At the same time, it
+       * cannot be that large at creation time, otherwise the video mode is
+       * messed up. Both these facts are extremely odd...
+       * Also, we cannot get the monitor width before init_window. *)
+      Raylib.init_window 1 1 "";
       let mw, mh = Raylib.(get_monitor_width i, get_monitor_height i) in
-      Raylib.init_window mw mh "";  (* on Mac, need to start big *)
+      Raylib.set_window_size mw mh;
       Raylib.set_window_position x y;
       Raylib.maximize_window ();
       let w, h = Raylib.get_monitor_width i, Raylib.get_monitor_height i in
