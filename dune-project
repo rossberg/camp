@@ -16,8 +16,8 @@
   (synopsis "Camp music player")
   (description "A portable music player in the Winamp tradition")
   (depends
-    (raylib (= 2.1.0))
-    (raylib-callbacks (= 2.1.0))
+    ; (raylib (= 2.1.0))
+    ; (raylib-callbacks (= 2.1.0))
     (uunf (>= 17.0.0))
     (uucp (>= 17.0.0))
     (confero (>= 0.1.1))

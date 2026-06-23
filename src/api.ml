@@ -40,7 +40,7 @@ struct
     _log "close_window ()";
     close_window ()
 *)
-(* *)
+(*
   let init_audio_device () =
     _log "init_audio_device ()";
     init_audio_device ()
@@ -107,7 +107,7 @@ struct
     _log "detach_audio_mixed_processor func";
     detach_audio_mixed_processor f
 *)
-(* *)
+*)
 end
 *)
 
@@ -459,18 +459,13 @@ struct
       let font = Ctypes.make Raylib.Font.t in
       Raylib.Font.set_base_size font size;
       let data = File.load `Bin path in
-      let glyphs = Raylib.load_font_data data size
-        Ctypes.(from_voidp int null) max Raylib.FontType.Sdf in
+      let null_arr = Ctypes.(CArray.from_ptr (from_voidp int null) max) in
+      let glyphs = Raylib.load_font_data data size null_arr Raylib.FontType.Sdf in
       Raylib.Font.set_glyphs font glyphs;
 
-      let recs' =
-        Ctypes.(allocate (ptr Raylib.Rectangle.t) (Raylib.Font.recs font)) in
-      let atlas =
-        Raylib.gen_image_font_atlas (Ctypes.CArray.start glyphs) recs'
-          (Ctypes.CArray.length glyphs) size 0 1
-      in
-      Raylib.Font.set_recs font Ctypes.(!@recs');
+      let atlas, recs = Raylib.gen_image_font_atlas glyphs size 0 1 in
       Raylib.Font.set_texture font (Raylib.load_texture_from_image atlas);
+      Raylib.Font.set_recs font (Ctypes.CArray.start recs);
       Raylib.unload_image atlas;
 
       let shader = if size <= 10 then shader_s else shader_l in
@@ -1102,11 +1097,9 @@ struct
     )
 
   let free a sound =
-    assert (sound != silence ());
     Mutex.protect a.mutex (fun () ->
       Raylib.stop_music_stream sound.music;
-      if Raylib.Music.ctx_type sound.music <> 3 then (* RL2BUG: causes fatal exit for FLAC *)
-        Raylib.unload_music_stream sound.music;
+      Raylib.unload_music_stream sound.music;
       Option.iter Storage.delete_temp sound.temp;
     )
 

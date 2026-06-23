@@ -5,7 +5,7 @@ VERSION = $(strip $(shell make -s app-version))
 NAME = $(strip $(shell make -s dune-public_name))
 PROJECTNAME = $(strip $(shell make -s project-name))
 PROJECTVERSION = $(strip $(shell make -s project-version))
-PROJECTDEPS = dune $(strip $(shell grep "=" dune-project | sed 's/[() ]//g'))
+PROJECTDEPS = dune $(strip $(shell grep "=" dune-project | grep -v "^ *;" | sed 's/[() ]//g'))
 
 MAIN = main
 README = README.txt
@@ -53,6 +53,7 @@ deps-try: opam
 
 deps:
 	make deps-try || (opam update && make deps-try)
+	git submodule update --init --recursive
 
 upgrade:
 	opam update

@@ -1,0 +1,3 @@
+[submodule "vendor/raylib-ocaml"]
+	path = vendor/raylib-ocaml
+	url = https://github.com/rossberg/raylib-ocaml.git
