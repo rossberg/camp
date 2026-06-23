@@ -323,8 +323,8 @@ let parse_state geo =  (* assumes playlist and library loaded *)
   let float' max t =
     (* Backwards compatibility with old integer coordinates *)
     let x = float t in
-    if x > 1.0 then x /. float_of_int max else
-    if x <= -1.0 then 1.0 +. x /. float_of_int max else
+    if x >= 2.0 then x /. float_of_int max else
+    if x <= -2.0 then 1.0 +. x /. float_of_int max else
     x
   in
   let sw, sh = Api.Screen.max_size (Api.Window.screen (Ui.window geo.ui)) in
