@@ -1,3 +1,117 @@
+(* Debugging Aid *)
+
+(*
+module Raylib =
+struct
+  include Raylib
+  let _log fmt = Printf.ksprintf (Printf.printf "[Raylib.%s]\n%!") fmt
+  let _log1 fmt = Printf.ksprintf (Printf.printf "[Raylib.%s] => %!") fmt
+  let _log2 fmt = Printf.ksprintf (Printf.printf "%s\n%!") fmt
+(*
+  let init_window w h s =
+    _log "init_window %d %d \"%s\"" w h s;
+    init_window w h s
+  let set_window_size w h =
+    _log "set_window_size %d %d" w h;
+    set_window_size w h
+  let set_window_position x y =
+    _log "set_window_position %d %d" x y;
+    set_window_position x y
+  let set_window_state flags =
+    _log "set_window_state 0x%x" (Raylib.ConfigFlags.to_int flags);
+    set_window_state flags
+  let clear_window_state flags =
+    _log "clear_window_state 0x%x" (Raylib.ConfigFlags.to_int flags);
+    clear_window_state flags
+  let maximize_window () =
+    _log1 "maximize_window ()";
+    maximize_window ();
+    let point_of_vec2 v = Vector2.(int_of_float (x v), int_of_float (y v)) in
+    let x, y = point_of_vec2 (get_window_position ()) in
+    let w, h = get_screen_width (), get_screen_height () in
+    _log2 "x=%d y=%d w=%d h=%d" x y w h
+  let minimize_window () =
+    _log "minimize_window ()";
+    minimize_window ()
+  let restore_window () =
+    _log "restore_window ()";
+    restore_window ()
+  let close_window () =
+    _log "close_window ()";
+    close_window ()
+*)
+(*
+  let init_audio_device () =
+    _log "init_audio_device ()";
+    init_audio_device ()
+  let set_audio_stream_buffer_size_default n =
+    _log "set_audio_stream_buffer_size_default %d" n;
+    set_audio_stream_buffer_size_default n
+  let set_master_volume x =
+    _log "set_master_volume %.2f" x;
+    set_master_volume x
+  let load_music_stream path =
+    _log1 "load_music_stream \"%s\"" path;
+    let music = load_music_stream path in
+    _log2 "music(%d)" (Music.ctx_type music);
+    music
+(*
+  let update_music_stream music =
+    _log "update_music_stream music(%d)" (Music.ctx_type music);
+    update_music_stream music
+*)
+  let play_music_stream music =
+    _log "play_music_stream music(%d)" (Music.ctx_type music);
+    play_music_stream music
+  let pause_music_stream music =
+    _log "pause_music_stream music(%d)" (Music.ctx_type music);
+    pause_music_stream music
+  let resume_music_stream music =
+    _log "resume_music_stream music(%d)" (Music.ctx_type music);
+    resume_music_stream music
+  let stop_music_stream music =
+    _log "stop_music_stream music(%d)" (Music.ctx_type music);
+    stop_music_stream music
+  let seek_music_stream music time =
+    _log1 "seek_music_stream music(%d) %.2f" (Music.ctx_type music) time;
+    seek_music_stream music time;
+    let played = get_music_time_played music in
+    let length = get_music_time_length music in
+    _log2 "%.2f/%.2fs" played length
+(*
+  let is_music_stream_playing music =
+    _log1 "is_music_stream_playing music(%d)" (Music.ctx_type music);
+    let b = is_music_stream_playing music in
+    _log2 "%b" b;
+    b
+  let get_music_time_played music =
+    _log1 "get_music_time_played music(%d)" (Music.ctx_type music);
+    let played = get_music_time_played music in
+    let length = get_music_time_length music in
+    _log2 "%.2f/%.2fs" played length;
+    played
+  let get_music_time_length music =
+    _log1 "get_music_time_length music(%d)" (Music.ctx_type music);
+    let length = get_music_time_length music in
+    _log2 "%.2fs" length;
+    length
+*)
+  let unload_music_stream music =
+    _log "unload_music_stream music(%d)" (Music.ctx_type music);
+    unload_music_stream music
+(*
+  let attach_audio_mixed_processor f =
+    _log "attach_audio_mixed_processor func";
+    attach_audio_mixed_processor f
+  let detach_audio_mixed_processor f =
+    _log "detach_audio_mixed_processor func";
+    detach_audio_mixed_processor f
+*)
+*)
+end
+*)
+
+
 (* Graphics/sound API abstraction *)
 
 open Audio_file
@@ -1003,11 +1117,14 @@ struct
 
   let seek a t =
     Mutex.protect a.mutex (fun () ->
-      let playing = Raylib.is_music_stream_playing a.sound.music in
-      Raylib.stop_music_stream a.sound.music;
+      if Raylib.is_music_stream_playing a.sound.music then
+      (
+        (* Clear buffer *)
+        Raylib.stop_music_stream a.sound.music;
+        Raylib.play_music_stream a.sound.music;
+      );
       Raylib.seek_music_stream a.sound.music t;
       Raylib.update_music_stream a.sound.music;
-      if playing then Raylib.play_music_stream a.sound.music;
     )
 
   let volume a x =
