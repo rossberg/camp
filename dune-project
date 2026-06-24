@@ -1,6 +1,7 @@
 (lang dune 3.20)
 
 (authors "Andreas Rossberg")
+(maintainers "rossberg@mpi-sws.org")
 (license "CC-BY-NC-SA-4.0")
 (source (github rossberg/camp))
 (homepage https://mpi-sws.org/~rossberg/camp/)

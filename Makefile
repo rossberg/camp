@@ -48,10 +48,8 @@ vars:
 	@echo 'ASSETS = $(ASSETS)'
 	@echo 'SYSASSETS = $(SYSASSETS)'
 
-deps-try:
-  # Install deps first, as workaround for Opam Windows bug
-	opam install --yes --deps-only $(PROJECTDEPS:%="%")
-	opam install --yes $(PROJECTDEPS:%="%")
+deps-try: opam
+	opam install --yes --deps-only .
 
 deps:
 	make deps-try || (opam update && make deps-try)
@@ -65,6 +63,7 @@ exe:
 	ln -f _build/default/src/$(MAIN).exe $(NAME).exe
 
 opam: dune-project
+	opam list --check --installed dune || opam install dune
 	opam exec -- dune build "@opam"
 
 release: check-release zip
