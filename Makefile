@@ -5,7 +5,8 @@ VERSION = $(strip $(shell make -s app-version))
 NAME = $(strip $(shell make -s dune-public_name))
 PROJECTNAME = $(strip $(shell make -s project-name))
 PROJECTVERSION = $(strip $(shell make -s project-version))
-PROJECTDEPS = dune $(strip $(shell grep "=" dune-project | grep -v "^ *;" | sed 's/[() ]//g'))
+PROJECTDEPS = $(strip $(shell grep "=" dune-project | grep -v "^ *;" | sed 's/[() ]//g'))
+VENDORDEPS = raylib-ocaml
 
 MAIN = main
 README = README.txt
@@ -50,10 +51,13 @@ vars:
 
 deps-try: opam
 	opam install --yes --deps-only .
+	for dep in $(VENDORDEPS); do \
+	  (cd vendor/$$dep && opam install --yes --deps-only .); \
+	done
 
 deps:
-	make deps-try || (opam update && make deps-try)
 	git submodule update --init --recursive
+	make deps-try || (opam update && make deps-try)
 
 upgrade:
 	opam update
