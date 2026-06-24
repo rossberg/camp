@@ -56,7 +56,7 @@ deps-try: opam
 	done
 
 deps:
-	git submodule update --init --remote --recursive
+	git submodule update --init --recursive
 	make deps-try || (opam update && make deps-try)
 
 upgrade:
@@ -149,6 +149,38 @@ check-release: check
 	  ! echo "$(README): release version mismatch, $(PROJECTVERSION) expected"
 	@ grep -q -F "$(PROJECTVERSION).+[0-9]+[.][0-9]+[.][0-9]+" $(CHANGES) || \
 	  ! echo "$(CHANGES): missing date for release version $(PROJECTVERSION)"
+
+
+# Managing submodules
+
+vendor-pull:
+	git submodule update --remote
+
+vendor-pull-rec:
+	git submodule update --remote --recursive
+
+vendor-push:
+	for DEP in $(VENDORDEPS); do \
+	  (cd vendor/$$DEP && git push); \
+	done
+
+vendor-reset:
+	for DEP in $(VENDORDEPS); do \
+	  (cd vendor/$$DEP && git reset --hard origin); \
+	done
+
+vendor-commit:
+	vi COMMITMSG
+	@if [ "`cat COMMITMSG`" != "" ]; then \
+	  for DEP in $(VENDORDEPS); do \
+	    (cd vendor/$$DEP && echo git commit -a -m"`cat ../../COMMITMSG`"); \
+	    echo git add -a vendor/$$DEP; \
+	  done; \
+	  echo git commit -m"`cat COMMITMSG`"; \
+	else \
+		echo Empty message, aborting commit; \
+	fi
+	rm COMMITMSG
 
 
 # Clean-up
