@@ -154,10 +154,10 @@ check-release: check
 # Managing submodules
 
 vendor-pull:
-	git submodule update --remote
+	git submodule update --init --remote
 
 vendor-pull-rec:
-	git submodule update --remote --recursive
+	git submodule update --init --remote --recursive
 
 vendor-push:
 	for DEP in $(VENDORDEPS); do \
