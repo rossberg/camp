@@ -56,7 +56,7 @@ deps-try: opam
 	done
 
 deps:
-	git submodule update --init --recursive
+	git submodule update --init --remote --recursive
 	make deps-try || (opam update && make deps-try)
 
 upgrade:
