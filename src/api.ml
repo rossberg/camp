@@ -17,11 +17,14 @@ struct
   let set_window_position x y =
     _log "set_window_position %d %d" x y;
     set_window_position x y
+  let set_config_flags flags =
+    _log "set_config_flags 0x%x" 0(*Raylib.ConfigFlags.to_int flags*);
+    set_config_flags flags
   let set_window_state flags =
-    _log "set_window_state 0x%x" (Raylib.ConfigFlags.to_int flags);
+    _log "set_window_state 0x%x" 0(*Raylib.ConfigFlags.to_int flags*);
     set_window_state flags
   let clear_window_state flags =
-    _log "clear_window_state 0x%x" (Raylib.ConfigFlags.to_int flags);
+    _log "clear_window_state 0x%x" 0(*Raylib.ConfigFlags.to_int flags*);
     clear_window_state flags
   let maximize_window () =
     _log1 "maximize_window ()";
@@ -222,6 +225,7 @@ struct
       let min_x, min_y = point_of_vec2 (Raylib.get_window_position ()) in
       let max_w, max_h = Raylib.(get_screen_width (), get_screen_height ()) in
       let hires = Raylib.(Vector2.y (get_window_scale_dpi ())) > 1.0 in
+      Raylib.restore_window ();  (* otherwise Raylib doesn't clear flag! *)
       Raylib.close_window ();
       if !App.debug_layout then
       (
