@@ -316,8 +316,8 @@ let graph_drag g = Ui.drag g.ui (graph_area g)
 let novisual_button g = Ui.mouse g.ui (graph_area g) `Left
 
 (* Hidden mode buttons *)
-let color_y g = visual_y g + visual_h g
-let color_button g = Ui.mouse g.ui (cp, margin g, color_y g, mute_x g, ticker_y g) `Left
+let color_y g = prop_y g
+let color_button g = Ui.mouse g.ui (cp, margin g, color_y g, mute_x g, ticker_y g + ticker_h g) `Left
 
 let fps_w = 40
 let fps_text g = Ui.text g.ui (cp, visual_w g - fps_w, margin g + info_margin g, fps_w, 12) `Left
