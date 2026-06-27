@@ -1176,7 +1176,7 @@ let run_views (st : state) =
     if geo.right_shown then
     (
       let left_width' = Layout.right_divider geo geo.left_width
-        (Geometry.left_min geo) (Geometry.left_max geo) in
+        (Geometry.left_min_w geo) (Geometry.left_max_w geo) in
       (* Possible drag of divider: update pane width *)
       if left_width' <> geo.left_width then
       (
@@ -1244,8 +1244,8 @@ let run_views (st : state) =
     if geo.lower_shown then
     (
       let upper_height' = Layout.lower_divider geo geo.upper_height
-        (Geometry.upper_min geo) (Geometry.upper_max geo) in
-      (* Possible drag of divider: update pane width *)
+        (Geometry.upper_min_h geo) (Geometry.upper_max_h geo) in
+      (* Possible drag of divider: update pane height *)
       if upper_height' <> geo.upper_height then
       (
         geo.upper_height <- upper_height';
@@ -1454,11 +1454,11 @@ let run (st : state) =
 
   (* Update after possible window resize *)
   geo.browser_width <-
-    clamp (Geometry.browser_min geo) (Geometry.browser_max geo) geo.browser_width;
+    clamp (Geometry.browser_min_w geo) (Geometry.browser_max_w geo) geo.browser_width;
   geo.left_width <-
-    clamp (Geometry.left_min geo) (Geometry.left_max geo) geo.left_width;
+    clamp (Geometry.left_min_w geo) (Geometry.left_max_w geo) geo.left_width;
   geo.upper_height <-
-    clamp (Geometry.upper_min geo) (Geometry.upper_max geo) geo.upper_height;
+    clamp (Geometry.upper_min_h geo) (Geometry.upper_max_h geo) geo.upper_height;
 
   (* Background rescanning *)
   Library.refresh_after_rescan lib;
@@ -1494,4 +1494,5 @@ let run (st : state) =
   (* Possible drag of divider: update pane width *)
   geo.browser_width <-
     Layout.browser_divider geo geo.browser_width
-      (Geometry.browser_min geo) (Geometry.browser_max geo)
+      (Geometry.browser_min_w geo) (Geometry.browser_max_w geo);
+  Geometry.update_geo geo

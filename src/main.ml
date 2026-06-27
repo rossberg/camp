@@ -54,18 +54,20 @@ and run' (st : state) =
   Ui.start geo.ui;
 
   (* Remember current geometry for later *)
+  let extension_shown_w = Geometry.extension_shown_w geo in
+  let extension_shown_h = Geometry.extension_shown_h geo in
+  let extension_side = geo.extension_side in
   let playlist_shown = geo.playlist_shown in
   let library_shown = geo.library_shown in
   let filesel_shown = geo.filesel_shown in
-  let overlay_shown = library_shown || filesel_shown in
   let menu_shown = geo.menu_shown in
   let popup_shown = geo.popup_shown <> None in
-  let library_side = geo.library_side in
 
   (* Update geometry *)
   let ww, wh = Api.Window.size win in
-  if playlist_shown then geo.playlist_height <- wh - Geometry.control_h geo;
-  if overlay_shown then geo.library_width <- ww - Geometry.control_w geo;
+  if extension_shown_h then geo.extension_width <- ww - Geometry.control_w geo;
+  if extension_shown_w then geo.extension_height <- wh - Geometry.control_h geo;
+  Geometry.update_geo geo;
 
   (* Run panes *)
   Run_control.run st;
@@ -74,7 +76,7 @@ and run' (st : state) =
     if playlist_shown then Run_playlist.run st;
     if filesel_shown then Run_filesel.run st
     else if library_shown then Run_library.run st;
-    if playlist_shown || overlay_shown then Run_view.run_edit_panel st;
+    if playlist_shown then Run_view.run_edit_panel st;
     Run_control.run_toggle_panel st;
     if menu_shown then Run_menu.run st;
     if popup_shown then Run_menu.run_popup st;
@@ -116,52 +118,122 @@ and run' (st : state) =
     Library.activate_covers st.library (not st.library.covers_shown);
 
   (* Adjust window size after opening/closing panes *)
-  let playlist_shown' = geo.playlist_shown in
-  let overlay_shown' = Geometry.overlay_shown geo in
-  if playlist_shown' <> playlist_shown then
+  let extension_shown_w' = Geometry.extension_shown_w geo in
+  let extension_shown_h' = Geometry.extension_shown_h geo in
+  if extension_shown_h' <> extension_shown_h then
   (
-    let s = if playlist_shown' then +1 else -1 in
-    Ui.resize geo.ui (-1, -1) (0, s * geo.playlist_height);
+    let s = if extension_shown_h' then +1 else -1 in
+    Ui.resize geo.ui (-1, -1) (0, s * geo.extension_height);
   );
-  if overlay_shown' <> overlay_shown then
+  if extension_shown_w' <> extension_shown_w then
   (
-    let s = if overlay_shown' then +1 else -1 in
-    let ox = if Geometry.overlay_left geo then Int.max_int else -1 in
-    Ui.resize geo.ui (ox, -1) (s * geo.library_width, 0);
+    let s = if extension_shown_w' then +1 else -1 in
+    let ox = if Geometry.extension_left geo then Int.max_int else -1 in
+    Ui.resize geo.ui (ox, -1) (s * geo.extension_width, 0);
   )
-  else if overlay_shown' && geo.library_side <> library_side then
+  else if extension_shown_w' && geo.extension_side <> extension_side then
   (
     let ox, ox' =
-      if Geometry.overlay_left geo then -1, Int.max_int else Int.max_int, -1 in
-    Ui.resize geo.ui (ox, -1) (- geo.library_width, 0);
-    Ui.resize geo.ui (ox', -1) (+ geo.library_width, 0);
+      if Geometry.extension_left geo then -1, Int.max_int else Int.max_int, -1 in
+    Ui.resize geo.ui (ox, -1) (- geo.extension_width, 0);
+    Ui.resize geo.ui (ox', -1) (+ geo.extension_width, 0);
   );
 
   (* Finish drawing *)
-  let win_min = Geometry.(win_min_w geo, win_min_h geo) in
-  let win_max = Geometry.(win_max_w geo, win_max_h geo) in
-  Ui.finish geo.ui (Geometry.margin geo) win_min win_max
-    (fun (_dx, _dy, dw, dh) ->  (* window was resized *)
-      if dw <> 0 && overlay_shown' = overlay_shown then
+  let shift = Api.Key.is_modifier_down `Shift in
+  let flex_ctl_w = shift || not (Geometry.extension_shown_w geo) in
+  let flex_ctl_h = shift || not (Geometry.extension_shown_h geo) in
+  let flex_ext_w = true in  (* since browser width may grow with control *)
+  let flex_ext_h = true in
+  let min_w = Geometry.win_min_w flex_ctl_w flex_ext_w geo in
+  let max_w = Geometry.win_max_w flex_ctl_w flex_ext_w geo in
+  let min_h = Geometry.win_min_h flex_ctl_h flex_ext_h geo in
+  let max_h = Geometry.win_max_h flex_ctl_h flex_ext_h geo in
+  Ui.finish geo.ui (Geometry.margin geo) (min_w, min_h) (max_w, max_h)
+    (fun (_dx, _dy, dw, dh) ->
+      (* Window was resized *)
+      if dw <> 0 && extension_shown_w' = extension_shown_w then
       (
-        if not (Geometry.overlay_shown geo) then
-          geo.control_width <-
-            max Geometry.control_min_w (geo.control_width + dw)
+        if flex_ctl_w then
+        (
+          let control_width' =
+            max Geometry.control_min_w (geo.control_width + dw) in
+          let dw' = control_width' - geo.control_width in
+          geo.control_width <- control_width';
+          geo.extension_width <- geo.extension_width + (dw - dw');
+        )
+        else
+        (
+          let extension_width' =
+            max (Geometry.extension_min_w geo) (geo.extension_width + dw) in
+          let dw' = extension_width' - geo.extension_width in
+          geo.extension_width <- extension_width';
+          geo.control_width <- geo.control_width + (dw - dw');
+        )
       );
-      if dh <> 0 && playlist_shown' = playlist_shown then
+      if dh <> 0 && extension_shown_h' = extension_shown_h then
       (
-        if not geo.playlist_shown then
-          geo.control_height <-
-            max Geometry.control_min_h (geo.control_height + dh)
+        if flex_ctl_h then
+        (
+          let control_height' =
+            max Geometry.control_min_h (geo.control_height + dh) in
+          let dh' = control_height' - geo.control_height in
+          geo.control_height <- control_height';
+          geo.extension_height <- geo.extension_height + (dh - dh');
+        )
+        else
+        (
+          let extension_height' =
+            max (Geometry.extension_min_h geo) (geo.extension_height + dh) in
+          let dh' = extension_height' - geo.extension_height in
+          geo.extension_height <- extension_height';
+          geo.control_height <- geo.control_height + (dh - dh');
+        )
       );
-      ignore (Geometry.apply_geo geo geo.window);  (* recompute *)
+
+      if !App.debug_layout then
+      (
+        Printf.eprintf
+          "[layout set] win=%d,%d ctl=%d,%d ext=%d,%d bw=%d vw=%d delta=%d,%d\n%!"
+          (fst (Api.Window.next_size win)) (snd (Api.Window.next_size win))
+          geo.control_width geo.control_height
+          geo.extension_width geo.extension_height
+          geo.browser_width geo.left_width dw dh;
+        Printf.eprintf "[layout min] win=%d,%d ctl=%d,%d ext=%d,%d bw=%d vw=%d\n%!"
+          min_w min_h
+          Geometry.control_min_w Geometry.control_min_h
+          (Geometry.extension_min_w geo) (Geometry.extension_min_h geo)
+          (Geometry.browser_min_w geo) (Geometry.left_min_w geo);
+      );
+
+      let wx, wy = Api.Window.next_pos win in
+      let ww, wh = Api.Window.next_size win in
+      Geometry.update_geo' geo (wx, wy, ww, wh);
+
+      if !App.debug_layout then
+      (
+        Printf.eprintf
+          "[layout new] win=%d,%d ctl=%d,%d ext=%d,%d bw=%d vw=%d delta=%d,%d\n%!"
+          (fst (Api.Window.size win)) (snd (Api.Window.size win))
+          geo.control_width geo.control_height
+          geo.extension_width geo.extension_height
+          geo.browser_width geo.left_width dw dh;
+        Printf.eprintf "[layout min] win=%d,%d ctl=%d,%d ext=%d,%d bw=%d vw=%d\n%!"
+          min_w min_h
+          Geometry.control_min_w Geometry.control_min_h
+          (Geometry.extension_min_w geo) (Geometry.extension_min_h geo)
+          (Geometry.browser_min_w geo) (Geometry.left_min_w geo);
+      );
     )
-    (fun scr ->  (* window moved to another screen *)
+    (fun scr ->
+      (* Window moved to another screen *)
       Ui.pin geo.ui scr;
-      let w, h = geo.library_width, geo.playlist_height in
-      ignore (Geometry.apply_geo geo geo.window);  (* clamp internals *)
-      let dw = if Geometry.overlay_shown geo then geo.library_width - w else 0 in
-      let dh = if geo.playlist_shown then geo.playlist_height - h else 0 in
+      let w, h = geo.extension_width, geo.extension_height in
+      Geometry.clamp_geo geo;
+      let dw =
+        if Geometry.extension_shown_w geo then geo.extension_width - w else 0 in
+      let dh =
+        if Geometry.extension_shown_h geo then geo.extension_height - h else 0 in
       (* Substract mouse delta to get position relative to current geometry *)
       Ui.resize geo.ui Api.Mouse.(Api.sub (pos win) (delta win)) (dw, dh)
     );
@@ -176,6 +248,7 @@ and run' (st : state) =
   in
   geo.scaling <- scaling';
   if scale_delta = 0 then
+    (* Not set yet on first frame *)
     geo.window <- Geometry.abstract_geo geo
   else
   (

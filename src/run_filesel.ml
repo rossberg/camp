@@ -28,10 +28,10 @@ let filesel (st : state) kind access path ext f =
   let wx, _ = Api.Window.pos win in
   let sx, _ = Api.Screen.min_pos scr in
   let sw, _ = Api.Screen.max_size scr in
-  if geo.library_side = `Left && wx <= sx then
-    geo.library_side <- `Right;
-  if geo.library_side = `Right && wx + Geometry.control_w geo >= sx + sw then
-    geo.library_side <- `Left
+  if geo.extension_side = `Left && wx <= sx then
+    geo.extension_side <- `Right;
+  if geo.extension_side = `Right && wx + Geometry.control_w geo >= sx + sw then
+    geo.extension_side <- `Left
 
 
 (* Runner *)
@@ -43,7 +43,7 @@ let run (st : state) =
 
   (* Update after possible window resize *)
   geo.directories_width <-
-    Geometry.clamp (Geometry.directories_min geo) (Geometry.directories_max geo)
+    Geometry.clamp (Geometry.directories_min_w geo) (Geometry.directories_max_w geo)
     geo.directories_width;
 
   (* Directories *)
@@ -261,6 +261,6 @@ let run (st : state) =
   (* Pane divider *)
 
   let directories_width' = Layout.directories_divider geo geo.directories_width
-    (Geometry.directories_min geo) (Geometry.directories_max geo) in
+    (Geometry.directories_min_w geo) (Geometry.directories_max_w geo) in
   (* Possible drag of divider: update pane width *)
   geo.directories_width <- directories_width'

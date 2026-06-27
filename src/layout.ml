@@ -277,7 +277,7 @@ let seek_bar g = Ui.progress_bar g.ui (cp, info_x g + seek_margin g, seek_y g, i
 
 (* Time *)
 let lcd_space g = 3 + flex_w g / 40
-let colon_w _g = 4
+let colon_w g = 4 + flex_w g / (24 * 14 / 4)
 let lcd_w g = 14 + flex_w g / 24
 let lcd_h g = 20 + flex_h g / 6
 let lcd_x g i = margin g + info_margin g + i*(lcd_w g + lcd_space g)
@@ -316,8 +316,8 @@ let graph_drag g = Ui.drag g.ui (graph_area g)
 let novisual_button g = Ui.mouse g.ui (graph_area g) `Left
 
 (* Hidden mode buttons *)
-let color_y g = visual_y g + visual_h g
-let color_button g = Ui.mouse g.ui (cp, margin g, color_y g, mute_x g, ticker_y g) `Left
+let color_y g = prop_y g
+let color_button g = Ui.mouse g.ui (cp, margin g, color_y g, mute_x g, ticker_y g + ticker_h g) `Left
 
 let fps_w = 40
 let fps_text g = Ui.text g.ui (cp, visual_w g - fps_w, margin g + info_margin g, fps_w, 12) `Left
@@ -335,17 +335,29 @@ let control_context g = Ui.mouse g.ui (cp, margin g, ctl_y g, - margin g, -1) `R
 let cover_popup_open g = Ui.mouse g.ui (cover_area g) `Left
 
 let cover_popup_w g = g.popup_size |>
-  min (control_w g + Bool.to_int g.library_shown * g.library_width - 2 * popup_margin g) |>
-  min (control_h g + Bool.to_int g.playlist_shown * g.playlist_height - line_h g - 2 * popup_margin g)
+  min (control_w g + library_w g - 2 * popup_margin g) |>
+  min (control_h g + playlist_h g - line_h g - 2 * popup_margin g)
 let cover_popup_image_size g = Ui.image_size g.ui (-1, 0, 0, cover_popup_w g, cover_popup_w g) `Shrink
 let cover_popup g x y iw ih = Ui.popup g.ui x y iw (ih + line_h g) (popup_margin g)
 let cover_popup_image g (p, x, y, w, h) = Ui.image g.ui (p, x, y, w, h - line_h g) `Shrink
 let cover_popup_text g (p, x, y, w, _) ih = Ui.ticker g.ui (p, x, y + ih + pad_h g, w, text_h g)
 
 
+(* Divider Panes *)
+
+let pdp = cp + 1
+let extension_divider_h_pane g = Ui.pane g.ui pdp (playlist_x g, playlist_y g, playlist_w g, divider_w g)
+let extension_divider_h g = Ui.divider g.ui (pdp, 0, 0, -1, -1) `Vertical
+
+let ldp = pdp + 1
+let extension_divider_x g = (if extension_left g then control_x else library_x) g
+let extension_divider_w_pane g = Ui.pane g.ui ldp (extension_divider_x g, library_y g, divider_w g, -1)
+let extension_divider_w g = Ui.divider g.ui (ldp, 0, 0, -1, -1) `Horizontal
+
+
 (* Playlist Pane *)
 
-let pp = cp + 1
+let pp = ldp + 1
 let playlist_pane g = Ui.pane g.ui pp (playlist_x g, playlist_y g, playlist_w g, - bottom_h g)
 
 (* Playlist *)
@@ -365,7 +377,7 @@ let edit_sep g = 5 + flex_w g / 40
 let edit_w g = 27 + flex_w g / 16
 let edit_h g = line_h g + 7 + flex_h g / 24
 let edit_x i j g = margin g + i * edit_sep g + j * edit_w g
-let edit_y g = if g.playlist_shown then - edit_h g else control_h g (* effectively hidden *)
+let edit_y g = if extension_shown_h g then - edit_h g else control_h g (* effectively hidden *)
 let edit_area i j g = (ep, edit_x i j g, edit_y g, edit_w g, edit_h g)
 let edit_button i j label key g = Ui.labeled_button g.ui (edit_area i j g) (button_label_h g) (Ui.inactive_color g.ui) label key true
 let edit_button2 i j key g = Ui.invisible_button g.ui (edit_area i j g) [`Shift] key true
@@ -396,7 +408,7 @@ let focus_prev_key g = Ui.key g.ui key_prev true
 (* Total text field *)
 let total_w g = - margin g - scrollbar_w g
 let total_x g = edit_x 4 7 g
-let total_y g = g.playlist_height + footer_y g  (* Hack: this is outside the pane *)
+let total_y g = playlist_h g + footer_y g  (* Hack: this is outside the pane *)
 let playlist_total_box g = Ui.box g.ui (pp, total_x g, total_y g, total_w g, line_h g) `Black
 let playlist_total_text g = Ui.text g.ui (pp, total_x g, total_y g + pad_h g, total_w g - (gutter_w g + 1)/2, text_h g) `Right
 
@@ -503,6 +515,7 @@ let rescan_button = ledit_button 1 4 "SCAN" key_scandir
 let left_x g = library_x g + g.browser_width
 let left_y g = library_y g
 let left_w g = if g.right_shown then g.left_width else library_w g - g.browser_width
+let right_x g = left_x g + g.left_width
 let right_w g = if g.right_shown then library_w g - g.browser_width - g.left_width else 0
 let upper_h g = if g.lower_shown then g.upper_height else - bottom_h g
 let lower_h g = - bottom_h g
@@ -525,7 +538,7 @@ let left_view =
 
 (* Upper right view (optional) *)
 let rp = lp + 1
-let right_pane g = Ui.pane g.ui rp (left_x g + g.left_width, left_y g, right_w g, upper_h g)
+let right_pane g = Ui.pane g.ui rp (right_x g, left_y g, right_w g, upper_h g)
 
 let right_divider g = Ui.divider g.ui (rp, 0, 0, divider_w g, -1) `Horizontal
 
@@ -599,22 +612,22 @@ let replaceleft_button = lcopy_button2 0 0 key_replaceleft
 let replaceright_button = lcopy_button2 0 1 key_replaceright
 
 let appendlib_button g =
-  (if g.library_side = `Left then appendleft_button else appendright_button) g
+  (if g.extension_side = `Left then appendleft_button else appendright_button) g
 let replacelib_button g =
-  (if g.library_side = `Left then replaceleft_button else replaceright_button) g
+  (if g.extension_side = `Left then replaceleft_button else replaceright_button) g
 let appendpl_button g =
-  (if g.library_side = `Left then appendright_button else appendleft_button) g
+  (if g.extension_side = `Left then appendright_button else appendleft_button) g
 let replacepl_button g =
-  (if g.library_side = `Left then replaceright_button else replaceleft_button) g
+  (if g.extension_side = `Left then replaceright_button else replaceleft_button) g
 
 let key_appendlib g =
-  if g.library_side = `Left then key_appendleft else key_appendright
+  if g.extension_side = `Left then key_appendleft else key_appendright
 let key_replacelib g =
-  if g.library_side = `Left then key_replaceleft else key_replaceright
+  if g.extension_side = `Left then key_replaceleft else key_replaceright
 let key_appendpl g =
-  if g.library_side = `Left then key_appendright else key_appendleft
+  if g.extension_side = `Left then key_appendright else key_appendleft
 let key_replacepl g =
-  if g.library_side = `Left then key_replaceright else key_replaceleft
+  if g.extension_side = `Left then key_replaceright else key_replaceleft
 
 (* Message *)
 let msg_x = 0
