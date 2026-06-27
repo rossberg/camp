@@ -335,8 +335,8 @@ let control_context g = Ui.mouse g.ui (cp, margin g, ctl_y g, - margin g, -1) `R
 let cover_popup_open g = Ui.mouse g.ui (cover_area g) `Left
 
 let cover_popup_w g = g.popup_size |>
-  min (control_w g + Bool.to_int g.library_shown * g.library_width - 2 * popup_margin g) |>
-  min (control_h g + Bool.to_int g.playlist_shown * g.playlist_height - line_h g - 2 * popup_margin g)
+  min (control_w g + library_w g - 2 * popup_margin g) |>
+  min (control_h g + playlist_h g - line_h g - 2 * popup_margin g)
 let cover_popup_image_size g = Ui.image_size g.ui (-1, 0, 0, cover_popup_w g, cover_popup_w g) `Shrink
 let cover_popup g x y iw ih = Ui.popup g.ui x y iw (ih + line_h g) (popup_margin g)
 let cover_popup_image g (p, x, y, w, h) = Ui.image g.ui (p, x, y, w, h - line_h g) `Shrink
@@ -346,13 +346,13 @@ let cover_popup_text g (p, x, y, w, _) ih = Ui.ticker g.ui (p, x, y + ih + pad_h
 (* Divider Panes *)
 
 let pdp = cp + 1
-let playlist_divider_pane g = Ui.pane g.ui pdp (playlist_x g, playlist_y g, playlist_w g, divider_w g)
-let playlist_divider g = Ui.divider g.ui (pdp, 0, 0, -1, -1) `Vertical
+let extension_divider_h_pane g = Ui.pane g.ui pdp (playlist_x g, playlist_y g, playlist_w g, divider_w g)
+let extension_divider_h g = Ui.divider g.ui (pdp, 0, 0, -1, -1) `Vertical
 
 let ldp = pdp + 1
-let library_divider_x g = (if overlay_left g then control_x else library_x) g
-let library_divider_pane g = Ui.pane g.ui ldp (library_divider_x g, library_y g, divider_w g, -1)
-let library_divider g = Ui.divider g.ui (ldp, 0, 0, -1, -1) `Horizontal
+let extension_divider_x g = (if extension_left g then control_x else library_x) g
+let extension_divider_w_pane g = Ui.pane g.ui ldp (extension_divider_x g, library_y g, divider_w g, -1)
+let extension_divider_w g = Ui.divider g.ui (ldp, 0, 0, -1, -1) `Horizontal
 
 
 (* Playlist Pane *)
@@ -377,7 +377,7 @@ let edit_sep g = 5 + flex_w g / 40
 let edit_w g = 27 + flex_w g / 16
 let edit_h g = line_h g + 7 + flex_h g / 24
 let edit_x i j g = margin g + i * edit_sep g + j * edit_w g
-let edit_y g = if g.playlist_shown then - edit_h g else control_h g (* effectively hidden *)
+let edit_y g = if extension_shown_h g then - edit_h g else control_h g (* effectively hidden *)
 let edit_area i j g = (ep, edit_x i j g, edit_y g, edit_w g, edit_h g)
 let edit_button i j label key g = Ui.labeled_button g.ui (edit_area i j g) (button_label_h g) (Ui.inactive_color g.ui) label key true
 let edit_button2 i j key g = Ui.invisible_button g.ui (edit_area i j g) [`Shift] key true
@@ -408,7 +408,7 @@ let focus_prev_key g = Ui.key g.ui key_prev true
 (* Total text field *)
 let total_w g = - margin g - scrollbar_w g
 let total_x g = edit_x 4 7 g
-let total_y g = g.playlist_height + footer_y g  (* Hack: this is outside the pane *)
+let total_y g = playlist_h g + footer_y g  (* Hack: this is outside the pane *)
 let playlist_total_box g = Ui.box g.ui (pp, total_x g, total_y g, total_w g, line_h g) `Black
 let playlist_total_text g = Ui.text g.ui (pp, total_x g, total_y g + pad_h g, total_w g - (gutter_w g + 1)/2, text_h g) `Right
 
@@ -612,22 +612,22 @@ let replaceleft_button = lcopy_button2 0 0 key_replaceleft
 let replaceright_button = lcopy_button2 0 1 key_replaceright
 
 let appendlib_button g =
-  (if g.library_side = `Left then appendleft_button else appendright_button) g
+  (if g.extension_side = `Left then appendleft_button else appendright_button) g
 let replacelib_button g =
-  (if g.library_side = `Left then replaceleft_button else replaceright_button) g
+  (if g.extension_side = `Left then replaceleft_button else replaceright_button) g
 let appendpl_button g =
-  (if g.library_side = `Left then appendright_button else appendleft_button) g
+  (if g.extension_side = `Left then appendright_button else appendleft_button) g
 let replacepl_button g =
-  (if g.library_side = `Left then replaceright_button else replaceleft_button) g
+  (if g.extension_side = `Left then replaceright_button else replaceleft_button) g
 
 let key_appendlib g =
-  if g.library_side = `Left then key_appendleft else key_appendright
+  if g.extension_side = `Left then key_appendleft else key_appendright
 let key_replacelib g =
-  if g.library_side = `Left then key_replaceleft else key_replaceright
+  if g.extension_side = `Left then key_replaceleft else key_replaceright
 let key_appendpl g =
-  if g.library_side = `Left then key_appendright else key_appendleft
+  if g.extension_side = `Left then key_appendright else key_appendleft
 let key_replacepl g =
-  if g.library_side = `Left then key_replaceright else key_replaceleft
+  if g.extension_side = `Left then key_replaceright else key_replaceleft
 
 (* Message *)
 let msg_x = 0
