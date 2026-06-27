@@ -65,10 +65,10 @@ let toggle_library (st : state) =
         let wx, _ = Api.Window.pos win in
         let sx, _ = Api.Screen.min_pos scr in
         let sw, _ = Api.Screen.max_size scr in
-        if geo.library_side = `Left && wx <= sx then
-          geo.library_side <- `Right;
-        if geo.library_side = `Right && wx + Geometry.control_w geo >= sx + sw then
-          geo.library_side <- `Left;
+        if geo.extension_side = `Left && wx <= sx then
+          geo.extension_side <- `Right;
+        if geo.extension_side = `Right && wx + Geometry.control_w geo >= sx + sw then
+          geo.extension_side <- `Left;
       )
     )
   )
@@ -76,7 +76,7 @@ let toggle_library (st : state) =
 let toggle_side (st : state) =
   State.delay st (fun () ->
     let geo = st.geometry in
-    geo.library_side <- if geo.library_side = `Left then `Right else `Left
+    geo.extension_side <- if geo.extension_side = `Left then `Right else `Left
   )
 
 let cycle_visual (st : state) =
@@ -846,7 +846,7 @@ let run_toggle_panel (st : state) =
   (
     if Api.Key.is_modifier_down `Shift then
       (* Shift-click: switch sides for library pane *)
-      (if geo.library_shown then toggle_side st)
+      (if Geometry.extension_shown_w geo then toggle_side st)
     else
       toggle_library st
   )
@@ -879,7 +879,7 @@ let run_toggle_panel (st : state) =
         (fun () -> toggle_playlist st);
       `Entry (c, show "Library" (not geo.library_shown), Layout.key_lib, true),
         (fun () -> toggle_library st);
-      `Entry (c, side "Expand to" geo.library_side, Layout.key_side, true),
+      `Entry (c, side "Expand to" geo.extension_side, Layout.key_side, true),
         (fun () -> toggle_side st);
     |] (if not geo.playlist_shown then [||] else [|
       `Separator, ignore;
@@ -907,4 +907,57 @@ let run_toggle_panel (st : state) =
       `Entry (c, "Decrease Popup Cover Size", Layout.key_popupdn, resize_popup_avail st (-1)),
         (fun () -> resize_popup st (-1));
     |]))
+  );
+
+  (* Extension Dividers *)
+
+  Layout.extension_divider_h_pane geo;
+
+  let control_height' =
+    Layout.extension_divider_h geo geo.control_height
+      Geometry.control_min_h (Geometry.control_max_h geo)
+  in
+  (* Possible drag of playlist divider: update control height *)
+  if control_height' <> geo.control_height then
+  (
+    let delta = control_height' - geo.control_height in
+    geo.control_height <- control_height';
+    geo.extension_height <- geo.extension_height - delta;
+    geo.window <- Geometry.abstract_geo geo;
+    State.save st;
+  );
+
+  Layout.extension_divider_w_pane geo;
+
+  if not (Geometry.extension_left geo) then
+  (
+    let control_width' =
+      Layout.extension_divider_w geo geo.control_width
+        Geometry.control_min_w (Geometry.control_max_w geo)
+    in
+    (* Possible drag of library divider: update control width *)
+    if control_width' <> geo.control_width then
+    (
+      let delta = control_width' - geo.control_width in
+      geo.control_width <- control_width';
+      geo.extension_width <- geo.extension_width - delta;
+      Geometry.update_geo geo;
+      State.save st;
+    )
+  )
+  else
+  (
+    let extension_width' =
+      Layout.extension_divider_w geo geo.extension_width
+        (Geometry.extension_min_w geo) (Geometry.extension_max_w geo)
+    in
+    (* Possible drag of library divider: update control width *)
+    if extension_width' <> geo.extension_width then
+    (
+      let delta = extension_width' - geo.extension_width in
+      geo.extension_width <- extension_width';
+      geo.control_width <- geo.control_width - delta;
+      Geometry.update_geo geo;
+      State.save st;
+    )
   )

@@ -283,7 +283,6 @@ struct
 
   (* We have to set the window position before events are processed,
    * and the window size after. Otherwise we're seeing strange bobbing. *)
-  let _ = after_frame_start := update :: !after_frame_start
   let _ = before_frame_finish :=
     (fun () ->
       Option.iter (fun (x, y) ->
@@ -298,17 +297,14 @@ struct
         let x, y = !Screen.scale in
         let dx, dy = !next_rescale in
         Screen.scale := max 1 (x + dx), max 1 (y + dy);
+        next_rescale := 0, 0;
         if !next_size = None then next_size := Some !current_size;
       );
       Option.iter (fun (w, h) ->
         if (w, h) <> !current_size then Raylib.set_window_size w h;
         next_size := None;
       ) !next_size;
-      if !next_rescale <> (0, 0) then
-      (
-        next_rescale := 0, 0;
-        update ();
-      );
+      update ();
       Raylib.(set_exit_key Key.Null);  (* seems to be reset somehow? *)
     ) :: !after_frame_finish
 
@@ -336,6 +332,8 @@ struct
   let set_size () w h = next_size := Some (sx w, sy h)
   let set_screen () scr = current_screen := scr
   let set_icon () img = if not is_mac then Raylib.set_window_icon img
+  let next_pos () = uxy (Option.value !next_pos ~default: !current_pos)
+  let next_size () = uxy (Option.value !next_size ~default: !current_size)
 
   let minimize () = Raylib.minimize_window ()
   let restore () = Raylib.restore_window ()
@@ -624,6 +622,7 @@ struct
     current_shader := shader_opt
 
   let start () c =
+    incr frame;
     current_scale := Window.scale ();
     Raylib.begin_drawing ();
     Raylib.clear_background (color c);
@@ -637,7 +636,6 @@ struct
 
   let finish () =
     List.iter (fun f -> f ()) (List.rev !before_frame_finish);
-    incr frame;
     shader None;
     Raylib.end_drawing ();  (* polls input events *)
     List.iter (fun f -> f ()) (List.rev !after_frame_finish)

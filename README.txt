@@ -708,9 +708,10 @@ searches the library for a file with the same or a similar name.
 There are various ways to tweak the user interface. All settings are remembered
 across sessions:
 
-* UI Resize: Resize the Control pane (resize window when Playlist or Library
-  are closed) to seamlessly scale the UI. This also affects UI elements such as
-  buttons in all other panes.
+* UI Resize: Resize the Control pane to seamlessly scale the UI. To do so,
+  resize the window with Shift pressed or when Playlist or Library are closed,
+  or use the dividers between Control pane and Playlist or Library pane. This
+  also accordingly resizes UI elements such as buttons in other panes.
 
 * Text Size: Use the + and - keys with Ctrl/Command (or the context menu from
   the Control pane) to adjust the size of all text in table, list, and edit

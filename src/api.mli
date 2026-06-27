@@ -59,6 +59,8 @@ sig
 
   val pos : window -> point
   val size : window -> size
+  val next_pos : window -> point
+  val next_size : window -> size
   val screen : window -> screen
   val set_pos : window -> int -> int -> unit
   val set_size : window -> int -> int -> unit
