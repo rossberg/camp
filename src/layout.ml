@@ -277,7 +277,7 @@ let seek_bar g = Ui.progress_bar g.ui (cp, info_x g + seek_margin g, seek_y g, i
 
 (* Time *)
 let lcd_space g = 3 + flex_w g / 40
-let colon_w _g = 4
+let colon_w g = 4 + flex_w g / (24 * 14 / 4)
 let lcd_w g = 14 + flex_w g / 24
 let lcd_h g = 20 + flex_h g / 6
 let lcd_x g i = margin g + info_margin g + i*(lcd_w g + lcd_space g)
@@ -343,9 +343,21 @@ let cover_popup_image g (p, x, y, w, h) = Ui.image g.ui (p, x, y, w, h - line_h 
 let cover_popup_text g (p, x, y, w, _) ih = Ui.ticker g.ui (p, x, y + ih + pad_h g, w, text_h g)
 
 
+(* Divider Panes *)
+
+let pdp = cp + 1
+let playlist_divider_pane g = Ui.pane g.ui pdp (playlist_x g, playlist_y g, playlist_w g, divider_w g)
+let playlist_divider g = Ui.divider g.ui (pdp, 0, 0, -1, -1) `Vertical
+
+let ldp = pdp + 1
+let library_divider_x g = (if overlay_left g then control_x else library_x) g
+let library_divider_pane g = Ui.pane g.ui ldp (library_divider_x g, library_y g, divider_w g, -1)
+let library_divider g = Ui.divider g.ui (ldp, 0, 0, -1, -1) `Horizontal
+
+
 (* Playlist Pane *)
 
-let pp = cp + 1
+let pp = ldp + 1
 let playlist_pane g = Ui.pane g.ui pp (playlist_x g, playlist_y g, playlist_w g, - bottom_h g)
 
 (* Playlist *)
@@ -503,6 +515,7 @@ let rescan_button = ledit_button 1 4 "SCAN" key_scandir
 let left_x g = library_x g + g.browser_width
 let left_y g = library_y g
 let left_w g = if g.right_shown then g.left_width else library_w g - g.browser_width
+let right_x g = left_x g + g.left_width
 let right_w g = if g.right_shown then library_w g - g.browser_width - g.left_width else 0
 let upper_h g = if g.lower_shown then g.upper_height else - bottom_h g
 let lower_h g = - bottom_h g
@@ -525,7 +538,7 @@ let left_view =
 
 (* Upper right view (optional) *)
 let rp = lp + 1
-let right_pane g = Ui.pane g.ui rp (left_x g + g.left_width, left_y g, right_w g, upper_h g)
+let right_pane g = Ui.pane g.ui rp (right_x g, left_y g, right_w g, upper_h g)
 
 let right_divider g = Ui.divider g.ui (rp, 0, 0, divider_w g, -1) `Horizontal
 

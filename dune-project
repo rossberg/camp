@@ -16,6 +16,7 @@
   (synopsis "Camp music player")
   (description "A portable music player in the Winamp tradition")
   (depends
+    (ocaml (>= 5.4.0))
     (raylib (= 1.6.0))
     (raylib-callbacks (= 1.6.0))
     (uunf (>= 17.0.0))

@@ -907,4 +907,59 @@ let run_toggle_panel (st : state) =
       `Entry (c, "Decrease Popup Cover Size", Layout.key_popupdn, resize_popup_avail st (-1)),
         (fun () -> resize_popup st (-1));
     |]))
+  );
+
+  (* Dividers *)
+
+  Layout.playlist_divider_pane geo;
+
+  let control_height' =
+    Layout.playlist_divider geo geo.control_height
+      Geometry.control_min_h (Geometry.control_max_h geo)
+  in
+  (* Possible drag of playlist divider: update control height *)
+  if control_height' <> geo.control_height then
+  (
+    let delta = control_height' - geo.control_height in
+    geo.control_height <- control_height';
+    geo.playlist_height <- geo.playlist_height - delta;
+    geo.window <- Geometry.abstract_geo geo;
+    State.save st;
+  );
+
+  Layout.library_divider_pane geo;
+
+  if not (Geometry.overlay_left geo) then
+  (
+    let control_width' =
+      Layout.library_divider geo geo.control_width
+        Geometry.control_min_w (Geometry.control_max_w geo)
+    in
+    (* Possible drag of library divider: update control width *)
+    if control_width' <> geo.control_width then
+    (
+      let delta = control_width' - geo.control_width in
+      geo.control_width <- control_width';
+      geo.library_width <- geo.library_width - delta;
+      geo.window <- Geometry.abstract_geo geo;
+      ignore (Geometry.apply_geo geo geo.window);  (* clamp inner *)
+      State.save st;
+    )
+  )
+  else
+  (
+    let library_width' =
+      Layout.library_divider geo geo.library_width
+        (Geometry.library_min geo) (Geometry.library_max geo)
+    in
+    (* Possible drag of library divider: update control width *)
+    if library_width' <> geo.library_width then
+    (
+      let delta = library_width' - geo.library_width in
+      geo.library_width <- library_width';
+      geo.control_width <- geo.control_width - delta;
+      geo.window <- Geometry.abstract_geo geo;
+      ignore (Geometry.apply_geo geo geo.window);  (* clamp inner *)
+      State.save st;
+    )
   )

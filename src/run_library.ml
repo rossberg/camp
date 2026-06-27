@@ -1245,7 +1245,7 @@ let run_views (st : state) =
     (
       let upper_height' = Layout.lower_divider geo geo.upper_height
         (Geometry.upper_min geo) (Geometry.upper_max geo) in
-      (* Possible drag of divider: update pane width *)
+      (* Possible drag of divider: update pane height *)
       if upper_height' <> geo.upper_height then
       (
         geo.upper_height <- upper_height';

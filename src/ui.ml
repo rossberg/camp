@@ -409,7 +409,7 @@ let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
           ui.drag_extra <- Resize {overshoot = ww' - ww'', wh' - wh''};
           ui.drag_origin <- add ui.drag_origin (dmx, dmy);  (* adjust for resize *)
           add (wx - dwx, wy - dwy) ui.repos,
-          add (ww'', wh'') ui.resize
+          (ww'', wh'')
 
         | _ -> pos', size'
       )
@@ -423,6 +423,8 @@ let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
   Window.set_pos ui.win wx' wy';   (* deferred until end fo frame! *)
   if (ww', wh') <> (ww, wh) then
   (
+    assert (minw <= ww' && (maxw = -1 || ww' <= maxw));
+    assert (minh <= wh' && (maxh = -1 || wh' <= maxh));
     Window.set_size ui.win ww' wh';  (* deferred until end fo frame! *)
     on_size_change (wx' - wx, wy' - wy, ww' - ww, wh' - wh);
   );
@@ -623,7 +625,7 @@ let draw_lcd ui r c elem =
   let open Draw in
   let x, y, w, h = r in
   let m = h / 2 in
-  let l = max 1 ((if elem = `Dots then h else min w h) / 6) in
+  let l = max 1 (min (if elem = `Dots then 4*w else w) h / 6) in
   let s = l * 3 / 2 in
   let d = s - l in
   match elem with

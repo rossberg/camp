@@ -14,6 +14,8 @@ Library:
 - [new] Browser context menu to copy, paste, propagate folder view settings
 
 UI:
+- [new] Resizing window borders with resizes Control pane
+- [new] Movable dividers between Control pane and Playlist/Library panes
 - [new] UI elements scale proportionally with Control pane size
 - [fix] Correctly persist and restore UI scaling
 - [fix] Correctly adjust window geometry upon screen change with UI scaling

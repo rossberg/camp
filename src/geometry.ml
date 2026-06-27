@@ -137,28 +137,45 @@ let max_grid_size = 1024
 let min_popup_size = 100
 let max_popup_size = 1000
 
+let live_win_w g =
+  let win = Ui.window g.ui in
+  min (fst (Api.Window.size win)) (fst (Api.Window.next_size win))
+let live_win_h g =
+  let win = Ui.window g.ui in
+  min (snd (Api.Window.size win)) (snd (Api.Window.next_size win))
+
 let browser_min g = 160 + flex_w g / 3
 let directories_min g = browser_min g
 let left_min _g = 40
-let right_min _g = 40
-let views_min g = left_min g + right_min g
+let views_min g = 2 * left_min g
 let files_min _g = 40
 let library_min g = max (browser_min g + views_min g) (directories_min g + files_min g)
+let library_max g = live_win_w g - control_min_w
 
-let upper_min g = margin g + 3 * (line_h g) + scrollbar_w g + 3
-let lower_min g = divider_w g + 3 * (line_h g) + scrollbar_w g + 3
+let upper_min g = margin g + 3 * line_h g + scrollbar_w g + 3
+let lower_min g = divider_w g + 3 * line_h g + scrollbar_w g + 3
 
 let browser_max g = g.library_width - views_min g
-let directories_max g = g.library_width - files_min g
-let left_max g = g.library_width - g.browser_width - right_min g
+let directories_max g = g.library_width - files_min g (*- margin g*)
+let left_max g = g.library_width - g.browser_width - left_min g (*- 2 * margin g*)
 let upper_max g = control_h g + g.playlist_height - bottom_h g - lower_min g
 
-let playlist_min g = bottom_h g + max (margin g + 2 * (line_h g)) (upper_min g + lower_min g - control_h g)
+let playlist_min g = bottom_h g + max (margin g + 2 * line_h g) (upper_min g + lower_min g - control_h g)
+let playlist_max g = live_win_h g - control_min_h
 
-let win_min_w g = control_min_w + if overlay_shown g then library_min g else 0
-let win_min_h g = control_min_h + if g.playlist_shown then playlist_min g else 0
-let win_max_w _g = -1
-let win_max_h _g = -1
+let control_max_w g = live_win_w g - library_min g
+let control_max_h g = live_win_h g - playlist_min g
+
+let win_min_w flex_ctl flex_ext g =
+  (if flex_ctl then control_min_w else control_w g) +
+  (if flex_ext && overlay_shown g then library_min g else library_w g)
+let win_min_h flex_ctl flex_ext g =
+  (if flex_ctl then control_min_h else control_h g) +
+  (if flex_ext && g.playlist_shown then playlist_min g else playlist_h g)
+let win_max_w flex_ctl flex_ext g =
+  if flex_ctl || flex_ext then -1 else win_w g
+let win_max_h flex_ctl flex_ext g =
+  if flex_ctl || flex_ext then -1 else win_h g
 
 
 (* Validation *)
@@ -166,6 +183,10 @@ let win_max_h _g = -1
 let check msg b = if b then [] else [msg]
 
 let ok geo =
+  check "window width in range"
+    (live_win_w geo >= win_min_w true true geo) @
+  check "window height in range"
+    (live_win_h geo >= win_min_h true true geo) @
   check "text size in range"
     (geo.text >= min_text_size && geo.text <= max_text_size) @
   check "album grid size in range"
@@ -231,33 +252,7 @@ let abstract_geo geo : float * float * float * float =
   let ww, wh = Api.Window.size win in
   abstract_geo' geo (wx, wy, ww, wh)
 
-let apply_geo geo (ax, ay, aw, ah) : int * int * int * int =
-  let win = Ui.window geo.ui in
-  let scr = Api.Window.screen win in
-  let sx, sy = Api.Screen.min_pos scr in
-  let sw, sh = Api.(sub (Screen.max_size scr) (control_w geo, control_h geo)) in
-  let w = clamp (library_min geo) sw (int_of_float (aw *. float sw)) in
-  let h = clamp (playlist_min geo) sh (int_of_float (ah *. float sh)) in
-  geo.library_width <- w;
-  geo.playlist_height <- h;
-  let cw, ch = Api.add (w, h) (control_w geo, control_h geo) in
-  let cx = let cx = control_x geo in if cx >= 0 then cx else cw + cx in
-  let cy = let cy = control_y geo in if cy >= 0 then cy else ch + cy in
-  assert (cx >= 0 && cy >= 0);  (* relative position of control pane *)
-  let margin = margin geo in
-  let clamp_x = clamp (- cw + margin) (sw + control_w geo - margin) in
-  let clamp_y = clamp (- ch + margin) (sh + control_h geo - margin) in
-  let x = clamp_x (int_of_float (ax *. float sw) - cx) + sx in
-  let y = clamp_y (int_of_float (ay *. float sh) - cy) + sy in
-
-  if !App.debug_layout then
-  (
-    let sw, sh = Api.Screen.max_size scr in
-    Printf.eprintf
-      "[layout] abs=%.2f,%.2f,%.2f,%.2f concr=%d,%d,%d+%d,%d+%d scr=%d,%d,%d,%d\n%!"
-      ax ay aw ah x y w (control_w geo) h (control_h geo) sx sy sw sh;
-  );
-
+let rec clamp_geo geo =
   geo.browser_width <-
     clamp (browser_min geo) (browser_max geo) geo.browser_width;
   geo.left_width <- clamp (left_min geo) (left_max geo) geo.left_width;
@@ -265,7 +260,59 @@ let apply_geo geo (ax, ay, aw, ah) : int * int * int * int =
   geo.directories_width <-
     clamp (directories_min geo) (directories_max geo) geo.directories_width;
 
-  x, y, win_w geo, win_h geo
+  (* Changing control pane size may change minima *)
+  if library_w geo < library_min geo then
+  (
+    assert (control_w geo > control_min_w);
+    geo.control_width <- geo.control_width - 1;
+    geo.library_width <- geo.library_width + 1;
+    clamp_geo geo;
+  )
+  else if playlist_h geo < playlist_min geo then
+  (
+    assert (control_h geo > control_min_h);
+    geo.control_height <- geo.control_height - 1;
+    geo.playlist_height <- geo.playlist_height + 1;
+    clamp_geo geo;
+  )
+
+let update_geo' geo (wx, wy, ww, wh) =
+  geo.window <- abstract_geo' geo (wx, wy, ww, wh);
+  clamp_geo geo
+
+let update_geo geo =
+  geo.window <- abstract_geo geo;
+  clamp_geo geo
+
+let apply_geo geo (ax, ay, aw, ah) : int * int * int * int =
+  let win = Ui.window geo.ui in
+  let scr = Api.Window.screen win in
+  let sx, sy = Api.Screen.min_pos scr in
+  let sw, sh = Api.(sub (Screen.max_size scr) (control_w geo, control_h geo)) in
+  let ew = clamp (library_min geo) sw (int_of_float (aw *. float sw)) in
+  let eh = clamp (playlist_min geo) sh (int_of_float (ah *. float sh)) in
+  geo.library_width <- ew;
+  geo.playlist_height <- eh;
+  let w, h = Api.add (ew, eh) (control_w geo, control_h geo) in
+  let cx = let cx = control_x geo in if cx >= 0 then cx else w + cx in
+  let cy = let cy = control_y geo in if cy >= 0 then cy else h + cy in
+  assert (cx >= 0 && cy >= 0);  (* relative position of control pane *)
+  let margin = margin geo in
+  let clamp_x = clamp (- w + margin) (sw + control_w geo - margin) in
+  let clamp_y = clamp (- h + margin) (sh + control_h geo - margin) in
+  let x = clamp_x (int_of_float (ax *. float sw) - cx) + sx in
+  let y = clamp_y (int_of_float (ay *. float sh) - cy) + sy in
+
+  if !App.debug_layout then
+  (
+    let sw, sh = Api.Screen.max_size scr in
+    Printf.eprintf
+      "[layout apply] abs=%.2f,%.2f,%.2f,%.2f concr=%d,%d,%d+%d,%d+%d scr=%d,%d,%d,%d\n%!"
+      ax ay aw ah x y ew (control_w geo) eh (control_h geo) sx sy sw sh;
+  );
+
+  clamp_geo geo;
+  x, y, w, h
 
 
 let abstract_view_geo geo : int * int =
@@ -286,8 +333,9 @@ let apply_view_geo geo (aw, ah) =
 
 let side_enum = ["left", `Left; "right", `Right]
 
-let print_state' geo (ax, ay, aw, ah) =
+let print_state geo =
   let open Text.Print in
+  let ax, ay, aw, ah = abstract_geo geo in
   record (fun geo -> [
     "win_pos", pair float float (ax, ay);
     "scaling", pair int int geo.scaling;
@@ -315,16 +363,25 @@ let print_state' geo (ax, ay, aw, ah) =
     "popup_size", nat geo.popup_size;
   ]) geo
 
-let print_state geo = print_state' geo (abstract_geo geo)
-let print_intern geo = print_state' geo (concrete_geo geo)
+let print_intern geo =
+  let open Text.Print in
+  let x, y = Api.Window.pos (Ui.window geo.ui) in
+  let w, h = Api.Window.size (Ui.window geo.ui) in
+  print_state geo @@@
+  record (fun geo -> [
+    "win_pos_", pair int int (x, y);
+    "win_size_", pair int int (w, h);
+    "play_height_", nat geo.playlist_height;
+    "lib_width_", nat geo.library_width;
+  ]) geo
 
 let parse_state geo =  (* assumes playlist and library loaded *)
   let open Text.Parse in
-  let float' max t =
+  let float' newmax oldmax t =
     (* Backwards compatibility with old integer coordinates *)
     let x = float t in
-    if x >= 2.0 then x /. float_of_int max else
-    if x <= -2.0 then 1.0 +. x /. float_of_int max else
+    if x >= newmax then x /. float_of_int oldmax else
+    if x <= -.newmax then 1.0 +. x /. float_of_int oldmax else
     x
   in
   let sw, sh = Api.Screen.max_size (Api.Window.screen (Ui.window geo.ui)) in
@@ -335,7 +392,7 @@ let parse_state geo =  (* assumes playlist and library loaded *)
   record (fun r ->
     apply (r $? "scaling") (pair (num (-1) 8) (num (-1) 8))
       (fun delta -> geo.scaling <- delta);
-    apply (r $? "win_pos") (pair (float' sw) (float' sh))
+    apply (r $? "win_pos") (pair (float' 2.0 sw) (float' 2.0 sh))
       (fun (x, y) -> rax := x; ray := y);
     apply (r $? "buffered") bool
       (fun b -> Ui.buffered geo.ui b);
@@ -355,7 +412,7 @@ let parse_state geo =  (* assumes playlist and library loaded *)
       (fun h -> geo.control_height <- h);
     apply (r $? "play_open") bool
       (fun b -> geo.playlist_shown <- b);
-    apply (r $? "play_height") (float' (sw - ww))
+    apply (r $? "play_height") (float' 2.0 (sw - ww))
       (fun h -> rah := h);
     apply (r $? "play_headers") bool
       (fun b -> geo.playlist_headers <- b);
@@ -363,7 +420,7 @@ let parse_state geo =  (* assumes playlist and library loaded *)
       (fun b -> geo.library_shown <- b);
     apply (r $? "lib_side") (enum side_enum)
       (fun s -> geo.library_side <- s);
-    apply (r $? "lib_width") (float' (sh - wh))
+    apply (r $? "lib_width") (float' 2.0 (sh - wh))
       (fun w -> raw := w);
     apply (r $? "browser_width") (num (browser_min geo) (browser_max geo))
       (fun w -> geo.browser_width <- w);
@@ -383,5 +440,8 @@ let parse_state geo =  (* assumes playlist and library loaded *)
       (fun w -> geo.popup_size <- w);
     geo.window <- (!rax, !ray, !raw, !rah);
     Ui.rescale geo.ui geo.scaling;
-    Ui.reset geo.ui (apply_geo geo geo.window);
+let _,_,ww,_ as r = apply_geo geo geo.window in
+    Ui.reset geo.ui r(*(apply_geo geo geo.window)*);
+let ww', _=Api.Window.size (Ui.window geo.ui) in
+Printf.printf "[load] ww=%d ww'=%d\n%!" ww ww';
   )
