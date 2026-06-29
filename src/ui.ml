@@ -40,7 +40,7 @@ let make win =
   Window.set_icon win icon;
   { win;
     buffered = true;
-    font_sdf = Screen.is_hires (Window.screen win);
+    font_sdf = false (*Screen.is_hires (Window.screen win)*);
     palette = 0;
     panes = Array.make 10 ((0, 0, 0, 0), (0, 0, 0, 0));
     modal = false;
@@ -420,12 +420,12 @@ let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
       )
     )
   in
-  Window.set_pos ui.win wx' wy';   (* deferred until end fo frame! *)
+  Window.set_pos ui.win wx' wy';   (* deferred until end of frame! *)
   if (ww', wh') <> (ww, wh) then
   (
     assert (minw <= ww' && (maxw = -1 || ww' <= maxw));
     assert (minh <= wh' && (maxh = -1 || wh' <= maxh));
-    Window.set_size ui.win ww' wh';  (* deferred until end fo frame! *)
+    Window.set_size ui.win ww' wh';  (* deferred until end of frame! *)
     on_size_change (wx' - wx, wy' - wy, ww' - ww, wh' - wh);
   );
   ui.drag_origin <- sub ui.drag_origin ui.repos;  (* adjust for resize *)
@@ -658,8 +658,8 @@ let draw_lcd ui r c elem =
     tri ui.win (x + w) (y + m + d) (x + w - l) (y + m + s) (x + w) (y + m + s) c;
     tri ui.win (x + w) (y + h - d) (x + w) (y + h - s) (x + w - l) (y + h - s) c;
   | `Dots ->
-    fill ui.win x (y + h / 4) l l c;
-    fill ui.win x (y + 3 * h / 4) l l c
+    fill ui.win (x + (w - l)/2) (y + h / 4) l l c;
+    fill ui.win (x + (w - l)/2) (y + 3 * h / 4) l l c
 
 let lcd ui area d =
   let r = dim ui area in

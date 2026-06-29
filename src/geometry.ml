@@ -83,23 +83,24 @@ let make ui =
 
 (* Constants and derived parameters *)
 
-let flex_w g = g.control_width - control_min_w
-let flex_h g = g.control_height - control_min_h
-let flex g = min (flex_w g) (flex_h g)
+let sx g x = x * g.control_width / control_min_w
+let sy g y = y * g.control_height / control_min_h
+let smin g v = min (sx g v) (sy g v)
+let smax g v = max (sx g v) (sy g v)
 
-let margin g = g.margin + flex g / 20
+let margin g = smin g g.margin
 let popup_margin g = margin g / 2
 let divider_w g = margin g
 
-let text_h g = g.text
-let pad_w g = g.pad_x
-let pad_h g = g.pad_y
-let line_h g = g.text + 2 * g.pad_y
-let label_h g = g.label + flex g / 30
-let button_label_h g = g.button_label + flex g / 30
-let gutter_w g = g.gutter
-let scrollbar_w g = g.scrollbar + flex g / 20
-let indicator_w g = 7 + flex g / 30
+let text_h g = smin g g.text
+let pad_w g = smin g g.pad_x
+let pad_h g = smin g g.pad_y
+let line_h g = text_h g + 2 * pad_h g
+let label_h g = min 64 (smin g g.label)
+let button_label_h g = smin g g.button_label
+let gutter_w g = sx g g.gutter
+let scrollbar_w g = smin g g.scrollbar
+let indicator_w g = smin g 7
 
 let bottom_h g = line_h g + margin g
 let footer_y g = - line_h g - (bottom_h g - line_h g)/2
@@ -118,8 +119,8 @@ let extension_y g = control_y g + control_h g
 let extension_w g = g.extension_width
 let extension_h g = g.extension_height
 
-let win_w g = control_w g + extension_w g
-let win_h g = control_h g + extension_h g
+let win_w g = control_w g + if extension_shown_w g then extension_w g else 0
+let win_h g = control_h g + if extension_shown_h g then extension_h g else 0
 
 let playlist_x g = control_x g
 let playlist_y g = extension_y g
@@ -155,16 +156,14 @@ let live_win_h g =
   let win = Ui.window g.ui in
   min (snd (Api.Window.size win)) (snd (Api.Window.next_size win))
 
-let browser_min_w g = 160 + flex_w g / 3
-let left_min_w _g = 40
+let browser_min_w g = sx g 160
+let left_min_w g = sx g 40
 let views_min_w g = 2 * left_min_w g
 let library_min_w g = browser_min_w g + views_min_w g
-let library_max_w g = live_win_w g - control_min_w
 
 let directories_min_w g = browser_min_w g
 let files_min_w g = left_min_w g
 let filesel_min_w g = directories_min_w g + files_min_w g
-let filesel_max_w g = live_win_w g - control_min_w
 
 let upper_min_h g = margin g + 3 * line_h g + scrollbar_w g + 3
 let lower_min_h g = divider_w g + 3 * line_h g + scrollbar_w g + 3
@@ -175,26 +174,31 @@ let left_max_w g = extension_w g - g.browser_width - left_min_w g
 let upper_max_h g = library_h g - bottom_h g - lower_min_h g
 
 let playlist_min_h g = bottom_h g + max (margin g + 2 * line_h g) (upper_min_h g + lower_min_h g - control_h g)
-let playlist_max_h g = live_win_h g - control_min_h
 
 let extension_min_w g = max (library_min_w g) (filesel_min_w g)
-let extension_max_w g = min (library_max_w g) (filesel_max_w g)
+let extension_max_w g = live_win_w g - control_min_w
 let extension_min_h g = playlist_min_h g
-let extension_max_h g = playlist_max_h g
+let extension_max_h g = live_win_h g - control_min_h
 
 let control_max_w g = live_win_w g - extension_min_w g
 let control_max_h g = live_win_h g - extension_min_h g
 
 let win_min_w flex_ctl flex_ext g =
   (if flex_ctl then control_min_w else control_w g) +
-  (if flex_ext && extension_shown_w g then extension_min_w g else extension_w g)
+  (if not (extension_shown_w g) then 0 else
+   if flex_ext then extension_min_w g else extension_w g)
 let win_min_h flex_ctl flex_ext g =
   (if flex_ctl then control_min_h else control_h g) +
-  (if flex_ext && extension_shown_h g then extension_min_h g else extension_h g)
+  (if not (extension_shown_h g) then 0 else
+   if flex_ext then extension_min_h g else extension_h g)
 let win_max_w flex_ctl flex_ext g =
-  if flex_ctl || flex_ext then -1 else win_w g
+  if flex_ctl && not flex_ext then
+    fst Api.(Screen.max_size (Window.screen (Ui.window g.ui)))
+  else if flex_ctl || flex_ext then -1 else win_w g
 let win_max_h flex_ctl flex_ext g =
-  if flex_ctl || flex_ext then -1 else win_h g
+  if flex_ctl && not flex_ext then
+    snd Api.(Screen.max_size (Window.screen (Ui.window g.ui)))
+  else if flex_ctl || flex_ext then -1 else win_h g
 
 
 (* Validation *)
@@ -272,6 +276,15 @@ let abstract_geo geo : float * float * float * float =
   abstract_geo' geo (wx, wy, ww, wh)
 
 let rec clamp_geo geo =
+(* (* Could be false when window was resized hugely with extensions closed *)
+  assert (geo.extension_width >= extension_min_w geo);
+  assert (geo.extension_height >= extension_min_h geo);
+*)
+
+  let browser_width = geo.browser_width in
+  let left_width = geo.left_width in
+  let upper_height = geo.upper_height in
+  let directories_width = geo.directories_width in
   geo.browser_width <-
     clamp (browser_min_w geo) (browser_max_w geo) geo.browser_width;
   geo.left_width <-
@@ -281,18 +294,48 @@ let rec clamp_geo geo =
   geo.directories_width <-
     clamp (directories_min_w geo) (directories_max_w geo) geo.directories_width;
 
+  if !App.debug_layout && (
+    browser_width <> geo.browser_width ||
+    left_width <> geo.left_width ||
+    upper_height <> geo.upper_height ||
+    directories_width <> geo.directories_width
+  ) then
+  (
+    Printf.eprintf
+      "[layout clamp] ext=%d,%d bw=%d->%d lw=%d->%d uh=%d->%d dw=%d->%d\n%!"
+      geo.extension_width geo.extension_height
+      browser_width geo.browser_width
+      left_width geo.left_width
+      upper_height geo.upper_height
+      directories_width geo.directories_width
+  );
+
   (* Changing control pane size may change minima *)
   if extension_w geo < extension_min_w geo then
   (
-    assert (control_w geo > control_min_w);
-    geo.control_width <- geo.control_width - 1;
+    if !App.debug_layout then
+    (
+      Printf.eprintf "[layout refit w] ctl=%d>=%d ext=%d>=%d\n%!"
+        (control_w geo) (control_min_w)
+        (extension_w geo) (extension_min_w geo)
+    );
+    assert (control_w geo >= control_min_w);
+    if extension_shown_w geo then
+      geo.control_width <- geo.control_width - 1;
     geo.extension_width <- geo.extension_width + 1;
     clamp_geo geo;
   )
-  else if extension_h geo < extension_min_w geo then
+  else if extension_h geo < extension_min_h geo then
   (
-    assert (control_h geo > control_min_h);
-    geo.control_height <- geo.control_height - 1;
+    if !App.debug_layout then
+    (
+      Printf.eprintf "[layout refit h] ctl=%d>=%d ext=%d>=%d\n%!"
+        (control_h geo) (control_min_h)
+        (extension_h geo) (extension_min_h geo)
+    );
+    assert (control_h geo >= control_min_h);
+    if extension_shown_h geo then
+      geo.control_height <- geo.control_height - 1;
     geo.extension_height <- geo.extension_height + 1;
     clamp_geo geo;
   )
@@ -333,7 +376,7 @@ let apply_geo geo (ax, ay, aw, ah) : int * int * int * int =
   );
 
   clamp_geo geo;
-  x, y, w, h
+  x, y, win_w geo, win_h geo
 
 
 let abstract_view_geo geo : int * int =
@@ -398,12 +441,12 @@ let print_intern geo =
 
 let parse_state geo =  (* assumes playlist and library loaded *)
   let open Text.Parse in
-  let float' newmax oldmax t =
+  let float' lo hi newmax oldmax t =
     (* Backwards compatibility with old integer coordinates *)
     let x = float t in
     if x >= newmax then x /. float_of_int oldmax else
     if x <= -.newmax then 1.0 +. x /. float_of_int oldmax else
-    x
+    max lo (min hi x)
   in
   let sw, sh = Api.Screen.max_size (Api.Window.screen (Ui.window geo.ui)) in
   let ww, wh = control_w geo, control_h geo in
@@ -413,7 +456,8 @@ let parse_state geo =  (* assumes playlist and library loaded *)
   record (fun r ->
     apply (r $? "scaling") (pair (num (-1) 8) (num (-1) 8))
       (fun delta -> geo.scaling <- delta);
-    apply (r $? "win_pos") (pair (float' 2.0 sw) (float' 2.0 sh))
+    apply (r $? "win_pos")
+      (pair (float' (-1.0) (+2.0) 2.0 sw) (float' (-1.0) (+2.0) 2.0 sh))
       (fun (x, y) -> rax := x; ray := y);
     apply (r $? "buffered") bool
       (fun b -> Ui.buffered geo.ui b);
@@ -433,7 +477,7 @@ let parse_state geo =  (* assumes playlist and library loaded *)
       (fun h -> geo.control_height <- h);
     apply (r $? "play_open") bool
       (fun b -> geo.playlist_shown <- b);
-    apply (r $? "play_height") (float' 2.0 (sw - ww))
+    apply (r $? "play_height") (float' 0.0 1.0 2.0 (sw - ww))
       (fun h -> rah := h);
     apply (r $? "play_headers") bool
       (fun b -> geo.playlist_headers <- b);
@@ -441,7 +485,7 @@ let parse_state geo =  (* assumes playlist and library loaded *)
       (fun b -> geo.library_shown <- b);
     apply (r $? "lib_side") (enum side_enum)
       (fun s -> geo.extension_side <- s);
-    apply (r $? "lib_width") (float' 2.0 (sh - wh))
+    apply (r $? "lib_width") (float' 0.0 1.0 2.0 (sh - wh))
       (fun w -> raw := w);
     apply (r $? "browser_width") (num (browser_min_w geo) (browser_max_w geo))
       (fun w -> geo.browser_width <- w);
@@ -459,10 +503,14 @@ let parse_state geo =  (* assumes playlist and library loaded *)
       (fun ws -> if Iarray.length ws = 3 then geo.repair_log_columns <- ws);
     apply (r $? "popup_size") (num min_popup_size max_popup_size)
       (fun w -> geo.popup_size <- w);
+
     geo.window <- (!rax, !ray, !raw, !rah);
     Ui.rescale geo.ui geo.scaling;
-let _,_,ww,_ as r = apply_geo geo geo.window in
-    Ui.reset geo.ui r(*(apply_geo geo geo.window)*);
-let ww', _=Api.Window.size (Ui.window geo.ui) in
-Printf.printf "[load] ww=%d ww'=%d\n%!" ww ww';
+    let r = apply_geo geo geo.window in
+    if !App.debug_layout then
+    (
+      let _, _, ww, wh = r in
+      Printf.eprintf "[layout load] win=%d,%d\n%!" ww wh;
+    );
+    Ui.reset geo.ui r;
   )
