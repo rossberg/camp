@@ -169,9 +169,9 @@ let filesel_max_w g = live_win_w g - control_min_w
 let upper_min_h g = margin g + 3 * line_h g + scrollbar_w g + 3
 let lower_min_h g = divider_w g + 3 * line_h g + scrollbar_w g + 3
 
-let browser_max_w g = library_w g - views_min_w g
-let directories_max_w g = filesel_w g - files_min_w g (*- margin g*)
-let left_max_w g = library_w g - g.browser_width - left_min_w g (*- 2 * margin g*)
+let browser_max_w g = extension_w g - views_min_w g
+let directories_max_w g = extension_w g - files_min_w g
+let left_max_w g = extension_w g - g.browser_width - left_min_w g
 let upper_max_h g = library_h g - bottom_h g - lower_min_h g
 
 let playlist_min_h g = bottom_h g + max (margin g + 2 * line_h g) (upper_min_h g + lower_min_h g - control_h g)
