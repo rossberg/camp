@@ -276,11 +276,11 @@ let abstract_geo geo : float * float * float * float =
   abstract_geo' geo (wx, wy, ww, wh)
 
 let rec clamp_geo geo =
-(* (* Could be false when window was resized hugely with extensions closed *)
+(*
+  (* Could be false when window was resized hugely with extensions closed *)
   assert (geo.extension_width >= extension_min_w geo);
   assert (geo.extension_height >= extension_min_h geo);
 *)
-
   let browser_width = geo.browser_width in
   let left_width = geo.left_width in
   let upper_height = geo.upper_height in
@@ -457,7 +457,7 @@ let parse_state geo =  (* assumes playlist and library loaded *)
     apply (r $? "scaling") (pair (num (-1) 8) (num (-1) 8))
       (fun delta -> geo.scaling <- delta);
     apply (r $? "win_pos")
-      (pair (float' (-1.0) (+2.0) 2.0 sw) (float' (-1.0) (+2.0) 2.0 sh))
+      (pair (float' 0.0 2.0 2.0 sw) (float' 0.0 2.0 2.0 sh))
       (fun (x, y) -> rax := x; ray := y);
     apply (r $? "buffered") bool
       (fun b -> Ui.buffered geo.ui b);

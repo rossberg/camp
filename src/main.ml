@@ -141,6 +141,7 @@ and run' (st : state) =
 
   (* Finish drawing *)
   let shift = Api.Key.is_modifier_down `Shift in
+  let cmd = Api.Key.is_modifier_down `Command in
   let flex_ctl_w = shift || not extension_shown_w' in
   let flex_ctl_h = shift || not extension_shown_h' in
   let flex_ext_w = extension_shown_w' in
@@ -149,7 +150,8 @@ and run' (st : state) =
   let max_w = Geometry.win_max_w flex_ctl_w flex_ext_w geo in
   let min_h = Geometry.win_min_h flex_ctl_h flex_ext_h geo in
   let max_h = Geometry.win_max_h flex_ctl_h flex_ext_h geo in
-  Ui.finish geo.ui (Geometry.margin geo) (min_w, min_h) (max_w, max_h)
+  let ratio = cmd && not (extension_shown_w' || extension_shown_h') in
+  Ui.finish geo.ui (Geometry.margin geo) (min_w, min_h) (max_w, max_h) ratio
     (fun (_dx, _dy, dw, dh) ->
       (* Window was resized *)
       if dw <> 0 && extension_shown_w' = extension_shown_w then
@@ -267,8 +269,8 @@ and run' (st : state) =
       Ui.reset geo.ui (Geometry.apply_geo geo geo.window);
   );
 
-  (* Save state regularly every second *)
-  State.save_after st 1.0
+  (* Save state regularly every 3 seconds *)
+  State.save_after st 3.0
 
 
 (* Startup *)

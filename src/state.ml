@@ -227,7 +227,8 @@ let save_after st tdelta =
   let now = Unix.gettimeofday () in
   if st.saved < now -. tdelta then
   (
-    Storage.save_string state_file (fun () -> Text.print (print_state st));
+Printf.eprintf "[saving]\n%!"
+;    Storage.save_string state_file (fun () -> Text.print (print_state st));
     st.saved <- now;
   )
 
