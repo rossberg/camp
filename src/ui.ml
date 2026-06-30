@@ -636,6 +636,7 @@ let draw_lcd ui r c elem =
   let open Draw in
   let x, y, w, h = r in
   let m = h / 2 in
+  let m' = (h + 1) / 2 in
   let l = max 1 (min (if elem = `Dots then 4*w else w) h / 6) in
   let s = l * 3 / 2 in
   let d = s - l in
@@ -649,17 +650,25 @@ let draw_lcd ui r c elem =
     tri ui.win (x + d) (y + h) (x + s) (y + h) (x + s) (y + h - l) c;
     tri ui.win (x + w - d) (y + h) (x + w - s) (y + h - l) (x + w - s) (y + h) c;
   | `C ->
-    fill ui.win (x + s) (y + m - l/2) (w - 2*s) l c;
-    tri ui.win (x + d) (y + m - l/2) (x + s) (y + m + l/2) (x + s) (y + m - l/2) c;
-    tri ui.win (x + w - d) (y + m - l/2) (x + w - s) (y + m - l/2) (x + w - s) (y + m + l/2) c;
+    fill ui.win (x + s - l/2) (y + m - l/2) (w - 2*s + l/2*2) l c;
+    let l2 = (l + 1)/2 in
+    let s2 = d + l2 in
+    tri ui.win (x + d) (y + m) (x + s2) (y + m + l2) (x + s2) (y + m - l/2) c;
+    tri ui.win (x + w - s2) (y + m + l2) (x + w - d) (y + m) (x + w - s2) (y + m - l/2) c;
+(*
+    tri ui.win (x + d) (y + m) (x + s2) (y + m) (x + s2) (y + m - l/2) c;
+    tri ui.win (x + d) (y + m) (x + s2) (y + m + l2) (x + s2) (y + m) c;
+    tri ui.win (x + w - d) (y + m) (x + w - s2) (y + m - l/2) (x + w - s2) (y + m) c;
+    tri ui.win (x + w - d) (y + m) (x + w - s2) (y + m) (x + w - s2) (y + m + l2) c;
+*)
   | `NW ->
-    fill ui.win (x + 0) (y + s) l (m - 2*s) c;
+    fill ui.win (x + 0) (y + s) l (m' - 2*s) c;
     tri ui.win (x + 0) (y + d) (x + 0) (y + s) (x + l) (y + s) c;
-    tri ui.win (x + 0) (y + m - d) (x + l) (y + m - s) (x + 0) (y + m - s) c;
+    tri ui.win (x + 0) (y + m' - d) (x + l) (y + m' - s) (x + 0) (y + m' - s) c;
   | `NE ->
-    fill ui.win (x + w - l) (y + s) l (m - 2*s) c;
+    fill ui.win (x + w - l) (y + s) l (m' - 2*s) c;
     tri ui.win (x + w) (y + d) (x + w - l) (y + s) (x + w) (y + s) c;
-    tri ui.win (x + w) (y + m - d) (x + w) (y + m - s) (x + w - l) (y + m - s) c;
+    tri ui.win (x + w) (y + m' - d) (x + w) (y + m' - s) (x + w - l) (y + m' - s) c;
   | `SW ->
     fill ui.win (x + 0) (y + m + s) l (h - m - 2*s) c;
     tri ui.win (x + 0) (y + m + d) (x + 0) (y + m + s) (x + l) (y + m + s) c;
