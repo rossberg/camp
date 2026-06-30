@@ -40,7 +40,7 @@ let make win =
   Window.set_icon win icon;
   { win;
     buffered = true;
-    font_sdf = Screen.is_hires (Window.screen win);
+    font_sdf = false (*Screen.is_hires (Window.screen win)*);
     palette = 0;
     panes = Array.make 10 ((0, 0, 0, 0), (0, 0, 0, 0));
     modal = false;
@@ -291,7 +291,7 @@ let background ui x y w h =
 (* Window *)
 
 type drag += Move of {target : point}
-type drag += Resize of {overshoot : size}
+type drag += Resize of {overshoot : size; ratio : float}
 type drag += Abort
 
 let delay ui f =
@@ -321,7 +321,7 @@ let start ui =
   )
 
 
-let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
+let finish ui margin (minw, minh) (maxw, maxh) keep_ratio on_size_change on_screen_change =
   List.iter (fun f -> f ()) (List.rev ui.delayed);
   ui.delayed <- [];
 
@@ -370,7 +370,8 @@ let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
           pos', size'
 
         | No_drag ->
-          ui.drag_extra <- Resize {overshoot = 0, 0};
+          let ratio = float ww /. float wh in
+          ui.drag_extra <- Resize {overshoot = 0, 0; ratio};
           pos', size'
 
         | Move {target} ->
@@ -389,7 +390,7 @@ let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
           ui.drag_extra <- Move {target = target''};
           (snap sx (sx + sw - ww) wx', snap sy (sy + sh - wh) wy'), size'
 
-        | Resize {overshoot = over} ->
+        | Resize {overshoot = over; ratio} ->
           assert (cursor <> `Point);
           let scr = Window.screen ui.win in  (* clamp relative to window's screen *)
           let sx, sy = Screen.min_pos scr in
@@ -398,18 +399,25 @@ let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
           let signy = if upper then -1 else if lower then +1 else 0 in
           let delta = mul (signx, signy) (Mouse.delta ui.win) in
           let ww', wh' = add (add size delta) over in
+          let ww'', wh'' =
+            if not keep_ratio then ww', wh' else
+            match compare (float ww' /. float wh') ratio with
+            | -1 -> int_of_float (float wh' *. ratio), wh'
+            | +1 -> ww', int_of_float (float ww' /. ratio)
+            | _ -> ww', wh'
+          in
           let rx, ry = wx - sx, wy - sy in
           let maxw = if maxw >= 0 then maxw else if right then sw - rx else ww + rx in
           let maxh = if maxh >= 0 then maxh else if lower then sh - ry else wh + ry in
-          let ww'', wh'' = clamp minw maxw ww', clamp minh maxh wh' in
-          let dwx = if left then ww'' - ww else 0 in
-          let dwy = if upper then wh'' - wh else 0 in
-          let dmx = if right then ww'' - ww else 0 in
-          let dmy = if lower then wh'' - wh else 0 in
-          ui.drag_extra <- Resize {overshoot = ww' - ww'', wh' - wh''};
+          let ww''', wh''' = clamp minw maxw ww'', clamp minh maxh wh'' in
+          let dwx = if left then ww''' - ww else 0 in
+          let dwy = if upper then wh''' - wh else 0 in
+          let dmx = if right then ww''' - ww else 0 in
+          let dmy = if lower then wh''' - wh else 0 in
+          ui.drag_extra <- Resize {overshoot = ww' - ww''', wh' - wh'''; ratio};
           ui.drag_origin <- add ui.drag_origin (dmx, dmy);  (* adjust for resize *)
           add (wx - dwx, wy - dwy) ui.repos,
-          (ww'', wh'')
+          (ww''', wh''')
 
         | _ -> pos', size'
       )
@@ -420,12 +428,12 @@ let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
       )
     )
   in
-  Window.set_pos ui.win wx' wy';   (* deferred until end fo frame! *)
+  Window.set_pos ui.win wx' wy';   (* deferred until end of frame! *)
   if (ww', wh') <> (ww, wh) then
   (
     assert (minw <= ww' && (maxw = -1 || ww' <= maxw));
     assert (minh <= wh' && (maxh = -1 || wh' <= maxh));
-    Window.set_size ui.win ww' wh';  (* deferred until end fo frame! *)
+    Window.set_size ui.win ww' wh';  (* deferred until end of frame! *)
     on_size_change (wx' - wx, wy' - wy, ww' - ww, wh' - wh);
   );
   ui.drag_origin <- sub ui.drag_origin ui.repos;  (* adjust for resize *)
@@ -574,7 +582,7 @@ let drag_status ui r (stepx, stepy) =
     );
     ui.drag_extra <- No_drag;
     `None
-  | Resize {overshoot = ox, oy} ->
+  | Resize {overshoot = ox, oy; _} ->
     (* Gracefully handle, sometimes occurs after cross-monitor window drag *)
     let x, y, w, h = r in
     Storage.log (Printf.sprintf
@@ -658,8 +666,8 @@ let draw_lcd ui r c elem =
     tri ui.win (x + w) (y + m + d) (x + w - l) (y + m + s) (x + w) (y + m + s) c;
     tri ui.win (x + w) (y + h - d) (x + w) (y + h - s) (x + w - l) (y + h - s) c;
   | `Dots ->
-    fill ui.win x (y + h / 4) l l c;
-    fill ui.win x (y + 3 * h / 4) l l c
+    fill ui.win (x + (w - l)/2) (y + h / 4) l l c;
+    fill ui.win (x + (w - l)/2) (y + 3 * h / 4) l l c
 
 let lcd ui area d =
   let r = dim ui area in
