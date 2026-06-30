@@ -45,7 +45,7 @@ and run' (st : state) =
   (
     (* TODO: this could race, should lock the file *)
     Storage.save_string queue_file (fun () -> "");
-    (* If we're just starting up, double-click caused it, force playing *)
+    (* If we're just starting up, and double-click caused it, force playing *)
     if Api.Draw.frame win <= 1 then Control.stop st.control;
     Run_view.external_queue_on_playlist st (M3u.parse !m3u) `QueueAndJump;
   );
@@ -305,7 +305,7 @@ let _main =
     Printexc.record_backtrace true;
     let paths = ref [] in
     Arg.parse args (fun path -> paths := path :: !paths) "";
-    let m3u = M3u.make (List.rev !paths) in
+    let m3u = if !paths = [] then "" else M3u.make (List.rev !paths) in
     (* Configure GC very aggressive to avoid giga bytes of memory usage *)
     Gc.(set {(get ()) with space_overhead = 20});
     (* Trigger GC compaction if worthwhile *)
