@@ -85,7 +85,8 @@ let cycle_visual (st : state) =
   ctl.data <- [||];
   Control.set_visual ctl
     (match ctl.visual with
-    | `Cover -> `Spectrum
+    | `Cover -> `Turntable
+    | `Turntable -> `Spectrum
     | `Spectrum -> `Wave
     | `Wave -> `Oscilloscope
     | `Oscilloscope -> `Cover
@@ -96,9 +97,10 @@ let idx_visual (st : state) =
   match st.control.visual with
   | `None -> None
   | `Cover -> Some 0
-  | `Spectrum -> Some 1
-  | `Wave -> Some 2
-  | `Oscilloscope -> Some 3
+  | `Turntable -> Some 1
+  | `Spectrum -> Some 2
+  | `Wave -> Some 3
+  | `Oscilloscope -> Some 4
 *)
 
 
@@ -316,6 +318,26 @@ let run (st : state) =
     Option.iter (fun (track : Data.track) ->
       Option.iter (Layout.cover geo)
         (Library.load_cover st.library win track.path)
+    ) ctl.current
+
+  | `Turntable ->
+    Option.iter (fun (track : Data.track) ->
+      Option.iter (fun img ->
+        let x, y, w, h = Ui.dim geo.ui (Layout.cover_area geo) in
+        let iw, ih = Api.Image.size img in
+        let w', h' = w, w in
+        let time = Api.Audio.played ctl.audio in
+        let rot = time *. float ctl.turn_rpm /. 60.0 *. 360.0 in
+        let a = rot /. 360.0 *. 2.0 *. Float.pi in
+        let f, sin, cos = float, Float.sin, Float.cos in
+        let dx = int_of_float ((f w -. f w' *. cos a +. f h' *. sin a) /. 2.0) in
+        let dy = int_of_float ((f w -. f h' *. cos a -. f w' *. sin a) /. 2.0) in
+        Api.Draw.clip win x y w h;
+        Api.Draw.image_part win (x + dx) (y + dy) w' h' 0 0 iw ih rot img;
+        let fat = int_of_float (Float.sqrt 2.0 *. float w) + 3 in
+        Api.Draw.circ_thick win (x - fat) (y - fat) (w + 2*fat) fat `Black;
+        Api.Draw.unclip win;
+      ) (Library.load_cover st.library win track.path)
     ) ctl.current
 
   | `Spectrum ->

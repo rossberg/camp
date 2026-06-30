@@ -5,6 +5,7 @@ the meta-data columns shown in the Playlist.
 
 Control:
 - [new] Control pane can be arbitrarily resized, seamlessly scaling its UI
+- [new] Turntable visualisation mode
 - [fix] Correctly restore Mute state after restart
 
 Playlist:

@@ -274,7 +274,7 @@ let background ui x y w h =
     let dx = if w < iw then - (iw - w)/2 else i*iw in
     for j = 0 to (h + ih - 1)/ih - 1 do
       let dy = if h < ih then - (ih - h)/2 else j*ih in
-      Draw.image ui.win (x + dx) (y + dy) 1.0 bg
+      Draw.image ui.win (x + dx) (y + dy) 0.0 1.0 bg
     done
   done;
 
@@ -722,7 +722,7 @@ let image ui area adjust img =
       x + (w - w')/2, y + (h - h')/2
     else x, y
   in
-  Draw.image_part ui.win x' y' w' h' 0 0 iw' ih' img
+  Draw.image_part ui.win x' y' w' h' 0 0 iw' ih' 0.0 img
 
 let image_size ui area adjust img =
   let w, h, _, _ = image_size' ui area adjust img in
@@ -786,7 +786,7 @@ let button ui area ?(protrude = true) modkey focus active =
   let (x, y, w, h), status = widget ui area modkey ~focus in
   let img = get_img ui ui.img_button in
   let sx, sy, h' = if status = `Pressed then 800, 400, h + 1 else 0, 200, h in
-  Api.Draw.image_part ui.win x y w h' sx sy w h' img;
+  Api.Draw.image_part ui.win x y w h' sx sy w h' 0.0 img;
   let grey_left, shine_left = if status = `Pressed then 0x30, 0x20 else 0x50, 0x40 in
   Draw.fill ui.win (x + 1) (y + 1) 1 (h - 2) (`Gray grey_left);
   mouse_focus ui (-1, x + 1, y + 1, 1, h - 2) (2 * w) shine_left 0;
@@ -1312,7 +1312,7 @@ let draw_table ui area gw ch ph cols rows hscroll =
         let q = float cw /. float ch in
         let iq = float iw /. float ih in
         let ih' = int_of_float (float ih *. iq /. q) in
-        Api.Draw.image_part ui.win !cx cy cw ch 0 0 iw ih' img;
+        Api.Draw.image_part ui.win !cx cy cw ch 0 0 iw ih' 0.0 img;
       )
     ) rows;
     Draw.unclip ui.win;
@@ -2037,7 +2037,7 @@ let draw_grid ui area gw iw ch ph matrix =
         let scale = float iw /. float (max iw' ih') in
         let dx = int_of_float ((float iw -. scale *. float iw') /. 2.0) in
         let dy = int_of_float ((float iw -. scale *. float ih') /. 2.0) in
-        Api.Draw.image_part ui.win (cx + dx) (cy + dy) (iw - 2*dx) (iw - 2*dy) 0 0 iw' ih' img;
+        Api.Draw.image_part ui.win (cx + dx) (cy + dy) (iw - 2*dx) (iw - 2*dy) 0 0 iw' ih' 0.0 img;
         let tw = Draw.text_width ui.win ch font txt in
         let dx = max 0 ((iw - tw - 2) / 2) in
         Draw.text ui.win (cx + dx + 1) (cy + iw + ph) ch fg font txt;

@@ -694,6 +694,15 @@ struct
     let x, y, w, h = sxywh x y w h in
     Raylib.draw_ellipse_lines (x + w/2) (y + h/2) (float w /. 2.0) (float h /. 2.0) (color c)
 
+  let circ_thick () x y w l c =
+    let x, y, w, _ = sxywh x y w w in
+    Raylib.draw_ring
+      (vec2_of_point (x + w/2, y + w/2)) (float w /. 2.0 -. float l) (float w /. 2.0) 0.0 360.0 1 (color c)
+(*  Raylib >6.0
+    Raylib.draw_circle_lines_ex
+      (vec2_of_point (x + w/2, y + w/2)) (float w /. 2.0) (float l) (color c)
+*)
+
   let spline () ps w c =
     let n = Array.length ps / 2 in
     let array = Ctypes.CArray.make Raylib.Vector2.t n in
@@ -730,20 +739,20 @@ struct
 
   let text_spacing () _h _f = 1
 
-  let image () x y sc img =
+  let image () x y rot sc img =
     let x, y = sxy x y in
     let sc = sc *. float (fst !current_scale) in
     let v = vec2_of_point (x, y) in
     shader None;
-    Raylib.draw_texture_ex img v 0.0 sc Raylib.Color.white
+    Raylib.draw_texture_ex img v rot sc Raylib.Color.white
 
-  let image_part () x y w h x' y' w' h' img =
+  let image_part () x y w h x' y' w' h' rot img =
     let x, y, w, h = sxywh x y w h in
     let r' = Raylib.Rectangle.create (float x') (float y') (float w') (float h') in
     let r = Raylib.Rectangle.create (float x) (float y) (float w) (float h) in
     let v = vec2_of_point (0, 0) in
     shader None;
-    Raylib.draw_texture_pro img r' r v 0.0 Raylib.Color.white
+    Raylib.draw_texture_pro img r' r v rot Raylib.Color.white
 
   let buffer () x y buf =
     let w, h = Buffer.size buf in

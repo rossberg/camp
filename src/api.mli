@@ -161,6 +161,7 @@ sig
   val rect : window -> int -> int -> int -> int -> color -> unit
   val fill_circ : window -> int -> int -> int -> int -> color -> unit
   val circ : window -> int -> int -> int -> int -> color -> unit
+  val circ_thick : window -> int -> int -> int -> int -> color -> unit
   val spline : window -> float array -> float -> color -> unit
   val tri : window -> int -> int -> int -> int -> int -> int -> color -> unit
   val arrow : window -> int -> int -> int -> int -> color -> dir -> unit
@@ -169,8 +170,8 @@ sig
   val text : window -> int -> int -> int -> color -> font -> string -> unit
   val text_width : window -> int -> font -> string -> int
   val text_spacing : window -> int -> font -> int
-  val image : window -> int -> int -> float -> image -> unit
-  val image_part : window -> int -> int -> int -> int -> int -> int -> int -> int -> image -> unit
+  val image : window -> int -> int -> float -> float -> image -> unit
+  val image_part : window -> int -> int -> int -> int -> int -> int -> int -> int -> float -> image -> unit
   val buffer : window -> int -> int -> buffer -> unit
 end
 
