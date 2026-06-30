@@ -711,7 +711,11 @@ across sessions:
 * UI Resize: Resize the Control pane to seamlessly scale the UI. To do so,
   resize the window with Shift pressed or when Playlist or Library are closed,
   or use the dividers between Control pane and Playlist or Library pane. This
-  also accordingly resizes UI elements such as buttons in other panes.
+  accordingly resizes UI elements in all panes.
+
+  When you resize the Control pane with Playlist and Library both closed and
+  while holding the Ctrl/Command key, then the Control pane preserves its
+  relative horizontal vs. vertical proportions.
 
 * Text Size: Use the + and - keys with Ctrl/Command (or the context menu from
   the Control pane) to adjust the size of all text in table, list, and edit

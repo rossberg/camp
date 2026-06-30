@@ -65,8 +65,8 @@ and run' (st : state) =
 
   (* Update geometry *)
   let ww, wh = Api.Window.size win in
-  if extension_shown_h then geo.extension_width <- ww - Geometry.control_w geo;
-  if extension_shown_w then geo.extension_height <- wh - Geometry.control_h geo;
+  if extension_shown_w then geo.extension_width <- ww - Geometry.control_w geo;
+  if extension_shown_h then geo.extension_height <- wh - Geometry.control_h geo;
   Geometry.update_geo geo;
 
   (* Run panes *)
@@ -141,15 +141,17 @@ and run' (st : state) =
 
   (* Finish drawing *)
   let shift = Api.Key.is_modifier_down `Shift in
-  let flex_ctl_w = shift || not (Geometry.extension_shown_w geo) in
-  let flex_ctl_h = shift || not (Geometry.extension_shown_h geo) in
-  let flex_ext_w = true in  (* since browser width may grow with control *)
-  let flex_ext_h = true in
+  let cmd = Api.Key.is_modifier_down `Command in
+  let flex_ctl_w = shift || not extension_shown_w' in
+  let flex_ctl_h = shift || not extension_shown_h' in
+  let flex_ext_w = extension_shown_w' in
+  let flex_ext_h = extension_shown_h' in
   let min_w = Geometry.win_min_w flex_ctl_w flex_ext_w geo in
   let max_w = Geometry.win_max_w flex_ctl_w flex_ext_w geo in
   let min_h = Geometry.win_min_h flex_ctl_h flex_ext_h geo in
   let max_h = Geometry.win_max_h flex_ctl_h flex_ext_h geo in
-  Ui.finish geo.ui (Geometry.margin geo) (min_w, min_h) (max_w, max_h)
+  let ratio = cmd && not (extension_shown_w' || extension_shown_h') in
+  Ui.finish geo.ui (Geometry.margin geo) (min_w, min_h) (max_w, max_h) ratio
     (fun (_dx, _dy, dw, dh) ->
       (* Window was resized *)
       if dw <> 0 && extension_shown_w' = extension_shown_w then
@@ -160,7 +162,8 @@ and run' (st : state) =
             max Geometry.control_min_w (geo.control_width + dw) in
           let dw' = control_width' - geo.control_width in
           geo.control_width <- control_width';
-          geo.extension_width <- geo.extension_width + (dw - dw');
+          if extension_shown_w then
+            geo.extension_width <- geo.extension_width + (dw - dw');
         )
         else
         (
@@ -179,7 +182,8 @@ and run' (st : state) =
             max Geometry.control_min_h (geo.control_height + dh) in
           let dh' = control_height' - geo.control_height in
           geo.control_height <- control_height';
-          geo.extension_height <- geo.extension_height + (dh - dh');
+          if extension_shown_h then
+            geo.extension_height <- geo.extension_height + (dh - dh');
         )
         else
         (
@@ -265,8 +269,8 @@ and run' (st : state) =
       Ui.reset geo.ui (Geometry.apply_geo geo geo.window);
   );
 
-  (* Save state regularly every second *)
-  State.save_after st 1.0
+  (* Save state regularly every 3 seconds *)
+  State.save_after st 3.0
 
 
 (* Startup *)
@@ -280,6 +284,7 @@ let startup () =
   let st0 = State.make ui audio in
   let success = State.load st0 in
   let st = if success then st0 else State.make ui audio in
+  if !App.debug_layout then State.dump st [];
   at_exit (fun () ->
     Api.Audio.pause st.control.audio;
     State.save st;
