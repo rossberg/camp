@@ -3,7 +3,7 @@
 type time = float
 type track = Data.track
 
-type visual = [`Cover | `Spectrum | `Wave | `Oscilloscope]
+type visual = [`Cover | `Turntable | `Spectrum | `Wave | `Oscilloscope]
 
 type t =
 {
@@ -18,6 +18,7 @@ type t =
   mutable loop : [`None | `A of time | `AB of time * time];
   mutable visual : visual;
   mutable fps : bool;
+  mutable turn_rpm : int;
   mutable spec_bands : int;
   mutable osc_x : float;
   mutable osc_y : float;
@@ -40,7 +41,7 @@ let audio_processor ctl fs =
   ctl.raw <- if len = 0 || len > lim then fs else Array.append ctl.raw fs
 
 let needs_processor = function
-  | `Cover -> false
+  | `Cover | `Turntable -> false
   | `Spectrum | `Wave | `Oscilloscope -> true
 
 let init_visual ctl  =
@@ -85,6 +86,7 @@ let make audio =
     loop = `None;
     visual = `Spectrum;
     fps = false;
+    turn_rpm = 45;
     spec_bands;
     osc_x; osc_y;
     raw = [||];
@@ -227,6 +229,7 @@ let timemode_enum = ["elapsed", `Elapse; "remain", `Remain]
 let repeat_enum = ["none", `None; "one", `One; "all", `All; "set", `Marked]
 let visual_enum =
   [ "cover", `Cover;
+    "turntable", `Turntable;
     "spectrum", `Spectrum;
     "wave",`Wave;
     "oscilloscope", `Oscilloscope
@@ -263,6 +266,7 @@ let print_state ctl =
     "loop", print_loop ctl.loop;
     "timemode", enum timemode_enum ctl.timemode;
     "visual", enum visual_enum ctl.visual;
+    "turn_rpm", int ctl.turn_rpm;
     "spec_bands", int ctl.spec_bands;
     "osc_x", float ctl.osc_x;
     "osc_y", float ctl.osc_y;
@@ -294,6 +298,8 @@ let parse_state ctl =
       (fun m -> ctl.timemode <- m);
     apply (r $? "visual") (enum visual_enum)
       (fun v -> set_visual ctl v);
+    apply (r $? "turn_rpm") (num 1 120)
+      (fun n -> ctl.turn_rpm <- n);
     apply (r $? "spec_bands") (num 4 64)
       (fun n -> ctl.spec_bands <- n);
     apply (r $? "osc_x") (interval 0.01 100.0)

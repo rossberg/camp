@@ -194,7 +194,7 @@ Most controls around the Playlist should be intuitive. A few extra tips:
 
 * Visualisations: Ctrl/Command-Y or a click in the space between time display
   and visualisation cycles through different visualisations of the track
-  playing. Either Cover Art (default), Spectrum Analyzer, Wave Form,
+  playing. Either Cover Art (default), Turntable, Spectrum Analyzer, Wave Form,
   Oscilloscope, or None.
 
 * Cover: Clicking on the cover art will zoom it into a pop-up. Click again to
@@ -741,7 +741,7 @@ across sessions:
 
 * Visualisation: Ctrl/Command-U (or the Control pane's context menu) cycles
   through different track vissualisations in the Control pane: Cover art,
-  Spectrum analyzer, Wave, Oscilloscope, or All off.
+  Turntable, Spectrum analyzer, Wave, Oscilloscope, or All off.
 
 * Dividers: Drag the dividers between Browser and Views, or between the
   individual view tables. The configuration of view dividers will be remembered
