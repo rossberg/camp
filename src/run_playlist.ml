@@ -53,7 +53,8 @@ let run (st : state) =
 
   (* Playlist table *)
   let _, _, _, h = Ui.dim geo.ui (Layout.playlist_area geo) in
-  let page = max 1 (int_of_float (Float.floor (float h /. float geo.text))) in
+  let text_h = Geometry.text_h geo in
+  let page = max 1 (int_of_float (Float.floor (float h /. float text_h))) in
   let digits_pos = log10 (len + 1) + 1 in
   let digits_time = ref 1 in
   for i = tab.vscroll to min len (tab.vscroll + page) - 1 do
@@ -61,11 +62,11 @@ let run (st : state) =
     if time > 599.4 then
       digits_time := max !digits_time (if time > 5999.4 then 3 else 2)
   done;
-  let font = Ui.font geo.ui geo.text in
+  let font = Ui.font geo.ui text_h in
   let s_pos = String.make digits_pos '0' ^ "." in
   let s_time = String.make !digits_time '0' ^ ":00" in
-  let cw_pos = Api.Draw.text_width win geo.text font s_pos + 1 in
-  let cw_time = Api.Draw.text_width win geo.text font s_time + 1 in
+  let cw_pos = Api.Draw.text_width win text_h font s_pos + 1 in
+  let cw_time = Api.Draw.text_width win text_h font s_time + 1 in
 (*
   let cols : _ iarray = [|cw_pos, `Right; -1, `Left; cw_time, `Right|] in
 *)

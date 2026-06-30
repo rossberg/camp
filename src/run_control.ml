@@ -568,7 +568,7 @@ let run (st : state) =
   (* Play controls *)
   let len = Playlist.length pl in
   let _, _, _, h = Ui.dim geo.ui (Layout.playlist_area geo) in
-  let rh = geo.text + 2 * geo.pad_y in
+  let rh = Geometry.text_h geo + 2 * Geometry.pad_h geo in
   let page = max 1 (int_of_float (Float.floor (float h /. float rh))) in
 
   Layout.button_shadow geo;
