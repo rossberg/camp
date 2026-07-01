@@ -688,7 +688,7 @@ struct
     let x, y, w, h = sxywh x y w h in
     Raylib.draw_ellipse_lines (x + w/2) (y + h/2) (float w /. 2.0) (float h /. 2.0) (color c)
 
-  let circ_thick () x y w l c =
+  let fill_ring () x y w l c =
     let x, y, w, _ = sxywh x y w w in
     Raylib.draw_ring
       (vec2_of_point (x + w/2, y + w/2)) (float w /. 2.0 -. float l) (float w /. 2.0) 0.0 360.0 1 (color c)
