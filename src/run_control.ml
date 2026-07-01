@@ -335,7 +335,7 @@ let run (st : state) =
         Api.Draw.clip win x y w h;
         Api.Draw.image_part win (x + dx) (y + dy) w' h' 0 0 iw ih rot img;
         let fat = int_of_float (Float.sqrt 2.0 *. float w) + 3 in
-        Api.Draw.circ_thick win (x - fat) (y - fat) (w + 2*fat) fat `Black;
+        Api.Draw.fill_ring win (x - fat) (y - fat) (w + 2*fat) fat `Black;
         Api.Draw.unclip win;
       ) (Library.load_cover st.library win track.path)
     ) ctl.current
@@ -568,7 +568,7 @@ let run (st : state) =
   (* Play controls *)
   let len = Playlist.length pl in
   let _, _, _, h = Ui.dim geo.ui (Layout.playlist_area geo) in
-  let rh = geo.text + 2 * geo.pad_y in
+  let rh = Geometry.text_h geo + 2 * Geometry.pad_h geo in
   let page = max 1 (int_of_float (Float.floor (float h /. float rh))) in
 
   Layout.button_shadow geo;

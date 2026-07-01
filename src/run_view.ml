@@ -1313,28 +1313,31 @@ let run_edit_panel (st : state) =
       save_view st view
   );
 
-  (* Append Library button *)
-  if Layout.appendlib_button geo (active_if inherit_avail) then
+  if geo.library_shown then
   (
-    (* (Double) Click on Inherit button: copy tracks from playlist *)
-    inherit_ st view (Api.Mouse.is_double_click `Left)
-  )
-  else if inherit_avail st view && Layout.replacelib_button geo then
-  (
-    (* Click on secondary Inherit button: replace tracks from playlist *)
-    inherit_ st view true
-  );
+    (* Append Library button *)
+    if Layout.appendlib_button geo (active_if inherit_avail) then
+    (
+      (* (Double) Click on Inherit button: copy tracks from playlist *)
+      inherit_ st view (Api.Mouse.is_double_click `Left)
+    )
+    else if inherit_avail st view && Layout.replacelib_button geo then
+    (
+      (* Click on secondary Inherit button: replace tracks from playlist *)
+      inherit_ st view true
+    );
 
-  (* Append Playlist button *)
-  if Layout.appendpl_button geo (active_if queue_avail) then
-  (
-    (* (Double) Click on Queue button: copy tracks to playlist *)
-    queue st view (Api.Mouse.is_double_click `Left)
-  )
-  else if queue_avail st view && Layout.replacepl_button geo then
-  (
-    (* Click on secondary Queue button: replace tracks in playlist *)
-    queue st view true
+    (* Append Playlist button *)
+    if Layout.appendpl_button geo (active_if queue_avail) then
+    (
+      (* (Double) Click on Queue button: copy tracks to playlist *)
+      queue st view (Api.Mouse.is_double_click `Left)
+    )
+    else if queue_avail st view && Layout.replacepl_button geo then
+    (
+      (* Click on secondary Queue button: replace tracks in playlist *)
+      queue st view true
+    );
   );
 
   (* Focus keys *)
