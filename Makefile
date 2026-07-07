@@ -64,7 +64,7 @@ exe:
 
 opam: dune-project
 	opam list --check --installed dune || opam install dune
-	opam exec -- dune build "@opam"
+	opam exec -- dune build "@opam" || opam exec -- dune promote
 
 release: check-release zip
 
@@ -149,12 +149,12 @@ check-release: check
 # Clean-up
 
 clean:
-	dune clean
-	rm -rf $(NAME)
+	opam exec -- dune clean
+	rm -rf $(NAME) $(NAME).opam
 	rm -rf Info.plist.*
 
 distclean: clean
-	rm -rf _build $(NAME).opam
+	rm -rf _build
 	rm -rf *.exe *.zip *.app
 
 
