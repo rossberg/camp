@@ -611,7 +611,7 @@ let drag ui area eps = drag_status ui (dim ui area) eps
 let indicator ui c area on =
   let x, y, w, h = dim ui area in
   Draw.fill_circ ui.win x y w h (if on then c else unlit_color c);
-  Draw.fill_circ ui.win (x + w/4) (y + h/4) (min 2 (w/3)) (min 2 (h/3))
+  Draw.fill_circ ui.win (x + w/4) (y + h/4) (max 2 (w/4)) (max 2 (h/4))
     (`Trans (`White, if on then 0xe0 else 0x30));
   Draw.circ ui.win x y w h (border ui `Untouched)
 
