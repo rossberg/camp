@@ -283,7 +283,7 @@ let background ui x y w h =
   Draw.fill ui.win (x + 1) (y + h - 2) (w - 1) 2 (`Gray 0x10);
   Draw.fill ui.win (x + w - 1) y 1 (h - 2) (`Gray 0x10);
 
-  mouse_focus' ui 50 0x20 0;
+  mouse_focus' ui ((min w h) / 4) 0x20 0;
 
   Draw.unclip ui.win
 
