@@ -394,13 +394,14 @@ let run (st : state) =
     ctl.data <- data;
 
     let x, y, w, h = Ui.dim geo.ui (Layout.graph_area geo) in
+    let l = Geometry.(smin geo 1) in
     let win = Ui.window geo.ui in
-    for i = 0 to w / 2 - 1 do
+    for i = 0 to w / l / 2 - 1 do
       let i = 2 * i in
       let v = if i < Array.length data then data.(i) else 0.0 in
-      let v' = v *. float h /. 1.5 in
-      let x, y = x + i, y + h/2 - int_of_float v' in
-      Api.Draw.fill win x y 1 1 `White;
+      let v' = v *. float h /. float l /. 1.5 in
+      let x, y = x + l * i, y + h/2 - l * int_of_float v' in
+      Api.Draw.fill win x y l l `White;
     done;
 
   | `Oscilloscope ->
