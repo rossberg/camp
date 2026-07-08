@@ -793,6 +793,7 @@ let button ui area ?(protrude = true) modkey focus active =
   let grey_left, shine_left = if status = `Pressed then 0x30, 0x20 else 0x50, 0x40 in
   Draw.fill ui.win (x + 1) (y + 1) 1 (h - 2) (`Gray grey_left);
   mouse_focus ui (-1, x + 1, y + 1, 1, h - 2) (2 * w) shine_left 0;
+  Draw.fill ui.win (x + w - 1) (y + 1) 1 (h - 2) `Black;
   if protrude then
   (
     let grey_top, shine_top = if status = `Pressed then 0x30, 0x20 else 0x60, 0x40 in
@@ -806,7 +807,7 @@ let button ui area ?(protrude = true) modkey focus active =
     mouse_focus ui (-1, x + 1, y + 1, w - 3, 1) 20 shine_top 0;
   );
   (*Draw.rect ui.win x y (w - 1) h (border ui status);*)
-  mouse_focus ui (if protrude then -1, x, y, w - 1, h - 1 else area)  w 0x50 (-5);
+  mouse_focus ui (-1, x, y, w - 1, h - 1) w 0x50 (-5);
   match active with
   | None -> false
   | Some active -> if status = `Released then not active else active
