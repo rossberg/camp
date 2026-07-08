@@ -10,6 +10,7 @@ let rich_table g sh has_heading : Ui.rich_table =
     pad_h = pad_h g;
     scroll_w = scrollbar_w g;
     scroll_h = sh * scrollbar_w g;
+    scroll_l = smin g 1;
     refl_r = g.reflection;
     has_heading
   }
@@ -20,6 +21,7 @@ let grid_table g img_h has_heading : Ui.grid_table =
     text_h = text_h g;
     pad_h = pad_h g;
     scroll_w = scrollbar_w g;
+    scroll_l = smin g 1;
     refl_r = g.reflection;
     has_heading
   }
@@ -251,7 +253,7 @@ let mute_x g = volume_x g - sx g 4
 let mute_y g = volume_y g + volume_h g - mute_h g
 let mute_area g = (cp, mute_x g, mute_y g, mute_w g, mute_h g)
 
-let volume_bar g = Ui.volume_bar g.ui (cp, volume_x g, volume_y g, volume_w g, volume_h g)
+let volume_bar g = Ui.volume_bar g.ui (cp, volume_x g, volume_y g, volume_w g, volume_h g) (smin g 1)
 let volume_wheel g = Ui.wheel g.ui (cp, 0, 0, control_w g, control_h g)
 
 let mute_text g = Ui.color_text g.ui (cp, mute_x g, mute_y g, mute_w g, mute_h g) `Center
@@ -273,7 +275,7 @@ let prop_w g = (*if flex_h g > 20 then info_w g - info_margin g else*) mute_x g
 
 let prop_text g = Ui.text g.ui (cp, info_x g + info_margin g, prop_y g, prop_w g, prop_h g) `Left
 let title_ticker g = Ui.ticker g.ui (cp, info_x g + info_margin g, ticker_y g, info_w g - info_margin g, ticker_h g)
-let seek_bar g = Ui.progress_bar g.ui (cp, info_x g + seek_margin g, seek_y g, info_w g - seek_margin g, seek_h g)
+let seek_bar g = Ui.progress_bar g.ui (cp, info_x g + seek_margin g, seek_y g, info_w g - seek_margin g, seek_h g) (smin g 1)
 
 (* Time *)
 let lcd_space g = sx g 3

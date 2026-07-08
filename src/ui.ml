@@ -145,6 +145,9 @@ let clamp min max v =
   if v > max then max else
   v
 
+let quant_floor l v = v / l * l
+let quant_ceil l v = (v + l - 1) / l * l
+
 
 (* Colors *)
 
@@ -852,12 +855,14 @@ let labeled_button ui area ?(protrude = true) hsym c txt modkey focus active =
 
 (* Bars *)
 
-let progress_bar ui area v =
+let progress_bar ui area l v =
   let (x, y, w, h), status = widget ui area no_modkey in
+  let w = quant_floor l w in
+  let w' = quant_ceil l (int_of_float (v *. float w)) in
   Draw.fill ui.win x y w h (fill ui false);
-  Draw.fill ui.win x y (int_of_float (v *. float w)) h (fill ui true);
-  for i = 0 to w / 2 - 1 do
-    Draw.fill ui.win (x + 2*i + 1) y 1 h `Black
+  Draw.fill ui.win x y w' h (fill ui true);
+  for i = 0 to w / l / 2 - 1 do
+    Draw.fill ui.win (x + (2*i + 1)*l) y l h `Black
   done;
   Draw.rect ui.win x y w h (border ui status);
   if status <> `Pressed then v else
@@ -865,14 +870,15 @@ let progress_bar ui area v =
   clamp 0.0 1.0 (float (mx - x) /. float w)
 
 
-let volume_bar ui area v =
+let volume_bar ui area l v =
   let (x, y, w, h), status = widget ui area no_modkey in
-  let h' = int_of_float ((1.0 -. v) *. float h) in
+  let h = quant_floor l h in
+  let h' = quant_ceil l (int_of_float ((1.0 -. v) *. float h)) in
   Draw.fill ui.win (x + w - 2) y 2 h (fill ui true);
   Draw.tri ui.win (x + 2) y (x + w - 2) (y + h) (x + w - 2) y (fill ui true);
   Draw.fill ui.win x y w h' (`Trans (`Black, 0x100 - unlit_alpha));
-  for j = 0 to h / 2 - 1 do
-    Draw.fill ui.win x (y + 2*j + 1) w 1 `Black
+  for j = 0 to h / l / 2 - 1 do
+    Draw.fill ui.win x (y + (2*j + 1)*l) w l `Black
   done;
   if status <> `Pressed then v else
   let _, my = Mouse.pos ui.win in
@@ -882,30 +888,37 @@ let volume_bar ui area v =
 type drag += Scroll_bar_page of {last_repeat : time}
 type drag += Scroll_bar_drag of {value : float; mx : int; my : int}
 
-let scroll_bar ui area orient v len =
+let scroll_bar ui area l orient v len =
   assert (v +. len < 2.0); (* at most 1 line over 1.0, but line may be a page *)
   let (x, y, w, h), status = widget ui area no_modkey in
+  let w, h =
+    match orient with
+    | `Vertical -> w, quant_floor l h
+    | `Horizontal -> quant_floor l w, h
+  in
   Draw.fill ui.win x y w h (fill ui false);
   let x', y', w', h' as r =
     match orient with
     | `Vertical ->
-      let h' = int_of_float (Float.ceil (len *. float (h - 2))) in
+      let h' = quant_floor l (int_of_float (Float.ceil (len *. float (h - 2)))) in
       let h'' = max h' w in  (* minimum bar size *)
-      x, y + int_of_float (v *. float (h - 2 - (h'' - h'))) + 1, w, h''
+      let dy = quant_ceil l (int_of_float (v *. float (h - 2 - (h'' - h')))) in
+      x, y + dy, w, h''
     | `Horizontal ->
-      let w' = int_of_float (Float.ceil (len *. float (w - 2))) in
+      let w' = quant_floor l (int_of_float (Float.ceil (len *. float (w - 2)))) in
       let w'' = max w' h in  (* minimum bar size *)
-      x + int_of_float (v *. float (w - 2 - (w'' - w'))) + 1, y, w'', h
+      let dx = quant_ceil l (int_of_float (v *. float (w - 2 - (w'' - w')))) in
+      x + dx, y, w'', h
   in
   if len < 1.0 then Draw.fill ui.win x' y' w' h' (fill ui true);
   (match orient with
   | `Vertical ->
-    for j = 0 to h / 2 - 1 do
-      Draw.fill ui.win x (y + 2*j) w 1 `Black
+    for j = 0 to h / l / 2 - 1 do
+      Draw.fill ui.win x (y + (2*j + 1)*l) w l `Black
     done
   | `Horizontal ->
-    for i = 0 to w / 2 - 1 do
-      Draw.fill ui.win (x + 2*i) y 1 h `Black
+    for i = 0 to w / l / 2 - 1 do
+      Draw.fill ui.win (x + (2*i + 1)*l) y l h `Black
     done
   );
   Draw.rect ui.win x y w h (border ui status);
@@ -1482,8 +1495,9 @@ type rich_table =
   { gutter_w : int;
     text_h : int;
     pad_h : int;
-    scroll_w : int ;
+    scroll_w : int;
     scroll_h : int;
+    scroll_l : int;
     refl_r : int;
     has_heading : bool
   }
@@ -1750,7 +1764,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
     let pos = if len = 0 then 0.0 else float tab.vscroll /. float len in
     let coeff = max 1.0 (float page /. 4.0) /. float (max 1 len) in
     let wheel = if vwheel then coeff *. wdy else 0.0 in
-    let pos' = scroll_bar ui vscroll_area `Vertical pos ext -. wheel in
+    let pos' = scroll_bar ui vscroll_area geo.scroll_l `Vertical pos ext -. wheel in
     let result =
       if result <> `None || pos = pos' then result else
       (
@@ -1768,7 +1782,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
       let ext = if vw' = 0 then 1.0 else min 1.0 (float w /. float vw') in
       let pos = if vw' = 0 then 0.0 else float tab.hscroll /. float vw' in
       let wheel = if vwheel then wdx else wdy in
-      let pos' = scroll_bar ui hscroll_area `Horizontal pos ext -. 0.05 *. wheel in
+      let pos' = scroll_bar ui hscroll_area geo.scroll_l `Horizontal pos ext -. 0.05 *. wheel in
       if result <> `None || pos = pos' then result else
       (
         Table.set_hscroll tab
@@ -2068,7 +2082,8 @@ type grid_table =
     img_h : int;
     text_h : int;
     pad_h : int;
-    scroll_w : int ;
+    scroll_w : int;
+    scroll_l : int;
     refl_r : int;
     has_heading : bool
   }
@@ -2290,7 +2305,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
     let pos = if len = 0 then 0.0 else float tab.vscroll /. float len' in
     let coeff = max 1.0 (float line) /. float (len' - page) in
     let wheel = coeff *. snd (wheel_status ui r) in
-    let pos' = scroll_bar ui vscroll_area `Vertical pos ext -. wheel in
+    let pos' = scroll_bar ui vscroll_area geo.scroll_l `Vertical pos ext -. wheel in
     let result =
       if result <> `None || pos = pos' then result else
       (
