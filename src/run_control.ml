@@ -359,9 +359,11 @@ let run (st : state) =
     let bands = if n' = n then bands else Array.make n 0.0 in
 
     let x, y, w, h = Ui.dim geo.ui (Layout.graph_area geo) in
-    let y, h = y + 2, h - 4 in
+    let l = Geometry.smin geo 1 in
+    let y, h = y + 2, h / l * l - 4 in
     let wbar = (w + 1) / n in
-    let wsep = if wbar <= 4 then 1 else if n <= 10 then 2 else 3 in
+    let wsep =
+      Geometry.sx geo (if wbar <= 4 then 1 else if n <= 10 then 2 else 3) in
     let w' = wbar - wsep in
     let win = Ui.window geo.ui in
     let green = Ui.text_color geo.ui in
@@ -375,14 +377,14 @@ let run (st : state) =
       Api.Draw.fill win x' (y + h - hy) w' hy (Ui.unlit_color yellow);
       let hg = 8 * h / 12 in
       Api.Draw.fill win x' (y + h - hg) w' hg (Ui.unlit_color green);
-      let hr = min (int_of_float (bands.(i) /. 5.0 *. float h)) h in
+      let hr = min h ((int_of_float (bands.(i) /. 5.0 *. float h) + l/2) / l * l) in
       Api.Draw.fill win x' (y + h - hr) w' hr red;
       let hy = min hr hy in
       Api.Draw.fill win x' (y + h - hy) w' hy yellow;
       let hg = min hr hg in
       Api.Draw.fill win x' (y + h - hg) w' hg green;
-      for j = 0 to (h + 1)/2 - 1 do
-        Api.Draw.fill win x (y + 2 * j) w 1 `Black;
+      for j = 0 to (h + 1) / l / 2 - 1 do
+        Api.Draw.fill win x (y + (2 * j + 1)*l) w l `Black;
       done
     done
 
