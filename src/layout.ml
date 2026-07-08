@@ -377,7 +377,7 @@ let edit_pane g = Ui.pane g.ui ep (playlist_x g, - bottom_h g, playlist_w g, bot
 (* Buttons *)
 let edit_sep g = sx g 5
 let edit_w g = sx g 27
-let edit_h g = line_h g + sy g 7
+let edit_h g = line_h g + smin g 7
 let edit_x i j g = margin g + i * edit_sep g + j * edit_w g
 let edit_y g = if extension_shown_h g then - edit_h g else control_h g (* effectively hidden *)
 let edit_area i j g = (ep, edit_x i j g, edit_y g, edit_w g, edit_h g)
