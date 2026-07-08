@@ -83,6 +83,15 @@ let make ui =
 
 (* Constants and derived parameters *)
 
+let min_text_size = 8
+let max_text_size = 64
+let min_pad_size = 0
+let max_pad_size = 8
+let min_grid_size = 32
+let max_grid_size = 1024
+let min_popup_size = 100
+let max_popup_size = 1000
+
 let sx g x = x * g.control_width / control_min_w
 let sy g y = y * g.control_height / control_min_h
 let smin g v = min (sx g v) (sy g v)
@@ -92,12 +101,12 @@ let margin g = smin g g.margin
 let popup_margin g = margin g / 2
 let divider_w g = margin g
 
-let text_h g = smin g g.text
+let text_h g = min max_text_size (smin g g.text)
 let pad_w g = smin g g.pad_x
 let pad_h g = smin g g.pad_y
 let line_h g = text_h g + 2 * pad_h g
-let label_h g = min 64 (smin g g.label)
-let button_label_h g = smin g g.button_label
+let label_h g = min max_text_size (smin g g.label)
+let button_label_h g = min max_text_size (smin g g.button_label)
 let gutter_w g = sx g g.gutter
 let scrollbar_w g = smin g g.scrollbar
 let indicator_w g = smin g 7
@@ -139,15 +148,6 @@ let filesel_h g = control_h g + extension_h g
 
 
 (* Resizing limits *)
-
-let min_text_size = 8
-let max_text_size = 64
-let min_pad_size = 0
-let max_pad_size = 8
-let min_grid_size = 32
-let max_grid_size = 1024
-let min_popup_size = 100
-let max_popup_size = 1000
 
 let live_win_w g =
   let win = Ui.window g.ui in
@@ -212,6 +212,10 @@ let ok geo =
     (live_win_h geo >= win_min_h true true geo) @
   check "text size in range"
     (geo.text >= min_text_size && geo.text <= max_text_size) @
+  check "label size in range"
+    (geo.label >= min_text_size && geo.label <= max_text_size) @
+  check "button label size in range"
+    (geo.button_label >= min_text_size && geo.button_label <= max_text_size) @
   check "album grid size in range"
     (geo.album_grid >= min_grid_size && geo.album_grid <= max_grid_size) @
   check "track grid size in range"
