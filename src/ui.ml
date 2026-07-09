@@ -976,26 +976,20 @@ let scroll_bar ui area l orient v len =
 
 type drag += Divide of {overshoot : size}
 
-let divider ui area orient v minv maxv =
+let divider2 ui area cursor (vx, vy) (minx, miny) (maxx, maxy) =
   let (x, y, w, h), status = widget ui area no_modkey in
-  let proj = match orient with `Horizontal -> fst | `Vertical -> snd in
-  let inj v = match orient with `Horizontal -> v, y | `Vertical -> x, v in
-  let cursor = match orient with `Horizontal -> `E_W | `Vertical -> `N_S in
   if status <> `Untouched then Mouse.set_cursor ui.win (`Resize cursor);
   (*Draw.rect ui.win x y w h (border ui status);*)
-  if status <> `Pressed then v else
+  if status <> `Pressed then (vx, vy) else
   let over =
     match ui.drag_extra with
     | No_drag -> 0, 0
     | Divide {overshoot} -> overshoot
     | _ -> unexpected_drag_extra ui "divider"; 0, 0
   in
-  let vx, vy = inj v in
   let vx', vy' = add (add (vx, vy) (Mouse.delta ui.win)) over in
   let i, _, _, _, _ = area in
   let _, _, pw, ph = snd ui.panes.(i) in
-  let minx, miny = inj minv in
-  let maxx, maxy = inj maxv in
   let maxx = if maxx < 0 then pw else maxx in
   let maxy = if maxy < 0 then ph else maxy in
   let vx'', vy'' = clamp minx maxx vx', clamp miny maxy vy' in
@@ -1006,7 +1000,14 @@ let divider ui area orient v minv maxv =
   let dy = vy'' - vy in
   ui.drag_origin <- add ui.drag_origin (dx, dy);
   assert (inside ui.drag_origin (x + dx, y + dy, w, h));
-  proj (vx'', vy'')
+  (vx'', vy'')
+
+let divider ui area orient v minv maxv =
+  let x, y, _, _ = dim ui area in
+  let proj = match orient with `Horizontal -> fst | `Vertical -> snd in
+  let inj v = match orient with `Horizontal -> v, y | `Vertical -> x, v in
+  let cursor = match orient with `Horizontal -> `E_W | `Vertical -> `N_S in
+  proj (divider2 ui area cursor (inj v) (inj minv) (inj maxv))
 
 
 (* Text Input Field *)

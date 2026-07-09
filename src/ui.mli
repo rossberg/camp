@@ -117,6 +117,8 @@ val volume_bar : t -> area -> int -> float -> float
 val scroll_bar : t -> area -> int -> Api.orientation -> float -> float -> float
 
 val divider : t -> area -> Api.orientation -> int -> int -> int -> int
+val divider2 : t -> area -> Api.resize -> size -> size -> size -> size
+
 
 (* Table *)
 

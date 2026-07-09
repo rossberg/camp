@@ -349,12 +349,14 @@ let cover_popup_text g (p, x, y, w, _) ih = Ui.ticker g.ui (p, x, y + ih + pad_h
 
 let pdp = cp + 1
 let extension_divider_h_pane g = Ui.pane g.ui pdp (playlist_x g, playlist_y g, playlist_w g, divider_w g)
-let extension_divider_h g = Ui.divider g.ui (pdp, 0, 0, -1, -1) `Vertical
+let extension_divider_h g = Ui.divider g.ui (pdp, margin g, 0, - margin g, -1) `Vertical
 
 let ldp = pdp + 1
 let extension_divider_x g = (if extension_left g then control_x else library_x) g
 let extension_divider_w_pane g = Ui.pane g.ui ldp (extension_divider_x g, library_y g, divider_w g, -1)
-let extension_divider_w g = Ui.divider g.ui (ldp, 0, 0, -1, -1) `Horizontal
+let extension_divider_w_upper g = Ui.divider g.ui (ldp, 0, margin g, -1, playlist_y g - library_y g - margin g) `Horizontal
+let extension_divider_wh g = Ui.divider2 g.ui (ldp, 0, playlist_y g - library_y g, -1, divider_w g) (if extension_left g then `NE_SW else `NW_SE)
+let extension_divider_w_lower g = Ui.divider g.ui (ldp, 0, playlist_y g - library_y g + divider_w g, -1, - margin g) `Horizontal
 
 
 (* Playlist Pane *)

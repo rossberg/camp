@@ -936,59 +936,94 @@ let run_toggle_panel (st : state) =
 
   (* Extension Dividers *)
 
-  if Geometry.extension_shown_h geo then
-  (
-    Layout.extension_divider_h_pane geo;
-
-    let control_height' =
+  let control_height1' =
+    if not (Geometry.extension_shown_h geo) then geo.control_height else
+    (
+      Layout.extension_divider_h_pane geo;
       Layout.extension_divider_h geo geo.control_height
         Geometry.control_min_h (Geometry.control_max_h geo)
-    in
-    (* Possible drag of playlist divider: update control height *)
-    if control_height' <> geo.control_height then
-    (
-      let delta = control_height' - geo.control_height in
-      geo.control_height <- control_height';
-      geo.extension_height <- geo.extension_height - delta;
-      geo.window <- Geometry.abstract_geo geo;
-      State.save st;
     )
-  );
+  in
 
-  if Geometry.extension_shown_w geo then
+  let control_height2' =
+    if not (Geometry.extension_shown_w geo) then geo.control_height else
+    (
+      Layout.extension_divider_w_pane geo;
+
+      if not (Geometry.extension_left geo) then
+      (
+        let control_width1' =
+          Layout.extension_divider_w_upper geo geo.control_width
+            Geometry.control_min_w (Geometry.control_max_w geo)
+        in
+        let control_width2' =
+          Layout.extension_divider_w_lower geo geo.control_width
+            Geometry.control_min_w (Geometry.control_max_w geo)
+        in
+        let control_width3', control_height' =
+          Layout.extension_divider_wh geo
+            (geo.control_width, geo.control_height)
+            Geometry.(control_min_w, control_min_h)
+            Geometry.(control_max_w geo, control_max_h geo)
+        in
+        let control_width' =
+          control_width1' + control_width2' + control_width3' -
+            2 * geo.control_width
+        in
+        (* Possible drag of library divider: update control width *)
+        if control_width' <> geo.control_width then
+        (
+          let delta = control_width' - geo.control_width in
+          geo.control_width <- control_width';
+          geo.extension_width <- geo.extension_width - delta;
+          Geometry.update_geo geo;
+          State.save st;
+        );
+        control_height'
+      )
+      else
+      (
+        let extension_width1' =
+          Layout.extension_divider_w_upper geo geo.extension_width
+            (Geometry.extension_min_w geo) (Geometry.extension_max_w geo)
+        in
+        let extension_width2' =
+          Layout.extension_divider_w_lower geo geo.extension_width
+            (Geometry.extension_min_w geo) (Geometry.extension_max_w geo)
+        in
+        let extension_width3', control_height' =
+          Layout.extension_divider_wh geo
+            (geo.extension_width, geo.control_height)
+            Geometry.(extension_min_w geo, control_min_h)
+            Geometry.(extension_max_w geo, control_max_h geo)
+        in
+        let extension_width' =
+          extension_width1' + extension_width2' + extension_width3' -
+            2 * geo.extension_width
+        in
+        (* Possible drag of library divider: update control width *)
+        if extension_width' <> geo.extension_width then
+        (
+          let delta = extension_width' - geo.extension_width in
+          geo.extension_width <- extension_width';
+          geo.control_width <- geo.control_width - delta;
+          Geometry.update_geo geo;
+          State.save st;
+        );
+        control_height'
+      )
+    )
+  in
+
+  let control_height' =
+    control_height1' + control_height2' - geo.control_height in
+  (* Possible drag of playlist or combined divider: update control height *)
+  if control_height' <> geo.control_height then
   (
-    Layout.extension_divider_w_pane geo;
-
-    if not (Geometry.extension_left geo) then
-    (
-      let control_width' =
-        Layout.extension_divider_w geo geo.control_width
-          Geometry.control_min_w (Geometry.control_max_w geo)
-      in
-      (* Possible drag of library divider: update control width *)
-      if control_width' <> geo.control_width then
-      (
-        let delta = control_width' - geo.control_width in
-        geo.control_width <- control_width';
-        geo.extension_width <- geo.extension_width - delta;
-        Geometry.update_geo geo;
-        State.save st;
-      )
-    )
-    else
-    (
-      let extension_width' =
-        Layout.extension_divider_w geo geo.extension_width
-          (Geometry.extension_min_w geo) (Geometry.extension_max_w geo)
-      in
-      (* Possible drag of library divider: update control width *)
-      if extension_width' <> geo.extension_width then
-      (
-        let delta = extension_width' - geo.extension_width in
-        geo.extension_width <- extension_width';
-        geo.control_width <- geo.control_width - delta;
-        Geometry.update_geo geo;
-        State.save st;
-      )
-    )
+    let delta = control_height' - geo.control_height in
+    geo.control_height <- control_height';
+    geo.extension_height <- geo.extension_height - delta;
+    geo.window <- Geometry.abstract_geo geo;
+    Geometry.update_geo geo;
+    State.save st;
   )
