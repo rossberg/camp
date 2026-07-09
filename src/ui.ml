@@ -434,8 +434,8 @@ let finish ui margin (minw, minh) (maxw, maxh) keep_ratio on_size_change on_scre
   Window.set_pos ui.win wx' wy';   (* deferred until end of frame! *)
   if (ww', wh') <> (ww, wh) then
   (
-    assert (minw <= ww' && (maxw = -1 || ww' <= maxw));
-    assert (minh <= wh' && (maxh = -1 || wh' <= maxh));
+    assert (ww' = ww || minw <= ww' && ww' <= maxw);
+    assert (wh' = wh || minh <= wh' && wh' <= maxh);
     Window.set_size ui.win ww' wh';  (* deferred until end of frame! *)
     on_size_change (wx' - wx, wy' - wy, ww' - ww, wh' - wh);
   );
@@ -534,6 +534,11 @@ type motion = [`Unmoved | `Moving | `Moved]
 type trajectory = [`Inside | `Outside | `Outward | `Inward]
 type drag += Drag of {pos : point; moved : bool; inside : bool}
 
+let unexpected_drag_extra _ui s =
+  Storage.log (Printf.sprintf
+    "Unexpected drag status in %s\n%!" s
+  )
+
 let drag_status ui r (stepx, stepy) =
   if ui.modal || not (inside ui.drag_origin r) || ui.drag_extra = Abort then
     `None
@@ -595,7 +600,7 @@ let drag_status ui r (stepx, stepy) =
     ui.drag_extra <- No_drag;
     `None
   | Abort -> `None
-  | _ -> assert false
+  | _ -> unexpected_drag_extra ui "drag_status"; `None
 
 let wheel_status ui r =
   if not ui.modal && inside (Mouse.pos ui.win) r then
@@ -939,7 +944,7 @@ let scroll_bar ui area l orient v len =
     | No_drag -> v, mx, my, 0.0, false
     | Scroll_bar_page {last_repeat} -> v, mx, my, last_repeat, false
     | Scroll_bar_drag {value; mx; my} -> value, mx, my, 0.0, true
-    | _ -> assert false
+    | _ -> unexpected_drag_extra ui "scroll_bar"; v, mx, my, 0.0, false
   in
   let now = Unix.gettimeofday () in
   let v' =
@@ -983,7 +988,7 @@ let divider ui area orient v minv maxv =
     match ui.drag_extra with
     | No_drag -> 0, 0
     | Divide {overshoot} -> overshoot
-    | _ -> assert false
+    | _ -> unexpected_drag_extra ui "divider"; 0, 0
   in
   let vx, vy = inj v in
   let vx', vy' = add (add (vx, vy) (Mouse.delta ui.win)) over in

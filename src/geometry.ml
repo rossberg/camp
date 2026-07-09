@@ -194,11 +194,11 @@ let win_min_h flex_ctl flex_ext g =
 let win_max_w flex_ctl flex_ext g =
   if flex_ctl && not flex_ext then
     fst Api.(Screen.max_size (Window.screen (Ui.window g.ui)))
-  else if flex_ctl || flex_ext then -1 else win_w g
+  else if flex_ctl || flex_ext then Int.max_int else win_w g
 let win_max_h flex_ctl flex_ext g =
   if flex_ctl && not flex_ext then
     snd Api.(Screen.max_size (Window.screen (Ui.window g.ui)))
-  else if flex_ctl || flex_ext then -1 else win_h g
+  else if flex_ctl || flex_ext then Int.max_int else win_h g
 
 
 (* Validation *)
@@ -262,15 +262,17 @@ let abstract_geo' geo (wx, wy, ww, wh) : float * float * float * float =
   let win = Ui.window geo.ui in
   let scr = Api.Window.screen win in
   let sx, sy = Api.Screen.min_pos scr in
-  let sw, sh = Api.(sub (Screen.max_size scr) (control_w geo, control_h geo)) in
+  let sw, sh = Api.Screen.max_size scr in
+  let sw', sh' = Api.sub (sw, sh) (control_w geo, control_h geo) in
   let cx = let cx = control_x geo in if cx >= 0 then cx else ww + cx in
   let cy = let cy = control_y geo in if cy >= 0 then cy else wh + cy in
   assert (cx >= 0 && cy >= 0);  (* relative position of control pane *)
   let lw, ph = geo.extension_width, geo.extension_height in
-  let ax = float (wx + cx - sx) /. float sw in
-  let ay = float (wy + cy - sy) /. float sh in
-  let aw = float lw /. float sw in
-  let ah = float ph /. float sh in
+  let tweak q = if not (Float.is_finite q) then 1.0 else q in
+  let ax = tweak (float (wx + cx - sx) /. float sw') in
+  let ay = tweak (float (wy + cy - sy) /. float sh') in
+  let aw = clamp 0.0 1.0 (tweak (float lw /. float sw')) in
+  let ah = clamp 0.0 1.0 (tweak (float ph /. float sh')) in
   (ax, ay, aw, ah)
 
 let abstract_geo geo : float * float * float * float =
@@ -279,12 +281,51 @@ let abstract_geo geo : float * float * float * float =
   let ww, wh = Api.Window.size win in
   abstract_geo' geo (wx, wy, ww, wh)
 
-let rec clamp_geo geo =
+let clamp_geo' geo (ww, wh) =
+  assert (ww > 1 && wh > 1);
+  if extension_shown_w geo then
+  (
+    let cw, ew = geo.control_width, geo.extension_width in
+    (* Changing control pane size may change minima gradually *)
+    while extension_w geo < extension_min_w geo do
+      geo.control_width <- geo.control_width - 1;
+      geo.extension_width <- geo.extension_width + 1;
+    done;
 (*
-  (* Could be false when window was resized hugely with extensions closed *)
-  assert (geo.extension_width >= extension_min_w geo);
-  assert (geo.extension_height >= extension_min_h geo);
+    geo.control_width <- clamp control_min_w (ww - extension_min_w geo) cw;
+    geo.extension_width <- clamp (extension_min_w geo) (ww - control_w geo) ew;
 *)
+    if !App.debug_layout
+    && (cw, ew) <> (geo.control_width, geo.extension_width) then
+      Printf.printf "[layout refit w] win=%d ctl=%d->%d ext=%d->%d\n%!"
+        ww cw geo.control_width ew geo.extension_width;
+  )
+  else if extension_w geo < extension_min_w geo then
+  (
+    geo.extension_width <- extension_min_w geo;
+  );
+  if extension_shown_h geo then
+  (
+    let ch, eh = geo.control_height, geo.extension_height in
+    (* Changing control pane size may change minima gradually *)
+    while extension_h geo < extension_min_h geo do
+      geo.control_height <- geo.control_height - 1;
+      geo.extension_height <- geo.extension_height + 1;
+    done;
+(*
+    geo.control_height <- clamp control_min_h (wh - extension_min_h geo) ch;
+    geo.extension_height <- clamp (extension_min_h geo) (wh - control_h geo) eh;
+*)
+    if !App.debug_layout
+    && (ch, eh) <> (geo.control_height, geo.extension_height) then
+      Printf.printf "[layout refit h] win=%d ctl=%d->%d ext=%d->%d\n%!"
+        wh ch geo.control_height eh geo.extension_height;
+  )
+  else if extension_h geo < extension_min_h geo then
+  (
+    geo.extension_height <- extension_min_h geo;
+  );
+
   let browser_width = geo.browser_width in
   let left_width = geo.left_width in
   let upper_height = geo.upper_height in
@@ -312,53 +353,29 @@ let rec clamp_geo geo =
       left_width geo.left_width
       upper_height geo.upper_height
       directories_width geo.directories_width
-  );
+  )
 
-  (* Changing control pane size may change minima *)
-  if extension_w geo < extension_min_w geo then
-  (
-    if !App.debug_layout then
-    (
-      Printf.eprintf "[layout refit w] ctl=%d>=%d ext=%d>=%d\n%!"
-        (control_w geo) (control_min_w)
-        (extension_w geo) (extension_min_w geo)
-    );
-    assert (control_w geo >= control_min_w);
-    if extension_shown_w geo then
-      geo.control_width <- geo.control_width - 1;
-    geo.extension_width <- geo.extension_width + 1;
-    clamp_geo geo;
-  )
-  else if extension_h geo < extension_min_h geo then
-  (
-    if !App.debug_layout then
-    (
-      Printf.eprintf "[layout refit h] ctl=%d>=%d ext=%d>=%d\n%!"
-        (control_h geo) (control_min_h)
-        (extension_h geo) (extension_min_h geo)
-    );
-    assert (control_h geo >= control_min_h);
-    if extension_shown_h geo then
-      geo.control_height <- geo.control_height - 1;
-    geo.extension_height <- geo.extension_height + 1;
-    clamp_geo geo;
-  )
+let clamp_geo geo =
+  let win = Ui.window geo.ui in
+  let ww, wh = Api.Window.next_size win in
+  clamp_geo' geo (ww, wh)
 
 let update_geo' geo (wx, wy, ww, wh) =
-  geo.window <- abstract_geo' geo (wx, wy, ww, wh);
-  clamp_geo geo
+  clamp_geo' geo (ww, wh);
+  geo.window <- abstract_geo' geo (wx, wy, ww, wh)
 
 let update_geo geo =
-  geo.window <- abstract_geo geo;
-  clamp_geo geo
+  clamp_geo geo;
+  geo.window <- abstract_geo geo
 
 let apply_geo geo (ax, ay, aw, ah) : int * int * int * int =
   let win = Ui.window geo.ui in
   let scr = Api.Window.screen win in
   let sx, sy = Api.Screen.min_pos scr in
-  let sw, sh = Api.(sub (Screen.max_size scr) (control_w geo, control_h geo)) in
-  let ew = clamp (extension_min_w geo) sw (int_of_float (aw *. float sw)) in
-  let eh = clamp (extension_min_h geo) sh (int_of_float (ah *. float sh)) in
+  let sw, sh = Api.Screen.max_size scr in
+  let sw', sh' = Api.sub (sw, sh) (control_w geo, control_h geo) in
+  let ew = clamp (extension_min_w geo) sw' (int_of_float (aw *. float sw')) in
+  let eh = clamp (extension_min_h geo) sh' (int_of_float (ah *. float sh')) in
   geo.extension_width <- ew;
   geo.extension_height <- eh;
   let w, h = Api.add (ew, eh) (control_w geo, control_h geo) in
@@ -368,8 +385,8 @@ let apply_geo geo (ax, ay, aw, ah) : int * int * int * int =
   let margin = margin geo in
   let clamp_x = clamp (- w + margin) (sw + control_w geo - margin) in
   let clamp_y = clamp (- h + margin) (sh + control_h geo - margin) in
-  let x = clamp_x (int_of_float (ax *. float sw) - cx) + sx in
-  let y = clamp_y (int_of_float (ay *. float sh) - cy) + sy in
+  let x = clamp_x (int_of_float (ax *. float sw') - cx) + sx in
+  let y = clamp_y (int_of_float (ay *. float sh') - cy) + sy in
 
   if !App.debug_layout then
   (
@@ -379,8 +396,9 @@ let apply_geo geo (ax, ay, aw, ah) : int * int * int * int =
       ax ay aw ah x y ew (control_w geo) eh (control_h geo) sx sy sw sh;
   );
 
-  clamp_geo geo;
-  x, y, win_w geo, win_h geo
+  let w, h = win_w geo, win_h geo in
+  clamp_geo' geo (w, h);
+  x, y, w, h
 
 
 let abstract_view_geo geo : int * int =
@@ -416,11 +434,11 @@ let print_state geo =
     "ctl_width", nat geo.control_width;
     "ctl_height", nat geo.control_height;
     "play_open", bool geo.playlist_shown;
-    "play_height", float ah;
+    "play_height", interval 0.0 1.0 ah;
     "play_headers", bool geo.playlist_headers;
     "lib_open", bool geo.library_shown;
     "lib_side", enum side_enum geo.extension_side;
-    "lib_width", float aw;
+    "lib_width", interval 0.0 1.0 aw;
     "browser_width", nat geo.browser_width;
     "upper_height", nat geo.upper_height;
     "left_width", nat geo.left_width;
@@ -445,13 +463,6 @@ let print_intern geo =
 
 let parse_state geo =  (* assumes playlist and library loaded *)
   let open Text.Parse in
-  let float' lo hi newmax oldmax t =
-    (* Backwards compatibility with old integer coordinates *)
-    let x = float t in
-    if x >= newmax then x /. float_of_int oldmax else
-    if x <= -.newmax then 1.0 +. x /. float_of_int oldmax else
-    max lo (min hi x)
-  in
   let sw, sh = Api.Screen.max_size (Api.Window.screen (Ui.window geo.ui)) in
   let ww, wh = control_w geo, control_h geo in
   let wx, wy = (sw - ww)/2, (sh - wh)/2 in  (* default to mid-screen *)
@@ -460,8 +471,7 @@ let parse_state geo =  (* assumes playlist and library loaded *)
   record (fun r ->
     apply (r $? "scaling") (pair (num (-1) 8) (num (-1) 8))
       (fun delta -> geo.scaling <- delta);
-    apply (r $? "win_pos")
-      (pair (float' 0.0 2.0 2.0 sw) (float' 0.0 2.0 2.0 sh))
+    apply (r $? "win_pos") (pair float float)
       (fun (x, y) -> rax := x; ray := y);
     apply (r $? "buffered") bool
       (fun b -> Ui.buffered geo.ui b);
@@ -481,7 +491,7 @@ let parse_state geo =  (* assumes playlist and library loaded *)
       (fun h -> geo.control_height <- h);
     apply (r $? "play_open") bool
       (fun b -> geo.playlist_shown <- b);
-    apply (r $? "play_height") (float' 0.0 1.0 2.0 (sw - ww))
+    apply (r $? "play_height") (interval 0.0 1.0)
       (fun h -> rah := h);
     apply (r $? "play_headers") bool
       (fun b -> geo.playlist_headers <- b);
@@ -489,7 +499,7 @@ let parse_state geo =  (* assumes playlist and library loaded *)
       (fun b -> geo.library_shown <- b);
     apply (r $? "lib_side") (enum side_enum)
       (fun s -> geo.extension_side <- s);
-    apply (r $? "lib_width") (float' 0.0 1.0 2.0 (sh - wh))
+    apply (r $? "lib_width") (interval 0.0 1.0)
       (fun w -> raw := w);
     apply (r $? "browser_width") (num (browser_min_w geo) (browser_max_w geo))
       (fun w -> geo.browser_width <- w);
