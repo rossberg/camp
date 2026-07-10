@@ -17,8 +17,8 @@
   (description "A portable music player in the Winamp tradition")
   (depends
     (ocaml (>= 5.4.0))
-    ; (raylib (= 2.1.0))
-    ; (raylib-callbacks (= 2.1.0))
+    ; (raylib (= 2.2.0))
+    ; (raylib-callbacks (= 2.2.0))
     (uunf (>= 17.0.0))
     (uucp (>= 17.0.0))
     (confero (>= 0.1.1))

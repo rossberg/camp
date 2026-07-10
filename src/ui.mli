@@ -112,11 +112,13 @@ val button : t -> area -> ?protrude: bool -> modifier list * key -> bool -> bool
 val labeled_button : t -> area -> ?protrude: bool -> int -> color -> string -> modifier list * key -> bool -> bool option -> bool
 val invisible_button : t -> area -> modifier list -> modifier list * key -> bool -> bool
 
-val progress_bar : t -> area -> float -> float
-val volume_bar : t -> area -> float -> float
-val scroll_bar : t -> area -> Api.orientation -> float -> float -> float
+val progress_bar : t -> area -> int -> float -> float
+val volume_bar : t -> area -> int -> float -> float
+val scroll_bar : t -> area -> int -> Api.orientation -> float -> float -> float
 
 val divider : t -> area -> Api.orientation -> int -> int -> int -> int
+val divider2 : t -> area -> Api.resize -> size -> size -> size -> size
+
 
 (* Table *)
 
@@ -138,8 +140,9 @@ type rich_table =
   { gutter_w : int;
     text_h : int;
     pad_h : int;
-    scroll_w : int ;
+    scroll_w : int;
     scroll_h : int;
+    scroll_l : int;
     refl_r : int;
     has_heading : bool
   }
@@ -211,7 +214,8 @@ type grid_table =
     img_h : int;
     text_h : int;
     pad_h : int;
-    scroll_w : int ;
+    scroll_w : int;
+    scroll_l : int;
     refl_r : int;
     has_heading : bool
   }
