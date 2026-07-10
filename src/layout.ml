@@ -10,6 +10,7 @@ let rich_table g sh has_heading : Ui.rich_table =
     pad_h = pad_h g;
     scroll_w = scrollbar_w g;
     scroll_h = sh * scrollbar_w g;
+    scroll_l = smin g 1;
     refl_r = g.reflection;
     has_heading
   }
@@ -20,6 +21,7 @@ let grid_table g img_h has_heading : Ui.grid_table =
     text_h = text_h g;
     pad_h = pad_h g;
     scroll_w = scrollbar_w g;
+    scroll_l = smin g 1;
     refl_r = g.reflection;
     has_heading
   }
@@ -251,7 +253,7 @@ let mute_x g = volume_x g - sx g 4
 let mute_y g = volume_y g + volume_h g - mute_h g
 let mute_area g = (cp, mute_x g, mute_y g, mute_w g, mute_h g)
 
-let volume_bar g = Ui.volume_bar g.ui (cp, volume_x g, volume_y g, volume_w g, volume_h g)
+let volume_bar g = Ui.volume_bar g.ui (cp, volume_x g, volume_y g, volume_w g, volume_h g) (smin g 1)
 let volume_wheel g = Ui.wheel g.ui (cp, 0, 0, control_w g, control_h g)
 
 let mute_text g = Ui.color_text g.ui (cp, mute_x g, mute_y g, mute_w g, mute_h g) `Center
@@ -273,7 +275,7 @@ let prop_w g = (*if flex_h g > 20 then info_w g - info_margin g else*) mute_x g
 
 let prop_text g = Ui.text g.ui (cp, info_x g + info_margin g, prop_y g, prop_w g, prop_h g) `Left
 let title_ticker g = Ui.ticker g.ui (cp, info_x g + info_margin g, ticker_y g, info_w g - info_margin g, ticker_h g)
-let seek_bar g = Ui.progress_bar g.ui (cp, info_x g + seek_margin g, seek_y g, info_w g - seek_margin g, seek_h g)
+let seek_bar g = Ui.progress_bar g.ui (cp, info_x g + seek_margin g, seek_y g, info_w g - seek_margin g, seek_h g) (smin g 1)
 
 (* Time *)
 let lcd_space g = sx g 3
@@ -347,12 +349,14 @@ let cover_popup_text g (p, x, y, w, _) ih = Ui.ticker g.ui (p, x, y + ih + pad_h
 
 let pdp = cp + 1
 let extension_divider_h_pane g = Ui.pane g.ui pdp (playlist_x g, playlist_y g, playlist_w g, divider_w g)
-let extension_divider_h g = Ui.divider g.ui (pdp, 0, 0, -1, -1) `Vertical
+let extension_divider_h g = Ui.divider g.ui (pdp, margin g, 0, - margin g, -1) `Vertical
 
 let ldp = pdp + 1
 let extension_divider_x g = (if extension_left g then control_x else library_x) g
 let extension_divider_w_pane g = Ui.pane g.ui ldp (extension_divider_x g, library_y g, divider_w g, -1)
-let extension_divider_w g = Ui.divider g.ui (ldp, 0, 0, -1, -1) `Horizontal
+let extension_divider_w_upper g = Ui.divider g.ui (ldp, 0, margin g, -1, playlist_y g - library_y g - margin g) `Horizontal
+let extension_divider_wh g = Ui.divider2 g.ui (ldp, 0, playlist_y g - library_y g, -1, divider_w g) (if extension_left g then `NE_SW else `NW_SE)
+let extension_divider_w_lower g = Ui.divider g.ui (ldp, 0, playlist_y g - library_y g + divider_w g, -1, - margin g) `Horizontal
 
 
 (* Playlist Pane *)
@@ -375,7 +379,7 @@ let edit_pane g = Ui.pane g.ui ep (playlist_x g, - bottom_h g, playlist_w g, bot
 (* Buttons *)
 let edit_sep g = sx g 5
 let edit_w g = sx g 27
-let edit_h g = line_h g + sy g 7
+let edit_h g = line_h g + smin g 7
 let edit_x i j g = margin g + i * edit_sep g + j * edit_w g
 let edit_y g = if extension_shown_h g then - edit_h g else control_h g (* effectively hidden *)
 let edit_area i j g = (ep, edit_x i j g, edit_y g, edit_w g, edit_h g)

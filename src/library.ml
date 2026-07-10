@@ -1732,6 +1732,15 @@ let restore_playlist lib = function
     Table.restore_selection lib.tracks (track_key lib) selection
 
 
+let renumber lib i j =
+  for k = i to j - 1 do
+    lib.tracks.entries.(k).pos <- k
+  done
+
+let renumber_all lib =
+  renumber lib 0 (length lib)
+
+
 let insert lib pos tracks =
   assert (current_is_playlist lib);
   if tracks <> [||] then
@@ -1755,13 +1764,11 @@ let insert lib pos tracks =
           let status =
             if track.status <> `Det || Data.is_separator track
             then track.status else `Predet
-          in {track with pos; status}
+          in {track with status}
       ) tracks
     in
-    for i = pos'' to len - 1 do
-      lib.tracks.entries.(i).pos <- lib.tracks.entries.(i).pos + len'
-    done;
     Table.insert lib.tracks pos'' tracks';
+    renumber lib (pos'' + len') (len + len');
     Option.iter (fun (dir : dir) ->
       dir.tracks <- Iarray.of_array lib.tracks.entries;
     ) lib.current;
@@ -1790,8 +1797,8 @@ let remove_if p lib n =
   if n > 0 then
   (
     let order = normalize_playlist lib in
-    let js = Table.remove_if p lib.tracks n in
-    Array.iter (fun (track : track) -> track.pos <- js.(track.pos)) lib.tracks.entries;
+    let _js = Table.remove_if p lib.tracks n in
+    renumber_all lib;
     Option.iter (fun (dir : dir) ->
       dir.tracks <- Iarray.of_array lib.tracks.entries;
     ) lib.current;
@@ -1858,7 +1865,10 @@ let move_selected lib d =
   if Table.num_selected lib.tracks > 0 then
   (
     let order = normalize_playlist lib in
+    let i = Option.get (first_selected lib) in
+    let j = Option.get (last_selected lib) + 1 in
     let _js = Table.move_selected lib.tracks d in
+    renumber lib (max 0 (min i (i + d))) (min (length lib) (max j (j + d)));
     Array.iteri (fun i (track : track) -> track.pos <- i) lib.tracks.entries;
     restore_playlist lib order;
     save_playlist lib;
@@ -1869,8 +1879,10 @@ let reverse_selected lib =
   if Table.num_selected lib.tracks > 1 then
   (
     let order = normalize_playlist lib in
+    let i = Option.get (first_selected lib) in
+    let j = Option.get (last_selected lib) + 1 in
     let _js = Table.reverse_selected lib.tracks in
-    Array.iteri (fun i (track : track) -> track.pos <- i) lib.tracks.entries;
+    renumber lib i j;
     restore_playlist lib order;
     save_playlist lib;
   )
@@ -1882,7 +1894,7 @@ let reverse_all lib =
   (
     let order = normalize_playlist lib in
     Table.reverse_all lib.tracks;
-    Array.iteri (fun i (track : track) -> track.pos <- i) lib.tracks.entries;
+    renumber_all lib;
     restore_playlist lib order;
     save_playlist lib;
   )
