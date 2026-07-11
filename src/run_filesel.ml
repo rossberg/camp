@@ -24,10 +24,9 @@ let filesel (st : state) kind access path ext f =
   (* Switch side if window exceeds respective border *)
   let geo = st.geometry in
   let win = Ui.window geo.ui in
-  let scr = Api.Window.screen win in
   let wx, _ = Api.Window.pos win in
-  let sx, _ = Api.Screen.min_pos scr in
-  let sw, _ = Api.Screen.max_size scr in
+  let sx, _ = Api.Window.min_pos win in
+  let sw, _ = Api.Window.max_size win in
   if geo.extension_side = `Left && wx <= sx then
     geo.extension_side <- `Right;
   if geo.extension_side = `Right && wx + Geometry.control_w geo >= sx + sw then

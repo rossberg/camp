@@ -186,7 +186,7 @@ vendor-commit:
 # Clean-up
 
 clean:
-	dune clean
+	opam exec -- dune clean
 	rm -rf $(NAME) $(NAME).opam
 	rm -rf Info.plist.*
 

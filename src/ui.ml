@@ -450,8 +450,8 @@ let resize ui origin (dw, dh) =
    * If the former, respective window position coordinate remains unchanged.
    * If the latter, move window position along respective axis.
    * Assume that widgets in the lower/right half of a pane stick to that side.
-   * (Breaking this assumption in a pane layout may lead to crashes when
-   * dragging a window, since the mouse pointer can end up over a different
+   * (Breaking this assumption in a pane layout may lead to invariant violations
+   * when dragging a window, since the mouse pointer can end up over a different
    * widget after resize!)
    * TODO: Declare pivot explicitly with pane geometry and check widgets?
    *)
