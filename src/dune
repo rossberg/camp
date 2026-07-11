@@ -23,6 +23,7 @@
 
 (rule
   (targets icon.res)
+  (enabled_if (= %{system} mingw64))
   (deps (source_tree ../platform))
   (action (run x86_64-w64-mingw32-windres ../platform/win/icon.rc -O coff -o icon.res))
 )

@@ -179,31 +179,32 @@ let focus st =
     "input", fs.input.focus;
   ]
 
+let ok' st =
+  Config.ok st.config @
+  Geometry.ok st.geometry @
+  Control.ok st.control @
+  Playlist.ok st.playlist @
+  Library.ok st.library @
+  Filesel.ok st.filesel @
+  Menu.ok st.menu @
+  check "at most one focus" (List.length (focus st) <= 1) @
+  check "playlist empty when no current track"
+    (st.control.current <> None || st.playlist.table.entries = [||]) @
+  check "at most one selection"
+    (not (Table.has_selection st.playlist.table &&
+      Table.has_selection st.library.tracks)) @
+  check "file selection with op"
+    (st.geometry.filesel_shown = (st.filesel.op <> None)) @
+  check "menu with op"
+    (st.geometry.menu_shown = (st.menu.op <> None)) @
+  check "menu modal"
+    (not st.geometry.menu_shown || Ui.is_modal st.geometry.ui) @
+  check "rename modal"
+    (st.library.renaming = None || Ui.is_modal st.geometry.ui) @
+  []
+
 let rec ok st =
-  match
-    Config.ok st.config @
-    Geometry.ok st.geometry @
-    Control.ok st.control @
-    Playlist.ok st.playlist @
-    Library.ok st.library @
-    Filesel.ok st.filesel @
-    Menu.ok st.menu @
-    check "at most one focus" (List.length (focus st) <= 1) @
-    check "playlist empty when no current track"
-      (st.control.current <> None || st.playlist.table.entries = [||]) @
-    check "at most one selection"
-      (not (Table.has_selection st.playlist.table &&
-        Table.has_selection st.library.tracks)) @
-    check "file selection with op"
-      (st.geometry.filesel_shown = (st.filesel.op <> None)) @
-    check "menu with op"
-      (st.geometry.menu_shown = (st.menu.op <> None)) @
-    check "menu modal"
-      (not st.geometry.menu_shown || Ui.is_modal st.geometry.ui) @
-    check "rename modal"
-      (st.library.renaming = None || Ui.is_modal st.geometry.ui) @
-    []
-  with
+  match ok' st with
   | errors when errors <> [] ->
     dump st (List.map ((^) "Invariant violated: ") errors)
   | exception exn ->
@@ -225,7 +226,7 @@ and dump st errors =
 
 let save_after st tdelta =
   let now = Unix.gettimeofday () in
-  if st.saved < now -. tdelta then
+  if st.saved < now -. tdelta && ok' st = [] then
   (
     Storage.save_string state_file (fun () -> Text.print (print_state st));
     st.saved <- now;

@@ -123,7 +123,7 @@ and run' (st : state) =
   if extension_shown_h' <> extension_shown_h then
   (
     let s = if extension_shown_h' then +1 else -1 in
-    let _, sh = Api.(Screen.max_size (Window.screen win)) in
+    let _, sh = Api.Window.max_size win in
     let dh = min (sh - geo.control_height) (s * geo.extension_height) in
     Ui.resize geo.ui (-1, -1) (0, dh);
     Geometry.clamp_geo geo;
@@ -131,7 +131,7 @@ and run' (st : state) =
   if extension_shown_w' <> extension_shown_w then
   (
     let s = if extension_shown_w' then +1 else -1 in
-    let sw, _ = Api.(Screen.max_size (Window.screen win)) in
+    let sw, _ = Api.Window.max_size win in
     let dw = min (sw - geo.control_width) (s * geo.extension_width) in
     let ox = if Geometry.extension_left geo then Int.max_int else -1 in
     Ui.resize geo.ui (ox, -1) (dw, 0);

@@ -335,6 +335,9 @@ struct
   let next_pos () = uxy (Option.value !next_pos ~default: !current_pos)
   let next_size () = uxy (Option.value !next_size ~default: !current_size)
 
+  let min_pos () = Screen.min_pos !current_screen
+  let max_size () = Screen.max_size !current_screen
+
   let minimize () = Raylib.minimize_window ()
   let restore () = Raylib.restore_window ()
   let is_minimized () = Raylib.is_window_minimized ()

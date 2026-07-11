@@ -192,13 +192,13 @@ let win_min_h flex_ctl flex_ext g =
   (if not (extension_shown_h g) then 0 else
    if flex_ext then extension_min_h g else extension_h g)
 let win_max_w flex_ctl flex_ext g =
-  if flex_ctl && not flex_ext then
-    fst Api.(Screen.max_size (Window.screen (Ui.window g.ui)))
-  else if flex_ctl || flex_ext then Int.max_int else win_w g
+  if flex_ctl || flex_ext then
+    fst (Api.Window.max_size (Ui.window g.ui))
+  else win_w g
 let win_max_h flex_ctl flex_ext g =
-  if flex_ctl && not flex_ext then
-    snd Api.(Screen.max_size (Window.screen (Ui.window g.ui)))
-  else if flex_ctl || flex_ext then Int.max_int else win_h g
+  if flex_ctl || flex_ext then
+    snd (Api.Window.max_size (Ui.window g.ui))
+  else win_h g
 
 
 (* Validation *)
@@ -220,6 +220,10 @@ let ok geo =
     (geo.album_grid >= min_grid_size && geo.album_grid <= max_grid_size) @
   check "track grid size in range"
     (geo.track_grid >= min_grid_size && geo.track_grid <= max_grid_size) @
+  check "control width in range"
+    (geo.control_width >= control_min_w) @
+  check "control height in range"
+    (geo.control_height >= control_min_h) @
   check "extension width minimum positive"
    (extension_min_w geo >= 0) @
   check "extension height minimum positive"
@@ -260,9 +264,8 @@ let concrete_geo geo : float * float * float * float =
 
 let abstract_geo' geo (wx, wy, ww, wh) : float * float * float * float =
   let win = Ui.window geo.ui in
-  let scr = Api.Window.screen win in
-  let sx, sy = Api.Screen.min_pos scr in
-  let sw, sh = Api.Screen.max_size scr in
+  let sx, sy = Api.Window.min_pos win in
+  let sw, sh = Api.Window.max_size win in
   let sw', sh' = Api.sub (sw, sh) (control_w geo, control_h geo) in
   let cx = let cx = control_x geo in if cx >= 0 then cx else ww + cx in
   let cy = let cy = control_y geo in if cy >= 0 then cy else wh + cy in
@@ -370,9 +373,8 @@ let update_geo geo =
 
 let apply_geo geo (ax, ay, aw, ah) : int * int * int * int =
   let win = Ui.window geo.ui in
-  let scr = Api.Window.screen win in
-  let sx, sy = Api.Screen.min_pos scr in
-  let sw, sh = Api.Screen.max_size scr in
+  let sx, sy = Api.Window.min_pos win in
+  let sw, sh = Api.Window.max_size win in
   let sw', sh' = Api.sub (sw, sh) (control_w geo, control_h geo) in
   let ew = clamp (extension_min_w geo) sw' (int_of_float (aw *. float sw')) in
   let eh = clamp (extension_min_h geo) sh' (int_of_float (ah *. float sh')) in
@@ -390,7 +392,6 @@ let apply_geo geo (ax, ay, aw, ah) : int * int * int * int =
 
   if !App.debug_layout then
   (
-    let sw, sh = Api.Screen.max_size scr in
     Printf.eprintf
       "[layout apply] abs=%.2f,%.2f,%.2f,%.2f concr=%d,%d,%d+%d,%d+%d scr=%d,%d,%d,%d\n%!"
       ax ay aw ah x y ew (control_w geo) eh (control_h geo) sx sy sw sh;
@@ -463,7 +464,7 @@ let print_intern geo =
 
 let parse_state geo =  (* assumes playlist and library loaded *)
   let open Text.Parse in
-  let sw, sh = Api.Screen.max_size (Api.Window.screen (Ui.window geo.ui)) in
+  let sw, sh = Api.Window.max_size (Ui.window geo.ui) in
   let ww, wh = control_w geo, control_h geo in
   let wx, wy = (sw - ww)/2, (sh - wh)/2 in  (* default to mid-screen *)
   let ax, ay, aw, ah = abstract_geo' geo (wx, wy, ww, wh) in
