@@ -300,6 +300,14 @@ let load_playlist pl =
 
 (* Editing *)
 
+let renumber pl i j =
+  for k = i to j - 1 do
+    pl.table.entries.(k).pos <- k
+  done
+
+let renumber_all pl =
+  renumber pl 0 (length pl)
+
 let insert pl pos tracks =
   if tracks <> [||] then
   (
@@ -308,9 +316,7 @@ let insert pl pos tracks =
     let pos' = min pos len in
     Table.deselect_all pl.table;
     Table.insert pl.table pos' tracks;
-    for i = pos' to len + len' - 1 do
-      pl.table.entries.(i).pos <- i
-    done;
+    renumber pl pos' (len + len');
     Table.select pl.table pos' (pos' + len' - 1);
     pl.total <-
       add_total pl.total (fst (range_total pl pos' (pos' + len' - 1)));
@@ -351,7 +357,7 @@ let remove_if p pl n =
     let len = Table.length pl.table in
     let len' = len - n in
     let js = Table.remove_if p pl.table n in
-    Array.iter (fun (track : track) -> track.pos <- js.(track.pos)) pl.table.entries;
+    renumber_all pl;
     refresh_total pl;
     Option.iter (fun shuffle ->
       let d = ref 0 in
@@ -433,7 +439,10 @@ let replace_map pl map all =
 let move_selected pl d =
   if Table.num_selected pl.table > 0 then
   (
+    let i = Option.get (first_selected pl) in
+    let j = Option.get (last_selected pl) + 1 in
     let js = Table.move_selected pl.table d in
+    renumber pl (max 0 (min i (i + d))) (min (length pl) (max j (j + d)));
     Option.iter (fun shuffle ->
       Array.map_inplace (fun i -> js.(i)) shuffle.tracks
     ) pl.shuffle;
@@ -443,7 +452,10 @@ let move_selected pl d =
 let reverse_selected pl =
   if Table.num_selected pl.table > 1 then
   (
+    let i = Option.get (first_selected pl) in
+    let j = Option.get (last_selected pl) + 1 in
     let js = Table.reverse_selected pl.table in
+    renumber pl i j;
     Option.iter (fun shuffle ->
       Array.map_inplace (fun i -> js.(i)) shuffle.tracks
     ) pl.shuffle;
@@ -455,6 +467,7 @@ let reverse_all pl =
   if len > 1 then
   (
     Table.reverse_all pl.table;
+    renumber_all pl;
     Option.iter (fun shuffle ->
       Array.map_inplace (fun i -> len - i - 1) shuffle.tracks
     ) pl.shuffle;

@@ -123,13 +123,19 @@ and run' (st : state) =
   if extension_shown_h' <> extension_shown_h then
   (
     let s = if extension_shown_h' then +1 else -1 in
-    Ui.resize geo.ui (-1, -1) (0, s * geo.extension_height);
+    let _, sh = Api.(Screen.max_size (Window.screen win)) in
+    let dh = min (sh - geo.control_height) (s * geo.extension_height) in
+    Ui.resize geo.ui (-1, -1) (0, dh);
+    Geometry.clamp_geo geo;
   );
   if extension_shown_w' <> extension_shown_w then
   (
     let s = if extension_shown_w' then +1 else -1 in
+    let sw, _ = Api.(Screen.max_size (Window.screen win)) in
+    let dw = min (sw - geo.control_width) (s * geo.extension_width) in
     let ox = if Geometry.extension_left geo then Int.max_int else -1 in
-    Ui.resize geo.ui (ox, -1) (s * geo.extension_width, 0);
+    Ui.resize geo.ui (ox, -1) (dw, 0);
+    Geometry.clamp_geo geo;
   )
   else if extension_shown_w' && geo.extension_side <> extension_side then
   (
@@ -146,10 +152,10 @@ and run' (st : state) =
   let flex_ctl_h = shift || not extension_shown_h' in
   let flex_ext_w = extension_shown_w' in
   let flex_ext_h = extension_shown_h' in
-  let min_w = Geometry.win_min_w flex_ctl_w flex_ext_w geo in
   let max_w = Geometry.win_max_w flex_ctl_w flex_ext_w geo in
-  let min_h = Geometry.win_min_h flex_ctl_h flex_ext_h geo in
+  let min_w = min max_w (Geometry.win_min_w flex_ctl_w flex_ext_w geo) in
   let max_h = Geometry.win_max_h flex_ctl_h flex_ext_h geo in
+  let min_h = min max_h (Geometry.win_min_h flex_ctl_h flex_ext_h geo) in
   let ratio = cmd && not (extension_shown_w' || extension_shown_h') in
   Ui.finish geo.ui (Geometry.margin geo) (min_w, min_h) (max_w, max_h) ratio
     (fun (_dx, _dy, dw, dh) ->

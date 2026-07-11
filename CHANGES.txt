@@ -21,6 +21,9 @@ UI:
 - [fix] Correctly persist and restore UI scaling
 - [fix] Correctly adjust window geometry upon screen change with UI scaling
 
+Build:
+- [chg] Upgrade to Raylib 2.2
+
 
 === 0.9.5 (2026-05-30) ===
 
