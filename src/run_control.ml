@@ -61,10 +61,9 @@ let toggle_library (st : state) =
         State.focus_edit st.library.search st;
         (* Switch side if window exceeds respective border *)
         let win = Ui.window geo.ui in
-        let scr = Api.Window.screen win in
         let wx, _ = Api.Window.pos win in
-        let sx, _ = Api.Screen.min_pos scr in
-        let sw, _ = Api.Screen.max_size scr in
+        let sx, _ = Api.Window.min_pos win in
+        let sw, _ = Api.Window.max_size win in
         if geo.extension_side = `Left && wx <= sx then
           geo.extension_side <- `Right;
         if geo.extension_side = `Right && wx + Geometry.control_w geo >= sx + sw then
@@ -936,12 +935,58 @@ let run_toggle_panel (st : state) =
 
   (* Extension Dividers *)
 
+  let flex_ext_w = Geometry.extension_shown_w geo in
+  let flex_ext_h = Geometry.extension_shown_h geo in
+  let flex_ctl_w = not flex_ext_w in
+  let flex_ctl_h = not flex_ext_h in
+  let win_minw = Geometry.win_min_w flex_ctl_w flex_ext_w geo in
+  let win_maxw = Geometry.win_max_w flex_ctl_w flex_ext_w geo in
+  let win_minh = Geometry.win_min_h flex_ctl_h flex_ext_h geo in
+  let win_maxh = Geometry.win_max_h flex_ctl_h flex_ext_h geo in
+
   let control_height1' =
     if not (Geometry.extension_shown_h geo) then geo.control_height else
     (
       Layout.extension_divider_h_pane geo;
-      Layout.extension_divider_h geo geo.control_height
-        Geometry.control_min_h (Geometry.control_max_h geo)
+
+      let control_height11' =
+        Layout.extension_divider_h geo geo.control_height
+          Geometry.control_min_h (Geometry.control_max_h geo)
+      in
+      let win_width_l = win_maxw - Geometry.win_w geo in
+      let win_width_l', control_height12' =
+        if Geometry.(extension_shown_w geo && extension_left geo) then
+          win_width_l, geo.control_height
+        else
+          Layout.extension_divider_wh_left geo
+            (win_width_l, geo.control_height)
+            Geometry.(win_maxw - win_maxw, control_min_h)
+            Geometry.(win_maxw - win_minw, control_max_h geo)
+      in
+      let win_width_r = Geometry.win_w geo in
+      let win_width_r', control_height13' =
+        if Geometry.(extension_shown_w geo && not (extension_left geo)) then
+          win_width_r, geo.control_height
+        else
+          Layout.extension_divider_wh_right geo
+            (win_width_r, geo.control_height)
+            Geometry.(win_minw, control_min_h)
+            Geometry.(win_maxw, control_max_h geo)
+      in
+      if win_width_l' <> win_width_l then
+      (
+        Ui.resize geo.ui (Int.max_int, 0) (win_width_l - win_width_l', 0);
+        Geometry.update_geo geo;
+        State.save st;
+      );
+      if win_width_r' <> win_width_r then
+      (
+        Ui.resize geo.ui (-1, 0) (win_width_r' - win_width_r, 0);
+        Geometry.update_geo geo;
+        State.save st;
+      );
+      control_height11' + control_height12' + control_height13' -
+        2 * geo.control_height
     )
   in
 
@@ -966,9 +1011,35 @@ let run_toggle_panel (st : state) =
             Geometry.(control_min_w, control_min_h)
             Geometry.(control_max_w geo, control_max_h geo)
         in
+        let win_height_u = win_maxh - Geometry.win_h geo in
+        let control_width4', win_height_u' =
+          Layout.extension_divider_wh_upper geo
+            (geo.control_width, win_height_u)
+            Geometry.(control_min_w, win_maxh - win_maxh)
+            Geometry.(control_max_w geo, win_maxh - win_minh)
+        in
+        let win_height_l = Geometry.win_h geo in
+        let control_width5', win_height_l' =
+          Layout.extension_divider_wh_lower geo
+            (geo.control_width, win_height_l)
+            Geometry.(control_min_w, win_minh)
+            Geometry.(control_max_w geo, win_maxh)
+        in
+        if win_height_u' <> win_height_u then
+        (
+          Ui.resize geo.ui (0, Int.max_int) (0, win_height_u - win_height_u');
+          Geometry.update_geo geo;
+          State.save st;
+        );
+        if win_height_l' <> win_height_l then
+        (
+          Ui.resize geo.ui (0, -1) (0, win_height_l' - win_height_l);
+          Geometry.update_geo geo;
+          State.save st;
+        );
         let control_width' =
-          control_width1' + control_width2' + control_width3' -
-            2 * geo.control_width
+          control_width1' + control_width2' + control_width3' +
+          control_width4' + control_width5' - 4 * geo.control_width
         in
         (* Possible drag of library divider: update control width *)
         if control_width' <> geo.control_width then
@@ -997,9 +1068,35 @@ let run_toggle_panel (st : state) =
             Geometry.(extension_min_w geo, control_min_h)
             Geometry.(extension_max_w geo, control_max_h geo)
         in
+        let win_height_u = win_maxh - Geometry.win_h geo in
+        let extension_width4', win_height_u' =
+          Layout.extension_divider_wh_upper geo
+            (geo.extension_width, win_height_u)
+            Geometry.(extension_min_w geo, win_maxh - win_maxh)
+            Geometry.(extension_max_w geo, win_maxh - win_minh)
+        in
+        let win_height_l = Geometry.win_h geo in
+        let extension_width5', win_height_l' =
+          Layout.extension_divider_wh_lower geo
+            (geo.extension_width, win_height_l)
+            Geometry.(extension_min_w geo, win_minh)
+            Geometry.(extension_max_w geo, win_maxh)
+        in
+        if win_height_u' <> win_height_u then
+        (
+          Ui.resize geo.ui (0, Int.max_int) (0, win_height_u - win_height_u');
+          Geometry.update_geo geo;
+          State.save st;
+        );
+        if win_height_l' <> win_height_l then
+        (
+          Ui.resize geo.ui (0, -1) (0, win_height_l' - win_height_l);
+          Geometry.update_geo geo;
+          State.save st;
+        );
         let extension_width' =
-          extension_width1' + extension_width2' + extension_width3' -
-            2 * geo.extension_width
+          extension_width1' + extension_width2' + extension_width3' +
+          extension_width4' + extension_width5' - 4 * geo.extension_width
         in
         (* Possible drag of library divider: update control width *)
         if extension_width' <> geo.extension_width then
