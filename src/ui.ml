@@ -294,7 +294,7 @@ let background ui x y w h =
 (* Window *)
 
 type drag += Move of {target : point}
-type drag += Resize of {overshoot : size; ratio : float}
+type drag += Resize of {overshoot : size}
 type drag += Abort
 
 let delay ui f =
@@ -324,7 +324,7 @@ let start ui =
   )
 
 
-let finish ui margin (minw, minh) (maxw, maxh) keep_ratio on_size_change on_screen_change =
+let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
   List.iter (fun f -> f ()) (List.rev ui.delayed);
   ui.delayed <- [];
 
@@ -373,8 +373,7 @@ let finish ui margin (minw, minh) (maxw, maxh) keep_ratio on_size_change on_scre
           pos', size'
 
         | No_drag ->
-          let ratio = float ww /. float wh in
-          ui.drag_extra <- Resize {overshoot = 0, 0; ratio};
+          ui.drag_extra <- Resize {overshoot = 0, 0};
           pos', size'
 
         | Move {target} ->
@@ -393,7 +392,7 @@ let finish ui margin (minw, minh) (maxw, maxh) keep_ratio on_size_change on_scre
           ui.drag_extra <- Move {target = target''};
           (snap sx (sx + sw - ww) wx', snap sy (sy + sh - wh) wy'), size'
 
-        | Resize {overshoot = over; ratio} ->
+        | Resize {overshoot = over} ->
           assert (cursor <> `Point);
           let scr = Window.screen ui.win in  (* clamp relative to window's screen *)
           let sx, sy = Screen.min_pos scr in
@@ -402,25 +401,26 @@ let finish ui margin (minw, minh) (maxw, maxh) keep_ratio on_size_change on_scre
           let signy = if upper then -1 else if lower then +1 else 0 in
           let delta = mul (signx, signy) (Mouse.delta ui.win) in
           let ww', wh' = add (add size delta) over in
-          let ww'', wh'' =
-            if not keep_ratio then ww', wh' else
-            match compare (float ww' /. float wh') ratio with
-            | -1 -> int_of_float (float wh' *. ratio), wh'
-            | +1 -> ww', int_of_float (float ww' /. ratio)
-            | _ -> ww', wh'
-          in
           let rx, ry = wx - sx, wy - sy in
           let maxw = if maxw >= 0 then maxw else if right then sw - rx else ww + rx in
           let maxh = if maxh >= 0 then maxh else if lower then sh - ry else wh + ry in
-          let ww''', wh''' = clamp minw maxw ww'', clamp minh maxh wh'' in
-          let dwx = if left then ww''' - ww else 0 in
-          let dwy = if upper then wh''' - wh else 0 in
-          let dmx = if right then ww''' - ww else 0 in
-          let dmy = if lower then wh''' - wh else 0 in
-          ui.drag_extra <- Resize {overshoot = ww' - ww''', wh' - wh'''; ratio};
+          let (ww'', wh'') as size'' = clamp minw maxw ww', clamp minh maxh wh' in
+          let dwx = if left then ww'' - ww else 0 in
+          let dwy = if upper then wh'' - wh else 0 in
+          let dmx = if right then ww'' - ww else 0 in
+          let dmy = if lower then wh'' - wh else 0 in
+          ui.drag_extra <- Resize {overshoot = ww' - ww'', wh' - wh''};
           ui.drag_origin <- add ui.drag_origin (dmx, dmy);  (* adjust for resize *)
-          add (wx - dwx, wy - dwy) ui.repos,
-          (ww''', wh''')
+          let pos'' = add (sub pos (dwx, dwy)) ui.repos in
+          if size'' = size then pos'', size'' else
+          (
+            assert (ww'' = ww || minw <= ww'' && ww'' <= maxw);
+            assert (wh'' = wh || minh <= wh'' && wh'' <= maxh);
+            ui.repos <- 0, 0;
+            ui.resize <- 0, 0;
+            on_size_change (fst pos' - wx, snd pos' - wy, ww'' - ww, wh'' - wh);
+            add pos'' ui.repos, add size'' ui.resize
+          )
 
         | _ -> pos', size'
       )
@@ -431,19 +431,15 @@ let finish ui margin (minw, minh) (maxw, maxh) keep_ratio on_size_change on_scre
       )
     )
   in
+
   Window.set_pos ui.win wx' wy';   (* deferred until end of frame! *)
-  if (ww', wh') <> (ww, wh) then
-  (
-    assert (ww' = ww || minw <= ww' && ww' <= maxw);
-    assert (wh' = wh || minh <= wh' && wh' <= maxh);
-    Window.set_size ui.win ww' wh';  (* deferred until end of frame! *)
-    on_size_change (wx' - wx, wy' - wy, ww' - ww, wh' - wh);
-  );
+  Window.set_size ui.win ww' wh';  (* deferred until end of frame! *)
   ui.drag_origin <- sub ui.drag_origin ui.repos;  (* adjust for resize *)
   ui.repos <- 0, 0;
   ui.resize <- 0, 0;
 
   Draw.finish ui.win
+
 
 let resize ui origin (dw, dh) =
   (* Figure out whether origin sticks to upper/left or lower/right.
@@ -534,9 +530,18 @@ type motion = [`Unmoved | `Moving | `Moved]
 type trajectory = [`Inside | `Outside | `Outward | `Inward]
 type drag += Drag of {pos : point; moved : bool; inside : bool}
 
-let unexpected_drag_extra _ui s =
+let string_of_drag = ref (function
+  | No_drag -> "No_drag"
+  | Drag _ -> "Drag"
+  | Move _ -> "Move"
+  | Resize _ -> "Resize"
+  | Abort -> "Abort"
+  | _ -> assert false
+  )
+
+let unexpected_drag_extra ui s =
   Storage.log (Printf.sprintf
-    "Unexpected drag status in %s\n%!" s
+    "Unexpected drag status `%s` in %s\n%!" (!string_of_drag ui.drag_extra) s
   )
 
 let drag_status ui r (stepx, stepy) =
@@ -903,6 +908,13 @@ let volume_bar ui area l v =
 type drag += Scroll_bar_page of {last_repeat : time}
 type drag += Scroll_bar_drag of {value : float; mx : int; my : int}
 
+let _ =
+  let f' = !string_of_drag in
+  string_of_drag := function
+    | Scroll_bar_page _ -> "Scroll_bar_page"
+    | Scroll_bar_drag _ -> "Scroll_bar_drag"
+    | drag -> f' drag
+
 let scroll_bar ui area l orient v len =
   assert (v +. len < 2.0); (* at most 1 line over 1.0, but line may be a page *)
   let (x, y, w, h), status = widget ui area no_modkey in
@@ -976,6 +988,12 @@ let scroll_bar ui area l orient v len =
 
 type drag += Divide of {overshoot : size}
 
+let _ =
+  let f' = !string_of_drag in
+  string_of_drag := function
+    | Divide _ -> "Divide"
+    | drag -> f' drag
+
 let divider2 ui area cursor (vx, vy) (minx, miny) (maxx, maxy) =
   let (x, y, w, h), status = widget ui area no_modkey in
   if status <> `Untouched then Mouse.set_cursor ui.win (`Resize cursor);
@@ -985,8 +1003,10 @@ let divider2 ui area cursor (vx, vy) (minx, miny) (maxx, maxy) =
     match ui.drag_extra with
     | No_drag -> 0, 0
     | Divide {overshoot} -> overshoot
+    | Resize _ -> -1, -1  (* can happen when putting divider on margin *)
     | _ -> unexpected_drag_extra ui "divider"; 0, 0
   in
+  if over = (-1, -1) then (vx, vy) else
   let vx', vy' = add (add (vx, vy) (Mouse.delta ui.win)) over in
   let i, _, _, _, _ = area in
   let _, _, pw, ph = snd ui.panes.(i) in
@@ -1389,6 +1409,13 @@ let symbols_desc = [|"▼" (* "▾" *); "▼'" (* "▽", "▾", "▿" *); "▼''
 
 type drag += Header_resize of {mouse_x : int; col : int}
 type drag += Header_reorder of {mouse_x : int; col : int; moved : bool}
+
+let _ =
+  let f' = !string_of_drag in
+  string_of_drag := function
+    | Header_resize _ -> "Header_resize"
+    | Header_reorder _ -> "Header_reorder"
+    | drag -> f' drag
 
 let header ui area ph gw cols (titles, sorting) hscroll =
   let (x, y, w, h) as r, status = widget ui area no_modkey in

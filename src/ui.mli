@@ -80,7 +80,7 @@ val mouse_focus : t -> area -> int -> int -> int -> unit
 val reset : t -> rect -> unit
 val start : t -> unit
 val finish :
-  t -> int -> size -> size -> bool -> (rect -> unit) -> (Api.screen -> unit) -> unit
+  t -> int -> size -> size -> (rect -> unit) -> (Api.screen -> unit) -> unit
 
 val resize : t -> point -> size -> unit
 val rescale : t -> size -> unit

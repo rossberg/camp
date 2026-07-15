@@ -15,6 +15,7 @@ type t =
   mutable reflection : int;
   mutable control_width : int;
   mutable control_height : int;
+  mutable control_ratio : float;
   mutable extension_width : int;
   mutable extension_height : int;
   mutable extension_side : Api.side;
@@ -58,6 +59,7 @@ let make ui =
     reflection = 200;
     control_width = control_min_w * 5 / 4;
     control_height = control_min_h * 5 / 4;
+    control_ratio = float control_min_w /. float control_min_h;
     extension_width = 600;
     extension_height = 200;
     extension_side = `Right;
@@ -203,6 +205,13 @@ let win_max_h flex_ctl flex_ext g =
 
 (* Validation *)
 
+let control_ratio_accurate geo =
+  (* May round either way *)
+  geo.control_width =
+    int_of_float (float geo.control_height *. geo.control_ratio) ||
+  geo.control_height =
+    int_of_float (float geo.control_width /. geo.control_ratio)
+
 let check msg b = if b then [] else [msg]
 
 let ok geo =
@@ -224,6 +233,8 @@ let ok geo =
     (geo.control_width >= control_min_w) @
   check "control height in range"
     (geo.control_height >= control_min_h) @
+  check "control ratio accurate"
+    (control_ratio_accurate geo) @
   check "extension width minimum positive"
    (extension_min_w geo >= 0) @
   check "extension height minimum positive"
@@ -249,6 +260,94 @@ let ok geo =
     ( geo.directories_width >= directories_min_w geo &&
       geo.directories_width <= directories_max_w geo ) @
   []
+
+
+(* Divider Modifications *)
+
+let check_geo geo (ww, wh) =
+  let cw, ch = geo.control_width, geo.control_height in
+  let ew, eh = geo.extension_width, geo.extension_height in
+  let ww' = if extension_shown_w geo then cw + ew else cw in
+  let wh' = if extension_shown_h geo then ch + eh else ch in
+  if (ww, wh) <> (ww', wh') then
+  (
+    Printf.eprintf
+      "[layout failure] win=%d,%d<>%d,%d ctl=%d,%d ext=%d,%d shown=%b,%b\n%!"
+      ww wh ww' wh' cw ch ew eh (extension_shown_w geo) (extension_shown_h geo);
+assert false;
+  )
+
+let set_control_width geo w =
+  let w' = max w control_min_w in
+  let dw = w' - geo.control_width in
+  geo.control_width <- w';
+  if extension_shown_w geo then
+    geo.extension_width <- geo.extension_width - dw
+
+let set_control_height geo h =
+  let h' = max h control_min_h in
+  let dh = h' - geo.control_height in
+let ctl_h, ext_h = geo.control_height, geo.extension_height in
+  geo.control_height <- h';
+  if extension_shown_h geo then
+    geo.extension_height <- geo.extension_height - dh
+;Printf.eprintf "[set_control_height %d] h'=%d ctl=%d->%d ext=%d->%d\n%!"
+h h' ctl_h geo.control_height ext_h geo.extension_height
+
+let set_extension_width geo w =
+  let w' = max w (extension_min_w geo) in
+  let dw = w' - geo.extension_width in
+  geo.extension_width <- w';
+  geo.control_width <- geo.control_width - dw
+
+let set_extension_height geo h =
+  let h' = max h (extension_min_h geo) in
+  let dh = h' - geo.extension_height in
+let ctl_h, ext_h = geo.control_height, geo.extension_height in
+  geo.extension_height <- h';
+  geo.control_height <- geo.control_height - dh
+;Printf.eprintf "[set_extension_height %d] h'=%d ctl=%d->%d ext=%d->%d\n%!"
+h h' ctl_h geo.control_height ext_h geo.extension_height
+
+let change_control_width geo dw =
+  let ctl_w = geo.control_width in
+  set_control_width geo (ctl_w + dw);
+  let dw' = geo.control_width - ctl_w in
+  if extension_shown_w geo then
+    geo.extension_width <- geo.extension_width + dw'
+
+let change_control_height geo dh =
+  let ctl_h = geo.control_height in
+  set_control_height geo (ctl_h + dh);
+  let dh' = geo.control_height - ctl_h in
+  if extension_shown_h geo then
+    geo.extension_height <- geo.extension_height + dh'
+
+let change_extension_width geo dw =
+  let ext_w = geo.extension_width in
+  set_extension_width geo (ext_w + dw);
+  let dw' = geo.extension_width - ext_w in
+  geo.control_width <- geo.control_width + dw'
+
+let change_extension_height geo dh =
+  let ext_h = geo.extension_height in
+  set_extension_height geo (ext_h + dh);
+  let dh' = geo.extension_height - ext_h in
+  geo.control_height <- geo.control_height + dh'
+
+let adapt_control_width geo =
+  let w = int_of_float (float geo.control_height *. geo.control_ratio) in
+  if extension_shown_w geo then
+    set_control_width geo w
+  else
+    change_control_width geo (w - geo.control_width)
+
+let adapt_control_height geo =
+  let h = int_of_float (float geo.control_width /. geo.control_ratio) in
+  if extension_shown_h geo then
+    set_control_height geo h
+  else
+    change_control_height geo (h - geo.control_height)
 
 
 (* Resolution-independent Window Geometry *)
@@ -286,9 +385,12 @@ let abstract_geo geo : float * float * float * float =
 
 let clamp_geo' geo (ww, wh) =
   assert (ww > 1 && wh > 1);
+check_geo geo (ww, wh);
+  let cw, ch = geo.control_width, geo.control_height in
+  let ew, eh = geo.extension_width, geo.extension_height in
+
   if extension_shown_w geo then
   (
-    let cw, ew = geo.control_width, geo.extension_width in
     (* Changing control pane size may change minima gradually *)
     while extension_w geo < extension_min_w geo do
       geo.control_width <- geo.control_width - 1;
@@ -309,7 +411,6 @@ let clamp_geo' geo (ww, wh) =
   );
   if extension_shown_h geo then
   (
-    let ch, eh = geo.control_height, geo.extension_height in
     (* Changing control pane size may change minima gradually *)
     while extension_h geo < extension_min_h geo do
       geo.control_height <- geo.control_height - 1;
@@ -321,12 +422,26 @@ let clamp_geo' geo (ww, wh) =
 *)
     if !App.debug_layout
     && (ch, eh) <> (geo.control_height, geo.extension_height) then
-      Printf.printf "[layout refit h] win=%d ctl=%d->%d ext=%d->%d\n%!"
+      Printf.eprintf "[layout refit h] win=%d ctl=%d->%d ext=%d->%d\n%!"
         wh ch geo.control_height eh geo.extension_height;
   )
   else if extension_h geo < extension_min_h geo then
   (
     geo.extension_height <- extension_min_h geo;
+  );
+
+check_geo geo (ww, wh);
+
+  if not (control_ratio_accurate geo) then
+  (
+    let cw', ch' = geo.control_width, geo.control_height in
+    let ew', eh' = geo.extension_width, geo.extension_height in
+    if !App.debug_layout then
+      Printf.eprintf
+        "[layout ratio update] %.4f->%.4f win=%d,%d ctl=%d,%d ext=%d,%d\n%!"
+        geo.control_ratio (float cw' /. float ch') ww wh cw' ch' ew' eh';
+(*ignore (assert false);*)
+    geo.control_ratio <- float cw' /. float ch';
   );
 
   let browser_width = geo.browser_width in
@@ -357,6 +472,7 @@ let clamp_geo' geo (ww, wh) =
       upper_height geo.upper_height
       directories_width geo.directories_width
   )
+;check_geo geo (ww, wh)
 
 let clamp_geo geo =
   let win = Ui.window geo.ui in
@@ -518,6 +634,9 @@ let parse_state geo =  (* assumes playlist and library loaded *)
       (fun ws -> if Iarray.length ws = 3 then geo.repair_log_columns <- ws);
     apply (r $? "popup_size") (num min_popup_size max_popup_size)
       (fun w -> geo.popup_size <- w);
+
+    geo.control_ratio <-
+      Stdlib.(float geo.control_width /. float geo.control_height);
 
     geo.window <- (!rax, !ray, !raw, !rah);
     Ui.rescale geo.ui geo.scaling;
