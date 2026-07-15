@@ -4,9 +4,10 @@ This update allows continuous scaling of the whole UI as well as customising
 the meta-data columns shown in the Playlist.
 
 Control:
-- [new] Control pane can be arbitrarily resized, seamlessly scaling its UI
+- [new] Control pane can be arbitrarily resized, seamlessly scaling the UI
 - [new] Turntable visualisation mode
 - [fix] Correctly restore Mute state after restart
+- [fix] No longer keep FLAC files locked on Windows [fixed in Raylib]
 
 Playlist:
 - [new] Enable customising playlist columns just like Library views
@@ -15,14 +16,14 @@ Library:
 - [new] Browser context menu to copy, paste, propagate folder view settings
 
 UI:
-- [new] Resizing window borders with resizes Control pane
+- [new] Resizing window borders with Shift resizes Control pane
 - [new] Movable dividers between Control pane and Playlist/Library panes
 - [new] UI elements scale proportionally with Control pane size
 - [fix] Correctly persist and restore UI scaling
 - [fix] Correctly adjust window geometry upon screen change with UI scaling
 
 Build:
-- [chg] Upgrade to Raylib 2.2
+- [chg] Upgrade to Raylib-OCaml 2.2.1
 
 
 === 0.9.5 (2026-05-30) ===
