@@ -65,9 +65,11 @@ and run' (st : state) =
 
   (* Update geometry *)
   let ww, wh = Api.Window.size win in
+(*
   if extension_shown_w then geo.extension_width <- ww - Geometry.control_w geo;
   if extension_shown_h then geo.extension_height <- wh - Geometry.control_h geo;
   Geometry.update_geo geo;
+*)
 
   (* Run panes *)
   Run_control.run st;
@@ -127,7 +129,7 @@ and run' (st : state) =
       let s = if extension_shown_w' then +1 else -1 in
       let sw, _ = Api.Window.max_size win in
       let dw = min (sw - geo.control_width) (s * geo.extension_width) in
-      let ox = if Geometry.extension_left geo then Int.max_int else -1 in
+      let ox = if Geometry.extension_left geo then max_int else min_int in
   Printf.printf "[layout extend h %b] ww=%d cw=%d ew=%d sw=%d dw=%d maxew=%d\n%!"
   extension_shown_w' ww geo.control_width geo.extension_width sw dw (sw - geo.control_width);
       Ui.resize geo.ui (ox, -1) (dw, 0);
@@ -152,7 +154,7 @@ extension_shown_h' wh geo.control_height geo.extension_height sh dh (sh - geo.co
   if extension_shown_w' && geo.extension_side <> extension_side then
   (
     let ox, ox' =
-      if Geometry.extension_left geo then -1, Int.max_int else Int.max_int, -1 in
+      if Geometry.extension_left geo then min_int, max_int else max_int, min_int in
     Ui.resize geo.ui (ox, -1) (- geo.extension_width, 0);
     Ui.resize geo.ui (ox', -1) (+ geo.extension_width, 0);
   );
@@ -173,8 +175,10 @@ extension_shown_h' wh geo.control_height geo.extension_height sh dh (sh - geo.co
     (fun (dx, dy, dw, dh) ->
       (* Window was resized *)
       if !App.debug_layout then
-        Printf.eprintf "[layout resize] d=%+d,%+d min=%d,%d max=%d,%d ctl=%d,%d\n%!"
-          dw dh min_w min_h max_w max_h geo.control_width geo.control_height;
+        let w, h = Api.Window.size win in
+        Printf.eprintf
+          "[layout resize] win=%d%+d,%d%+d min=%d,%d max=%d,%d ctl=%d,%d\n%!"
+          w dw h dh min_w min_h max_w max_h geo.control_width geo.control_height;
 
       let x', y' = Api.add (Api.Window.pos win) (dx, dy) in
       let w', h' = Api.add (Api.Window.size win) (dw, dh) in
@@ -253,14 +257,17 @@ Printf.eprintf "  [adapt ctl w 2] ratio=%.4f\n%!" ratio;
               | _ -> Fun.id, ""
           in
           let w'', h'' = adapt (w', h') in
-if s <> "" then
-Printf.eprintf "  [adapt win %s] ratio=%.4f %d,%d(%.4f)->%d,%d(%.4f)\n%!"
-s ratio w' h' (float w' /. float h') w'' h'' (float w'' /. float h'');
+          if !App.debug_layout && s <> "" then
+            Printf.eprintf
+              "  [layout adapt win %s] ratio=%.4f %d,%d(%.4f)->%d,%d(%.4f)\n%!"
+              s ratio
+              w' h' (float w' /. float h')
+              w'' h'' (float w'' /. float h'');
           if (w'', h'') <> (w', h') then
           (
             let dw', dh' = w'' - w', h'' - h' in
             let ax, ay, _, _ = geo.window in
-            let origin a = if a > 0.5 then Int.max_int else - 1 in
+            let origin a = if a >= 1.0 then max_int else min_int in
             Ui.resize geo.ui (origin ax, origin ay) (dw', dh');
             Geometry.change_control_width geo dw';
             Geometry.change_control_height geo dh';
@@ -291,7 +298,7 @@ s ratio w' h' (float w' /. float h') w'' h'' (float w'' /. float h'');
       (
         Printf.eprintf
           "  [layout new] win=%d,%d ctl=%d,%d ext=%d,%d bw=%d vw=%d\n%!"
-          (fst (Api.Window.next_size win)) (snd (Api.Window.next_size win))
+          w'' h''
           geo.control_width geo.control_height
           geo.extension_width geo.extension_height
           geo.browser_width geo.left_width;

@@ -297,6 +297,15 @@ type drag += Move of {target : point}
 type drag += Resize of {overshoot : size}
 type drag += Abort
 
+let set_drag_origin ui pos (x, y, w, h as r) =
+  if !App.debug_layout && not (inside pos r) then
+    Printf.eprintf
+      "[layout drag] out of range drag origin: %d,%d not in %d,%d,%d,%d\n%!"
+      (fst pos) (snd pos) x y w h;
+assert (inside pos r);
+Printf.eprintf "  [origin] x=%d/%d y=%d/%d\n%!" (fst pos) w (snd pos) h;
+  ui.drag_origin <- pos
+
 let delay ui f =
   ui.delayed <- f :: ui.delayed
 
@@ -315,7 +324,10 @@ let start ui =
   Mouse.set_cursor ui.win `Default;
   if Mouse.is_down `Left then
   (
-    if ui.drag_origin = no_drag then ui.drag_origin <- Mouse.pos ui.win
+    if ui.drag_origin = no_drag then
+(
+      set_drag_origin ui (Mouse.pos ui.win) (0, 0, ww, wh)
+;Printf.eprintf "[origin] x=%d/%d y=%d/%d\n%!" (fst ui.drag_origin) ww (snd ui.drag_origin) wh)
   )
   else if not (Mouse.is_released `Left) then
   (
@@ -364,6 +376,9 @@ let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
         | _ -> if Mouse.is_down `Left then `Point else `Default
       in
       Mouse.set_cursor ui.win cursor;
+if cursor = `Point then
+Printf.printf "[point] origin=%d/%d,%d/%d left=%b right=%b upper=%b lower=%b\n%!"
+(fst origin)ww(snd origin)wh left right upper lower;
 
       if Mouse.is_down `Left && cursor <> `Default then
       (
@@ -390,6 +405,7 @@ let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
           let target' = add target ui.repos in
           let (wx', wy') as target'' = add target' delta in
           ui.drag_extra <- Move {target = target''};
+          set_drag_origin ui (sub ui.drag_origin ui.repos) (0, 0, ww, wh);
           (snap sx (sx + sw - ww) wx', snap sy (sy + sh - wh) wy'), size'
 
         | Resize {overshoot = over} ->
@@ -407,22 +423,49 @@ let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
           let (ww'', wh'') as size'' = clamp minw maxw ww', clamp minh maxh wh' in
           let dwx = if left then ww'' - ww else 0 in
           let dwy = if upper then wh'' - wh else 0 in
-          let dmx = if right then ww'' - ww else 0 in
-          let dmy = if lower then wh'' - wh else 0 in
-          ui.drag_extra <- Resize {overshoot = ww' - ww'', wh' - wh''};
-          ui.drag_origin <- add ui.drag_origin (dmx, dmy);  (* adjust for resize *)
-          let pos'' = add (sub pos (dwx, dwy)) ui.repos in
-          if size'' = size then pos'', size'' else
-          (
-            assert (ww'' = ww || minw <= ww'' && ww'' <= maxw);
-            assert (wh'' = wh || minh <= wh'' && wh'' <= maxh);
-            ui.repos <- 0, 0;
-            ui.resize <- 0, 0;
-            on_size_change (fst pos' - wx, snd pos' - wy, ww'' - ww, wh'' - wh);
-            add pos'' ui.repos, add size'' ui.resize
-          )
+          let pos'' = sub pos' (dwx, dwy) in
+let dmx,dmy = Mouse.delta ui.win in
+if (ww',wh') <> size then
+Printf.eprintf "[resize] left=%b upper=%b mouse=%+d,%+d over=%+d,%+d win=%+d,%+d,%+d,%+d\n%!"
+left upper dmx dmy (fst over) (snd over) dwx dwy (ww'' - ww) (wh'' - wh);
+          let pos''', (ww''', wh''' as size''') =
+            if size'' = size then pos'', size'' else
+            (
+              assert (minw <= ww'' && ww'' <= maxw);
+              assert (minh <= wh'' && wh'' <= maxh);
+              let repos, resize = ui.repos, ui.resize in
+              on_size_change (fst pos' - wx, snd pos' - wy, ww'' - ww, wh'' - wh);
+              (* callback may resize or repos again *)
+              let pos''' = add pos'' (sub ui.repos repos) in
+              let ww''', wh''' = add size'' (sub ui.resize resize) in
+              let size'''' = clamp minw maxw ww''', clamp minh maxh wh''' in
+              let dwx = if left then fst size'''' - ww else 0 in
+              let dwy = if upper then snd size'''' - wh else 0 in
+              let pos'''' = sub pos''' (dwx, dwy) in
+              assert (minw <= fst size'''' && fst size'''' <= maxw);
+              assert (minh <= snd size'''' && snd size'''' <= maxh);
+              pos'''', size''''
+            )
+          in
+          let dox = if right then ww''' - ww else 0 in
+          let doy = if lower then wh''' - wh else 0 in
+          let ox', oy' = add ui.drag_origin (dox, doy) in
+          let ox'', oy'' = clamp 0 (ww''' - 1) ox', clamp 0 (wh''' - 1) oy' in
+          set_drag_origin ui (ox'', oy'') (0, 0, ww''', wh''');
+          ui.drag_extra <- Resize {overshoot = ww' - ww''', wh' - wh'''};
+          pos''', size'''
 
-        | _ -> pos', size'
+        | _ ->
+          (* TODO: Potentially need to adjust drag_origin to resize/repos,
+           * but don't have the necessary layout information. As best guess,
+           * cling to the edges that are closest. *)
+          let ww', wh' = size' in
+          let dox = if fst ui.drag_origin > ww/2 then ww' - ww else 0 in
+          let doy = if snd ui.drag_origin > wh/2 then wh' - wh else 0 in
+          let ox', oy' = add ui.drag_origin (dox, doy) in
+          let ox'', oy'' = clamp 0 (ww' - 1) ox', clamp 0 (wh' - 1) oy' in
+          set_drag_origin ui (ox'', oy'') (0, 0, ww', wh');
+          pos', size'
       )
       else
       (
@@ -432,9 +475,10 @@ let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
     )
   in
 
+if (wx',wy',ww',wh')<>(wx,wy,ww,wh) then
+Printf.eprintf "[resize] %d,%d,%d,%d -> %d,%d,%d,%d\n%!" wx wy ww wh wx' wy' ww' wh';
   Window.set_pos ui.win wx' wy';   (* deferred until end of frame! *)
   Window.set_size ui.win ww' wh';  (* deferred until end of frame! *)
-  ui.drag_origin <- sub ui.drag_origin ui.repos;  (* adjust for resize *)
   ui.repos <- 0, 0;
   ui.resize <- 0, 0;
 
@@ -1018,8 +1062,7 @@ let divider2 ui area cursor (vx, vy) (minx, miny) (maxx, maxy) =
   (* This assumes that the caller actually moves the divider! *)
   let dx = vx'' - vx in
   let dy = vy'' - vy in
-  ui.drag_origin <- add ui.drag_origin (dx, dy);
-  assert (inside ui.drag_origin (x + dx, y + dy, w, h));
+  set_drag_origin ui (add ui.drag_origin (dx, dy)) (x + dx, y + dy, w, h);
   (vx'', vy'')
 
 let divider ui area orient v minv maxv =
