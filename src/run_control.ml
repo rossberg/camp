@@ -501,6 +501,15 @@ let run (st : state) =
   Layout.title_ticker geo name;
 
   (* Volume control *)
+  let toggle_mute (st : state) =
+    Control.mute st.control (not st.control.mute)
+  in
+  if Layout.mute_button geo then
+  (
+    (* Click on mute label: toggle muting *)
+    toggle_mute st;
+  );
+
   let shift_volume (st : state) delta =
     if delta <> 0.0 then
       Control.volume st.control (ctl.volume +. 0.05 *. delta)
@@ -522,15 +531,7 @@ let run (st : state) =
   (* Volume key pressed or mouse wheel used: shift volume *)
   shift_volume st vol_delta;
 
-  let toggle_mute (st : state) =
-    Control.mute st.control (not st.control.mute)
-  in
   Layout.mute_text geo (Ui.error_color geo.ui) `Inverted ctl.mute "MUTE";
-  if Layout.mute_button geo then
-  (
-    (* Click on mute label: toggle muting *)
-    toggle_mute st;
-  );
 
   (* Seek bar *)
   let seek (st : state) delta =

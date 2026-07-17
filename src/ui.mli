@@ -65,7 +65,7 @@ type motion = [`Unmoved | `Moving | `Moved]
 type trajectory = [`Inside | `Outside | `Outward | `Inward]
 
 val key : t -> modifier list * key -> bool -> bool
-val mouse : t -> area -> side -> bool
+val mouse : t -> area -> string -> side -> bool
 val drag : t -> area -> string -> size ->
   [`None | `Click | `Take | `Drag of size * motion * trajectory | `Drop | `Abort]
 val wheel : t -> area -> float * float
@@ -107,15 +107,15 @@ val text : t -> area -> align -> inversion -> bool -> string -> unit
 val color_text : t -> area -> align -> color -> inversion -> bool -> string -> unit
 val ticker : t -> area -> string -> unit
 
-val edit_text : t -> area -> int -> string -> int -> (int * int * int) option -> color -> bool -> string * int * (int * int * int) option * Uchar.t
-val rich_edit_text : t -> area -> int -> color -> Edit.t -> Uchar.t
+val edit_text : t -> area -> string -> int -> string -> int -> (int * int * int) option -> color -> bool -> string * int * (int * int * int) option * Uchar.t
+val rich_edit_text : t -> area -> string -> int -> color -> Edit.t -> Uchar.t
 
-val button : t -> area -> ?protrude: bool -> modifier list * key -> bool -> bool option -> bool
-val labeled_button : t -> area -> ?protrude: bool -> int -> color -> string -> modifier list * key -> bool -> bool option -> bool
-val invisible_button : t -> area -> modifier list -> modifier list * key -> bool -> bool
+val button : t -> area -> string -> ?protrude: bool -> modifier list * key -> bool -> bool option -> bool
+val labeled_button : t -> area -> string -> ?protrude: bool -> int -> color -> string -> modifier list * key -> bool -> bool option -> bool
+val invisible_button : t -> area -> string -> modifier list -> modifier list * key -> bool -> bool
 
-val progress_bar : t -> area -> int -> float -> float
-val volume_bar : t -> area -> int -> float -> float
+val progress_bar : t -> area -> string -> int -> float -> float
+val volume_bar : t -> area -> string -> int -> float -> float
 val scroll_bar : t -> area -> string -> int -> Api.orientation -> float -> float -> float
 
 val divider : t -> area -> string -> Api.orientation -> int -> int -> int -> int
@@ -132,7 +132,7 @@ type row = color * inversion * cell iarray
 type heading = string iarray * sorting
 
 (*
-val table : t -> area -> int -> int -> int -> column iarray -> row iarray -> int ->
+val table : t -> area -> string -> int -> int -> int -> column iarray -> row iarray -> int ->
   int option * int option
 val header : t -> area -> string -> int -> int -> column iarray -> heading -> int ->
   [`Click of int | `Resize of int iarray | `Reorder of int iarray | `Menu of int option | `None]
@@ -212,7 +212,7 @@ val browser_entry_text_area :
 
 (*
 val grid :
-  t -> area -> int -> int -> int -> int ->
+  t -> area -> string -> int -> int -> int -> int ->
   (image * color * inversion * string) option iarray iarray ->
     (int * int) option
 *)
