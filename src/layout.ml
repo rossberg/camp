@@ -349,18 +349,18 @@ let cover_popup_text g (p, x, y, w, _) ih = Ui.ticker g.ui (p, x, y + ih + pad_h
 
 let pdp = cp + 1
 let extension_divider_h_pane g = Ui.pane g.ui pdp (playlist_x g, playlist_y g, playlist_w g, divider_w g)
-let extension_divider_h g = Ui.divider g.ui (pdp, margin g, 0, - margin g, -1) `Vertical
-let extension_divider_wh_left g = Ui.divider2 g.ui (pdp, 0, 0, margin g, -1) `NE_SW
-let extension_divider_wh_right g = Ui.divider2 g.ui (pdp, - margin g, 0, -1, -1) `NW_SE
+let extension_divider_h g = Ui.divider g.ui (pdp, margin g, 0, - margin g, -1) "ext_div_h" `Vertical
+let extension_divider_wh_left g = Ui.divider2 g.ui (pdp, 0, 0, margin g, -1) "ext_div_wh_l" `NE_SW
+let extension_divider_wh_right g = Ui.divider2 g.ui (pdp, - margin g, 0, -1, -1) "ext_div_wh_r" `NW_SE
 
 let ldp = pdp + 1
 let extension_divider_x g = (if extension_left g then control_x else library_x) g
 let extension_divider_w_pane g = Ui.pane g.ui ldp (extension_divider_x g, library_y g, divider_w g, -1)
-let extension_divider_w_upper g = Ui.divider g.ui (ldp, 0, margin g, -1, playlist_y g - library_y g - margin g) `Horizontal
-let extension_divider_wh g = Ui.divider2 g.ui (ldp, 0, playlist_y g - library_y g, -1, divider_w g) (if extension_left g then `NE_SW else `NW_SE)
-let extension_divider_w_lower g = Ui.divider g.ui (ldp, 0, playlist_y g - library_y g + divider_w g, -1, - margin g) `Horizontal
-let extension_divider_wh_upper g = Ui.divider2 g.ui (ldp, 0, 0, -1, margin g) (if extension_left g then `NW_SE else `NE_SW)
-let extension_divider_wh_lower g = Ui.divider2 g.ui (ldp, 0, - margin g, -1, -1) (if extension_left g then `NE_SW else `NW_SE)
+let extension_divider_w_upper g = Ui.divider g.ui (ldp, 0, margin g, -1, playlist_y g - library_y g - margin g) "ext_div_w_u" `Horizontal
+let extension_divider_wh g = Ui.divider2 g.ui (ldp, 0, playlist_y g - library_y g, -1, divider_w g) "ext_div_wh" (if extension_left g then `NE_SW else `NW_SE)
+let extension_divider_w_lower g = Ui.divider g.ui (ldp, 0, playlist_y g - library_y g + divider_w g, -1, - margin g) "ext_div_w_l" `Horizontal
+let extension_divider_wh_upper g = Ui.divider2 g.ui (ldp, 0, 0, -1, margin g) "ext_div_wh_u" (if extension_left g then `NW_SE else `NE_SW)
+let extension_divider_wh_lower g = Ui.divider2 g.ui (ldp, 0, - margin g, -1, -1) "ext_div_wh_l" (if extension_left g then `NE_SW else `NW_SE)
 
 
 (* Playlist Pane *)
@@ -370,7 +370,7 @@ let playlist_pane g = Ui.pane g.ui pp (playlist_x g, playlist_y g, playlist_w g,
 
 (* Playlist *)
 let playlist_area g = (pp, margin g, margin g, - margin g, -1)
-let playlist_table g = Ui.rich_table g.ui (playlist_area g) (rich_table g 0 g.playlist_headers)
+let playlist_table g = Ui.rich_table g.ui (playlist_area g) "pl" (rich_table g 0 g.playlist_headers)
 let playlist_mouse g = Ui.rich_table_mouse g.ui (playlist_area g) (rich_table g 0 g.playlist_headers)
 let playlist_drag g = Ui.rich_table_drag g.ui (playlist_area g) (rich_table g 0 g.playlist_headers) `Above
 
@@ -439,7 +439,7 @@ let bp = ep + 1
 let browser_pane g = Ui.pane g.ui bp (library_x g, library_y g, g.browser_width, -1)
 
 (* Divider *)
-let browser_divider g = Ui.divider g.ui (bp, - divider_w g, margin g, divider_w g, - bottom_h g) `Horizontal
+let browser_divider g = Ui.divider g.ui (bp, - divider_w g, margin g, divider_w g, - bottom_h g) "br_div" `Horizontal
 
 (* Scan and view buttons *)
 let scan_w g = sx g 32
@@ -492,7 +492,7 @@ let search_context g = Ui.mouse g.ui (bp, search_x g, search_y g, - divider_w g,
 (* Browser *)
 let browser_y g = search_y g + line_h g + margin g
 let browser_area g = (bp, margin g, browser_y g, - divider_w g, - bottom_h g)
-let browser_table g = Ui.browser g.ui (browser_area g) (rich_table g 0 false)
+let browser_table g = Ui.browser g.ui (browser_area g) "br" (rich_table g 0 false)
 let browser_mouse g = Ui.rich_table_mouse g.ui (browser_area g) (rich_table g 0 false)
 let browser_drag g = Ui.rich_table_drag g.ui (browser_area g) (rich_table g 0 false)
 let browser_error_box g = Ui.box g.ui (browser_area g) (Ui.error_color g.ui)
@@ -533,8 +533,8 @@ let lp = bp + 1
 let left_pane g = Ui.pane g.ui lp (left_x g, left_y g, left_w g, upper_h g)
 
 let left_area g = (lp, 0, margin g, -1, -1)
-let left_table g = Ui.rich_table g.ui (left_area g) (rich_table g 1 true)
-let left_grid g iw = Ui.grid_table g.ui (left_area g) (grid_table g iw true)
+let left_table g = Ui.rich_table g.ui (left_area g) "lft_tbl" (rich_table g 1 true)
+let left_grid g iw = Ui.grid_table g.ui (left_area g) "lft_grid" (grid_table g iw true)
 let left_mouse g = Ui.rich_table_mouse g.ui (left_area g) (rich_table g 1 true)
 let left_drag g = Ui.rich_table_drag g.ui (left_area g) (rich_table g 1 true) `Above
 let left_grid_mouse g iw = Ui.grid_table_mouse g.ui (left_area g) (grid_table g iw true)
@@ -548,11 +548,11 @@ let left_view =
 let rp = lp + 1
 let right_pane g = Ui.pane g.ui rp (right_x g, left_y g, right_w g, upper_h g)
 
-let right_divider g = Ui.divider g.ui (rp, 0, 0, divider_w g, -1) `Horizontal
+let right_divider g = Ui.divider g.ui (rp, 0, 0, divider_w g, -1) "rgt_div" `Horizontal
 
 let right_area g = (rp, divider_w g, margin g, -1, -1)
-let right_table g = Ui.rich_table g.ui (right_area g) (rich_table g 1 true)
-let right_grid g iw = Ui.grid_table g.ui (right_area g) (grid_table g iw true)
+let right_table g = Ui.rich_table g.ui (right_area g) "rgt_tbl" (rich_table g 1 true)
+let right_grid g iw = Ui.grid_table g.ui (right_area g) "rgt_grid" (grid_table g iw true)
 let right_mouse g = Ui.rich_table_mouse g.ui (right_area g) (rich_table g 1 true)
 let right_drag g = Ui.rich_table_drag g.ui (right_area g) (rich_table g 1 true) `Above
 let right_grid_mouse g iw = Ui.grid_table_mouse g.ui (right_area g) (grid_table g iw true)
@@ -566,11 +566,11 @@ let right_view =
 let lp = rp + 1
 let lower_pane g = Ui.pane g.ui lp (left_x g, left_y g + g.upper_height, library_w g - g.browser_width, lower_h g)
 
-let lower_divider g = Ui.divider g.ui (lp, 0, 0, -1, divider_w g) `Vertical
+let lower_divider g = Ui.divider g.ui (lp, 0, 0, -1, divider_w g) "low_div" `Vertical
 
 let lower_area g = (lp, 0, divider_w g, -1, -1)
-let lower_table g = Ui.rich_table g.ui (lower_area g) (rich_table g 1 true)
-let lower_grid g iw = Ui.grid_table g.ui (lower_area g) (grid_table g iw true)
+let lower_table g = Ui.rich_table g.ui (lower_area g) "low_tbl" (rich_table g 1 true)
+let lower_grid g iw = Ui.grid_table g.ui (lower_area g) "low_grid" (grid_table g iw true)
 let lower_mouse g = Ui.rich_table_mouse g.ui (lower_area g) (rich_table g 1 true)
 let lower_drag g = Ui.rich_table_drag g.ui (lower_area g) (rich_table g 1 true) `Above
 let lower_grid_mouse g iw = Ui.grid_table_mouse g.ui (lower_area g) (grid_table g iw true)
@@ -591,7 +591,7 @@ let log_w g = library_w g - g.browser_width
 let log_pane g = Ui.pane g.ui lp (log_x g, library_y g, log_w g, - bottom_h g)
 
 let log_area g = (lp, 0, margin g, -1, -1)
-let log_table g = Ui.rich_table g.ui (log_area g) (rich_table g 1 true)
+let log_table g = Ui.rich_table g.ui (log_area g) "log_tbl" (rich_table g 1 true)
 
 let log_button_w g = (g.browser_width - margin g - divider_w g) / 2
 let log_button_h g = edit_h g
@@ -650,11 +650,11 @@ let dp = mp + 1
 let directories_pane g = Ui.pane g.ui dp (library_x g, library_y g, g.directories_width, -1)
 
 (* Divider *)
-let directories_divider g = Ui.divider g.ui (dp, - divider_w g, margin g, divider_w g, - bottom_h g) `Horizontal
+let directories_divider g = Ui.divider g.ui (dp, - divider_w g, margin g, divider_w g, - bottom_h g) "dir_div" `Horizontal
 
 (* Directories Browser *)
 let directories_area g = (dp, margin g, margin g, - divider_w g, - bottom_h g)
-let directories_table g = Ui.browser g.ui (directories_area g) (rich_table g 1 false)
+let directories_table g = Ui.browser g.ui (directories_area g) "dir_tbl" (rich_table g 1 false)
 let directories_mouse g = Ui.rich_table_mouse g.ui (directories_area g) (rich_table g 1 false)
 
 (* Buttons *)
@@ -676,7 +676,7 @@ let files_pane g = Ui.pane g.ui fp (library_x g + g.directories_width, library_y
 
 (* Table *)
 let files_area g = (fp, 0, margin g, -1, -bottom_h g)
-let files_table g = Ui.rich_table g.ui (files_area g) (rich_table g 1 true)
+let files_table g = Ui.rich_table g.ui (files_area g) "file_tbl" (rich_table g 1 true)
 let files_mouse g = Ui.rich_table_mouse g.ui (files_area g) (rich_table g 1 true)
 
 (* Input field *)

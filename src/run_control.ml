@@ -414,7 +414,7 @@ let run (st : state) =
       let x, y, w, h = Ui.dim geo.ui (Layout.graph_area geo) in
       let win = Ui.window geo.ui in
 
-      (match Layout.graph_drag geo (1, 1) with
+      (match Layout.graph_drag geo "osc_drag" (1, 1) with
       | `None | `Click | `Drop | `Abort -> ()
       | `Take ->
         (* Dobule-click on oscilloscope: reset *)
@@ -508,7 +508,7 @@ let run (st : state) =
   let vol_mouse = Layout.volume_bar geo ctl.volume in
   (* Hack to overlap volume bar with mute button. *)
   let mute_mouse = Ui.mouse_inside geo.ui (Layout.mute_area geo) in
-  if not mute_mouse && Layout.mute_drag geo (0, 0) = `None
+  if not mute_mouse && Layout.mute_drag geo "mute_drag" (0, 0) = `None
   && vol_mouse <> ctl.volume then
   (
     (* Click or drag on volume bar: adjust volume *)
@@ -1044,22 +1044,22 @@ Geometry.check_geo geo win';
       | true, true ->  (* both pl and lib open, cmd *)
         (match compare ctl_ratio' ctl_ratio with
         | -1 ->
-Printf.eprintf "[adapt ctl w 3]\n%!";
+if !App.debug_layout then Printf.eprintf "[adapt ctl w 3]\n%!";
         Geometry.adapt_control_width geo
         | +1 ->
-Printf.eprintf "[adapt ctl h 3]\n%!";
+if !App.debug_layout then Printf.eprintf "[adapt ctl h 3]\n%!";
         Geometry.adapt_control_height geo
         | _ -> ()
         );
         win_dw, win_dh
       | false, true when ctl_h' <> ctl_h ->  (* only pl open, cmd *)
-Printf.eprintf "[adapt ctl w 4]\n%!";
+if !App.debug_layout then Printf.eprintf "[adapt ctl w 4]\n%!";
         assert (ctl_w' = ctl_w);
         let dw' = int_of_float (float geo.control_height *. ctl_ratio) - ctl_w in
         Geometry.change_control_width geo dw';
         dw', win_dh
       | true, false when ctl_w' <> ctl_w ->  (* only lib open, shift + cmd *)
-Printf.eprintf "[adapt ctl h 4]\n%!";
+if !App.debug_layout then Printf.eprintf "[adapt ctl h 4]\n%!";
         assert (ctl_h' = ctl_h);
         let dh' = int_of_float (float geo.control_width /. ctl_ratio) - ctl_h in
         Geometry.change_control_height geo dh';

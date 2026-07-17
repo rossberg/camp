@@ -299,11 +299,13 @@ type drag += Abort
 
 let set_drag_origin ui pos (x, y, w, h as r) =
   if !App.debug_layout && not (inside pos r) then
+  (
     Printf.eprintf
       "[layout drag] out of range drag origin: %d,%d not in %d,%d,%d,%d\n%!"
-      (fst pos) (snd pos) x y w h;
-assert (inside pos r);
+      (fst pos) (snd pos) x y w h
+;assert (inside pos r);
 Printf.eprintf "  [origin] x=%d/%d y=%d/%d\n%!" (fst pos) w (snd pos) h;
+  );
   ui.drag_origin <- pos
 
 let delay ui f =
@@ -326,12 +328,15 @@ let start ui =
   (
     if ui.drag_origin = no_drag then
 (
+Printf.printf "[unorigin 1]\n%!";
       set_drag_origin ui (Mouse.pos ui.win) (0, 0, ww, wh)
 ;Printf.eprintf "[origin] x=%d/%d y=%d/%d\n%!" (fst ui.drag_origin) ww (snd ui.drag_origin) wh)
   )
   else if not (Mouse.is_released `Left) then
   (
+if ui.drag_origin <> no_drag then Printf.printf "[unorigin 2]\n%!";
     ui.drag_origin <- no_drag;
+if ui.drag_extra <> No_drag then Printf.printf "[undrag 1]\n%!";
     ui.drag_extra <- No_drag;
   )
 
@@ -376,6 +381,7 @@ let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
     else if Mouse.is_down `Right || ui.drag_extra = Abort then
     (
       Mouse.set_cursor ui.win `Default;
+Printf.printf "[undrag 2]\n%!";
       ui.drag_extra <- Abort;
       pos', size'
     )
@@ -390,6 +396,7 @@ let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
       | No_drag ->
         let cursor = cursor lft top rgt bot in
         Mouse.set_cursor ui.win cursor;
+Printf.printf "[undrag 3]\n%!";
         if cursor = `Point then
           ui.drag_extra <- Move {target = pos'}
         else
@@ -414,7 +421,9 @@ let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
         let size' = add size ui.resize in
         let target' = add target ui.repos in
         let wx'', wy'' as target'' = add target' delta in
+Printf.printf "[undrag 5]\n%!";
         ui.drag_extra <- Move {target = target''};
+Printf.printf "[unorigin 5]\n%!";
         set_drag_origin ui (sub ui.drag_origin ui.repos) (0, 0, ww, wh);
         (snap sx (sx + sw - ww) wx'', snap sy (sy + sh - wh) wy''), size'
 
@@ -436,6 +445,7 @@ let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
             wx, wy, ww, wh
           else
           (
+if !App.debug_layout then(
 Printf.eprintf "[resize] edge=%b,%b,%b,%b mouse=%d,%d win=%d%+d,%d%+d,%d%+d,%d%+d\n%!"
 lft top rgt bot mx my wx (wx''-wx) wy (wy''-wy) ww (ww''-ww) wh (wh''-wh);
 if ww'' <> ww' then
@@ -444,6 +454,7 @@ sx sw mx mx' wx' wx'' minx maxx ww' ww'' minw maxw;
 if wh'' <> wh' then
 Printf.eprintf "  sy=%d sh=%d my=%d~%d wy'=%d->%d(%d,%d) wh'=%d->%d(%d,%d)\n%!"
 sy sh my my' wy' wy'' miny maxy wh' wh'' minh maxh;
+);
             assert (minw <= ww'' && ww'' <= maxw);
             assert (minh <= wh'' && wh'' <= maxh);
             let repos, resize = ui.repos, ui.resize in
@@ -461,6 +472,7 @@ sy sh my my' wy' wy'' miny maxy wh' wh'' minh maxh;
         let doy = if bot then wh''' - wh else 0 in
         let ox' = clamp 0 (ww''' - 1) (ox + dox) in
         let oy' = clamp 0 (wh''' - 1) (oy + doy) in
+if (ox',oy')<>(ox,oy) || (ox',oy') <> ui.drag_origin then Printf.printf "[unorigin 7] %d,%d~%d,%d\n%!" ox oy ox' oy';
         set_drag_origin ui (ox', oy') (0, 0, ww''', wh''');
         (wx''', wy'''), (ww''', wh''')
 (*
@@ -524,12 +536,13 @@ left upper dmx dmy (fst over) (snd over) dwx dwy (ww'' - ww) (wh'' - wh);
         let doy = if oy > wh/2 then wh' - wh else 0 in
         let ox' = clamp 0 (ww' - 1) (ox + dox) in
         let oy' = clamp 0 (wh' - 1) (oy + doy) in
+Printf.printf "[unorigin 8]\n%!";
         set_drag_origin ui (ox', oy') (0, 0, ww', wh');
         pos', size'
     )
   in
 
-if (wx'',wy'',ww'',wh'')<>(wx,wy,ww,wh) then
+if !App.debug_layout && (wx'',wy'',ww'',wh'')<>(wx,wy,ww,wh) then
 Printf.eprintf "[resize] %d,%d,%d,%d -> %d,%d,%d,%d\n%!" wx wy ww wh wx'' wy'' ww'' wh'';
   Window.set_pos ui.win wx'' wy'';   (* deferred until end of frame! *)
   Window.set_size ui.win ww'' wh'';  (* deferred until end of frame! *)
@@ -605,11 +618,17 @@ let mouse_status ui r = function
     if ui.modal then `Untouched else
     let side = `Left in
     if ui.drag_origin = no_drag && inside (Mouse.pos ui.win) r then
+(Printf.printf "[own 1]\n%!";
       (ui.mouse_owned <- true; `Hovered)
+)
     else if not (inside ui.drag_origin r) then
       `Untouched
-    else if Mouse.is_down side then
+    else if ui.drag_origin = no_drag && Mouse.is_down side then
+(Printf.printf "[own 2]\n%!";
       (ui.mouse_owned <- true; `Pressed)
+)
+    else if Mouse.is_down side then
+      `Pressed
     else if Mouse.is_released side then
       `Released
     else
@@ -629,7 +648,7 @@ let mouse_status ui r = function
 
 type motion = [`Unmoved | `Moving | `Moved]
 type trajectory = [`Inside | `Outside | `Outward | `Inward]
-type drag += Drag of {pos : point; moved : bool; inside : bool}
+type drag += Drag of {owner : string; pos : point; moved : bool; inside : bool}
 
 let string_of_drag = ref (function
   | No_drag -> "No_drag"
@@ -645,7 +664,7 @@ let unexpected_drag_extra ui s =
     "Unexpected drag status `%s` in %s\n%!" (!string_of_drag ui.drag_extra) s
   )
 
-let drag_status ui r (stepx, stepy) =
+let drag_status ui r owner (stepx, stepy) =
   if ui.modal || not (inside ui.drag_origin r) || ui.drag_extra = Abort then
     `None
   else if Mouse.is_released `Left then
@@ -655,24 +674,30 @@ let drag_status ui r (stepx, stepy) =
       `Click
   else if Mouse.is_pressed `Right && Mouse.is_drag `Left then
   (
+Printf.printf "[undrag 6]\n%!";
     ui.drag_extra <- Abort;
     `Abort
   )
   else
   let (mx, my) as m = Mouse.pos ui.win in
-  ui.mouse_owned <- true;
   match ui.drag_extra with
   | No_drag ->
-    ui.drag_extra <- Drag {pos = m; moved = false; inside = true};
+Printf.printf "[undrag 7]\n%!";
+    ui.drag_extra <- Drag {owner; pos = m; moved = false; inside = true};
+Printf.printf "[own 7]\n%!";
+    ui.mouse_owned <- true;
     `Take
-  | Drag {pos; moved; inside} ->
+  | Drag {owner = o; pos; moved; inside} when o = owner ->
     let dx, dy = sub m pos in
     let dx' = if stepx = 0 then dx else dx / stepx in
     let dy' = if stepy = 0 then dy else dy / stepy in
     let pos = mx - dx mod max 1 stepx, my - dy mod max 1 stepy in
     let moved' = Mouse.is_drag `Left in
     let inside' = Api.inside m r in
-    ui.drag_extra <- Drag {pos; moved = moved'; inside = inside'};
+Printf.printf "[undrag 8]\n%!";
+    ui.drag_extra <- Drag {owner; pos; moved = moved'; inside = inside'};
+Printf.printf "[own 8]\n%!";
+    ui.mouse_owned <- true;
     let motion =
       match moved, moved' with
       | true, _ -> `Moved
@@ -687,26 +712,11 @@ let drag_status ui r (stepx, stepy) =
       | false, false -> `Outside
     in
     `Drag ((dx', dy'), motion, traj)
-  | Move {target = tx, ty} ->
-    (* Gracefully handle, sometimes occurs after cross-monitor window drag *)
-    let x, y, w, h = r in
-    Storage.log (Printf.sprintf
-      "Unexpected Move at %d,%d,%d,%d with target %d,%d drag origin %d,%d\n%!"
-      x y w h tx ty (fst ui.drag_origin) (snd ui.drag_origin)
-    );
-    ui.drag_extra <- No_drag;
+  | Abort ->
     `None
-  | Resize {offset = dx, dy} ->
-    (* Gracefully handle, sometimes occurs after cross-monitor window drag *)
-    let x, y, w, h = r in
-    Storage.log (Printf.sprintf
-      "Unexpected Resize at %d,%d,%d,%d with origin %d,%d offset %+d,%+d\n%!"
-      x y w h (fst ui.drag_origin) (snd ui.drag_origin) dx dy
-    );
-    ui.drag_extra <- No_drag;
-    `None
-  | Abort -> `None
-  | _ -> unexpected_drag_extra ui "drag_status"; `None
+  | _ ->
+    (* Can happen after layout changes that invalidate origin *)
+    unexpected_drag_extra ui "drag_status"; `None
 
 let wheel_status ui r =
   if not ui.modal && inside (Mouse.pos ui.win) r then
@@ -717,7 +727,7 @@ let wheel_status ui r =
 let key ui modkey focus = (key_status ui modkey focus = `Released)
 let mouse ui area side = (mouse_status ui (dim ui area) side = `Released)
 let wheel ui area = wheel_status ui (dim ui area)
-let drag ui area eps = drag_status ui (dim ui area) eps
+let drag ui area owner eps = drag_status ui (dim ui area) owner eps
 
 
 (* Decorative Widgets *)
@@ -1006,8 +1016,9 @@ let volume_bar ui area l v =
   clamp 0.0 1.0 (float (y + h - my) /. float h)
 
 
-type drag += Scroll_bar_page of {last_repeat : time}
-type drag += Scroll_bar_drag of {value : float; mx : int; my : int}
+type drag += Scroll_bar_page of {owner : string; last_repeat : time}
+type drag += Scroll_bar_drag of
+  {owner : string; value : float; mx : int; my : int}
 
 let _ =
   let f' = !string_of_drag in
@@ -1016,7 +1027,7 @@ let _ =
     | Scroll_bar_drag _ -> "Scroll_bar_drag"
     | drag -> f' drag
 
-let scroll_bar ui area l orient v len =
+let scroll_bar ui area owner l orient v len =
   assert (v +. len < 2.0); (* at most 1 line over 1.0, but line may be a page *)
   let (x, y, w, h), status = widget ui area no_modkey in
   let w, h =
@@ -1052,25 +1063,30 @@ let scroll_bar ui area l orient v len =
   Draw.rect ui.win x y w h (border ui status);
   if status <> `Pressed then v else
   let (mx, my) as m = Mouse.pos ui.win in
-  let v0, mx0, my0, last_repeat, dragging =
+  let v0, mx0, my0, last_repeat, dragging, owned =
     match ui.drag_extra with
-    | No_drag -> v, mx, my, 0.0, false
-    | Scroll_bar_page {last_repeat} -> v, mx, my, last_repeat, false
-    | Scroll_bar_drag {value; mx; my} -> value, mx, my, 0.0, true
-    | _ -> unexpected_drag_extra ui "scroll_bar"; v, mx, my, 0.0, false
+    | No_drag -> v, mx, my, 0.0, false, true
+    | Scroll_bar_page {owner = o; last_repeat} when o = owner ->
+      v, mx, my, last_repeat, false, true
+    | Scroll_bar_drag {owner = o; value; mx; my} when o = owner ->
+      value, mx, my, 0.0, true, true
+    | _ ->
+      unexpected_drag_extra ui "scroll_bar"; v, mx, my, 0.0, false, false
   in
   let now = Unix.gettimeofday () in
   let v' =
-    if dragging || inside m r then
+    if owned && (dragging || inside m r) then
     (
-      ui.drag_extra <- Scroll_bar_drag {value = v0; mx = mx0; my = my0};
+Printf.printf "[undrag 9]\n%!";
+      ui.drag_extra <- Scroll_bar_drag {owner; value = v0; mx = mx0; my = my0};
       match orient with
       | `Vertical -> v0 +. float (my - my0) /. float (h - 2)
       | `Horizontal -> v0 +. float (mx - mx0) /. float (w - 2)
     )
-    else if now -. last_repeat > 0.3 (* TODO: use config *) then
+    else if owned && now -. last_repeat > 0.3 (* TODO: use config *) then
     (
-      ui.drag_extra <- Scroll_bar_page {last_repeat = now};
+Printf.printf "[undrag 10]\n%!";
+      ui.drag_extra <- Scroll_bar_page {owner; last_repeat = now};
       match orient with
       | `Vertical ->
         if my < y' then v -. len else
@@ -1087,7 +1103,7 @@ let scroll_bar ui area l orient v len =
 
 (* Dividers *)
 
-type drag += Divide of {overshoot : size}
+type drag += Divide of {owner : string; overshoot : size}
 
 let _ =
   let f' = !string_of_drag in
@@ -1095,7 +1111,7 @@ let _ =
     | Divide _ -> "Divide"
     | drag -> f' drag
 
-let divider2 ui area cursor (vx, vy) (minx, miny) (maxx, maxy) =
+let divider2 ui area owner cursor (vx, vy) (minx, miny) (maxx, maxy) =
   let (x, y, w, h), status = widget ui area no_modkey in
   if status <> `Untouched then Mouse.set_cursor ui.win (`Resize cursor);
   (*Draw.rect ui.win x y w h (border ui status);*)
@@ -1103,9 +1119,8 @@ let divider2 ui area cursor (vx, vy) (minx, miny) (maxx, maxy) =
   let over =
     match ui.drag_extra with
     | No_drag -> 0, 0
-    | Divide {overshoot} -> overshoot
-    | Resize _ -> -1, -1  (* can happen when putting divider on margin *)
-    | _ -> unexpected_drag_extra ui "divider"; 0, 0
+    | Divide {owner = o; overshoot} when o = owner -> overshoot
+    | _ -> unexpected_drag_extra ui "divider"; -1, -1
   in
   if over = (-1, -1) then (vx, vy) else
   let vx', vy' = add (add (vx, vy) (Mouse.delta ui.win)) over in
@@ -1114,20 +1129,22 @@ let divider2 ui area cursor (vx, vy) (minx, miny) (maxx, maxy) =
   let maxx = if maxx < 0 then pw else maxx in
   let maxy = if maxy < 0 then ph else maxy in
   let vx'', vy'' = clamp minx maxx vx', clamp miny maxy vy' in
-  ui.drag_extra <- Divide {overshoot = vx' - vx'', vy' - vy''};
+Printf.printf "[undrag 12]\n%!";
+  ui.drag_extra <- Divide {owner; overshoot = vx' - vx'', vy' - vy''};
   (* HACK: Adjust owned drag_origin for size-relative position *)
   (* This assumes that the caller actually moves the divider! *)
   let dx = vx'' - vx in
   let dy = vy'' - vy in
+Printf.printf "[unorigin 12]\n%!";
   set_drag_origin ui (add ui.drag_origin (dx, dy)) (x + dx, y + dy, w, h);
   (vx'', vy'')
 
-let divider ui area orient v minv maxv =
+let divider ui area owner orient v minv maxv =
   let x, y, _, _ = dim ui area in
   let proj = match orient with `Horizontal -> fst | `Vertical -> snd in
   let inj v = match orient with `Horizontal -> v, y | `Vertical -> x, v in
   let cursor = match orient with `Horizontal -> `E_W | `Vertical -> `N_S in
-  proj (divider2 ui area cursor (inj v) (inj minv) (inj maxv))
+  proj (divider2 ui area owner cursor (inj v) (inj minv) (inj maxv))
 
 
 (* Text Input Field *)
@@ -1507,8 +1524,8 @@ let table ui area gw ch ph cols rows hscroll =
 let symbols_asc = [|"▲" (* "▴" *); "▲'" (* "△", "▵", "▵" *); "▲''"; "▲'''"|]
 let symbols_desc = [|"▼" (* "▾" *); "▼'" (* "▽", "▾", "▿" *); "▼''"; "▼'''"|]
 
-type drag += Header_resize of {mouse_x : int; col : int}
-type drag += Header_reorder of {mouse_x : int; col : int; moved : bool}
+type drag += Header_resize of {owner : string; mouse_x : int; col : int}
+type drag += Header_reorder of {owner : string; mouse_x : int; col : int; moved : bool}
 
 let _ =
   let f' = !string_of_drag in
@@ -1517,7 +1534,7 @@ let _ =
     | Header_reorder _ -> "Header_reorder"
     | drag -> f' drag
 
-let header ui area ph gw cols (titles, sorting) hscroll =
+let header ui area owner ph gw cols (titles, sorting) hscroll =
   let (x, y, w, h) as r, status = widget ui area no_modkey in
   let texts = Iarray.map (fun s -> `Text s) titles in
   let th = h - 2 * ph in
@@ -1573,20 +1590,24 @@ let header ui area ph gw cols (titles, sorting) hscroll =
     | `Gutter col ->
       Mouse.set_cursor ui.win (`Resize `E_W);
       if status = `Pressed then
-        ui.drag_extra <- Header_resize {mouse_x = mx; col};
+(Printf.printf "[undrag 20]\n%!";
+        ui.drag_extra <- Header_resize {owner; mouse_x = mx; col};
+);
       `None
     | `Header col ->
       if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
         `Menu (Some col)
       else if status = `Pressed then
       (
-        ui.drag_extra <- Header_reorder {mouse_x = mx; col; moved = false};
+Printf.printf "[undrag 21]\n%!";
+        ui.drag_extra <- Header_reorder {owner; mouse_x = mx; col; moved = false};
         `None
       )
       else `None
     )
 
-  | Header_resize {mouse_x; col = i} when status = `Pressed ->
+  | Header_resize {owner = o; mouse_x; col = i}
+    when o = owner && status = `Pressed ->
     Mouse.set_cursor ui.win (`Resize `E_W);
     let dx = mx - mouse_x in
     if dx = 0 then `None else
@@ -1595,14 +1616,18 @@ let header ui area ph gw cols (titles, sorting) hscroll =
     ws.(i) <- max 0 (ws.(i) + dx);
     if i + 1 < len && (fst (Iarray.get cols i) < 0 || is_shift_down ()) then
       ws.(i + 1) <- max 0 (ws.(i + 1) - dx);
-    ui.drag_extra <- Header_resize {mouse_x = mx; col = i};
+Printf.printf "[undrag 22]\n%!";
+    ui.drag_extra <- Header_resize {owner; mouse_x = mx; col = i};
     `Resize (Iarray.of_array ws)
 
-  | Header_reorder {mouse_x; col = i; moved} when status = `Pressed ->
+  | Header_reorder {owner = o; mouse_x; col = i; moved}
+    when o = owner && status = `Pressed ->
     if moved then Mouse.set_cursor ui.win `Point;
     let dx = mx - mouse_x in
     if dx = 0 then `None else
-    let _ = ui.drag_extra <- Header_reorder {mouse_x; col = i; moved = true} in
+    let _ = ui.drag_extra <-
+      Header_reorder {owner; mouse_x; col = i; moved = true} in
+Printf.printf "[undrag 23]\n%!";
     (match find_gutter cols mx with
     | `None | `Gutter _ -> `None
     | `Header j ->
@@ -1619,12 +1644,15 @@ let header ui area ph gw cols (titles, sorting) hscroll =
       (* Ignore change if new position is not stable. *)
       match find_gutter cols' mx with
       | `Header k when k = j ->
-        ui.drag_extra <- Header_reorder {mouse_x = mx; col = j; moved = true};
+Printf.printf "[undrag 24]\n%!";
+        ui.drag_extra <-
+          Header_reorder {owner; mouse_x = mx; col = j; moved = true};
         `Reorder perm
       | _ -> `None
     )
 
-  | Header_reorder {col = i; moved = false; _} when status = `Released ->
+  | Header_reorder {owner = o; col = i; moved = false; _}
+    when o = owner && status = `Released ->
     `Click i
 
   | _ -> `None
@@ -1714,7 +1742,7 @@ let adjust_cache ui tab w h =
     Table.cache tab buf;
     buf
 
-let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_row =
+let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t) pp_row =
   assert (geo.has_heading = Option.is_some header_opt);
   let p, ax, ay, aw, ah = area in
   let rh = geo.text_h + 2 * geo.pad_h in
@@ -1789,7 +1817,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
         `None
       else if not (shift || command) then
       (
-        match drag_status ui r (max_int, rh) with
+        match drag_status ui r (owner ^ ":body") (max_int, rh) with
         | `None -> `None
 
         | `Take ->
@@ -1890,7 +1918,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
       match header_opt with
       | None -> result
       | Some heading ->
-        match header ui header_area geo.pad_h geo.gutter_w cols heading tab.hscroll with
+        match header ui header_area (owner ^ ":header") geo.pad_h geo.gutter_w cols heading tab.hscroll with
         | `Click i -> Table.dirty tab; `Sort i
         | `Resize ws -> Table.dirty tab; `Resize ws
         | `Reorder perm -> Table.dirty tab; `Reorder perm
@@ -1907,7 +1935,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
     let pos = if len = 0 then 0.0 else float tab.vscroll /. float len in
     let coeff = max 1.0 (float page /. 4.0) /. float (max 1 len) in
     let wheel = if vwheel then coeff *. wdy else 0.0 in
-    let pos' = scroll_bar ui vscroll_area geo.scroll_l `Vertical pos ext -. wheel in
+    let pos' = scroll_bar ui vscroll_area (owner ^ ":vscroll") geo.scroll_l `Vertical pos ext -. wheel in
     let result =
       if result <> `None || pos = pos' then result else
       (
@@ -1925,7 +1953,7 @@ let rich_table ui area (geo : rich_table) cols header_opt (tab : _ Table.t) pp_r
       let ext = if vw' = 0 then 1.0 else min 1.0 (float w /. float vw') in
       let pos = if vw' = 0 then 0.0 else float tab.hscroll /. float vw' in
       let wheel = if vwheel then wdx else wdy in
-      let pos' = scroll_bar ui hscroll_area geo.scroll_l `Horizontal pos ext -. 0.05 *. wheel in
+      let pos' = scroll_bar ui hscroll_area (owner ^ ":hscroll") geo.scroll_l `Horizontal pos ext -. 0.05 *. wheel in
       if result <> `None || pos = pos' then result else
       (
         Table.set_hscroll tab
@@ -2115,7 +2143,7 @@ let browser_entry_text_area ui area geo (tab : _ Table.t) i nest folded =
   and dy = (i - tab.vscroll) * (geo.text_h + 2 * geo.pad_h) in
   (p, x + dx, y + dy + geo.pad_h, (if w < 0 then w else w - dx), geo.text_h)
 
-let browser ui area geo (tab : _ Table.t) pp_entry =
+let browser ui area owner geo (tab : _ Table.t) pp_entry =
   let cols : _ iarray = [|-1, `Left|] in
   let pp_row i : _ * _ iarray =
     let nest, folded, c, name = pp_entry i in
@@ -2123,7 +2151,7 @@ let browser ui area geo (tab : _ Table.t) pp_entry =
   in
 
   let selected = tab.selected in
-  (match rich_table ui area geo cols None tab pp_row with
+  (match rich_table ui area owner geo cols None tab pp_row with
   | `None -> `None
   | `Scroll -> `Scroll
   | `Move i -> `Move i
@@ -2267,7 +2295,7 @@ let grid_table_drag ui area geo style tab =
     focus' ui (x + i' mod line * iw) (y + i' / line * ih) iw ih (geo.text_h / 2) `White style
   | _ -> ()
 
-let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
+let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
   assert (geo.has_heading = Option.is_some header_opt);
   let p, ax, ay, aw, ah = area in
   let ch = geo.text_h + 2 * geo.pad_h in
@@ -2347,7 +2375,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
         `None
       else if not (shift || command) then
       (
-        match drag_status ui r (iw, ih) with
+        match drag_status ui r (owner ^ ":body") (iw, ih) with
         | `None -> `None
 
         | `Take ->
@@ -2434,7 +2462,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
       | None -> result
       | Some heading ->
         let cols = Iarray.map (Fun.const (40, `Left)) (fst heading) in
-        match header ui header_area geo.pad_h geo.gutter_w cols heading tab.hscroll with
+        match header ui header_area (owner ^ ":header") geo.pad_h geo.gutter_w cols heading tab.hscroll with
         | `Click i -> `Sort i
         | `Resize ws -> `Resize ws
         | `Reorder perm -> `Reorder perm
@@ -2448,7 +2476,7 @@ let grid_table ui area (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
     let pos = if len = 0 then 0.0 else float tab.vscroll /. float len' in
     let coeff = max 1.0 (float line) /. float (len' - page) in
     let wheel = coeff *. snd (wheel_status ui r) in
-    let pos' = scroll_bar ui vscroll_area geo.scroll_l `Vertical pos ext -. wheel in
+    let pos' = scroll_bar ui vscroll_area (owner ^ ":scroll") geo.scroll_l `Vertical pos ext -. wheel in
     let result =
       if result <> `None || pos = pos' then result else
       (
@@ -2592,6 +2620,7 @@ let popup ui x y w h bw =
   let x' = max 0 (min x (ww - w')) in
   let y' = max 0 (min y (wh - h')) in
   background ui x' y' w' h';
+Printf.printf "[own 10]\n%!";
   ui.mouse_owned <- true;
   (-1, x' + bw, y' + bw, w, h)
 

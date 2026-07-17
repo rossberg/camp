@@ -66,7 +66,7 @@ type trajectory = [`Inside | `Outside | `Outward | `Inward]
 
 val key : t -> modifier list * key -> bool -> bool
 val mouse : t -> area -> side -> bool
-val drag : t -> area -> size ->
+val drag : t -> area -> string -> size ->
   [`None | `Click | `Take | `Drag of size * motion * trajectory | `Drop | `Abort]
 val wheel : t -> area -> float * float
 
@@ -116,10 +116,10 @@ val invisible_button : t -> area -> modifier list -> modifier list * key -> bool
 
 val progress_bar : t -> area -> int -> float -> float
 val volume_bar : t -> area -> int -> float -> float
-val scroll_bar : t -> area -> int -> Api.orientation -> float -> float -> float
+val scroll_bar : t -> area -> string -> int -> Api.orientation -> float -> float -> float
 
-val divider : t -> area -> Api.orientation -> int -> int -> int -> int
-val divider2 : t -> area -> Api.resize -> size -> size -> size -> size
+val divider : t -> area -> string -> Api.orientation -> int -> int -> int -> int
+val divider2 : t -> area -> string -> Api.resize -> size -> size -> size -> size
 
 
 (* Table *)
@@ -131,10 +131,12 @@ type cell = [`Text of string | `Image of Api.image]
 type row = color * inversion * cell iarray
 type heading = string iarray * sorting
 
+(*
 val table : t -> area -> int -> int -> int -> column iarray -> row iarray -> int ->
   int option * int option
-val header : t -> area -> int -> int -> column iarray -> heading -> int ->
+val header : t -> area -> string -> int -> int -> column iarray -> heading -> int ->
   [`Click of int | `Resize of int iarray | `Reorder of int iarray | `Menu of int option | `None]
+*)
 
 type cached
 
@@ -172,6 +174,7 @@ type rich_table_action =
 val rich_table :
   t -> 
   area ->
+  string ->
   rich_table ->
   column iarray ->                 (* column layout *)
   heading option ->                (* headers (None if has_heading = false) *)
@@ -195,6 +198,7 @@ type browser_action =
 val browser :
   t ->
   area ->
+  string ->
   rich_table ->  (* gutter_w unused *)
   ('a, cached) Table.t ->                         (* data *)
   (int -> int * bool option * color * string) ->  (* entry generator *)
@@ -206,10 +210,12 @@ val browser_entry_text_area :
 
 (* Grid *)
 
+(*
 val grid :
   t -> area -> int -> int -> int -> int ->
   (image * color * inversion * string) option iarray iarray ->
     (int * int) option
+*)
 
 type grid_table =
   { gutter_w : int;
@@ -227,6 +233,7 @@ type grid_table_action = rich_table_action
 val grid_table :
   t ->
   area ->
+  string ->
   grid_table ->
   heading option ->  (* None if has_heading = false*)
   ('a, cached) Table.t ->
