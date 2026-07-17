@@ -950,7 +950,7 @@ let run_toggle_panel (st : state) =
   let ext_w, ext_h = geo.extension_width, geo.extension_height in
   let ctl_minh, ctl_maxh = Geometry.(control_min_h, control_max_h geo) in
 
-  let ctl_h1', win_dw, win_ox =
+  let ctl_h1', win_dw, win_dx =
     if not (Geometry.extension_shown_h geo) then
       ctl_h, 0, 0
     else
@@ -975,16 +975,16 @@ let run_toggle_panel (st : state) =
             (win_minw, ctl_minh) (win_maxw, ctl_maxh)
       in
       let ctl_h1' = ctl_h11' + ctl_h12' + ctl_h13' - 2 * ctl_h in
-      let win_dw, win_ox =
-        if win_w_l' <> win_w_l then win_w_l - win_w_l', Int.max_int else
-        if win_w_r' <> win_w_r then win_w_r' - win_w_r, -1 else
+      let win_dw, win_sx =
+        if win_w_l' <> win_w_l then win_w_l - win_w_l', -1 else
+        if win_w_r' <> win_w_r then win_w_r' - win_w_r, 0 else
         0, 0
       in
-      ctl_h1', win_dw, win_ox
+      ctl_h1', win_dw, win_sx * win_dw
     )
   in
 
-  let ctl_w', ctl_h', win_dh, win_oy =
+  let ctl_w', ctl_h', win_dh, win_dy =
     if not (Geometry.extension_shown_w geo) then
       ctl_w, ctl_h1', 0, 0
     else
@@ -1018,12 +1018,12 @@ let run_toggle_panel (st : state) =
       let ctl_w' =
         if Geometry.extension_left geo then ctl_w - (w' - w) else w' in
       let ctl_h' = ctl_h1' + ctl_h2' - ctl_h in
-      let win_dh, win_oy =
-        if win_h_u' <> win_h_u then win_h_u - win_h_u', Int.max_int else
-        if win_h_l' <> win_h_l then win_h_l' - win_h_l, -1 else
+      let win_dh, win_sy =
+        if win_h_u' <> win_h_u then win_h_u - win_h_u', -1 else
+        if win_h_l' <> win_h_l then win_h_l' - win_h_l, 0 else
         0, 0
       in
-      ctl_w', ctl_h', win_dh, win_oy
+      ctl_w', ctl_h', win_dh, win_sy * win_dh
     )
   in
 let win' = Api.add (Api.Window.next_size (Ui.window geo.ui)) (win_dw, win_dh) in
@@ -1075,7 +1075,7 @@ let win'' = Api.add (Api.Window.next_size (Ui.window geo.ui)) (win_dw', win_dh')
 Geometry.check_geo geo win'';
 
   if (win_dw', win_dh') <> (0, 0) then
-    Ui.resize geo.ui (win_ox, win_oy) (win_dw', win_dh');
+    Ui.resize geo.ui (win_dx, win_dy) (win_dw', win_dh');
 Geometry.check_geo geo win'';
 
   if (ctl_w', ctl_h', win_dw', win_dh') <> (ctl_w, ctl_h, 0, 0) then
