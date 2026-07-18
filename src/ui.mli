@@ -118,8 +118,8 @@ val progress_bar : t -> area -> string -> int -> float -> float
 val volume_bar : t -> area -> string -> int -> float -> float
 val scroll_bar : t -> area -> string -> int -> Api.orientation -> float -> float -> float
 
-val divider : t -> area -> string -> Api.orientation -> int -> int -> int -> int
-val divider2 : t -> area -> string -> Api.resize -> size -> size -> size -> size
+val divider : t -> area -> string -> Api.orientation -> int -> int -> int -> int * bool
+val divider2 : t -> area -> string -> Api.resize -> size -> size -> size -> size * bool
 
 
 (* Table *)

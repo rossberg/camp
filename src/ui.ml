@@ -345,6 +345,8 @@ let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
   let (ww, wh) as size = Window.size ui.win in
   let (wx', wy') as pos' = add pos ui.repos in
   let (ww', wh') as size' = add size ui.resize in
+if ui.repos <> (0,0) then
+Printf.eprintf "[finish] repos=%+d,%+d\n%!" (fst ui.repos) (snd ui.repos);
 
   let cursor lft top rgt bot =
     let varw = minw <> maxw in
@@ -1065,32 +1067,31 @@ let _ =
 
 let divider2 ui area owner cursor (vx, vy) (minx, miny) (maxx, maxy) =
   let (x, y, w, h), status = widget ui area (Some owner) no_modkey in
-  if status <> `Untouched then Mouse.set_cursor ui.win (`Resize cursor);
-if x<10 && cursor = `NW_SE then Printf.printf "[divider \\] %s %b\n%!" owner (status<>`Untouched);
-if x<10 && cursor = `NE_SW then Printf.printf "[divider /] %s %b\n%!" owner (status<>`Untouched);
-  (*Draw.rect ui.win x y w h (border ui status);*)
-  if status <> `Pressed then (vx, vy) else
+  if not (has_mouse ui owner) then (vx, vy), false else
   let mouse = Mouse.pos ui.win in
   let vx', vy' =
     match ui.drag with
-    | No_drag when grab_mouse ui owner ->
+    | No_drag when status <> `Untouched ->
       ui.drag <- Divide {offset = sub mouse (x, y)}; vx, vy
     | Divide {offset} -> add (vx, vy) (sub (sub mouse offset) (x, y))
-    | _ -> unexpected_drag ui "divider" owner; 0, 0
+    | _ -> 0, 0
   in
-  if not (has_mouse ui owner) then (vx, vy) else
+  if status <> `Untouched then Mouse.set_cursor ui.win (`Resize cursor);
+  (*Draw.rect ui.win x y w h (border ui status);*)
+  if status <> `Pressed then (vx, vy), true else
   let i, _, _, _, _ = area in
   let _, _, pw, ph = snd ui.panes.(i) in
   let maxx = if maxx < 0 then pw else maxx in
   let maxy = if maxy < 0 then ph else maxy in
-  clamp minx maxx vx', clamp miny maxy vy'
+  (clamp minx maxx vx', clamp miny maxy vy'), true
 
 let divider ui area owner orient v minv maxv =
   let x, y, _, _ = dim ui area in
   let proj = match orient with `Horizontal -> fst | `Vertical -> snd in
   let inj v = match orient with `Horizontal -> v, y | `Vertical -> x, v in
   let cursor = match orient with `Horizontal -> `E_W | `Vertical -> `N_S in
-  proj (divider2 ui area owner cursor (inj v) (inj minv) (inj maxv))
+  let vv, b = divider2 ui area owner cursor (inj v) (inj minv) (inj maxv) in
+  proj vv, b
 
 
 (* Text Input Field *)

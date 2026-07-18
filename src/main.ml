@@ -63,9 +63,9 @@ and run' (st : state) =
   let menu_shown = geo.menu_shown in
   let popup_shown = geo.popup_shown <> None in
 
+(*
   (* Update geometry *)
   let ww, wh = Api.Window.size win in
-(*
   if extension_shown_w then geo.extension_width <- ww - Geometry.control_w geo;
   if extension_shown_h then geo.extension_height <- wh - Geometry.control_h geo;
   Geometry.update_geo geo;
@@ -73,16 +73,19 @@ and run' (st : state) =
 
   (* Run panes *)
   Run_control.run st;
-  if not (Api.Window.is_minimized win) then
-  (
-    if playlist_shown then Run_playlist.run st;
-    if filesel_shown then Run_filesel.run st
-    else if library_shown then Run_library.run st;
-    if playlist_shown then Run_view.run_edit_panel st;
-    Run_control.run_toggle_panel st;
-    if menu_shown then Run_menu.run st;
-    if popup_shown then Run_menu.run_popup st;
-  );
+  let (dx, dy), (dw, dh) =
+    if Api.Window.is_minimized win then (0, 0), (0, 0) else
+    (
+      if playlist_shown then Run_playlist.run st;
+      if filesel_shown then Run_filesel.run st
+      else if library_shown then Run_library.run st;
+      if playlist_shown then Run_view.run_edit_panel st;
+      let dpos, dsize = Run_control.run_toggle_panel st in
+      if menu_shown then Run_menu.run st;
+      if popup_shown then Run_menu.run_popup st;
+      dpos, dsize
+    )
+  in
   List.iter (fun f -> f ()) st.delayed;
   st.delayed <- [];
 
@@ -123,39 +126,41 @@ and run' (st : state) =
   let extension_shown_w' = Geometry.extension_shown_w geo in
   let extension_shown_h' = Geometry.extension_shown_h geo in
 
-  let dw =
-    if extension_shown_w' = extension_shown_w then 0 else
+  let dx', dw' =
+    if extension_shown_w' = extension_shown_w then dx, dw else
     (
       let s = if extension_shown_w' then +1 else -1 in
       let sw, _ = Api.Window.max_size win in
-      let dw = min (sw - geo.control_width) (s * geo.extension_width) in
-      let dx = if Geometry.extension_left geo then -dw else 0 in
+      let dw' = min (sw - geo.control_width) (s * geo.extension_width) in
+      let dx' = if Geometry.extension_left geo then -dw' else 0 in
   Printf.printf "[layout extend h %b] ww=%d cw=%d ew=%d sw=%d dw=%d maxew=%d\n%!"
-  extension_shown_w' ww geo.control_width geo.extension_width sw dw (sw - geo.control_width);
-      Ui.resize geo.ui (dx, 0) (dw, 0);
-      geo.extension_width <- abs dw;
-      dw
+  extension_shown_w' (fst(Api.Window.size win)+dw) geo.control_width geo.extension_width sw dw' (sw - geo.control_width);
+      geo.extension_width <- abs dw';
+      dx + dx', dw + dw'
     )
-  and dh =
-    if extension_shown_h' = extension_shown_h then 0 else
+  and dy', dh' =
+    if extension_shown_h' = extension_shown_h then dy, dh else
     (
       let s = if extension_shown_h' then +1 else -1 in
       let _, sh = Api.Window.max_size win in
-      let dh = min (sh - geo.control_height) (s * geo.extension_height) in
+      let dh' = min (sh - geo.control_height) (s * geo.extension_height) in
 Printf.printf "[layout extend w %b] wh=%d ch=%d eh=%d sh=%d dh=%d maxeh=%d\n%!"
-extension_shown_h' wh geo.control_height geo.extension_height sh dh (sh - geo.control_height);
-      Ui.resize geo.ui (0, 0) (0, dh);
-      geo.extension_height <- abs dh;
-      dh
+extension_shown_h' (snd(Api.Window.size win)+dh) geo.control_height geo.extension_height sh dh' (sh - geo.control_height);
+      geo.extension_height <- abs dh';
+      dy, dh + dh'
     )
   in
-  Geometry.clamp_geo' geo (ww + dw, wh + dh);
+  Geometry.clamp_geo' geo Api.(add (Window.size win) (dw', dh'));
 
-  if extension_shown_w' && geo.extension_side <> extension_side then
-  (
-    let sx = if Geometry.extension_left geo then -1 else +1 in
-    Ui.resize geo.ui (sx * geo.extension_width, 0) (0, 0);
-  );
+  let dx'' =
+    if extension_shown_w' && geo.extension_side <> extension_side then
+    (
+      let sx = if Geometry.extension_left geo then -1 else +1 in
+      dx' + sx * geo.extension_width;
+    )
+    else dx'
+  in
+  Ui.resize geo.ui (dx'', dy') (dw', dh');
 
   (* Finish drawing *)
   let shift = Api.Key.is_modifier_down `Shift in
@@ -185,11 +190,15 @@ extension_shown_h' wh geo.control_height geo.extension_height sh dh (sh - geo.co
 
       let x', y' = Api.add (Api.Window.pos win) (dx, dy) in
       let w', h' = Api.add (Api.Window.size win) (dw, dh) in
+      let dx, dy = dx - dx'', dy - dy' in
+      let dw, dh = dw - dw', dh - dh' in
 
+(*
 if extension_shown_w' = extension_shown_w && extension_shown_h' = extension_shown_h then
 (
-Geometry.check_geo geo (ww, wh);
+Geometry.check_geo geo (w', h');
 );
+*)
 
       if dw <> 0 && extension_shown_w' = extension_shown_w then
       (
@@ -267,6 +276,12 @@ cw ch (float cw /. float ch) cw' ch' (float cw' /. float ch') ew eh ew' eh';
 )
       );
 
+(*
+      let dw', dh' = Geometry.win_w geo - w', Geometry.win_h geo - h' in
+      let (dx'', dy''), (dw'', dh'') =
+        Geometry.adapt_win geo (dx, dy) (dw', dh') lft top rgt bot in
+      Ui.resize geo.ui (dx'', dy'') (dw'', dh'');
+*)
       let w'', h'' = Geometry.win_w geo, Geometry.win_h geo in
       let dw'', dh'' = w'' - w', h'' - h' in
       if (dw'', dh'') <> (0, 0) then
@@ -301,6 +316,7 @@ y' min_y max_y dy' ty' dy'' y'';
 Printf.eprintf "    win=%d,%d ctl=%d,%d ext=%d,%d\n%!"
 w'' h'' geo.control_width geo.control_height geo.extension_width geo.extension_height;
         );
+
         Ui.resize geo.ui (dx'', dy'') (dw'', dh'');
       );
 

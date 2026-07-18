@@ -202,6 +202,11 @@ let win_max_h flex_ctl flex_ext g =
     snd (Api.Window.max_size (Ui.window g.ui))
   else win_h g
 
+let win_min_x g = fst (Api.Window.min_pos (Ui.window g.ui))
+let win_min_y g = snd (Api.Window.min_pos (Ui.window g.ui))
+let win_max_x g = win_min_x g + fst (Api.Window.max_size (Ui.window g.ui))
+let win_max_y g = win_min_y g + snd (Api.Window.max_size (Ui.window g.ui))
+
 
 (* Validation *)
 
@@ -265,6 +270,12 @@ let ok geo =
 
 
 (* Divider Modifications *)
+
+let clamp min max v =
+  assert (min <= max);
+  if v > max then max else
+  if v < min then min else
+  v
 
 let check_geo geo (ww, wh) =
   let cw, ch = geo.control_width, geo.control_height in
@@ -366,12 +377,44 @@ and adapt_control_height geo =
 *)
 
 
-(* Resolution-independent Window Geometry *)
+let adapt_win g (dx, dy) (dw, dh) flex_ctl flex_ext lft top rgt bot =
+  if dx = 0 && dy = 0 && dw = 0 && dh = 0 then (dx, dy), (dw, dh) else
+  let win = Ui.window g.ui in
+  let x', y' = Api.add (Api.Window.pos win) (dx, dy) in
+  let w', h' = Api.add (Api.Window.size win) (dw, dh) in
+  assert (w' = win_w g && h' = win_h g);
 
-let clamp min max v =
-  if v > max then max else
-  if v < min then min else
-  v
+  let min_x, min_y = Api.Window.min_pos win in
+  let min_w, min_h = win_min_w flex_ctl flex_ext g, win_min_h flex_ctl flex_ext g in
+  let max_w, max_h = Api.Window.max_size win in
+  let w'', h'' = clamp min_w max_w w', clamp min_h max_h h' in
+  let dw', dh' = w'' - w', h'' - h' in
+
+  let max_x, max_y = win_max_x g - w'', win_max_y g - h'' in
+  let ax, ay, _, _ = g.window in
+  let dpos lo hi a d =
+    if lo then -d else if hi then 0 else
+    if a < 1.0 then 0 else -d
+  in
+  let dx', dy' = dpos lft rgt ax dw', dpos top bot ay dh' in
+  let tx', ty' = clamp min_x max_x (x' + dx'), clamp min_y max_y (y' + dy') in
+  let dx'', dy'' = dpos lft rgt ax (x' - tx'), dpos top bot ay (y' - ty') in
+  let x'', y'' = x' + dx'', y' + dy'' in
+  if !App.debug_layout then
+  (
+    Printf.eprintf "  [tweak_win] %d,%d,%d,%d ~ %d,%d,%d,%d\n%!"
+      x' y' w' h' x'' y'' w'' h''
+;Printf.eprintf "    x'=%d min_x=%d max_x=%d dx'=%d tx'=%d dx''=%d x''=%d\n%!"
+x' min_x max_x dx' tx' dx'' x'';
+Printf.eprintf "    y'=%d min_y=%d max_y=%d dy'=%d ty'=%d dy''=%d y''=%d\n%!"
+y' min_y max_y dy' ty' dy'' y'';
+Printf.eprintf "    win=%d,%d ctl=%d,%d ext=%d,%d\n%!"
+w'' h'' g.control_width g.control_height g.extension_width g.extension_height;
+  );
+  (dx'', dy''), (dw', dh')
+
+
+(* Resolution-independent Window Geometry *)
 
 let concrete_geo geo : float * float * float * float =
   let x, y = Api.Window.pos (Ui.window geo.ui) in

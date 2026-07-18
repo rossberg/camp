@@ -259,7 +259,7 @@ let run (st : state) =
 
   (* Pane divider *)
 
-  let directories_width' = Layout.directories_divider geo geo.directories_width
+  let directories_width', _ = Layout.directories_divider geo geo.directories_width
     (Geometry.directories_min_w geo) (Geometry.directories_max_w geo) in
   (* Possible drag of divider: update pane width *)
   geo.directories_width <- directories_width'

@@ -357,10 +357,10 @@ let ldp = pdp + 1
 let extension_divider_x g = (if extension_left g then control_x else library_x) g
 let extension_divider_w_pane g = Ui.pane g.ui ldp (extension_divider_x g, library_y g, divider_w g, -1)
 let extension_divider_w_upper g = Ui.divider g.ui (ldp, 0, margin g, -1, playlist_y g - library_y g - margin g) "ext_div_w_u" `Horizontal
-let extension_divider_wh g = Ui.divider2 g.ui (ldp, 0, playlist_y g - library_y g, -1, divider_w g) "ext_div_wh_m" (if extension_left g then `NE_SW else `NW_SE)
 let extension_divider_w_lower g = Ui.divider g.ui (ldp, 0, playlist_y g - library_y g + divider_w g, -1, - margin g) "ext_div_w_l" `Horizontal
-let extension_divider_wh_upper g = Ui.divider2 g.ui (ldp, 0, 0, -1, margin g) "ext_div_wh_t" (if extension_left g then `NW_SE else `NE_SW)
-let extension_divider_wh_lower g = Ui.divider2 g.ui (ldp, 0, - margin g, -1, -1) "ext_div_wh_b" (if extension_left g then `NE_SW else `NW_SE)
+let extension_divider_wh_mid g = Ui.divider2 g.ui (ldp, 0, playlist_y g - library_y g, -1, divider_w g) "ext_div_wh_m" (if extension_left g then `NE_SW else `NW_SE)
+let extension_divider_wh_top g = Ui.divider2 g.ui (ldp, 0, 0, -1, margin g) "ext_div_wh_t" (if extension_left g then `NW_SE else `NE_SW)
+let extension_divider_wh_bot g = Ui.divider2 g.ui (ldp, 0, - margin g, -1, -1) "ext_div_wh_b" (if extension_left g then `NE_SW else `NW_SE)
 
 
 (* Playlist Pane *)
