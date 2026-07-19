@@ -165,17 +165,20 @@ extension_shown_h' (snd(Api.Window.size win)+dh) geo.control_height geo.extensio
   (* Finish drawing *)
   let shift = Api.Key.is_modifier_down `Shift in
   let cmd = Api.Key.is_modifier_down `Command in
-  if Api.Key.(is_pressed (`Command `Left) || is_pressed (`Command `Right)) then
-    geo.control_ratio <- float geo.control_width /. float geo.control_height;
-  let ratio = geo.control_ratio in
+
+  if not cmd then
+    geo.control_ratio <- None
+  else if Api.Key.(is_pressed (`Command `Left) || is_pressed (`Command `Right)) then
+    geo.control_ratio <- Some (float geo.control_width /. float geo.control_height);
+
   let flex_ctl_w = shift || not extension_shown_w' in
   let flex_ctl_h = shift || not extension_shown_h' in
   let flex_ext_w = extension_shown_w' in
   let flex_ext_h = extension_shown_h' in
-  let max_w = Geometry.win_max_w flex_ctl_w flex_ext_w geo in
-  let min_w = min max_w (Geometry.win_min_w flex_ctl_w flex_ext_w geo) in
-  let max_h = Geometry.win_max_h flex_ctl_h flex_ext_h geo in
-  let min_h = min max_h (Geometry.win_min_h flex_ctl_h flex_ext_h geo) in
+  let max_w = Geometry.win_max_w geo flex_ctl_w flex_ext_w in
+  let min_w = min max_w (Geometry.win_min_w geo flex_ctl_w flex_ext_w) in
+  let max_h = Geometry.win_max_h geo flex_ctl_h flex_ext_h in
+  let min_h = min max_h (Geometry.win_min_h geo flex_ctl_h flex_ext_h) in
   Ui.finish geo.ui (Geometry.margin geo) (min_w, min_h) (max_w, max_h)
     (fun (dx, dy, dw, dh) (lft, top, rgt, bot) ->
       (* Window was resized *)
@@ -227,9 +230,10 @@ Geometry.check_geo geo (w', h');
 )
       );
 
-      if cmd then
+      if geo.control_ratio <> None then
       (
         let cw, ch = geo.control_width, geo.control_height in
+let ratio = Option.get geo.control_ratio in
 let ew,eh=geo.extension_width, geo.extension_height in
         let ratio' = float cw /. float ch in
 let (>>) s f = if !App.debug_layout then Printf.printf "  [adapt ctl %s] ratio=%.4f\n%!" s ratio; f(); s in
@@ -306,7 +310,7 @@ cw ch (float cw /. float ch) cw' ch' (float cw' /. float ch') ew eh ew' eh';
         (
           Printf.eprintf
             "  [layout adapt win] ratio=%.4f %d,%d,%d,%d(%.4f) -> %d,%d,%d,%d(%.4f)\n%!"
-            ratio
+            (Option.value geo.control_ratio ~default: (0.0/.0.0))
             x' y' w' h' (float w' /. float h')
             x'' y'' w'' h'' (float w'' /. float h'')
 ;Printf.eprintf "    x'=%d min_x=%d max_x=%d dx'=%d tx'=%d dx''=%d x''=%d\n%!"

@@ -936,26 +936,28 @@ let run_toggle_panel (st : state) =
 
   (* Extension Dividers *)
 
-  if Api.Key.(is_pressed (`Command `Left) || is_pressed (`Command `Right)) then
-    geo.control_ratio <- float geo.control_width /. float geo.control_height;
-
   let shift = Api.Key.is_modifier_down `Shift in
-  let keep_ratio = Api.Key.is_modifier_down `Command in
-  let ctl_ratio = geo.control_ratio in  (* save *)
+  let cmd = Api.Key.is_modifier_down `Command in
+
+  if not cmd then
+    geo.control_ratio <- None
+  else if Api.Key.(is_pressed (`Command `Left) || is_pressed (`Command `Right)) then
+    geo.control_ratio <- Some (float geo.control_width /. float geo.control_height);
+
   let flex_ext_w = Geometry.extension_shown_w geo in
   let flex_ext_h = Geometry.extension_shown_h geo in
   let flex_ctl_w = not flex_ext_w in
   let flex_ctl_h = not flex_ext_h in
-  let win_minw = Geometry.win_min_w flex_ctl_w flex_ext_w geo in
-  let win_maxw = Geometry.win_max_w flex_ctl_w flex_ext_w geo in
-  let win_minh = Geometry.win_min_h flex_ctl_h flex_ext_h geo in
-  let win_maxh = Geometry.win_max_h flex_ctl_h flex_ext_h geo in
+  let win_minw = Geometry.win_min_w geo flex_ctl_w flex_ext_w in
+  let win_maxw = Geometry.win_max_w geo flex_ctl_w flex_ext_w in
+  let win_minh = Geometry.win_min_h geo flex_ctl_h flex_ext_h in
+  let win_maxh = Geometry.win_max_h geo flex_ctl_h flex_ext_h in
   let win_w, win_h = Geometry.win_w geo, Geometry.win_h geo in
   let ctl_w, ctl_h = geo.control_width, geo.control_height in
   let ext_w, ext_h = geo.extension_width, geo.extension_height in
   let ctl_minh, ctl_maxh = Geometry.(control_min_h, control_max_h geo) in
 
-  let ctl_w1', ctl_h1', win_dw, win_dx, act_w1, act_h1, lft, rgt =
+  let ctl_w1', ctl_h1', win_dw, win_dx, lft1, top1, rgt1, bot1 =
     if not (Geometry.extension_shown_h geo) then
       ctl_w, ctl_h, 0, 0, false, false, false, false
     else
@@ -987,15 +989,18 @@ let run_toggle_panel (st : state) =
         0, 0
       in
       let ctl_w1' = if shift then ctl_w + win_dw else ctl_w in
-      let act_wh = act_wh1 || act_wh2 in
+      let flex_w = shift || not (Geometry.extension_shown_w geo) in
       ctl_w1', ctl_h1', win_dw, win_sx * win_dw,
-      act_wh, act_h || act_wh, act_wh1, act_wh2
+      act_wh1 && flex_w,
+      false,
+      act_wh2 && flex_w,
+      act_h || act_wh1 || act_wh2
     )
   in
 
-  let ctl_w', ctl_h', win_dh, win_dy, act_w2, act_h2, top, bot =
+  let ctl_w', ctl_h', win_dh, win_dy, lft, top, rgt, bot =
     if not (Geometry.extension_shown_w geo) then
-      ctl_w1', ctl_h1', 0, 0, false, false, false, false
+      ctl_w1', ctl_h1', 0, 0, lft1, top1, rgt1, bot1
     else
     (
       Layout.extension_divider_w_pane geo;
@@ -1033,9 +1038,12 @@ let run_toggle_panel (st : state) =
       in
       let ctl_h3' = if shift then ctl_h + win_dh else ctl_h in
       let ctl_h' = ctl_h1' + ctl_h2' + ctl_h3' - 2 * ctl_h in
-      let act_wh = act_wh1 || act_wh2 || act_wh3 in
+      let act_w = act_w1 || act_w2 || act_wh1 || act_wh2 || act_wh3 in
       ctl_w', ctl_h', win_dh, win_sy * win_dh,
-      act_w1 || act_w2 || act_wh, act_wh, act_wh2, act_wh3
+      lft1 || act_w && Geometry.extension_left geo,
+      top1 || act_wh2 && shift,
+      rgt1 || act_w && not (Geometry.extension_left geo),
+      bot1 || act_wh1 || act_wh3 && shift
     )
   in
 
@@ -1046,22 +1054,32 @@ let run_toggle_panel (st : state) =
   (
     if ctl_w' <> ctl_w then
       Geometry.set_control_width geo ctl_w';
-    if ctl_h' <> ctl_h then
-      Geometry.set_control_height geo ctl_h';
     if win_dw <> 0 then
       Geometry.change_extension_width geo win_dw;
+    if ctl_h' <> ctl_h then
+      Geometry.set_control_height geo ctl_h';
     if win_dh <> 0 then
       Geometry.change_extension_height geo win_dh;
 
-    let win_dx', win_dy', win_dw', win_dh' =
-      if not keep_ratio (*|| (ctl_w', ctl_h') = (ctl_w, ctl_h)*) then win_delta else
+    let extleft = Geometry.extension_left geo in
+    let is_h_border = top || not (Geometry.extension_shown_h geo)
+    and is_w_border =
+      (lft && not extleft || rgt && extleft) || not (Geometry.extension_shown_w geo)
+    in
+
+    geo.control_ratio |> Option.iter (fun ratio ->
 let _ = if !App.debug_layout then(
 let mx, my = Api.Mouse.pos (Ui.window geo.ui) in
-Printf.eprintf "[adapt division] m=%d,%d/%d,%d ctl=%d,%d(%.4f) -> %d,%d(%.4f) ~ %d,%d(%.4f)\n%!"
-mx my (Geometry.extension_w geo) (Geometry.playlist_y geo)
+Printf.eprintf "[adapt division] m=%d,%d/%d,%d win=%d%+d,%d%+d edge=%d,%d,%d,%d\n%!"
+mx my (Geometry.extension_w geo) (Geometry.playlist_y geo) win_w win_dw win_h win_dh
+(Bool.to_int lft)(Bool.to_int top)(Bool.to_int rgt)(Bool.to_int bot);
+Printf.eprintf "    ctl=%d,%d(%.4f) -> %d,%d(%.4f) ~ %d,%d(%.4f)\n%!"
 ctl_w ctl_h (float ctl_w /. float ctl_h)
 ctl_w' ctl_h' (float ctl_w' /. float ctl_h')
-geo.control_width geo.control_height (float geo.control_width /. float geo.control_height)
+geo.control_width geo.control_height (float geo.control_width /. float geo.control_height);
+Printf.eprintf "    ext=%d,%d -> %d,%d\n%!"
+ext_w ext_h
+geo.extension_width geo.extension_height;
 )in
 (*
   [set_control_height 218] h=218~218 ctl=206->218 ext=461->449
@@ -1082,120 +1100,49 @@ wh_top moves down
 wh_left not tested
 wh_bot cannot shrink
 *)
-      match act_w1 || act_w2, act_h1 || act_h2 with
-      | false, false ->  (* neither pl nor lib open or none active *)
-        win_delta
+      match lft || rgt, top || bot with
+      | false, false -> assert false
       | false, true ->  (* only pl open or h divider *)
 let cw,ch=geo.control_width, geo.control_height in
         Geometry.adapt_control_width geo
 ;let cw',ch'=geo.control_width, geo.control_height in
 if !App.debug_layout then Printf.eprintf "  [adapted ctl w 4] ratio=%.4f %d,%d(%.4f) -> %d,%d(%.4f)\n%!"
-geo.control_ratio cw ch (float cw /. float ch) cw' ch' (float cw' /. float ch');
-        win_delta
+ratio cw ch (float cw /. float ch) cw' ch' (float cw' /. float ch');
       | true, false ->  (* only lib open or w divider *)
 let cw,ch=geo.control_width, geo.control_height in
         Geometry.adapt_control_height geo
 ;let cw',ch'=geo.control_width, geo.control_height in
 if !App.debug_layout then Printf.eprintf "  [adapted ctl h 4] ratio=%.4f %d,%d(%.4f) -> %d,%d(%.4f)\n%!"
-geo.control_ratio cw ch (float cw /. float ch) cw' ch' (float cw' /. float ch');
-        win_delta
+ratio cw ch (float cw /. float ch) cw' ch' (float cw' /. float ch');
       | true, true ->  (* both pl and lib open, w/h divider *)
-        let tweak () =
-          let win = Ui.window geo.ui in
-          let x, y = Api.Window.pos win in
-          let w, h = Api.Window.size win in
-(*
-          let w', h' = w + win_dw, h + win_dh in
-*)
-          let x', y' = x + win_dx, y + win_dy in
-          let tw, th = Geometry.(win_w geo, win_h geo) in
-if !App.debug_layout then
-Printf.eprintf "  [adapt win tweak] win=%d%+d,%d%+d geo=%d,%d\n%!"
-w win_dw h win_dh (Geometry.win_w geo) (Geometry.win_h geo);
-          let min_w, min_h = Geometry.(win_min_w true true geo, win_min_h true true geo) in
-          let max_w, max_h = Geometry.(win_max_w true true geo, win_max_h true true geo) in
-          let w'', h'' = Geometry.(clamp min_w max_w tw, clamp min_h max_h th) in
-          let min_x, min_y = Api.Window.min_pos win in
-          let max_x, max_y =
-            Api.(sub (add (min_x, min_y) (Window.max_size win)) (w'', h'')) in
-          let x'', y'' = Geometry.(clamp min_x max_x x', clamp min_y max_y y') in
-          let dx', dy', dw', dh' = x'' - x, y'' - y, w'' - w, h'' - h in
-assert (w'' = w + dw');
-assert (h'' = h + dh');
-assert (w'' = Geometry.win_w geo + (w'' - tw));
-assert (h'' = Geometry.win_h geo + (h'' - th));
-let cw, ch = geo.control_width, geo.control_height in
-let ew, eh = geo.extension_width, geo.extension_height in
-let eminw, eminh = Geometry.(extension_min_w geo, extension_min_h geo) in
-          Geometry.change_extension_width geo (w'' - tw);
-          Geometry.change_extension_height geo (h'' - th);
-          let tw', th' = Geometry.(win_w geo, win_h geo) in
-assert (w'' = Geometry.win_w geo + (w'' - tw'));
-assert (h'' = Geometry.win_h geo + (h'' - th'));
-          Geometry.change_control_width geo (w'' - tw');
-let ch, eh = geo.control_height, geo.extension_height in
-          Geometry.change_control_height geo (h'' - th');
-Printf.eprintf "ch=%d->%d eh=%d->%d h''=%d th=%d th'=%d h''-th=%d h''-th'=%d\n%!"
-ch geo.control_height eh geo.extension_height h'' th th' (h'' - th) (h'' - th');
-assert (w'' = Geometry.win_w geo);
-assert (h'' = Geometry.win_h geo);
-if !App.debug_layout then
-Printf.eprintf "  [adapt win tweak]\n";
-Printf.eprintf "    win=%d%+d/%d,%d%+d/%d,%d%+d/%d,%d%+d/%d ~ %d%+d,%d%+d,%d%+d,%d%+d\n"
-x win_dx min_x
-y win_dy min_y
-w win_dw (Api.Window.max_size win|>fst)
-h win_dh (Api.Window.max_size win|>snd)
-x dx' y dy'
-w dw' h dh'
-;
-Printf.eprintf "    ctl=%d/%d,%d/%d ~ %d/%d,%d/%d  ext=%d/%d,%d/%d ~ %d/%d,%d/%d\n%!"
-cw Geometry.control_min_w
-ch Geometry.control_min_h
-geo.control_width Geometry.control_min_w
-geo.control_height Geometry.control_min_h
-ew eminw
-eh eminh
-geo.extension_width (Geometry.extension_min_w geo)
-geo.extension_height (Geometry.extension_min_h geo)
-;
-assert (Geometry.win_w geo = w + dw');
-assert (Geometry.win_h geo = h + dh');
-          dx', dy', dw', dh'
-        in
-        let adapt_win_width () =
-          let w' = int_of_float (float geo.control_height *. ctl_ratio) in
-          let dw = w' - geo.control_width in
-          Geometry.change_control_width geo dw;
-          Geometry.adapt_control_height geo;  (* in case change was clamped *)
-          tweak ()
-        and adapt_win_height () =
-          let h' = int_of_float (float geo.control_width /. ctl_ratio) in
-          let dh = h' - geo.control_height in
-          Geometry.change_control_height geo dh;
-          Geometry.adapt_control_width geo;  (* in case change was clamped *)
-          tweak ()
-        in
-        let ctl_ratio' = float geo.control_width /. float geo.control_height in
-        if ctl_ratio' < ctl_ratio then
-          if lft || rgt then
-            adapt_win_width ()
-          else if top || bot then
-            adapt_win_height ()
-          else
-(if !App.debug_layout then Printf.eprintf "  [adapt ctl w 3]\n%!";
-            (Geometry.adapt_control_width geo; win_delta)
+        if is_w_border then
+(if !App.debug_layout then Printf.eprintf "  [adapt ctl w 5]\n%!";
+          Geometry.adapt_control_width geo
+)
+        else if is_h_border then
+(if !App.debug_layout then Printf.eprintf "  [adapt ctl h 5]\n%!";
+          Geometry.adapt_control_height geo
 )
         else
-          if top || bot then
-            adapt_win_height ()
-          else if lft || rgt then
-            adapt_win_width ()
+        (
+          let ratio' = float geo.control_width /. float geo.control_height in
+          if ratio' < ratio then
+(if !App.debug_layout then Printf.eprintf "  [adapt ctl w 3]\n%!";
+            Geometry.adapt_control_width geo
+)
           else
 (if !App.debug_layout then Printf.eprintf "  [adapt ctl h 3]\n%!";
-            (Geometry.adapt_control_height geo; win_delta)
+            Geometry.adapt_control_height geo
 )
-    in
+        )
+    );
+
+    let (win_dx', win_dy'), (win_dw', win_dh') =
+      Geometry.adapt_win geo (win_dx, win_dy) (win_dw, win_dh)
+        (not is_w_border) (not is_h_border) true true in
+if !App.debug_layout then Printf.eprintf "[adapted win] delta = %+d,%+d,%+d,%+d ~ %+d,%+d,%+d,%+d\n%!"
+win_dx win_dy win_dw win_dh
+win_dx' win_dy' win_dw' win_dh';
 
     geo.window <- Geometry.abstract_geo geo;
     let win_x, win_y = Api.Window.pos (Ui.window geo.ui) in
