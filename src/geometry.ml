@@ -399,24 +399,32 @@ let adapt_win geo (dx, dy) (dw, dh) flex_w flex_h flex_ctl flex_ext =
   let x, y = Api.Window.pos win in
   let w, h = Api.Window.size win in
   let x', y' = x + dx, y + dy in
-  let w', h' = win_w geo, win_h geo in  (* target size *)
-let tw, th = w', h' in
-(*
   let w', h' = w + dw, h + dh in
-  let tw, th = win_w geo, win_h geo in  (* target size *)
-*)
+
+  let minx, miny = win_min_x geo, win_min_y geo in
+  let maxx, maxy = win_max_x geo, win_max_y geo in
+  let minw, minh =  (* considers control and extension sizes *)
+    win_min_h geo true true, win_min_h geo true true in
+  let maxw, maxh =
+    win_max_w geo flex_ctl flex_ext, win_max_h geo flex_ctl flex_ext in
 
   (* Clamp *)
-  let minw = if flex_w then win_min_w geo flex_ctl flex_ext else w' in
-  let minh = if flex_h then win_min_h geo flex_ctl flex_ext else h' in
-  let maxw = if flex_w then win_max_w geo flex_ctl flex_ext else w' in
-  let maxh = if flex_h then win_max_h geo flex_ctl flex_ext else h' in
-  let minx = if flex_w then win_min_x geo else x' in
-  let miny = if flex_h then win_min_y geo else y' in
-  let maxx = if flex_w then win_max_x geo - min maxw w' else x' in
-  let maxy = if flex_h then win_max_y geo - min maxh h' else y' in
-  let x'', y'' = clamp minx maxx x', clamp miny maxy y' in
-  let w'', h'' = clamp minw maxw tw, clamp minh maxh th in
+  let minx' = if flex_w then minx else max minx x in
+  let miny' = if flex_h then miny else max miny y in
+  let minw' = if flex_w then minw else max minw w in
+  let minh' = if flex_h then minh else max minh h in
+  let maxw' = if flex_w then maxw else min maxw (w + minx' - minx) in
+  let maxh' = if flex_h then maxh else min maxh (h + miny' - miny) in
+  let maxx' = maxx - minw' in
+  let maxy' = maxy - minh' in
+Printf.printf "x,x'=%d,%d minx,minx'=%d,%d maxx,maxx'=%d,%d\nw,w'=%d,%d minw,minw'=%d,%d maxw,maxw'=%d,%d\n%!" x x' minx minx' maxx maxx' w w' minw minw' maxw maxw';
+Printf.printf "y,y'=%d,%d miny,miny'=%d,%d maxy,maxy'=%d,%d\nh,h'=%d,%d minh,minh'=%d,%d maxh,maxh'=%d,%d\n%!" y y' miny miny' maxy maxy' h h' minh minh' maxh maxh';
+assert (minx' <= maxx');
+assert (miny' <= maxy');
+assert (minw' <= maxw');
+assert (minh' <= maxh');
+  let x'', y'' = clamp minx' maxx' x', clamp miny' maxy' y' in
+  let w'', h'' = clamp minw' maxw' w', clamp minh' maxh' h' in
 
   let dx', dy' = x'' - x, y'' - y in
   let dw', dh' = w'' - w, h'' - h in
@@ -428,11 +436,11 @@ let tw, th = w', h' in
     let ew, eh = geo.extension_width, geo.extension_height in
 assert (w'' = w + dw');
 assert (h'' = h + dh');
-assert (w'' = win_w geo + w'' - tw);
-assert (h'' = win_h geo + h'' - th);
+assert (w'' = win_w geo + w'' - w');
+assert (h'' = win_h geo + h'' - h');
     (* First, try shrinking extension size *)
-    change_extension_width geo (w'' - tw);
-    change_extension_height geo (h'' - th);
+    change_extension_width geo (w'' - w');
+    change_extension_height geo (h'' - h');
     let tw', th' = win_w geo, win_h geo in  (* achieved size after ext shrinking *)
 assert (w'' = win_w geo + (w'' - tw'));
 assert (h'' = win_h geo + (h'' - th'));
@@ -445,7 +453,8 @@ assert (h'' = win_h geo + (h'' - th'));
       let cw', ch' = geo.control_width, geo.control_height in
       let ew', eh' = geo.extension_width, geo.extension_height in
       Printf.eprintf
-        "  [adapt win size] d=%+d,%+d~%+d,%+d win=%d,%d~%d,%d ext=%d,%d~%d,%d ctl=%d,%d~%d,%d\n%!"
+        "  [adapt win %d%d%d%d] d=%+d,%+d~%+d,%+d win=%d,%d~%d,%d ext=%d,%d~%d,%d ctl=%d,%d~%d,%d\n%!"
+        (Bool.to_int flex_w) (Bool.to_int flex_h) (Bool.to_int flex_ctl) (Bool.to_int flex_ext)
         dw dh dw' dh' w' h' w'' h'' ew eh ew' eh' cw ch cw' ch'
     );
   );
