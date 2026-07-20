@@ -17,6 +17,10 @@ val modal : t -> unit
 val nonmodal : t -> unit
 val is_modal : t -> bool
 
+(* Snapping *)
+
+val snap : int -> int -> int -> int
+
 (* Panes *)
 
 type pane = int
@@ -119,7 +123,7 @@ val volume_bar : t -> area -> string -> int -> float -> float
 val scroll_bar : t -> area -> string -> int -> Api.orientation -> float -> float -> float
 
 val divider : t -> area -> string -> Api.orientation -> int -> int -> int -> int * bool
-val divider2 : t -> area -> string -> Api.resize -> size -> size -> size -> size * bool
+val divider2 : t -> area -> string -> Api.resize -> size -> size -> size -> size -> size -> size * bool
 
 
 (* Table *)

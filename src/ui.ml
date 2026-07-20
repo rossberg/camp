@@ -326,12 +326,13 @@ let start ui =
   background ui 0 0 ww wh;
 
   Mouse.set_cursor ui.win `Default;
-  if not (
-    Mouse.is_down `Left || Mouse.is_down `Right ||
-    Mouse.is_released `Left || Mouse.is_released `Right
-  ) then
+  if
+    not (
+      Mouse.is_down `Left || Mouse.is_down `Right ||
+      Mouse.is_released `Left || Mouse.is_released `Right
+    )
+  then
   (
-if ui.drag <> No_drag then Printf.printf "[undrag 1]\n%!";
     ui.drag <- No_drag;
     ui.mouse_owner <- None;
   )
@@ -377,7 +378,6 @@ Printf.eprintf "[finish] repos=%+d,%+d\n%!" (fst ui.repos) (snd ui.repos);
     else if Mouse.is_down `Right || ui.drag = Abort then
     (
       Mouse.set_cursor ui.win `Default;
-Printf.printf "[undrag 2]\n%!";
       ui.drag <- Abort;
       pos', size'
     )
@@ -393,7 +393,6 @@ Printf.printf "[undrag 2]\n%!";
       | No_drag ->
         let cursor = cursor lft top rgt bot in
         Mouse.set_cursor ui.win cursor;
-Printf.printf "[undrag 3]\n%!";
         if cursor = `Point then
           ui.drag <- Move {target = pos'}
         else
@@ -418,7 +417,6 @@ Printf.printf "[undrag 3]\n%!";
         let size' = add size ui.resize in
         let target' = add target ui.repos in
         let wx'', wy'' as target'' = add target' delta in
-Printf.printf "[undrag 5]\n%!";
         ui.drag <- Move {target = target''};
         (snap sx (sx + sw - ww) wx'', snap sy (sy + sh - wh) wy''), size'
 
@@ -623,52 +621,52 @@ let drag_status ui r owner (stepx, stepy) =
   || not (has_mouse ui owner || inside (Mouse.pos ui.win) r && grab_mouse ui owner) then
     `None
   else if Mouse.is_released `Left then
+  (
     if Mouse.is_drag `Left then
       `Drop
     else
       `Click
+  )
   else if Mouse.is_pressed `Right && Mouse.is_drag `Left then
   (
-Printf.printf "[undrag 6]\n%!";
     ui.drag <- Abort;
     `Abort
   )
   else
-  let (mx, my) as m = Mouse.pos ui.win in
-  match ui.drag with
-  | No_drag when grab_mouse ui owner ->
-Printf.printf "[own 7]\n%!";
-Printf.printf "[undrag 7]\n%!";
-    ui.drag <- Drag {pos = m; moved = false; inside = true};
-    `Take
-  | Drag {pos; moved; inside} when has_mouse ui owner ->
-    let dx, dy = sub m pos in
-    let dx' = if stepx = 0 then dx else dx / stepx in
-    let dy' = if stepy = 0 then dy else dy / stepy in
-    let pos = mx - dx mod max 1 stepx, my - dy mod max 1 stepy in
-    let moved' = Mouse.is_drag `Left in
-    let inside' = Api.inside m r in
-Printf.printf "[undrag 8]\n%!";
-    ui.drag <- Drag {pos; moved = moved'; inside = inside'};
-    let motion =
-      match moved, moved' with
-      | true, _ -> `Moved
-      | false, true -> `Moving
-      | false, false -> `Unmoved
-    in
-    let traj =
-      match inside, inside' with
-      | true, true -> `Inside
-      | true, false -> `Outward
-      | false, true -> `Inward
-      | false, false -> `Outside
-    in
-    `Drag ((dx', dy'), motion, traj)
-  | Abort ->
-    `None
-  | _ ->
-    (* Can happen after layout changes that invalidate origin *)
-    unexpected_drag ui "drag_status" owner; `None
+  (
+    let (mx, my) as m = Mouse.pos ui.win in
+    match ui.drag with
+    | No_drag when grab_mouse ui owner ->
+      ui.drag <- Drag {pos = m; moved = false; inside = true};
+      `Take
+    | Drag {pos; moved; inside} when has_mouse ui owner ->
+      let dx, dy = sub m pos in
+      let dx' = if stepx = 0 then dx else dx / stepx in
+      let dy' = if stepy = 0 then dy else dy / stepy in
+      let pos = mx - dx mod max 1 stepx, my - dy mod max 1 stepy in
+      let moved' = Mouse.is_drag `Left in
+      let inside' = Api.inside m r in
+      ui.drag <- Drag {pos; moved = moved'; inside = inside'};
+      let motion =
+        match moved, moved' with
+        | true, _ -> `Moved
+        | false, true -> `Moving
+        | false, false -> `Unmoved
+      in
+      let traj =
+        match inside, inside' with
+        | true, true -> `Inside
+        | true, false -> `Outward
+        | false, true -> `Inward
+        | false, false -> `Outside
+      in
+      `Drag ((dx', dy'), motion, traj)
+    | Abort ->
+      `None
+    | _ ->
+      (* Can happen after layout changes that invalidate origin *)
+      unexpected_drag ui "drag_status" owner; `None
+  )
 
 let wheel_status ui r =
   if not ui.modal && inside (Mouse.pos ui.win) r then
@@ -1031,7 +1029,6 @@ let scroll_bar ui area owner l orient v len =
   let v' =
     if dragging || inside m r then
     (
-Printf.printf "[undrag 9]\n%!";
       ui.drag <- Scroll_bar_drag {value = v0; mx = mx0; my = my0};
       match orient with
       | `Vertical -> v0 +. float (my - my0) /. float (h - 2)
@@ -1039,7 +1036,6 @@ Printf.printf "[undrag 9]\n%!";
     )
     else if now -. last_repeat > 0.3 (* TODO: use config *) then
     (
-Printf.printf "[undrag 10]\n%!";
       ui.drag <- Scroll_bar_page {last_repeat = now};
       match orient with
       | `Vertical ->
@@ -1065,7 +1061,7 @@ let _ =
     | Divide _ -> "Divide"
     | drag -> f' drag
 
-let divider2 ui area owner cursor (vx, vy) (minx, miny) (maxx, maxy) =
+let divider2 ui area owner cursor (vx, vy) (minx, miny) (maxx, maxy) (snapx1, snapy1) (snapx2, snapy2) =
   let (x, y, w, h), status = widget ui area (Some owner) no_modkey in
   if not (has_mouse ui owner) then (vx, vy), false else
   let mouse = Mouse.pos ui.win in
@@ -1083,14 +1079,21 @@ let divider2 ui area owner cursor (vx, vy) (minx, miny) (maxx, maxy) =
   let _, _, pw, ph = snd ui.panes.(i) in
   let maxx = if maxx < 0 then pw else maxx in
   let maxy = if maxy < 0 then ph else maxy in
-  (clamp minx maxx vx', clamp miny maxy vy'), true
+  let snapx1 = if snapx1 < 0 then min_int else snapx1 in
+  let snapy1 = if snapy1 < 0 then min_int else snapy1 in
+  let snapx2 = if snapx2 < 0 then max_int else snapx2 in
+  let snapy2 = if snapy2 < 0 then max_int else snapy2 in
+  ( snap snapx1 snapx2 (clamp minx maxx vx'),
+    snap snapy1 snapy2 (clamp miny maxy vy')
+  ), true
 
 let divider ui area owner orient v minv maxv =
   let x, y, _, _ = dim ui area in
   let proj = match orient with `Horizontal -> fst | `Vertical -> snd in
   let inj v = match orient with `Horizontal -> v, y | `Vertical -> x, v in
   let cursor = match orient with `Horizontal -> `E_W | `Vertical -> `N_S in
-  let vv, b = divider2 ui area owner cursor (inj v) (inj minv) (inj maxv) in
+  let vv, b =
+    divider2 ui area owner cursor (inj v) (inj minv) (inj maxv) (-1, -1) (-1, -1) in
   proj vv, b
 
 
@@ -1539,16 +1542,13 @@ let header ui area owner ph gw cols (titles, sorting) hscroll =
     | `Gutter col ->
       Mouse.set_cursor ui.win (`Resize `E_W);
       if status = `Pressed then
-(Printf.printf "[undrag 20]\n%!";
         ui.drag <- Header_resize {mouse_x = mx; col};
-);
       `None
     | `Header col ->
       if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
         `Menu (Some col)
       else if status = `Pressed then
       (
-Printf.printf "[undrag 21]\n%!";
         ui.drag <- Header_reorder {mouse_x = mx; col; moved = false};
         `None
       )
@@ -1564,7 +1564,6 @@ Printf.printf "[undrag 21]\n%!";
     ws.(i) <- max 0 (ws.(i) + dx);
     if i + 1 < len && (fst (Iarray.get cols i) < 0 || is_shift_down ()) then
       ws.(i + 1) <- max 0 (ws.(i + 1) - dx);
-Printf.printf "[undrag 22]\n%!";
     ui.drag <- Header_resize {mouse_x = mx; col = i};
     `Resize (Iarray.of_array ws)
 
@@ -1573,7 +1572,6 @@ Printf.printf "[undrag 22]\n%!";
     let dx = mx - mouse_x in
     if dx = 0 then `None else
     let _ = ui.drag <- Header_reorder {mouse_x; col = i; moved = true} in
-Printf.printf "[undrag 23]\n%!";
     (match find_gutter cols mx with
     | `None | `Gutter _ -> `None
     | `Header j ->
@@ -1590,7 +1588,6 @@ Printf.printf "[undrag 23]\n%!";
       (* Ignore change if new position is not stable. *)
       match find_gutter cols' mx with
       | `Header k when k = j ->
-Printf.printf "[undrag 24]\n%!";
         ui.drag <- Header_reorder {mouse_x = mx; col = j; moved = true};
         `Reorder perm
       | _ -> `None

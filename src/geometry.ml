@@ -272,7 +272,7 @@ let ok geo =
 (* Divider Modifications *)
 
 let clamp min max v =
-  assert (min <= max);
+  (*assert (min <= max);*)
   if v > max then max else
   if v < min then min else
   v
@@ -394,72 +394,124 @@ let adapt_win_pos geo (dx, dy) (dw, dh) (*lft top rgt bot*) =
   let x', y' = clamp minx maxx (x + dx), clamp miny maxy (y + dy) in
   x' - x, y' - y
 
-let adapt_win geo (dx, dy) (dw, dh) flex_w flex_h flex_ctl flex_ext =
+let change_win geo dx dy dw dh dcw dch dew deh flexl flext flexr flexb flexc flexe =
   let win = Ui.window geo.ui in
   let x, y = Api.Window.pos win in
   let w, h = Api.Window.size win in
+  let cw, ch = geo.control_width, geo.control_height in
+  let ew, eh = geo.extension_width, geo.extension_height in
+  let shownw, shownh = extension_shown_w geo, extension_shown_h geo in
   let x', y' = x + dx, y + dy in
   let w', h' = w + dw, h + dh in
+  let cw', ch' = cw + dcw, ch + dch in
+  let ew', eh' = ew + dew, eh + deh in
 
-  let minx, miny = win_min_x geo, win_min_y geo in
+  if !App.debug_layout then
+  (
+    Printf.eprintf
+      "  [adapt win] flex_edge=%b,%b,%b,%b flex_div=%b,%b\n%!"
+      flexl flext flexr flexb flexc flexe;
+    Printf.eprintf
+      "    win=%d%+d,%d%+d,%d%+d,%d%+d "
+      x dx y dy w dw h dh;
+    Printf.eprintf
+      "  ctl=%d%+d,%d%+d "
+      cw dcw ch dch;
+    Printf.eprintf
+      "  ext=%d%+d,%d%+d\n%!"
+      ew dew eh deh;
+  );
+
+  assert (w = cw + if shownw then ew else 0);
+  assert (h = ch + if shownh then eh else 0);
+  assert (w' = cw' + if shownw then ew' else 0);
+  assert (h' = ch' + if shownh then eh' else 0);
+  assert (flexc || dcw = 0);
+  assert (flexe || deh = 0);
+
+  (* Clamp window *)
+  let minw, minh = win_min_h geo flexc flexe, win_min_h geo flexc flexe in
+  let maxw, maxh = win_max_w geo flexc flexe, win_max_h geo flexc flexe in
+  let minx, miny = -maxw, win_min_y geo in  (* cannot move to negative y coords *)
   let maxx, maxy = win_max_x geo, win_max_y geo in
-  let minw, minh =  (* considers control and extension sizes *)
-    win_min_h geo true true, win_min_h geo true true in
-  let maxw, maxh =
-    win_max_w geo flex_ctl flex_ext, win_max_h geo flex_ctl flex_ext in
 
-  (* Clamp *)
-  let minx' = if flex_w then minx else max minx x in
-  let miny' = if flex_h then miny else max miny y in
-  let minw' = if flex_w then minw else max minw w in
-  let minh' = if flex_h then minh else max minh h in
-  let maxw' = if flex_w then maxw else min maxw (w + minx' - minx) in
-  let maxh' = if flex_h then maxh else min maxh (h + miny' - miny) in
-  let maxx' = maxx - minw' in
-  let maxy' = maxy - minh' in
-Printf.printf "x,x'=%d,%d minx,minx'=%d,%d maxx,maxx'=%d,%d\nw,w'=%d,%d minw,minw'=%d,%d maxw,maxw'=%d,%d\n%!" x x' minx minx' maxx maxx' w w' minw minw' maxw maxw';
-Printf.printf "y,y'=%d,%d miny,miny'=%d,%d maxy,maxy'=%d,%d\nh,h'=%d,%d minh,minh'=%d,%d maxh,maxh'=%d,%d\n%!" y y' miny miny' maxy maxy' h h' minh minh' maxh maxh';
-assert (minx' <= maxx');
-assert (miny' <= maxy');
-assert (minw' <= maxw');
-assert (minh' <= maxh');
+  let minx' = if flexl then minx else max minx x' in
+  let miny' = if flext then miny else max miny y' in
+  let minw' = if flexl || flexr then minw else max minw w' in
+  let minh' = if flext || flexb then minh else max minh h' in
+  let maxw' = if flexl || flexr then maxw else min maxw w' in
+  let maxh' = if flext || flexb then maxh else min maxh h' in
+  let maxx' = if flexl then maxx - minw else min (maxx - minw) x' in
+  let maxy' = if flext then maxy - minh else min (maxy - minh) y' in
+Printf.eprintf "    x=%d~%d minx=%d~%d maxx=%d~%d\n    w=%d~%d minw=%d~%d maxw=%d~%d\n%!"
+x x' minx minx' maxx maxx' w w' minw minw' maxw maxw';
+Printf.eprintf "    y=%d~%d miny=%d~%d maxy=%d~%d\n    h=%d~%d minh=%d~%d maxh=%d~%d\n%!"
+y y' miny miny' maxy maxy' h h' minh minh' maxh maxh';
+
+  assert (minx' <= maxx');
+  assert (miny' <= maxy');
+  assert (minw' <= maxw');
+  assert (minh' <= maxh');
+
   let x'', y'' = clamp minx' maxx' x', clamp miny' maxy' y' in
   let w'', h'' = clamp minw' maxw' w', clamp minh' maxh' h' in
 
   let dx', dy' = x'' - x, y'' - y in
-  let dw', dh' = w'' - w, h'' - h in
+  let dw', dh' = w'' - w + dx - dx', h'' - h + dy - dy' in
+  let dew' = if flexe && shownw then dew + dw' - dw else dew in
+  let deh' = if flexe && shownh then deh + dh' - dh else deh in
+  let dcw' = if flexc && not (flexe && shownw) then dcw + dw' - dw else dcw in
+  let dch' = if flexc && not (flexe && shownh) then dch + dh' - dh else dch in
 
-  if (dx', dy', dw', dh') <> (dx, dy, dw, dh) then
+  let cw'', ch'' = cw + dcw', ch + dch' in
+  let ew'', eh'' = ew + dew', eh + deh' in
+
+  (* Clamp dividers *)
+  let mincw = control_min_w in
+  let minch = control_min_h in
+  let minew = extension_min_w geo in
+  let mineh = extension_min_h geo in
+  let maxcw = w'' - (if shownw then minew else 0) in
+  let maxch = h'' - (if shownh then mineh else 0) in
+  let maxew = (if shownw then w'' else maxw) - mincw in
+  let maxeh = (if shownh then h'' else maxh) - minch in
+Printf.printf "    cw=%d~%d~%d mincw=%d maxcw=%d\n    ew=%d~%d~%d minew=%d maxew=%d\n%!"
+cw cw' cw'' mincw maxcw ew ew' ew'' minew maxew;
+Printf.printf "    ch=%d~%d~%d minch=%d maxch=%d\n    eh=%d~%d~%d mineh=%d maxeh=%d\n%!"
+ch ch' ch'' minch maxch eh eh' eh'' mineh maxeh;
+assert (mincw <= maxcw);
+assert (minch <= maxch);
+assert (minew <= maxew);
+assert (mineh <= maxeh);
+
+  let cw''', ch''' = clamp mincw maxcw cw'', clamp minch maxch ch'' in
+  let ew''', eh''' = clamp minew maxew ew'', clamp mineh maxeh eh'' in
+
+  let dcw'', dch'' = cw''' - cw, ch''' - ch in
+  let dew'', deh'' = ew''' - ew, eh''' - eh in
+
+  if !App.debug_layout then
   (
-    (* Window too large *)
-    let cw, ch = geo.control_width, geo.control_height in
-    let ew, eh = geo.extension_width, geo.extension_height in
-assert (w'' = w + dw');
-assert (h'' = h + dh');
-assert (w'' = win_w geo + w'' - w');
-assert (h'' = win_h geo + h'' - h');
-    (* First, try shrinking extension size *)
-    change_extension_width geo (w'' - w');
-    change_extension_height geo (h'' - h');
-    let tw', th' = win_w geo, win_h geo in  (* achieved size after ext shrinking *)
-assert (w'' = win_w geo + (w'' - tw'));
-assert (h'' = win_h geo + (h'' - th'));
-    (* Second, shrink control size *)
-    (* TODO: no attempt is made to preserve ratio *)
-    change_control_width geo (w'' - tw');
-    change_control_height geo (h'' - th');
-    if !App.debug_layout then
-    (
-      let cw', ch' = geo.control_width, geo.control_height in
-      let ew', eh' = geo.extension_width, geo.extension_height in
-      Printf.eprintf
-        "  [adapt win %d%d%d%d] d=%+d,%+d~%+d,%+d win=%d,%d~%d,%d ext=%d,%d~%d,%d ctl=%d,%d~%d,%d\n%!"
-        (Bool.to_int flex_w) (Bool.to_int flex_h) (Bool.to_int flex_ctl) (Bool.to_int flex_ext)
-        dw dh dw' dh' w' h' w'' h'' ew eh ew' eh' cw ch cw' ch'
-    );
+    Printf.eprintf
+      "  [adapted win] flex_edge=%b,%b,%b,%b flex_div=%b,%b\n%!"
+      flexl flext flexr flexb flexc flexe;
+    Printf.eprintf
+      "    win = %d%+d~%+d(%d,%d), %d%+d~%+d(%d,%d), %d%+d~%+d(%d,%d), %d%+d~%+d(%d,%d)\n%!"
+      x dx dx' minx' maxx' y dy dy' miny' maxy' w dw dw' minw' maxw' h dh dh' minh' maxh';
+    Printf.eprintf
+      "    ctl = %d%+d~%+d(%d,%d), %d%+d~%+d(%d,%d)\n%!"
+      cw dcw dcw'' mincw maxcw ch dch dch'' minch maxch;
+    Printf.eprintf
+      "    ext = %d%+d~%+d(%d,%d), %d%+d~%+d(%d,%d)\n%!"
+      ew dew dew'' minew maxew eh deh deh'' mineh maxeh;
   );
 
-  (dx', dy'), (dw', dh')
+  geo.control_width <- geo.control_width + dcw'';
+  geo.control_height <- geo.control_height + dch'';
+  geo.extension_width <- geo.extension_width + dew'';
+  geo.extension_height <- geo.extension_height + deh'';
+
+  (dx', dy', dw', dh')
 
 (*
 let adapt_win g (dx, dy) (dw, dh) flex_ctl flex_ext lft top rgt bot =
