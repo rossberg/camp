@@ -291,6 +291,7 @@ assert false;
   )
 
 
+(*
 (* Set control/extension w/h to (clamped) value, adjust the inverse if open. *)
 let set_control_width geo w =
   let w' = max w control_min_w in
@@ -377,24 +378,10 @@ and adapt_control_height geo =
       adapt_control_width geo
 *)
   ) geo.control_ratio
-
-
-let adapt_win_pos geo (dx, dy) (dw, dh) (*lft top rgt bot*) =
-  let win = Ui.window geo.ui in
-  let x, y = Api.add (Api.Window.pos win) (dx, dy) in
-  let w, h = Api.add (Api.Window.size win) (dw, dh) in
-  let minx, miny = win_min_x geo, win_min_y geo in
-  let maxx, maxy = win_max_x geo - w, win_max_y geo - h in
-(*
-  let minx = if lft then min_int else win_min_x geo in
-  let miny = if top then min_int else win_min_y geo in
-  let maxx = if rgt then max_int else win_max_x geo - w in
-  let maxy = if bot then max_int else win_max_y geo - h in
 *)
-  let x', y' = clamp minx maxx (x + dx), clamp miny maxy (y + dy) in
-  x' - x, y' - y
 
-let change_win geo dx dy dw dh dcw dch dew deh flexl flext flexr flexb flexc flexe =
+
+let change_geo geo dx dy dw dh dcw dch dew deh flexl flext flexr flexb flexcw flexch flexew flexeh =
   let win = Ui.window geo.ui in
   let x, y = Api.Window.pos win in
   let w, h = Api.Window.size win in
@@ -409,8 +396,8 @@ let change_win geo dx dy dw dh dcw dch dew deh flexl flext flexr flexb flexc fle
   if !App.debug_layout then
   (
     Printf.eprintf
-      "  [adapt win] flex_edge=%b,%b,%b,%b flex_div=%b,%b\n%!"
-      flexl flext flexr flexb flexc flexe;
+      "  [change geo] flex_edge=%b,%b,%b,%b flex_ctl=%b,%b flex_ext=%b,%b\n%!"
+      flexl flext flexr flexb flexcw flexch flexew flexeh;
     Printf.eprintf
       "    win=%d%+d,%d%+d,%d%+d,%d%+d "
       x dx y dy w dw h dh;
@@ -426,12 +413,16 @@ let change_win geo dx dy dw dh dcw dch dew deh flexl flext flexr flexb flexc fle
   assert (h = ch + if shownh then eh else 0);
   assert (w' = cw' + if shownw then ew' else 0);
   assert (h' = ch' + if shownh then eh' else 0);
-  assert (flexc || dcw = 0);
-  assert (flexe || deh = 0);
+  assert (flexcw || dcw = 0);
+  assert (flexch || dch = 0);
+  assert (flexew || dew = 0);
+  assert (flexeh || deh = 0);
+  assert (flexcw || flexew);
+  assert (flexch || flexeh);
 
   (* Clamp window *)
-  let minw, minh = win_min_h geo flexc flexe, win_min_h geo flexc flexe in
-  let maxw, maxh = win_max_w geo flexc flexe, win_max_h geo flexc flexe in
+  let minw, minh = win_min_h geo flexcw flexew, win_min_h geo flexcw flexew in
+  let maxw, maxh = win_max_w geo flexch flexeh, win_max_h geo flexch flexeh in
   let minx, miny = -maxw, win_min_y geo in  (* cannot move to negative y coords *)
   let maxx, maxy = win_max_x geo, win_max_y geo in
 
@@ -458,10 +449,10 @@ y y' miny miny' maxy maxy' h h' minh minh' maxh maxh';
 
   let dx', dy' = x'' - x, y'' - y in
   let dw', dh' = w'' - w + dx - dx', h'' - h + dy - dy' in
-  let dew' = if flexe && shownw then dew + dw' - dw else dew in
-  let deh' = if flexe && shownh then deh + dh' - dh else deh in
-  let dcw' = if flexc && not (flexe && shownw) then dcw + dw' - dw else dcw in
-  let dch' = if flexc && not (flexe && shownh) then dch + dh' - dh else dch in
+  let dew' = if flexew && shownw then dew + dw' - dw else dew in
+  let deh' = if flexeh && shownh then deh + dh' - dh else deh in
+  let dcw' = if flexcw && not (flexew && shownw) then dcw + dw' - dw else dcw in
+  let dch' = if flexch && not (flexeh && shownh) then dch + dh' - dh else dch in
 
   let cw'', ch'' = cw + dcw', ch + dch' in
   let ew'', eh'' = ew + dew', eh + deh' in
@@ -493,8 +484,8 @@ assert (mineh <= maxeh);
   if !App.debug_layout then
   (
     Printf.eprintf
-      "  [adapted win] flex_edge=%b,%b,%b,%b flex_div=%b,%b\n%!"
-      flexl flext flexr flexb flexc flexe;
+      "  [changed geo] flex_edge=%b,%b,%b,%b flex_ctl=%b,%b flex_ext=%b,%b\n%!"
+      flexl flext flexr flexb flexcw flexch flexew flexeh;
     Printf.eprintf
       "    win = %d%+d~%+d(%d,%d), %d%+d~%+d(%d,%d), %d%+d~%+d(%d,%d), %d%+d~%+d(%d,%d)\n%!"
       x dx dx' minx' maxx' y dy dy' miny' maxy' w dw dw' minw' maxw' h dh dh' minh' maxh';
@@ -512,44 +503,6 @@ assert (mineh <= maxeh);
   geo.extension_height <- geo.extension_height + deh'';
 
   (dx', dy', dw', dh')
-
-(*
-let adapt_win g (dx, dy) (dw, dh) flex_ctl flex_ext lft top rgt bot =
-  if dx = 0 && dy = 0 && dw = 0 && dh = 0 then (dx, dy), (dw, dh) else
-  let win = Ui.window g.ui in
-  let x', y' = Api.add (Api.Window.pos win) (dx, dy) in
-  let w', h' = Api.add (Api.Window.size win) (dw, dh) in
-  assert (w' = win_w g && h' = win_h g);
-
-  let min_x, min_y = Api.Window.min_pos win in
-  let min_w, min_h = win_min_w flex_ctl flex_ext g, win_min_h flex_ctl flex_ext g in
-  let max_w, max_h = Api.Window.max_size win in
-  let w'', h'' = clamp min_w max_w w', clamp min_h max_h h' in
-  let dw', dh' = w'' - w', h'' - h' in
-
-  let max_x, max_y = win_max_x g - w'', win_max_y g - h'' in
-  let ax, ay, _, _ = g.window in
-  let dpos lo hi a d =
-    if lo then -d else if hi then 0 else
-    if a < 1.0 then 0 else -d
-  in
-  let dx', dy' = dpos lft rgt ax dw', dpos top bot ay dh' in
-  let tx', ty' = clamp min_x max_x (x' + dx'), clamp min_y max_y (y' + dy') in
-  let dx'', dy'' = dpos lft rgt ax (x' - tx'), dpos top bot ay (y' - ty') in
-  let x'', y'' = x' + dx'', y' + dy'' in
-  if !App.debug_layout then
-  (
-    Printf.eprintf "  [tweak_win] %d,%d,%d,%d ~ %d,%d,%d,%d\n%!"
-      x' y' w' h' x'' y'' w'' h''
-;Printf.eprintf "    x'=%d min_x=%d max_x=%d dx'=%d tx'=%d dx''=%d x''=%d\n%!"
-x' min_x max_x dx' tx' dx'' x'';
-Printf.eprintf "    y'=%d min_y=%d max_y=%d dy'=%d ty'=%d dy''=%d y''=%d\n%!"
-y' min_y max_y dy' ty' dy'' y'';
-Printf.eprintf "    win=%d,%d ctl=%d,%d ext=%d,%d\n%!"
-w'' h'' g.control_width g.control_height g.extension_width g.extension_height;
-  );
-  (dx'', dy''), (dw', dh')
-*)
 
 
 (* Resolution-independent Window Geometry *)

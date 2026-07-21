@@ -1141,11 +1141,11 @@ wh_bot cannot shrink
 
     let edge = wlft || wtop || wrgt || wbot in
     let win_dx', win_dy', win_dw', win_dh' =
-      Geometry.change_win geo win_dx win_dy win_dw win_dh
+      Geometry.change_geo geo win_dx win_dy win_dw win_dh
         ctl_dw ctl_dh ext_dw ext_dh
         (edge && not wrgt) (edge && not wbot)
         (edge && not wlft) (edge && not wtop)
-        true true
+        flex_ctl_w flex_ctl_h flex_ext_w flex_ext_h
     in
 if !App.debug_layout then Printf.eprintf "[adapted win] delta = %+d,%+d,%+d,%+d ~ %+d,%+d,%+d,%+d\n%!"
 win_dx win_dy win_dw win_dh
