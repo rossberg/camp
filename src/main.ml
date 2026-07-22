@@ -206,16 +206,9 @@ extension_shown_h' (snd(Api.Window.size win)+dh) geo.control_height geo.extensio
         | Some ratio ->
           let adapt_w () = int_of_float (float ch' *. ratio), ch' in
           let adapt_h () = cw', int_of_float (float cw' /. ratio) in
-          match flex_ext_w, flex_ext_h with
-          | false, true -> adapt_h ()
-          | true, false -> adapt_w ()
-          | _, _ ->
-            if not (lft || rgt) then adapt_w () else
-            if not (top || bot) then adapt_h () else
-            if float cw' /. float ch' < ratio then
-              adapt_w ()
-            else
-              adapt_h ()
+          if not (lft || rgt) then adapt_w () else
+          if not (top || bot) then adapt_h () else
+          if float cw' /. float ch' < ratio then adapt_w () else adapt_h ()
       in
 
       let ax, ay, _, _ = geo.window in
@@ -224,18 +217,17 @@ extension_shown_h' (snd(Api.Window.size win)+dh) geo.control_height geo.extensio
         if a < 1.0 then 0 else -1
       in
       let dcw, dch = cw'' - cw, ch'' - ch in
-      let dew, dw', dx' =
-        if flex_ext_w then dw - dcw, dw, dx else
-        0, dcw, dx + sign lft rgt ax * (cw'' - cw')
-      and deh, dh', dy' =
-        if flex_ext_h then dh - dch, dh, dx else
-        0, dch, dy + sign top bot ay * (ch'' - ch')
+      let dx', dw' =
+        if not flex_ctl_w then dx, dw else
+        dx + sign lft rgt ax * (cw'' - cw'), dcw
+      and dy', dh' =
+        if not flex_ctl_h then dy, dh else
+        dy + sign top bot ay * (ch'' - ch'), dch
       in
 
       let dx'', dy'', dw'', dh'' =
-        Geometry.change_geo geo dx' dy' dw' dh' dcw dch dew deh
-          (not rgt) (not bot) (not lft) (not top)
-          flex_ctl_w flex_ctl_h flex_ext_w flex_ext_h
+        Geometry.change_geo geo dx' dy' dw' dh' dcw dch
+          (not rgt) (not bot) (not lft) (not top) flex_ctl_w flex_ctl_h
       in
       Ui.resize geo.ui (dx'' - dx, dy'' - dy) (dw'' - dw, dh'' - dh);
 

@@ -946,8 +946,8 @@ let run_toggle_panel (st : state) =
 
   let flex_ext_w = Geometry.extension_shown_w geo in
   let flex_ext_h = Geometry.extension_shown_h geo in
-  let flex_ctl_w = not flex_ext_w in
-  let flex_ctl_h = not flex_ext_h in
+  let flex_ctl_w = shift || not flex_ext_w in
+  let flex_ctl_h = shift || not flex_ext_h in
   let win_minw = Geometry.win_min_w geo flex_ctl_w flex_ext_w in
   let win_maxw = Geometry.win_max_w geo flex_ctl_w flex_ext_w in
   let win_minh = Geometry.win_min_h geo flex_ctl_h flex_ext_h in
@@ -967,60 +967,50 @@ let run_toggle_panel (st : state) =
   assert (win_h = Geometry.win_h geo);
 
   let ctl_w1', ctl_h1', win_dw, win_dx,
-    clft1, ctop1, crgt1, cbot1, wlft, wrgt, ver_div =
+    clft1, ctop1, crgt1, cbot1, wlft, wrgt =
     if not (Geometry.extension_shown_h geo) then
-      ctl_w, ctl_h, 0, 0, false, false, false, false, false, false, false
+      ctl_w, ctl_h, 0, 0, false, false, false, false, false, false
     else
     (
       Layout.extension_divider_h_pane geo;
 
-      let ctl_h11', act_h1 =
+      let ctl_midh', mid =
         Layout.extension_divider_h geo ctl_h ctl_minh ctl_maxh in
-      let win_w_l = win_maxw - win_w in
-      let (win_w_l', ctl_h12'), act_wh1 =
+      let win_lftw = win_maxw - win_w in
+      let (win_lftw', ctl_lfth'), lft =
         if Geometry.(extension_shown_w geo && extension_left geo) then
-          (win_w_l, ctl_h), false
+          (win_lftw, ctl_h), false
         else
-          Layout.extension_divider_wh_left geo (win_w_l, ctl_h)
+          Layout.extension_divider_wh_left geo (win_lftw, ctl_h)
             (win_maxw - win_maxw, ctl_minh) (win_maxw - win_minw, ctl_maxh)
             (win_maxw - win_w - win_x + scr_x, -1) (-1, -1)
       in
-      let win_w_r = win_w in
-      let (win_w_r', ctl_h13'), act_wh2 =
+      let win_rgtw = win_w in
+      let (win_rgtw', ctl_rgth'), rgt =
         if Geometry.(extension_shown_w geo && not (extension_left geo)) then
-          (win_w_r, ctl_h), false
+          (win_rgtw, ctl_h), false
         else
-          Layout.extension_divider_wh_right geo (win_w_r, ctl_h)
+          Layout.extension_divider_wh_right geo (win_rgtw, ctl_h)
             (win_minw, ctl_minh) (win_maxw, ctl_maxh)
             (-1, -1) (scr_w + scr_x - win_x, -1)
       in
-      let ctl_h1' = ctl_h11' + ctl_h12' + ctl_h13' - 2 * ctl_h in
+
       let win_dw, win_sx =
-        if win_w_l' <> win_w_l then win_w_l - win_w_l', -1 else
-        if win_w_r' <> win_w_r then win_w_r' - win_w_r, 0 else
+        if win_lftw' <> win_lftw then win_lftw - win_lftw', -1 else
+        if win_rgtw' <> win_rgtw then win_rgtw' - win_rgtw, 0 else
         0, 0
       in
-      let ctl_w1' =
-        if shift || not (Geometry.extension_shown_w geo) then
-          ctl_w + win_dw
-        else ctl_w
-      in
-      let flex_w = shift || not (Geometry.extension_shown_w geo) in
-      let act_h = act_h1 || act_wh1 || act_wh2 in
+      let ctl_w1' = if flex_ctl_w then ctl_w + win_dw else ctl_w in
+      let ctl_h1' = ctl_lfth' + ctl_midh' + ctl_rgth' - 2 * ctl_h in
       ctl_w1', ctl_h1', win_dw, win_sx * win_dw,
-      act_wh1 && flex_w,
-      false,
-      act_wh2 && flex_w,
-      act_h,
-      act_wh1 && Geometry.(not (extension_shown_w geo && extension_left geo)),
-      act_wh2 && Geometry.(not (extension_shown_w geo) || extension_left geo),
-      act_h
+      lft && flex_ctl_w, false, rgt && flex_ctl_w, lft || mid || rgt,
+      lft, rgt
     )
   in
 
-  let ctl_w', ctl_h', win_dh, win_dy, clft, ctop, crgt, cbot, wtop, wbot, hor_div =
+  let ctl_w', ctl_h', win_dh, win_dy, clft, ctop, crgt, cbot, wtop, wbot =
     if not (Geometry.extension_shown_w geo) then
-      ctl_w1', ctl_h1', 0, 0, clft1, ctop1, crgt1, cbot1, false, false, false
+      ctl_w1', ctl_h1', 0, 0, clft1, ctop1, crgt1, cbot1, false, false
     else
     (
       Layout.extension_divider_w_pane geo;
@@ -1031,49 +1021,55 @@ let run_toggle_panel (st : state) =
         else Geometry.(ctl_w, control_min_w, control_max_w geo)
       in
 
-      let w1', act_w1 = Layout.extension_divider_w_upper geo w minw maxw in
-      let w2', act_w2 = Layout.extension_divider_w_lower geo w minw maxw in
-      let (w3', ctl_h2'), act_wh1 =
+      let uppw', upp = Layout.extension_divider_w_upper geo w minw maxw in
+      let loww', low = Layout.extension_divider_w_lower geo w minw maxw in
+      let (midw', ctl_midh'), mid =
         Layout.extension_divider_wh_mid geo (w, ctl_h)
           (minw, ctl_minh) (maxw, ctl_maxh) (-1, -1) (-1, -1)
       in
-      let win_h_u = win_maxh - win_h in
-      let (w4', win_h_u'), act_wh2 =
-        Layout.extension_divider_wh_top geo (w, win_h_u)
+      let win_toph = win_maxh - win_h in
+      let (topw', win_toph'), top =
+        Layout.extension_divider_wh_top geo (w, win_toph)
           (minw, win_maxh - win_maxh) (maxw, win_maxh - win_minh)
           (-1, win_maxh - win_h - win_y + scr_y) (-1, -1)
       in
-      let win_h_l = win_h in
-      let (w5', win_h_l'), act_wh3 =
-        Layout.extension_divider_wh_bot geo (w, win_h_l)
+      let win_both = win_h in
+      let (botw', win_both'), bot =
+        Layout.extension_divider_wh_bot geo (w, win_both)
           (minw, win_minh) (maxw, win_maxh)
           (-1, -1) (-1, scr_h + scr_y - win_y)
       in
 
       let win_dh, win_sy =
-        if win_h_u' <> win_h_u then win_h_u - win_h_u', -1 else
-        if win_h_l' <> win_h_l then win_h_l' - win_h_l, 0 else
+        if win_toph' <> win_toph then win_toph - win_toph', -1 else
+        if win_both' <> win_both then win_both' - win_both, 0 else
         0, 0
       in
-      let w' = w1' + w2' + w3' + w4' + w5' - 4 * w in
+
+      let w' = topw' + uppw' + midw' + loww' + botw' - 4 * w in
       let ctl_dw2' = if Geometry.extension_left geo then w - w' else w' - w in
       let ctl_w' = ctl_w1' + ctl_dw2' in
-      let ctl_h3' = if shift then ctl_h + win_dh else ctl_h in
-      let ctl_h' = ctl_h1' + ctl_h2' + ctl_h3' - 2 * ctl_h in
-      let act_w = act_w1 || act_w2 || act_wh1 || act_wh2 || act_wh3 in
+      let ctl_both' = if flex_ctl_h then ctl_h + win_dh else ctl_h in
+      let ctl_h' = ctl_h1' + ctl_midh' + ctl_both' - 2 * ctl_h in
+      let ver = top || upp || mid || low || bot in
       ctl_w', ctl_h', win_dh, win_sy * win_dh,
-      clft1 || act_w && Geometry.extension_left geo,
-      ctop1 || act_wh2 && shift,
-      crgt1 || act_w && not (Geometry.extension_left geo),
-      cbot1 || act_wh1 || act_wh3 && shift,
-      act_wh2,
-      act_wh3,
-      act_w
+      clft1 || ver && Geometry.extension_left geo,
+      ctop1 || top && flex_ctl_h,
+      crgt1 || ver && not (Geometry.extension_left geo),
+      cbot1 || mid || bot && flex_ctl_h,
+      top, bot
     )
   in
 
-  let win_delta = win_dx, win_dy, win_dw, win_dh in
-  if (ctl_w', ctl_h') = (ctl_w, ctl_h) && win_delta = (0, 0, 0, 0) then
+  assert (clft || crgt || ctl_w' = ctl_w);
+  assert (ctop || cbot || ctl_h' = ctl_h);
+  assert (wlft || wrgt || win_dw = 0);
+  assert (wtop || wbot || win_dh = 0);
+  assert (wlft || win_dx = 0);
+  assert (wtop || win_dy = 0);
+
+  if (ctl_w', ctl_h') = (ctl_w, ctl_h)
+  && (win_dx, win_dy, win_dw, win_dh) = (0, 0, 0, 0) then
     (win_dx, win_dy), (win_dw, win_dh)
   else
   (
@@ -1081,9 +1077,52 @@ let run_toggle_panel (st : state) =
       match geo.control_ratio with
       | None -> ctl_w', ctl_h'
       | Some ratio ->
+        (*  TL  T  TV T  TR
+         *   +-----+-----+
+         *  L|     V     |R
+         * LH+--H--M--H--+RH
+         *  L|     V     |R
+         *   +-----+-----+
+         *  BL  B  BV B  BR
+         *
+         *            -SW-SH -SW+SH +SW-SH +SW+SH
+         *  L R          r!     h      h!     r
+         *  T B          r!     w!     w      r
+         *  TL TR BL BR  r!     r!     r!     r
+         *  V            -      -      h!     h
+         *  TV BV        -      -      r!     r
+         *  H            -      w!     -      w
+         *  LH RH        -      r!     -      r
+         *  M            -      -      -      r
+         *
+         * (! will affect window size)
+         *)
         let adapt_w () = int_of_float (float ctl_h' *. ratio), ctl_h' in
         let adapt_h () = ctl_w', int_of_float (float ctl_w' /. ratio) in
-let _ = if !App.debug_layout then(
+        let adapt_r () =
+          let ratio' = float ctl_w' /. float ctl_h' in
+          if ratio' < ratio then adapt_w () else adapt_h ()
+        in
+let ctl_w'', ctl_h'' =
+        let focusw =
+          if wlft || wrgt then `Edge else
+          if clft || crgt then `Div else
+          `None
+        and focush =
+          if wtop || wbot then `Edge else
+          if ctop || cbot then `Div else
+          `None
+        in
+        let flex_sym = (flex_ext_w = flex_ext_h) in
+        match focusw, focush with
+        | `Edge, `None -> if flex_sym then adapt_r () else adapt_h ()
+        | `None, `Edge -> if flex_sym then adapt_r () else adapt_w ()
+        | `Div, `None -> adapt_h ()
+        | `None, `Div -> adapt_w ()
+        | `Div, `Edge -> if true || flex_sym then adapt_r () else adapt_h ()
+        | `Edge, `Div -> if true || flex_sym then adapt_r () else adapt_w ()
+        | _, _ -> adapt_r ()
+in if !App.debug_layout then(
 let mx, my = Api.Mouse.pos (Ui.window geo.ui) in
 Printf.eprintf "[adapt division] m=%d,%d/%d,%d win=%d%+d,%d%+d edge=%d,%d,%d,%d\n%!"
 mx my (Geometry.extension_w geo) (Geometry.playlist_y geo) win_w win_dw win_h win_dh
@@ -1091,61 +1130,25 @@ mx my (Geometry.extension_w geo) (Geometry.playlist_y geo) win_w win_dw win_h wi
 Printf.eprintf "    ctl=%d,%d(%.4f) -> %d,%d(%.4f) ~ %d,%d(%.4f)\n%!"
 ctl_w ctl_h (float ctl_w /. float ctl_h)
 ctl_w' ctl_h' (float ctl_w' /. float ctl_h')
-geo.control_width geo.control_height (float geo.control_width /. float geo.control_height);
+ctl_w'' ctl_h'' (float ctl_w'' /. float ctl_h'');
 Printf.eprintf "    ext=%d,%d -> %d,%d\n%!"
 ext_w ext_h
 geo.extension_width geo.extension_height;
-)in
-(*
-  [set_control_height 218] h=218~218 ctl=206->218 ext=461->449
-    move divider y to mouse y; set ch
-[adapt division] m=646,218/646,218 ctl=387,206(1.8786) -> 387,218(1.7752) ~ 387,218(1.7752)
-  [set_control_width 408] w=408~408 ctl=387->408 ext=646->625
-  [adapted ctl w 4] ratio=1.8750 387,218(1.7752) -> 408,218(1.8716)
-    adapt cw to old ratio (too small)
-  [set_control_width 387] w=387~387 ctl=408->387 ext=625->646
-    move divider x to mouse x; set cw
-[adapt division] m=646,218/646,218 ctl=408,218(1.8716) -> 387,218(1.7752) ~ 387,218(1.7752)
-  [set_control_height 206] h=206~206 ctl=218->206 ext=449->461
-  [adapted ctl h 4] ratio=1.8750 387,218(1.7752) -> 387,206(1.8786)
-  [set_control_height 218] h=218~218 ctl=206->218 ext=461->449
-*)
-(*
-wh_top moves down
-wh_left not tested
-wh_bot cannot shrink
-*)
-        match clft || crgt, ctop || cbot with
-        | false, false -> assert false
-        | false, true -> adapt_w ()
-        | true, false -> adapt_h ()
-        | true, true when wlft || wrgt -> adapt_w ()
-        | true, true when wtop || wbot -> adapt_h ()
-        | true, true ->  (* mid divider *)
-          let ratio' = float geo.control_width /. float geo.control_height in
-          if ratio' < ratio then
-(if !App.debug_layout then Printf.eprintf "  [adapt ctl w 3]\n%!";
-            adapt_w ()
-)
-          else
-(if !App.debug_layout then Printf.eprintf "  [adapt ctl h 3]\n%!";
-            adapt_h ()
-)
+);ctl_w'',ctl_h''
     in
 
     let ctl_dw, ctl_dh = ctl_w'' - ctl_w, ctl_h'' - ctl_h in
-    let win_dw, ext_dw =
-      if flex_ext_w then win_dw, win_dw - ctl_dw else win_dw + ctl_dw, win_dw in
-    let win_dh, ext_dh =
-      if flex_ext_h then win_dh, win_dh - ctl_dh else win_dh + ctl_dh, win_dh in
+    let win_dw' = win_dw + if flex_ctl_w then ctl_w'' - ctl_w' else 0 in
+    let win_dh' = win_dh + if flex_ctl_h then ctl_h'' - ctl_h' else 0 in
+    let win_dx' = win_dx + if flex_ctl_w && wlft then ctl_w' - ctl_w'' else 0 in
+    let win_dy' = win_dy + if flex_ctl_h && wtop then ctl_h' - ctl_h'' else 0 in
 
     let edge = wlft || wtop || wrgt || wbot in
     let win_dx', win_dy', win_dw', win_dh' =
-      Geometry.change_geo geo win_dx win_dy win_dw win_dh
-        ctl_dw ctl_dh ext_dw ext_dh
+      Geometry.change_geo geo win_dx' win_dy' win_dw' win_dh' ctl_dw ctl_dh
         (edge && not wrgt) (edge && not wbot)
         (edge && not wlft) (edge && not wtop)
-        flex_ctl_w flex_ctl_h flex_ext_w flex_ext_h
+        flex_ctl_w flex_ctl_h
     in
 if !App.debug_layout then Printf.eprintf "[adapted win] delta = %+d,%+d,%+d,%+d ~ %+d,%+d,%+d,%+d\n%!"
 win_dx win_dy win_dw win_dh
