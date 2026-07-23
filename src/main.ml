@@ -182,15 +182,16 @@ extension_shown_h' (snd(Api.Window.size win)+dh) geo.control_height geo.extensio
   Ui.finish geo.ui (Geometry.margin geo) (minw, minh) (maxw, maxh)
     (fun (dx, dy, dw, dh) (lft, top, rgt, bot) ->
       (* Window was resized *)
+      let x, y = Api.Window.pos win in
+      let w, h = Api.Window.size win in
+
       if !App.debug_layout then
       (
-        let x, y = Api.Window.pos win in
-        let w, h = Api.Window.size win in
         Printf.eprintf
-          "[layout resize]\n    win=%d%+d,%d%+d,%d%+d,%d%+d min=%d,%d max=%d,%d ctl=%d,%d ext=%d,%d\n%!"
+          "[win resize]\n    win=%d%+d,%d%+d,%d%+d,%d%+d min=%d,%d max=%d,%d ctl=%d,%d ext=%d,%d\n%!"
           x dx y dy w dw h dh minw minh maxw maxh geo.control_width geo.control_height geo.extension_width geo.extension_height
       );
-
+(*
       let x, y = Api.Window.pos win in
       let w, h = Api.Window.size win in
       let x', y' = x + dx, y + dy in
@@ -224,18 +225,22 @@ extension_shown_h' (snd(Api.Window.size win)+dh) geo.control_height geo.extensio
         if not flex_ctl_h then dy, dh else
         dy + sign top bot ay * (ch'' - ch'), dch
       in
-
-      let dx'', dy'', dw'', dh'' =
-        Geometry.change_geo geo dx' dy' dw' dh' dcw dch
-          (not rgt) (not bot) (not lft) (not top) flex_ctl_w flex_ctl_h
+*)
+      let dcw = if flex_ctl_w then dw else 0 in
+      let dch = if flex_ctl_h then dh else 0 in
+      let focus_w = if lft then `Lft else if rgt then `Rgt else `None in
+      let focus_h = if top then `Top else if bot then `Bot else `None in
+      let dx', dy', dw', dh' =
+        Geometry.change_geo geo dx dy dw dh dcw dch
+          focus_w focus_h flex_ctl_w flex_ctl_h
       in
-      Ui.resize geo.ui (dx'' - dx, dy'' - dy) (dw'' - dw, dh'' - dh);
+      Ui.resize geo.ui (dx' - dx, dy' - dy) (dw' - dw, dh' - dh);
 
       if !App.debug_layout then
       (
         Printf.eprintf
           "  [layout set] win=%d,%d ctl=%d,%d ext=%d,%d bw=%d vw=%d\n%!"
-          (w + dw'') (h + dh'')
+          (w + dw') (h + dh')
           geo.control_width geo.control_height
           geo.extension_width geo.extension_height
           geo.browser_width geo.left_width;
@@ -247,14 +252,15 @@ extension_shown_h' (snd(Api.Window.size win)+dh) geo.control_height geo.extensio
           (Geometry.browser_min_w geo) (Geometry.left_min_w geo);
       );
 
-      let w'', h'' = w + dw'', h + dh'' in
-      Geometry.update_geo' geo (x', y', w'', h'');
+      let x', y' = x + dx', y + dy' in
+      let w', h' = w + dw', h + dh' in
+      Geometry.update_geo' geo (x', y', w', h');
 
       if !App.debug_layout then
       (
         Printf.eprintf
           "  [layout new] win=%d,%d ctl=%d,%d ext=%d,%d bw=%d vw=%d\n%!"
-          w'' h''
+          w' h'
           geo.control_width geo.control_height
           geo.extension_width geo.extension_height
           geo.browser_width geo.left_width;

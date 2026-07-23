@@ -381,40 +381,108 @@ and adapt_control_height geo =
 *)
 
 
-let change_geo geo dx dy dw dh dcw dch flexl flext flexr flexb flexcw flexch =
+let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
   let win = Ui.window geo.ui in
   let x, y = Api.Window.pos win in
   let w, h = Api.Window.size win in
   let cw, ch = geo.control_width, geo.control_height in
   let ew, eh = geo.extension_width, geo.extension_height in
   let shownw, shownh = extension_shown_w geo, extension_shown_h geo in
-
   let dew, deh = dw - dcw, dh - dch in
-  let x', y' = x + dx, y + dy in
-  let w', h' = w + dw, h + dh in
-  let cw', ch' = cw + dcw, ch + dch in
-  let ew', eh' = ew + dew, eh + deh in
 
   if !App.debug_layout then
   (
     Printf.eprintf
-      "  [change geo] flex_edge=%b,%b,%b,%b flex_ctl=%b,%b\n%!"
-      flexl flext flexr flexb flexcw flexch;
+      "  [change geo] focus=%s%s flex_ctl=%b,%b\n%!"
+      (match focush with `Top -> "T" | `Bot -> "R" | `Hor -> "H" | `None -> "")
+      (match focusw with `Lft -> "L" | `Rgt -> "R" | `Ver -> "V" | `None -> "")
+      flexcw flexch;
     Printf.eprintf
       "    win=%d%+d,%d%+d,%d%+d,%d%+d ctl=%d%+d,%d%+d ext=%d%+d,%d%+d\n%!"
       x dx y dy w dw h dh cw dcw ch dch ew dew eh deh;
   );
 
+  (* Correct ratio *)
+  let cw', ch' =
+    match geo.control_ratio with
+    | None -> cw + dcw, ch + dch
+    | Some ratio ->
+      (*  TL  T  TV T  TR
+       *   +-----+-----+
+       *  L|     V     |R
+       * LH+--H--M--H--+RH
+       *  L|     V     |R
+       *   +-----+-----+
+       *  BL  B  BV B  BR
+       *
+       *            -XW-XH -XW+XH +XW-XH +XW+XH
+       *  -            r!     h      w      r
+       *  L R          h!     h      h!     h
+       *  T B          w!     w!     w      w
+       *  TL TR BL BR  r!     r!     r!     r
+       *  V            -      -      h!     h
+       *  TV BV        -      -      r!     r
+       *  H            -      w!     -      w
+       *  LH RH        -      r!     -      r
+       *  M            -      -      -      r
+       *
+       * (! will affect window size)
+       *)
+      let cw', ch' = cw + dcw, ch + dch in
+      let adapt_w () = int_of_float (float ch' *. ratio), ch' in
+      let adapt_h () = cw', int_of_float (float cw' /. ratio) in
+      match focusw, focush with
+      | (`Lft | `Rgt | `Ver), `None -> adapt_h ()
+      | `None, (`Top | `Bot | `Hor) -> adapt_w ()
+      | `None, `None when shownw <> shownh ->
+        if shownw then adapt_w () else adapt_h ()
+      | _, _ ->
+        let ratio' = float cw' /. float ch' in
+        if ratio' < ratio then adapt_w () else adapt_h ()
+  in
+
+  if !App.debug_layout && (cw' <> cw + dcw || ch' <> ch + dch) then
+  (
+    Printf.eprintf
+      "    ratio=%.4f ctl=%d,%d(%.4f)->%d,%d(%.4f)~%d,%d(%.4f)\n%!"
+      (Option.get geo.control_ratio)
+      cw ch (float cw /. float ch)
+      (cw + dcw) (ch + dch) (float (cw + dcw) /. float (ch + dch))
+      cw' ch' (float cw' /. float ch');
+  );
+
+  let dcw', dch' = cw' - cw, ch' - ch in
+  let corrw, corrh = dcw' - dcw, dch' - dch in
+  let dw' = dw + if shownw then 0 else corrw in
+  let dh' = dh + if shownh then 0 else corrh in
+  let dx' = dx - if shownw || focusw <> `Lft then 0 else corrw in
+  let dy' = dy - if shownh || focush <> `Top then 0 else corrh in
+
+  let x', y' = x + dx', y + dy' in
+  let w', h' = w + dw', h + dh' in
+
+Printf.printf "dw'=%d dcw'=%d dh=%d dh'=%d dch'=%d h=%d h'=%d \n%!" dw' dcw' dh dh' dch' h h';
+  assert (shownw || dw' = dcw');
+  assert (shownh || dh' = dch');
+
+(*
   assert (w = cw + if shownw then ew else 0);
   assert (h = ch + if shownh then eh else 0);
   assert (w' = cw' + if shownw then ew' else 0);
   assert (h' = ch' + if shownh then eh' else 0);
+*)
 
   (* Clamp window *)
-  let minw = win_min_w geo flexcw (not flexcw) in
-  let minh = win_min_h geo flexch (not flexch) in
-  let maxw = win_max_w geo flexcw (not flexcw) in
-  let maxh = win_max_h geo flexch (not flexch) in
+  let edge = (focusw = `Lft || focusw = `Rgt) && (focush = `Top || focush = `Bot) in
+  let flexl = edge && focusw <> `Rgt in
+  let flext = edge && focush <> `Bot in
+  let flexr = edge && focusw <> `Lft in
+  let flexb = edge && focush <> `Top in
+
+  let minw = win_min_w geo flexcw true in
+  let minh = win_min_h geo flexch true in
+  let maxw = win_max_w geo flexcw true in
+  let maxh = win_max_h geo flexch true in
   let minx, miny = -maxw, win_min_y geo in  (* cannot move to negative y coords *)
   let maxx, maxy = win_max_x geo, win_max_y geo in
 
@@ -422,10 +490,10 @@ let change_geo geo dx dy dw dh dcw dch flexl flext flexr flexb flexcw flexch =
   let miny' = if flext then miny else max miny y' in
   let minw' = if flexl || flexr then minw else max minw w' in
   let minh' = if flext || flexb then minh else max minh h' in
-  let maxw' = if flexl || flexr then maxw else min maxw w' in
-  let maxh' = if flext || flexb then maxh else min maxh h' in
-  let maxx' = if flexl then maxx - minw else min (maxx - minw) x' in
-  let maxy' = if flext then maxy - minh else min (maxy - minh) y' in
+  let maxw' = if flexl || flexr then maxw else min maxw (max minw w') in
+  let maxh' = if flext || flexb then maxh else min maxh (max minh h') in
+  let maxx' = if flexl then maxx - minw else min (maxx - minw) (max minx x') in
+  let maxy' = if flext then maxy - minh else min (maxy - minh) (max miny y') in
 Printf.eprintf "    x=%d~%d minx=%d~%d maxx=%d~%d\n    w=%d~%d minw=%d~%d maxw=%d~%d\n%!"
 x x' minx minx' maxx maxx' w w' minw minw' maxw maxw';
 Printf.eprintf "    y=%d~%d miny=%d~%d maxy=%d~%d\n    h=%d~%d minh=%d~%d maxh=%d~%d\n%!"
@@ -439,15 +507,19 @@ y y' miny miny' maxy maxy' h h' minh minh' maxh maxh';
   let x'', y'' = clamp minx' maxx' x', clamp miny' maxy' y' in
   let w'', h'' = clamp minw' maxw' w', clamp minh' maxh' h' in
 
-  let dx', dy' = x'' - x, y'' - y in
-  let dw', dh' = w'' - w + dx - dx', h'' - h + dy - dy' in
-  let dew' = if not flexcw && shownw then dew + dw' - dw else dew in
-  let deh' = if not flexch && shownh then deh + dh' - dh else deh in
-  let dcw' = if flexcw || not shownw then dcw + dw' - dw else dcw in
-  let dch' = if flexch || not shownh then dch + dh' - dh else dch in
+  let dx'', dy'' = x'' - x, y'' - y in
+  let dw'', dh'' = w'' - w, h'' - h in
+  let dcw'' = dcw' + dw'' - dw' in
+  let dch'' = dch' + dh'' - dh' in
+  let dew'' = dw'' - dcw'' in
+  let deh'' = dh'' - dch'' in
 
-  let cw'', ch'' = cw + dcw', ch + dch' in
-  let ew'', eh'' = ew + dew', eh + deh' in
+Printf.printf "dw''=%d dcw''=%d dh=%d dh'=%d dh''=%d dch''=%d h=%d h'=%d h''=%d\n%!" dw'' dcw'' dh dh' dh'' dch'' h h' h'';
+  assert (shownw || dw'' = dcw'');
+  assert (shownh || dh'' = dch'');
+
+  let cw'', ch'' = cw + dcw'', ch + dch'' in
+  let ew'', eh'' = ew + dew'', eh + deh'' in
 
   (* Clamp dividers *)
   let mincw = control_min_w in
@@ -458,10 +530,10 @@ y y' miny miny' maxy maxy' h h' minh minh' maxh maxh';
   let maxch = h'' - (if shownh then mineh else 0) in
   let maxew = (if shownw then w'' else maxw) - mincw in
   let maxeh = (if shownh then h'' else maxh) - minch in
-Printf.printf "    cw=%d~%d~%d mincw=%d maxcw=%d\n    ew=%d~%d~%d minew=%d maxew=%d\n%!"
-cw cw' cw'' mincw maxcw ew ew' ew'' minew maxew;
-Printf.printf "    ch=%d~%d~%d minch=%d maxch=%d\n    eh=%d~%d~%d mineh=%d maxeh=%d\n%!"
-ch ch' ch'' minch maxch eh eh' eh'' mineh maxeh;
+Printf.printf "    cw=%d~%d~%d mincw=%d maxcw=%d\n    ew=%d~%d minew=%d maxew=%d\n%!"
+cw cw' cw'' mincw maxcw ew ew'' minew maxew;
+Printf.printf "    ch=%d~%d~%d minch=%d maxch=%d\n    eh=%d~%d mineh=%d maxeh=%d\n%!"
+ch ch' ch'' minch maxch eh eh'' mineh maxeh;
 assert (mincw <= maxcw);
 assert (minch <= maxch);
 assert (minew <= maxew);
@@ -470,31 +542,33 @@ assert (mineh <= maxeh);
   let cw''', ch''' = clamp mincw maxcw cw'', clamp minch maxch ch'' in
   let ew''', eh''' = clamp minew maxew ew'', clamp mineh maxeh eh'' in
 
-  let dcw'', dch'' = cw''' - cw, ch''' - ch in
-  let dew'', deh'' = ew''' - ew, eh''' - eh in
+  let dcw''', dch''' = cw''' - cw, ch''' - ch in
+  let dew''', deh''' = ew''' - ew, eh''' - eh in
 
   if !App.debug_layout then
   (
     Printf.eprintf
-      "  [changed geo] flex_edge=%b,%b,%b,%b flex_ctl=%b,%b\n%!"
-      flexl flext flexr flexb flexcw flexch;
+      "  [changed geo] focus=%s%s flex_ctl=%b,%b\n%!"
+      (match focush with `Top -> "T" | `Bot -> "R" | `Hor -> "H" | `None -> "")
+      (match focusw with `Lft -> "L" | `Rgt -> "R" | `Ver -> "V" | `None -> "")
+      flexcw flexch;
     Printf.eprintf
       "    win = %d%+d~%+d(%d,%d), %d%+d~%+d(%d,%d), %d%+d~%+d(%d,%d), %d%+d~%+d(%d,%d)\n%!"
-      x dx dx' minx' maxx' y dy dy' miny' maxy' w dw dw' minw' maxw' h dh dh' minh' maxh';
+      x dx dx'' minx' maxx' y dy dy'' miny' maxy' w dw dw'' minw' maxw' h dh dh'' minh' maxh';
     Printf.eprintf
       "    ctl = %d%+d~%+d(%d,%d), %d%+d~%+d(%d,%d)\n%!"
-      cw dcw dcw'' mincw maxcw ch dch dch'' minch maxch;
+      cw dcw dcw''' mincw maxcw ch dch dch''' minch maxch;
     Printf.eprintf
       "    ext = %d%+d~%+d(%d,%d), %d%+d~%+d(%d,%d)\n%!"
-      ew dew dew'' minew maxew eh deh deh'' mineh maxeh;
+      ew dew dew''' minew maxew eh deh deh''' mineh maxeh;
   );
 
-  geo.control_width <- geo.control_width + dcw'';
-  geo.control_height <- geo.control_height + dch'';
-  geo.extension_width <- geo.extension_width + dew'';
-  geo.extension_height <- geo.extension_height + deh'';
+  geo.control_width <- geo.control_width + dcw''';
+  geo.control_height <- geo.control_height + dch''';
+  geo.extension_width <- geo.extension_width + dew''';
+  geo.extension_height <- geo.extension_height + deh''';
 
-  (dx', dy', dw', dh')
+  (dx'', dy'', dw'', dh'')
 
 
 (* Resolution-independent Window Geometry *)
