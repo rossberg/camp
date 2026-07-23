@@ -388,6 +388,12 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
   let cw, ch = geo.control_width, geo.control_height in
   let ew, eh = geo.extension_width, geo.extension_height in
   let shownw, shownh = extension_shown_w geo, extension_shown_h geo in
+(*
+  let leftw = shownw || focusw <> `Lft && geo.extension_side = `Right in
+  let toph = shownh || focush <> `Top in
+*)
+  let rightw = not shownw && (focusw = `Lft || geo.extension_side = `Right) in
+  let both = not shownh in
   let dew, deh = dw - dcw, dh - dch in
 
   if !App.debug_layout then
@@ -436,7 +442,7 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
       | `None, (`Top | `Bot | `Hor) -> adapt_w ()
       | `None, `None when shownw <> shownh ->
         if shownw then adapt_w () else adapt_h ()
-      | (`Lft | `Rgt), (`Top | `Bot) when cw' * ch' < cw * ch ->
+      | (`Lft | `Rgt), (`Top | `Bot) when shownw && shownh && cw' * ch' < cw * ch ->
         let ratio' = float cw' /. float ch' in
         if ratio < ratio' then adapt_w () else adapt_h ()
       | _, _ ->
@@ -458,8 +464,8 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
   let corrw, corrh = dcw' - dcw, dch' - dch in
   let dw' = dw + if shownw then 0 else corrw in
   let dh' = dh + if shownh then 0 else corrh in
-  let dx' = dx - if shownw || focusw <> `Lft then 0 else corrw in
-  let dy' = dy - if shownh || focush <> `Top then 0 else corrh in
+  let dx' = dx - if rightw then 0 else corrw in
+  let dy' = dy - if both then 0 else corrh in
 
   let x', y' = x + dx', y + dy' in
   let w', h' = w + dw', h + dh' in
@@ -489,12 +495,12 @@ Printf.printf "dw'=%d dcw'=%d dh=%d dh'=%d dch'=%d h=%d h'=%d \n%!" dw' dcw' dh 
   let minx, miny = -maxw, win_min_y geo in  (* cannot move to negative y coords *)
   let maxx, maxy = win_max_x geo, win_max_y geo in
 
-  let minx' = if flexl then minx else max minx x' in
-  let miny' = if flext then miny else max miny y' in
   let minw' = if flexl || flexr then minw else max minw w' in
   let minh' = if flext || flexb then minh else max minh h' in
   let maxw' = if flexl || flexr then maxw else min maxw (max minw w') in
   let maxh' = if flext || flexb then maxh else min maxh (max minh h') in
+  let minx' = if flexl || flext || flexb then minx else max minx x' in
+  let miny' = if flext || flext || flexb then miny else max miny y' in
   let maxx' = if flexl then maxx - minw else min (maxx - minw) (max minx x') in
   let maxy' = if flext then maxy - minh else min (maxy - minh) (max miny y') in
 Printf.eprintf "    x=%d~%d minx=%d~%d maxx=%d~%d\n    w=%d~%d minw=%d~%d maxw=%d~%d\n%!"
@@ -502,13 +508,19 @@ x x' minx minx' maxx maxx' w w' minw minw' maxw maxw';
 Printf.eprintf "    y=%d~%d miny=%d~%d maxy=%d~%d\n    h=%d~%d minh=%d~%d maxh=%d~%d\n%!"
 y y' miny miny' maxy maxy' h h' minh minh' maxh maxh';
 
+(*
   assert (minx' <= maxx');
   assert (miny' <= maxy');
+*)
   assert (minw' <= maxw');
   assert (minh' <= maxh');
 
-  let x'', y'' = clamp minx' maxx' x', clamp miny' maxy' y' in
   let w'', h'' = clamp minw' maxw' w', clamp minh' maxh' h' in
+(*
+  let x'', y'' = clamp minx' maxx' x', clamp miny' maxy' y' in
+*)
+  let x'' = x' - if rightw then 0 else w'' - w' in
+  let y'' = y' - if both then 0 else h'' - h' in
 
   let dx'', dy'' = x'' - x, y'' - y in
   let dw'', dh'' = w'' - w, h'' - h in
