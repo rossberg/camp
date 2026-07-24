@@ -388,19 +388,13 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
   let cw, ch = geo.control_width, geo.control_height in
   let ew, eh = geo.extension_width, geo.extension_height in
   let shownw, shownh = extension_shown_w geo, extension_shown_h geo in
-(*
-  let leftw = shownw || focusw <> `Lft && geo.extension_side = `Right in
-  let toph = shownh || focush <> `Top in
-*)
-  let rightw = not shownw && (focusw = `Lft || geo.extension_side = `Right) in
-  let both = not shownh in
   let dew, deh = dw - dcw, dh - dch in
 
   if !App.debug_layout then
   (
     Printf.eprintf
       "  [change geo] focus=%s%s flex_ctl=%b,%b\n%!"
-      (match focush with `Top -> "T" | `Bot -> "R" | `Hor -> "H" | `None -> "")
+      (match focush with `Top -> "T" | `Bot -> "B" | `Hor -> "H" | `None -> "")
       (match focusw with `Lft -> "L" | `Rgt -> "R" | `Ver -> "V" | `None -> "")
       flexcw flexch;
     Printf.eprintf
@@ -464,10 +458,6 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
   let corrw, corrh = dcw' - dcw, dch' - dch in
   let dw' = dw + if shownw then 0 else corrw in
   let dh' = dh + if shownh then 0 else corrh in
-  let dx' = dx - if rightw then 0 else corrw in
-  let dy' = dy - if both then 0 else corrh in
-
-  let x', y' = x + dx', y + dy' in
   let w', h' = w + dw', h + dh' in
 
 Printf.printf "dw'=%d dcw'=%d dh=%d dh'=%d dch'=%d h=%d h'=%d \n%!" dw' dcw' dh dh' dch' h h';
@@ -481,7 +471,7 @@ Printf.printf "dw'=%d dcw'=%d dh=%d dh'=%d dch'=%d h=%d h'=%d \n%!" dw' dcw' dh 
   assert (h' = ch' + if shownh then eh' else 0);
 *)
 
-  (* Clamp window *)
+  (* Clamp window size *)
   let edge = (focusw = `Lft || focusw = `Rgt) && (focush = `Top || focush = `Bot) in
   let flexl = edge && focusw <> `Rgt in
   let flext = edge && focush <> `Bot in
@@ -492,35 +482,41 @@ Printf.printf "dw'=%d dcw'=%d dh=%d dh'=%d dch'=%d h=%d h'=%d \n%!" dw' dcw' dh 
   let minh = win_min_h geo flexch true in
   let maxw = win_max_w geo flexcw true in
   let maxh = win_max_h geo flexch true in
-  let minx, miny = -maxw, win_min_y geo in  (* cannot move to negative y coords *)
-  let maxx, maxy = win_max_x geo, win_max_y geo in
+  let minw' = if flexl || flexr then minw else clamp minw maxw w' in
+  let minh' = if flext || flexb then minh else clamp minh maxh h' in
+  let maxw' = if flexl || flexr then maxw else clamp minw maxw w' in
+  let maxh' = if flext || flexb then maxh else clamp minh maxh h' in
+Printf.eprintf "    w=%d->%d~%d minw=%d~%d maxw=%d~%d\n%!"
+w w' (clamp minw' maxw' w') minw minw' maxw maxw';
+Printf.eprintf "    h=%d->%d~%d minh=%d~%d maxh=%d~%d\n%!"
+h h' (clamp minh' maxh' h') minh minh' maxh maxh';
+  assert (minw <= maxw);
+  assert (minh <= maxh);
+  assert (minw' <= maxw');
+  assert (minh' <= maxh');
+  let w'', h'' = clamp minw' maxw' w', clamp minh' maxh' h' in
 
-  let minw' = if flexl || flexr then minw else max minw w' in
-  let minh' = if flext || flexb then minh else max minh h' in
-  let maxw' = if flexl || flexr then maxw else min maxw (max minw w') in
-  let maxh' = if flext || flexb then maxh else min maxh (max minh h') in
+  (* Adjust window position *)
+  let to_left = focusw = `Lft || focusw <> `Rgt && geo.extension_side = `Left in
+  let to_top = focush = `Top in
+  let minx, miny = win_min_x geo, win_min_y geo in
+  let maxx, maxy = win_max_x geo - w'', win_max_y geo - h'' in
+(*
   let minx' = if flexl || flext || flexb then minx else max minx x' in
   let miny' = if flext || flext || flexb then miny else max miny y' in
   let maxx' = if flexl then maxx - minw else min (maxx - minw) (max minx x') in
   let maxy' = if flext then maxy - minh else min (maxy - minh) (max miny y') in
-Printf.eprintf "    x=%d~%d minx=%d~%d maxx=%d~%d\n    w=%d~%d minw=%d~%d maxw=%d~%d\n%!"
-x x' minx minx' maxx maxx' w w' minw minw' maxw maxw';
-Printf.eprintf "    y=%d~%d miny=%d~%d maxy=%d~%d\n    h=%d~%d minh=%d~%d maxh=%d~%d\n%!"
-y y' miny miny' maxy maxy' h h' minh minh' maxh maxh';
-
-(*
   assert (minx' <= maxx');
   assert (miny' <= maxy');
 *)
-  assert (minw' <= maxw');
-  assert (minh' <= maxh');
 
-  let w'', h'' = clamp minw' maxw' w', clamp minh' maxh' h' in
-(*
-  let x'', y'' = clamp minx' maxx' x', clamp miny' maxy' y' in
-*)
-  let x'' = x' - if rightw then 0 else w'' - w' in
-  let y'' = y' - if both then 0 else h'' - h' in
+  let x' = x + dx - if to_left then dw' - dw + w'' - w' else 0 in
+  let y' = y + dy - if to_top then dh' - dh + h'' - h' else 0 in
+  let x'', y'' = clamp minx maxx x', clamp miny maxy y' in
+Printf.eprintf "    x=%d->%d~%d~%d toleft=%b\n%!"
+x (x + dx) x' x'' to_left;
+Printf.eprintf "    y=%d->%d~%d~%d totop=%b\n%!"
+y (y + dh) y' y'' to_top;
 
   let dx'', dy'' = x'' - x, y'' - y in
   let dw'', dh'' = w'' - w, h'' - h in
@@ -568,8 +564,8 @@ assert (mineh <= maxeh);
       (match focusw with `Lft -> "L" | `Rgt -> "R" | `Ver -> "V" | `None -> "")
       flexcw flexch;
     Printf.eprintf
-      "    win = %d%+d~%+d(%d,%d), %d%+d~%+d(%d,%d), %d%+d~%+d(%d,%d), %d%+d~%+d(%d,%d)\n%!"
-      x dx dx'' minx' maxx' y dy dy'' miny' maxy' w dw dw'' minw' maxw' h dh dh'' minh' maxh';
+      "    win = %d%+d~%+d, %d%+d~%+d, %d%+d~%+d(%d,%d), %d%+d~%+d(%d,%d)\n%!"
+      x dx dx'' (*minx' maxx'*) y dy dy'' (*miny' maxy'*) w dw dw'' minw' maxw' h dh dh'' minh' maxh';
     Printf.eprintf
       "    ctl = %d%+d~%+d(%d,%d), %d%+d~%+d(%d,%d)\n%!"
       cw dcw dcw''' mincw maxcw ch dch dch''' minch maxch;
