@@ -419,7 +419,7 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
        *  -            r!     h      w      r
        *  L R          h!     h      h!     h
        *  T B          w!     w!     w      w
-       *  TL TR BL BR  r!     r!     r!     r*
+       *  TL TR BL BR  r!     h!     w!     r*
        *  V            -      -      h!     h
        *  TV BV        -      -      r!     r
        *  H            -      w!     -      w
@@ -434,11 +434,11 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
       match focusw, focush with
       | (`Lft | `Rgt | `Ver), `None -> adapt_h ()
       | `None, (`Top | `Bot | `Hor) -> adapt_w ()
-      | `None, `None when shownw <> shownh ->
+      | `None, `None | (`Lft | `Rgt), (`Top | `Bot) when shownw <> shownh ->
         if shownw then adapt_w () else adapt_h ()
       | (`Lft | `Rgt), (`Top | `Bot) when shownw && shownh && cw' * ch' < cw * ch ->
         let ratio' = float cw' /. float ch' in
-        if ratio < ratio' then adapt_w () else adapt_h ()
+        if ratio' > ratio then adapt_w () else adapt_h ()
       | _, _ ->
         let ratio' = float cw' /. float ch' in
         if ratio' < ratio then adapt_w () else adapt_h ()
