@@ -167,6 +167,7 @@ let is_mac =
 
 (* Per-frame Actions *)
 
+let before_frame_start = ref []
 let after_frame_start = ref []
 let before_frame_finish = ref []
 let after_frame_finish = ref []
@@ -621,6 +622,7 @@ struct
 
   let start () c =
     incr frame;
+    List.iter (fun f -> f ()) (List.rev !before_frame_start);
     current_scale := Window.scale ();
     Raylib.begin_drawing ();
     Raylib.clear_background (color c);

@@ -319,11 +319,13 @@ let reset ui (x, y, w, h) =
   Window.set_size ui.win w h;
   Draw.finish ui.win
 
-let start ui =
+let start ui (x, y, w, h) =
   Draw.start ui.win (`Trans (`Black, 0x40));
 
-  let ww, wh = Window.size ui.win in
-  background ui 0 0 ww wh;
+  Window.set_pos ui.win x y;
+  Window.set_size ui.win w h;
+
+  background ui 0 0 w h;
 
   Mouse.set_cursor ui.win `Default;
   if
@@ -338,7 +340,7 @@ let start ui =
   )
 
 
-let finish ui margin (minw, minh) (maxw, maxh) on_size_change on_screen_change =
+let finish ui margin (minw, minh) (maxw, maxh) on_screen_change =
   List.iter (fun f -> f ()) (List.rev ui.delayed);
   ui.delayed <- [];
 
@@ -369,23 +371,24 @@ Printf.eprintf "[finish] repos=%+d,%+d\n%!" (fst ui.repos) (snd ui.repos);
   let rgt = inside origin (ww - margin, 0, margin, wh) in
   let top = inside origin (0, 0, ww, margin) in
   let bot = inside origin (0, wh - margin, ww, margin) in
+  let no_edge = (false, false, false, false) in
 
-  let (wx'', wy''), (ww'', wh'') =
+  let (wx'', wy''), (ww'', wh''), edge =
     if ui.mouse_owner <> None then
     (
-       pos', size'
+       pos', size', no_edge
     )
     else if Mouse.is_down `Right || ui.drag = Abort then
     (
       Mouse.set_cursor ui.win `Default;
       ui.drag <- Abort;
-      pos', size'
+      pos', size', no_edge
     )
     else if not (Mouse.is_down `Left) then
     (
       let cursor = cursor lft top rgt bot in
       if cursor <> `Point then Mouse.set_cursor ui.win cursor;
-      pos', size'
+      pos', size', no_edge
     )
     else
     (
@@ -402,7 +405,7 @@ Printf.eprintf "[finish] repos=%+d,%+d\n%!" (fst ui.repos) (snd ui.repos);
           let dy = if top then my - wy else my - (wy + wh) in
           ui.drag <- Resize {offset = dx, dy; edge = lft, top, rgt, bot};
         );
-        pos', size'
+        pos', size', no_edge
 
       | Move {target} ->
         Mouse.set_cursor ui.win `Point;
@@ -418,9 +421,9 @@ Printf.eprintf "[finish] repos=%+d,%+d\n%!" (fst ui.repos) (snd ui.repos);
         let target' = add target ui.repos in
         let wx'', wy'' as target'' = add target' delta in
         ui.drag <- Move {target = target''};
-        (snap sx (sx + sw - ww) wx'', snap sy (sy + sh - wh) wy''), size'
+        (snap sx (sx + sw - ww) wx'', snap sy (sy + sh - wh) wy''), size', no_edge
 
-      | Resize {offset; edge = lft, top, rgt, bot} ->
+      | Resize {offset; edge = lft, top, rgt, bot as edge} ->
         Mouse.set_cursor ui.win (cursor lft top rgt bot);
         let scr = Window.screen ui.win in  (* snap relative to window's screen *)
         let sx, sy = Screen.min_pos scr in
@@ -433,93 +436,25 @@ Printf.eprintf "[finish] repos=%+d,%+d\n%!" (fst ui.repos) (snd ui.repos);
         let wy'' = clamp miny maxy (if top then my' else wy') in
         let ww'' = clamp minw maxw (if rgt then mx' - wx' else ww' - (wx'' - wx')) in
         let wh'' = clamp minh maxh (if bot then my' - wy' else wh' - (wy'' - wy')) in
-        let wx''', wy''', ww''', wh''' =
-          if (wx'', wy'', ww'', wh'') = (wx, wy, ww, wh) then
-            wx, wy, ww, wh
-          else
-          (
-if !App.debug_layout then(
-Printf.eprintf "[resize] edge=%b,%b,%b,%b mouse=%d,%d win=%d%+d,%d%+d,%d%+d,%d%+d\n%!"
-lft top rgt bot mx my wx (wx''-wx) wy (wy''-wy) ww (ww''-ww) wh (wh''-wh);
-if ww'' <> ww' then
-Printf.eprintf "  sx=%d sw=%d mx=%d~%d wx'=%d->%d(%d,%d) ww'=%d->%d(%d,%d)\n%!"
-sx sw mx mx' wx' wx'' minx maxx ww' ww'' minw maxw;
-if wh'' <> wh' then
-Printf.eprintf "  sy=%d sh=%d my=%d~%d wy'=%d->%d(%d,%d) wh'=%d->%d(%d,%d)\n%!"
-sy sh my my' wy' wy'' miny maxy wh' wh'' minh maxh;
-);
-            assert (minw <= ww'' && ww'' <= maxw);
-            assert (minh <= wh'' && wh'' <= maxh);
-            let repos, resize = ui.repos, ui.resize in
-            on_size_change
-              (wx'' - wx, wy'' - wy, ww'' - ww, wh'' - wh)
-              (lft, top, rgt, bot);
-            (* callback may resize again *)
-            let wx''', wy''' = add (wx'', wy'') (sub ui.repos repos) in
-            let ww''', wh''' = add (ww'', wh'') (sub ui.resize resize) in
-            wx''', wy''', ww''', wh'''
-          )
-        in
-        (wx''', wy'''), (ww''', wh''')
-(*
-        let dx, dy = Mouse.delta ui.win in
-        let tx' = fst ui.repos + if left then tx + dx else tx in
-        let ty' = snd ui.repos + if upper then ty + dy else ty in
-        let tw' = fst ui.resize + if right then tw + dx else tw in
-        let tw' = snd ui.resize + if lower then th + dy else th in
-        let wx'' = if left then max tx' sx else fst ui.repos +  in
-        let maxw = if maxw >= 0 then maxw else if right then sw - rx else ww + rx in
-        let maxh = if maxh >= 0 then maxh else if lower then sh - ry else wh + ry in
-        let ww'', wh'' = clamp minw maxw tw', clamp minh maxh th' in
-
-        let signx = if left then -1 else if right then +1 else 0 in
-        let signy = if upper then -1 else if lower then +1 else 0 in
-        let delta = mul (signx, signy) (Mouse.delta ui.win) in
-        let tw', th' = add tsize delta in
-        let rx, ry = wx - sx, wy - sy in
-        let ww'', wh'' as tsize'' = clamp minw maxw tw', clamp minh maxh th' in
-        let dwx = if left then ww'' - ww else 0 in
-        let dwy = if upper then wh'' - wh else 0 in
-        let pos'' = sub pos' (dwx, dwy) in
-let dmx,dmy = Mouse.delta ui.win in
-if (ww',wh') <> size then
-Printf.eprintf "[resize] left=%b upper=%b mouse=%+d,%+d over=%+d,%+d win=%+d,%+d,%+d,%+d\n%!"
-left upper dmx dmy (fst over) (snd over) dwx dwy (ww'' - ww) (wh'' - wh);
-        let pos''', (ww''', wh''' as size''') =
-          if size'' = size then pos'', size'' else
-          (
-            assert (minw <= ww'' && ww'' <= maxw);
-            assert (minh <= wh'' && wh'' <= maxh);
-            let repos, resize = ui.repos, ui.resize in
-            on_size_change (fst pos' - wx, snd pos' - wy, ww'' - ww, wh'' - wh);
-            (* callback may resize or repos again *)
-            let pos''' = add pos'' (sub ui.repos repos) in
-            let ww''', wh''' = add size'' (sub ui.resize resize) in
-            let size'''' = clamp minw maxw ww''', clamp minh maxh wh''' in
-            let dwx = if left then fst size'''' - ww else 0 in
-            let dwy = if upper then snd size'''' - wh else 0 in
-            let pos'''' = sub pos''' (dwx, dwy) in
-            assert (minw <= fst size'''' && fst size'''' <= maxw);
-            assert (minh <= snd size'''' && snd size'''' <= maxh);
-            pos'''', size''''
-          )
-        in
-        pos''', size'''
-*)
+        (wx'', wy''), (ww'', wh''), edge
 
       | _ ->
-        pos', size'
+        pos', size', no_edge
     )
   in
 
 if !App.debug_layout && (wx'',wy'',ww'',wh'')<>(wx,wy,ww,wh) then
 Printf.eprintf "[resize] %d,%d,%d,%d -> %d,%d,%d,%d\n%!" wx wy ww wh wx'' wy'' ww'' wh'';
+(*
   Window.set_pos ui.win wx'' wy'';   (* deferred until end of frame! *)
   Window.set_size ui.win ww'' wh'';  (* deferred until end of frame! *)
+*)
   ui.repos <- 0, 0;
   ui.resize <- 0, 0;
 
-  Draw.finish ui.win
+  Draw.finish ui.win;
+
+  (wx'', wy'', ww'', wh''), edge
 
 
 let resize ui (dx, dy) (dw, dh) =

@@ -3,7 +3,8 @@
 (* Runner *)
 
 val run : State.t -> unit
-val run_toggle_panel : State.t -> Api.size * Api.size
+val run_toggle_panel : State.t -> unit
+val run_dividers : State.t -> Api.size * Api.size
 
 (* Commands *)
 

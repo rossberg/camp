@@ -932,9 +932,13 @@ let run_toggle_panel (st : state) =
       `Entry (c, "Decrease Popup Cover Size", Layout.key_popupdn, resize_popup_avail st (-1)),
         (fun () -> resize_popup st (-1));
     |]))
-  );
+  )
 
-  (* Extension Dividers *)
+
+(* Extension Dividers *)
+
+let run_dividers (st : state) =
+  let geo = st.geometry in
 
   let shift = Api.Key.is_modifier_down `Shift in
   let cmd = Api.Key.is_modifier_down `Command in

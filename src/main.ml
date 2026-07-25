@@ -15,25 +15,28 @@ let queue_file = "queue.m3u"
 let t_start = Unix.gettimeofday ()
 let t_last = ref 0.0
 
-let rec run (st : state) =
+let rec run (st : state) r =
   State.ok st;
-  (try run' st with exn -> Storage.log_exn "internal" exn ""; exit 0);
-  if !App.debug_perf then
-  (
-    let t = Unix.gettimeofday () -. t_start in
-    if t >= !t_last +. 10.0 then
+  match run' st r with
+  | exception exn ->
+    Storage.log_exn "internal" exn ""; exit 0
+  | r' ->
+    if !App.debug_perf then
     (
-      t_last := t;
-      let gc = Gc.quick_stat () in
-      Printf.eprintf
-        "[%s] GC memory %#d live, %#d total, %d collections, %d compactions\n%!"
-        (Data.string_of_time t)
-        gc.live_words gc.heap_words gc.major_collections gc.compactions;
-    )
-  );
-  run st
+      let t = Unix.gettimeofday () -. t_start in
+      if t >= !t_last +. 10.0 then
+      (
+        t_last := t;
+        let gc = Gc.quick_stat () in
+        Printf.eprintf
+          "[%s] GC memory %#d live, %#d total, %d collections, %d compactions\n%!"
+          (Data.string_of_time t)
+          gc.live_words gc.heap_words gc.major_collections gc.compactions;
+      )
+    );
+    run st r'
 
-and run' (st : state) =
+and run' (st : state) (x, y, w, h as r) =
   let geo = st.geometry in
   let win = Ui.window geo.ui in
   if Api.Window.closed win then Run_control.quit st;
@@ -51,7 +54,7 @@ and run' (st : state) =
   );
 
   (* Start drawing *)
-  Ui.start geo.ui;
+  Ui.start geo.ui r;
 
   (* Remember current geometry for later *)
   let extension_shown_w = Geometry.extension_shown_w geo in
@@ -80,10 +83,10 @@ and run' (st : state) =
       if filesel_shown then Run_filesel.run st
       else if library_shown then Run_library.run st;
       if playlist_shown then Run_view.run_edit_panel st;
-      let dpos, dsize = Run_control.run_toggle_panel st in
+      Run_control.run_toggle_panel st;
       if menu_shown then Run_menu.run st;
       if popup_shown then Run_menu.run_popup st;
-      dpos, dsize
+      Run_control.run_dividers st
     )
   in
   List.iter (fun f -> f ()) st.delayed;
@@ -179,11 +182,28 @@ extension_shown_h' (snd(Api.Window.size win)+dh) geo.control_height geo.extensio
   let minw = min maxw (Geometry.win_min_w geo flex_ctl_w flex_ext_w) in
   let maxh = Geometry.win_max_h geo flex_ctl_h flex_ext_h in
   let minh = min maxh (Geometry.win_min_h geo flex_ctl_h flex_ext_h) in
-  Ui.finish geo.ui (Geometry.margin geo) (minw, minh) (maxw, maxh)
-    (fun (dx, dy, dw, dh) (lft, top, rgt, bot) ->
+
+  let (x', y', w', h' as r'), (lft, top, rgt, bot) =
+    Ui.finish geo.ui (Geometry.margin geo) (minw, minh) (maxw, maxh)
+      (fun scr ->
+        (* Window moved to another screen *)
+        Ui.pin geo.ui scr;
+        let w, h = geo.extension_width, geo.extension_height in
+        Geometry.clamp_geo geo;
+        let dw =
+          if Geometry.extension_shown_w geo then geo.extension_width - w else 0 in
+        let dh =
+          if Geometry.extension_shown_h geo then geo.extension_height - h else 0 in
+        (* Subtract mouse delta to get position relative to current geometry *)
+        Ui.resize_from geo.ui Api.Mouse.(Api.sub (pos win) (delta win)) (dw, dh)
+      )
+  in
+
+  let r'' =
+    if r' = r then r' else
+    (
       (* Window was resized *)
-      let x, y = Api.Window.pos win in
-      let w, h = Api.Window.size win in
+      let dx, dy, dw, dh = x' - x, y' - y, w' - w, h' - h in
 
       if !App.debug_layout then
       (
@@ -191,41 +211,7 @@ extension_shown_h' (snd(Api.Window.size win)+dh) geo.control_height geo.extensio
           "[win resize]\n    win=%d%+d,%d%+d,%d%+d,%d%+d min=%d,%d max=%d,%d ctl=%d,%d ext=%d,%d\n%!"
           x dx y dy w dw h dh minw minh maxw maxh geo.control_width geo.control_height geo.extension_width geo.extension_height
       );
-(*
-      let x, y = Api.Window.pos win in
-      let w, h = Api.Window.size win in
-      let x', y' = x + dx, y + dy in
-      let dx, dy = dx - dx'', dy - dy' in
-      let dw, dh = dw - dw', dh - dh' in
 
-      let cw, ch = geo.control_width, geo.control_height in
-      let cw' = if flex_ctl_w then cw + dw else cw in
-      let ch' = if flex_ctl_h then ch + dh else ch in
-      let cw'', ch'' =
-        match geo.control_ratio with
-        | None -> cw', ch'
-        | Some ratio ->
-          let adapt_w () = int_of_float (float ch' *. ratio), ch' in
-          let adapt_h () = cw', int_of_float (float cw' /. ratio) in
-          if not (lft || rgt) then adapt_w () else
-          if not (top || bot) then adapt_h () else
-          if float cw' /. float ch' < ratio then adapt_w () else adapt_h ()
-      in
-
-      let ax, ay, _, _ = geo.window in
-      let sign lo hi a =
-        if lo then -1 else if hi then 0 else
-        if a < 1.0 then 0 else -1
-      in
-      let dcw, dch = cw'' - cw, ch'' - ch in
-      let dx', dw' =
-        if not flex_ctl_w then dx, dw else
-        dx + sign lft rgt ax * (cw'' - cw'), dcw
-      and dy', dh' =
-        if not flex_ctl_h then dy, dh else
-        dy + sign top bot ay * (ch'' - ch'), dch
-      in
-*)
       let dcw = if flex_ctl_w then dw else 0 in
       let dch = if flex_ctl_h then dh else 0 in
       let focus_w = if lft then `Lft else if rgt then `Rgt else `None in
@@ -234,7 +220,6 @@ extension_shown_h' (snd(Api.Window.size win)+dh) geo.control_height geo.extensio
         Geometry.change_geo geo dx dy dw dh dcw dch
           focus_w focus_h flex_ctl_w flex_ctl_h
       in
-      Ui.resize geo.ui (dx' - dx, dy' - dy) (dw' - dw, dh' - dh);
 
       if !App.debug_layout then
       (
@@ -252,9 +237,9 @@ extension_shown_h' (snd(Api.Window.size win)+dh) geo.control_height geo.extensio
           (Geometry.browser_min_w geo) (Geometry.left_min_w geo);
       );
 
-      let x', y' = x + dx', y + dy' in
-      let w', h' = w + dw', h + dh' in
-      Geometry.update_geo' geo (x', y', w', h');
+      let x'', y'' = x + dx', y + dy' in
+      let w'', h'' = w + dw', h + dh' in
+      Geometry.update_geo' geo (x'', y'', w'', h'');
 
       if !App.debug_layout then
       (
@@ -264,20 +249,11 @@ extension_shown_h' (snd(Api.Window.size win)+dh) geo.control_height geo.extensio
           geo.control_width geo.control_height
           geo.extension_width geo.extension_height
           geo.browser_width geo.left_width;
-      )
+      );
+
+      (x'', y'', w'', h'')
     )
-    (fun scr ->
-      (* Window moved to another screen *)
-      Ui.pin geo.ui scr;
-      let w, h = geo.extension_width, geo.extension_height in
-      Geometry.clamp_geo geo;
-      let dw =
-        if Geometry.extension_shown_w geo then geo.extension_width - w else 0 in
-      let dh =
-        if Geometry.extension_shown_h geo then geo.extension_height - h else 0 in
-      (* Substract mouse delta to get position relative to current geometry *)
-      Ui.resize_from geo.ui Api.Mouse.(Api.sub (pos win) (delta win)) (dw, dh)
-    );
+  in
 
   if Api.Window.is_hidden win then  (* after startup *)
     Api.Window.reveal win;
@@ -307,12 +283,14 @@ extension_shown_h' (snd(Api.Window.size win)+dh) geo.control_height geo.extensio
   );
 
   (* Save state regularly every 3 seconds *)
-  State.save_after st 3.0
+  State.save_after st 3.0;
+
+  r''
 
 
 (* Startup *)
 
-let startup () =
+let start () =
   Storage.clear_temp ();
   let win = Api.Window.init 0 0 0 0 App.name in
   let audio = Api.Audio.init win in
@@ -328,7 +306,9 @@ let startup () =
     Storage.delete queue_file;
     Storage.clear_temp ();
   );
-  st
+  let x, y = Api.Window.pos win in
+  let w, h = Api.Window.size win in
+  run st (x, y, w, h)
 
 let args = Arg.align
 [
@@ -359,13 +339,13 @@ let _main =
       Unix.sleepf 1.0;
       let t2 = Storage.time queue_file in
       (* If file has not been modified after 1s, assume it's a zombie. *)
-      if t1 = t2 then run (startup ());
+      if t1 = t2 then start ();
     )
     else
     (
       Storage.save_string queue_file (fun () -> m3u);
       Storage.clear_temp ();  (* possible left-overs *)
-      run (startup ());
+      start ();
     )
   with exn ->
     Storage.log_exn "internal" exn "";
