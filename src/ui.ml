@@ -357,18 +357,7 @@ let start ui (wx', wy', ww', wh' as wr') =
   );
 
   Draw.start ui.win (`Trans (`Black, 0x40));
-  background ui 0 0 ww wh;
-
-  if
-    not (
-      Mouse.is_down `Left || Mouse.is_down `Right ||
-      Mouse.is_released `Left || Mouse.is_released `Right
-    )
-  then
-  (
-    ui.drag <- No_drag;
-    ui.mouse_owner <- None;
-  )
+  background ui 0 0 ww wh
 
 
 let finish ui margin (varw, varh) =
@@ -401,7 +390,19 @@ let finish ui margin (varw, varh) =
   let bot = inside origin (0, wh - margin, ww, margin) in
   let no_edge = (false, false, false, false) in
 
-  if ui.mouse_owner <> None then
+  let owner = ui.mouse_owner in
+  if
+    not (
+      Mouse.is_down `Left || Mouse.is_down `Right ||
+      Mouse.is_released `Left || Mouse.is_released `Right
+    )
+  then
+  (
+    ui.drag <- No_drag;
+    ui.mouse_owner <- None;
+  );
+
+  if owner <> None then
   (
     wr, no_edge
   )
@@ -2485,7 +2486,7 @@ let popup ui x y w h bw =
   let x' = max 0 (min x (ww - w')) in
   let y' = max 0 (min y (wh - h')) in
   background ui x' y' w' h';
-  ui.mouse_owner <- Some "(popup)";
+  ignore (grab_mouse ui "(popup)");  (* what if it fails? *)
   (-1, x' + bw, y' + bw, w, h)
 
 
