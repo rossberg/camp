@@ -37,11 +37,6 @@ let run_dividers (st : state) =
   let scr_x, scr_y = Api.Screen.min_pos scr in
   let scr_w, scr_h = Api.Screen.max_size scr in
 
-(*
-  assert (win_w = Geometry.win_w geo);
-  assert (win_h = Geometry.win_h geo);
-*)
-
   let ctl_w1', ctl_h1', win_dw, win_dx, focus_w1, focus_h1 =
     if not (Geometry.extension_shown_h geo) then
       ctl_w, ctl_h, 0, 0, `None, `None
@@ -201,14 +196,6 @@ and run' (st : state) (x, y, w, h as r) =
   let menu_shown = geo.menu_shown in
   let popup_shown = geo.popup_shown <> None in
 
-(*
-  (* Update geometry *)
-  let ww, wh = Api.Window.size win in
-  if extension_shown_w then geo.extension_width <- ww - Geometry.control_w geo;
-  if extension_shown_h then geo.extension_height <- wh - Geometry.control_h geo;
-  Geometry.update_geo geo;
-*)
-
   (* Run panes *)
   Run_control.run st;
   if not (Api.Window.is_minimized win) then
@@ -268,8 +255,6 @@ and run' (st : state) (x, y, w, h as r) =
       let sw, _ = Api.Window.max_size win in
       let dw' = min (sw - geo.control_width) (s * geo.extension_width) in
       let dx' = if Geometry.extension_left geo then -dw' else 0 in
-Printf.printf "[geo extend w %b] ww=%d cw=%d ew=%d sw=%d dw=%d maxew=%d\n%!"
-extension_shown_w' (fst(Api.Window.size win)) geo.control_width geo.extension_width sw dw' (sw - geo.control_width);
       geo.extension_width <- abs dw';
       dx', dw'
     )
@@ -279,8 +264,6 @@ extension_shown_w' (fst(Api.Window.size win)) geo.control_width geo.extension_wi
       let s = if extension_shown_h' then +1 else -1 in
       let _, sh = Api.Window.max_size win in
       let dh' = min (sh - geo.control_height) (s * geo.extension_height) in
-Printf.printf "[geo extend h %b] wh=%d ch=%d eh=%d sh=%d dh=%d maxeh=%d\n%!"
-extension_shown_h' (snd(Api.Window.size win)) geo.control_height geo.extension_height sh dh' (sh - geo.control_height);
       geo.extension_height <- abs dh';
       0, dh'
     )
@@ -343,26 +326,6 @@ extension_shown_h' (snd(Api.Window.size win)) geo.control_height geo.extension_h
   let dx, dy = scr_dx + win_dx + div_dx, scr_dy + win_dy + div_dy in
   let dw, dh = scr_dw + win_dw + div_dw, scr_dh + win_dh + div_dh in
   let dcw, dch = win_dcw + div_dcw, win_dch + div_dch in
-
-(*
-  if (ctl_dw, ctl_dh, win_dx, win_dy, win_dw, win_dh) = (0, 0, 0, 0, 0, 0) then
-    (win_dx, win_dy), (win_dw, win_dh)
-  else
-  (
-    let win_dx', win_dy', win_dw', win_dh' =
-      Geometry.change_geo geo win_dx win_dy win_dw win_dh ctl_dw ctl_dh
-        focusw focush flex_ctl_w flex_ctl_h
-    in
-if !App.debug_layout then Printf.eprintf "[adapted win] delta = %+d,%+d,%+d,%+d ~ %+d,%+d,%+d,%+d\n%!"
-win_dx win_dy win_dw win_dh
-win_dx' win_dy' win_dw' win_dh';
-
-    Geometry.update_geo' geo
-      (win_x + win_dx', win_y + win_dy', win_w + win_dw', win_h + win_dh');
-
-    (win_dx', win_dy'), (win_dw', win_dh')
-  )
-*)
 
   let changed = (dx, dy, dw, dh, dcw, dch) <> (0, 0, 0, 0, 0, 0) in
   let (x'', y'', w'', h'') as r'' =

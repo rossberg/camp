@@ -2485,7 +2485,6 @@ let popup ui x y w h bw =
   let x' = max 0 (min x (ww - w')) in
   let y' = max 0 (min y (wh - h')) in
   background ui x' y' w' h';
-Printf.printf "[own 10]\n%!";
   ui.mouse_owner <- Some "(popup)";
   (-1, x' + bw, y' + bw, w, h)
 
