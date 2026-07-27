@@ -237,7 +237,8 @@ let drop (st : state) tracks table_mouse (module View : View) =
     Option.iter (fun (pos_opt, _) ->
       (* Drop onto table: send tracks there *)
       let pos = Option.value pos_opt ~default: (Table.length tab) in
-      View.insert view pos tracks;
+      View.insert view pos
+        (Array.map (fun (t : Data.track) -> {t with pos = -1}) tracks);
       State.defocus_all st;
       View.focus st;
       update_control st;
