@@ -1,7 +1,9 @@
 === 0.9.6 (WIP) ===
 
 This update allows continuous scaling of the whole UI as well as customising
-the meta-data columns shown in the Playlist.
+the meta-data columns shown in the Playlist. It also significantly speeds up
+window moving and resizing overall. Finally, it adds a new turntable-style
+visualisation and an additional white-ish color scheme.
 
 Control:
 - [new] Control pane can be arbitrarily resized, seamlessly scaling its UI
@@ -15,10 +17,11 @@ Library:
 - [new] Browser context menu to copy, paste, propagate folder view settings
 
 UI:
-- [new] Resizing window borders with resizes Control pane
+- [new] Resizing window borders or dividers can resize Control pane
 - [new] Movable dividers between Control pane and Playlist/Library panes
 - [new] UI elements scale proportionally with Control pane size
 - [new] Add white color palette
+- [chg] Eliminate extra frame between dragging and resizing/moving the window
 - [fix] Correctly persist and restore UI scaling
 - [fix] Correctly adjust window geometry upon screen change with UI scaling
 
