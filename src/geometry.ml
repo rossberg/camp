@@ -735,7 +735,7 @@ let parse_state geo =  (* assumes playlist and library loaded *)
     geo.window <- (!rax, !ray, !raw, !rah);
     Ui.rescale geo.ui geo.scaling;
     let r = apply_geo geo geo.window in
-    if true || !App.debug_layout then
+    if !App.debug_layout then
     (
       let x, y, w, h = r in
       Printf.eprintf "[geo load] win=%d,%d,%d,%d\n%!" x y w h;
