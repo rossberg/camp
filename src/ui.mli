@@ -83,16 +83,14 @@ val mouse_focus : t -> area -> int -> int -> int -> unit
 
 val reset : t -> rect -> unit
 val start : t -> rect -> unit
-val finish :
-  t -> int -> size -> size -> (Api.screen -> unit) ->
-    rect * (bool * bool * bool * bool)
+val finish : t -> int -> bool * bool -> rect * (bool * bool * bool * bool)
 
-val resize : t -> size -> size -> unit
-val resize_from : t -> point -> size -> unit
 val rescale : t -> size -> unit
 val pin : t -> screen -> unit
 
 val delay : t -> (unit -> unit) -> unit
+
+val resize_repos : t -> point -> size -> size
 
 (* Simple Widgets *)
 

@@ -1497,4 +1497,4 @@ let run (st : state) =
       (Geometry.browser_min_w geo) (Geometry.browser_max_w geo)
   in
   geo.browser_width <- browser_width';
-  Geometry.update_geo geo
+  Geometry.clamp_geo geo

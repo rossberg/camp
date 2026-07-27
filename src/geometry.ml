@@ -151,12 +151,8 @@ let filesel_h g = control_h g + extension_h g
 
 (* Resizing limits *)
 
-let live_win_w g =
-  let win = Ui.window g.ui in
-  min (fst (Api.Window.size win)) (fst (Api.Window.next_size win))
-let live_win_h g =
-  let win = Ui.window g.ui in
-  min (snd (Api.Window.size win)) (snd (Api.Window.next_size win))
+let live_win_w g = fst (Api.Window.size (Ui.window g.ui))
+let live_win_h g = snd (Api.Window.size (Ui.window g.ui))
 
 let browser_min_w g = sx g 160
 let left_min_w g = sx g 40
@@ -221,9 +217,9 @@ let check msg b = if b then [] else [msg]
 
 let ok geo =
   check "window width in range"
-    (live_win_w geo >= win_min_w geo true true) @
+    (win_w geo >= win_min_w geo true true) @
   check "window height in range"
-    (live_win_h geo >= win_min_h geo true true) @
+    (win_h geo >= win_min_h geo true true) @
   check "text size in range"
     (geo.text >= min_text_size && geo.text <= max_text_size) @
   check "label size in range"
@@ -246,26 +242,36 @@ let ok geo =
    (extension_min_w geo >= 0) @
   check "extension height minimum positive"
    (extension_min_h geo >= 0) @
-  check "extension width in range"
-    (geo.extension_width >= extension_min_w geo) @
-  check "extension height in range"
-    (geo.extension_height >= extension_min_h geo) @
+  (if not (extension_shown_w geo) then [] else
+    check "extension width in range"
+      (geo.extension_width >= extension_min_w geo)
+  ) @
+  (if not (extension_shown_h geo) then [] else
+    check "extension height in range"
+      (geo.extension_height >= extension_min_h geo)
+  ) @
   check "browser width minimum positive"
     (browser_min_w geo >= 0) @
   check "browser width maximum larger than minimum"
     (browser_max_w geo >= browser_min_w geo) @
-  check "browser width in range"
-    ( geo.browser_width >= browser_min_w geo &&
-      geo.browser_width <= browser_max_w geo ) @
-  check "left view width in range"
-    ( geo.left_width >= left_min_w geo &&
-      geo.left_width <= left_max_w geo ) @
-  check "upper view height in range"
-    ( geo.upper_height >= upper_min_h geo &&
-      geo.upper_height <= upper_max_h geo ) @
-  check "directories width in range"
-    ( geo.directories_width >= directories_min_w geo &&
-      geo.directories_width <= directories_max_w geo ) @
+  (if not geo.library_shown then [] else
+    check "browser width in range"
+      ( geo.browser_width >= browser_min_w geo &&
+        geo.browser_width <= browser_max_w geo ) @
+    check "left view width in range"
+      ( geo.left_width >= left_min_w geo &&
+        geo.left_width <= left_max_w geo ) @
+    check "upper view height in range"
+      ( geo.upper_height >= upper_min_h geo &&
+        geo.upper_height <= upper_max_h geo ) @
+    []
+  ) @
+  (if not geo.filesel_shown then [] else
+    check "directories width in range"
+      ( geo.directories_width >= directories_min_w geo &&
+        geo.directories_width <= directories_max_w geo ) @
+    []
+  ) @
   []
 
 
@@ -460,6 +466,7 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
   let dh' = dh + if shownh then 0 else corrh in
   let w', h' = w + dw', h + dh' in
 
+if !App.debug_layout then
 Printf.printf "dw'=%d dcw'=%d dh=%d dh'=%d dch'=%d h=%d h'=%d \n%!" dw' dcw' dh dh' dch' h h';
   assert (shownw || dw' = dcw');
   assert (shownh || dh' = dch');
@@ -486,10 +493,12 @@ Printf.printf "dw'=%d dcw'=%d dh=%d dh'=%d dch'=%d h=%d h'=%d \n%!" dw' dcw' dh 
   let minh' = if flext || flexb then minh else clamp minh maxh h' in
   let maxw' = if flexl || flexr then maxw else clamp minw maxw w' in
   let maxh' = if flext || flexb then maxh else clamp minh maxh h' in
+if !App.debug_layout then(
 Printf.eprintf "    w=%d->%d~%d minw=%d~%d maxw=%d~%d\n%!"
 w w' (clamp minw' maxw' w') minw minw' maxw maxw';
 Printf.eprintf "    h=%d->%d~%d minh=%d~%d maxh=%d~%d\n%!"
 h h' (clamp minh' maxh' h') minh minh' maxh maxh';
+);
   assert (minw <= maxw);
   assert (minh <= maxh);
   assert (minw' <= maxw');
@@ -513,10 +522,12 @@ h h' (clamp minh' maxh' h') minh minh' maxh maxh';
   let x' = x + dx - if to_left then dw' - dw + w'' - w' else 0 in
   let y' = y + dy - if to_top then dh' - dh + h'' - h' else 0 in
   let x'', y'' = clamp minx maxx x', clamp miny maxy y' in
+if !App.debug_layout then(
 Printf.eprintf "    x=%d->%d~%d~%d toleft=%b\n%!"
 x (x + dx) x' x'' to_left;
 Printf.eprintf "    y=%d->%d~%d~%d totop=%b\n%!"
 y (y + dh) y' y'' to_top;
+);
 
   let dx'', dy'' = x'' - x, y'' - y in
   let dw'', dh'' = w'' - w, h'' - h in
@@ -525,12 +536,32 @@ y (y + dh) y' y'' to_top;
   let dew'' = dw'' - dcw'' in
   let deh'' = dh'' - dch'' in
 
-Printf.printf "dw''=%d dcw''=%d dh=%d dh'=%d dh''=%d dch''=%d h=%d h'=%d h''=%d\n%!" dw'' dcw'' dh dh' dh'' dch'' h h' h'';
+if !App.debug_layout then
+Printf.eprintf "dw''=%d dcw''=%d dh=%d dh'=%d dh''=%d dch''=%d h=%d h'=%d h''=%d\n%!"
+dw'' dcw'' dh dh' dh'' dch'' h h' h'';
   assert (shownw || dw'' = dcw'');
   assert (shownh || dh'' = dch'');
 
   let cw'', ch'' = cw + dcw'', ch + dch'' in
   let ew'', eh'' = ew + dew'', eh + deh'' in
+
+if !App.debug_layout then
+Printf.eprintf "dh=%d dh'=%d dh''=%d ch=%d ch'=%d eh=%d eh''=%d dch'=%d dch''=%d deh''=%d\n%!"
+dh dh' dh'' ch ch' eh eh'' dch' dch'' deh'';
+(*
+ch=210
+dch=0
+ch'=210
+dh=581
+dh'=581
+dh''=581
+eh=581 !
+eh''=1162 ?
+=>deh''=eh''-eh=581 ??
+=>dch''=dh''-deh''=0
+=>dch'=dch''-dh''+dh'=0
+=>dch'=ch'-ch=0
+*)
 
   (* Clamp dividers *)
   let mincw = control_min_w in
@@ -541,10 +572,12 @@ Printf.printf "dw''=%d dcw''=%d dh=%d dh'=%d dh''=%d dch''=%d h=%d h'=%d h''=%d\
   let maxch = h'' - (if shownh then mineh else 0) in
   let maxew = (if shownw then w'' else maxw) - mincw in
   let maxeh = (if shownh then h'' else maxh) - minch in
+if !App.debug_layout then(
 Printf.printf "    cw=%d~%d~%d mincw=%d maxcw=%d\n    ew=%d~%d minew=%d maxew=%d\n%!"
 cw cw' cw'' mincw maxcw ew ew'' minew maxew;
 Printf.printf "    ch=%d~%d~%d minch=%d maxch=%d\n    eh=%d~%d mineh=%d maxeh=%d\n%!"
 ch ch' ch'' minch maxch eh eh'' mineh maxeh;
+);
 assert (mincw <= maxcw);
 assert (minch <= maxch);
 assert (minew <= maxew);
@@ -582,34 +615,74 @@ assert (mineh <= maxeh);
   (dx'', dy'', dw'', dh'')
 
 
-(* Resolution-independent Window Geometry *)
+let clamp_geo geo =
+  if extension_shown_h geo then
+  (
+    let ch, eh = geo.control_height, geo.extension_height in
 
-let concrete_geo geo : float * float * float * float =
-  let x, y = Api.Window.pos (Ui.window geo.ui) in
-  float x, float y, float geo.extension_width, float geo.extension_height
+    (* Changing control pane size may change minima gradually *)
+    while extension_h geo < extension_min_h geo do
+      geo.control_height <- geo.control_height - 1;
+      geo.extension_height <- geo.extension_height + 1;
+    done;
 
-let abstract_geo' geo (wx, wy, ww, wh) : float * float * float * float =
-  let win = Ui.window geo.ui in
-  let sx, sy = Api.Window.min_pos win in
-  let sw, sh = Api.Window.max_size win in
-  let sw', sh' = Api.sub (sw, sh) (control_w geo, control_h geo) in
-  let cx = let cx = control_x geo in if cx >= 0 then cx else ww + cx in
-  let cy = let cy = control_y geo in if cy >= 0 then cy else wh + cy in
-  assert (cx >= 0 && cy >= 0);  (* relative position of control pane *)
-  let lw, ph = geo.extension_width, geo.extension_height in
-  let tweak q = if not (Float.is_finite q) then 1.0 else q in
-  let ax = tweak (float (wx + cx - sx) /. float sw') in
-  let ay = tweak (float (wy + cy - sy) /. float sh') in
-  let aw = clamp 0.0 1.0 (tweak (float lw /. float sw')) in
-  let ah = clamp 0.0 1.0 (tweak (float ph /. float sh')) in
-  (ax, ay, aw, ah)
+    if !App.debug_layout
+    && (ch, eh) <> (geo.control_height, geo.extension_height) then
+    (
+      Printf.eprintf "[geo clamp h] win=%d ctl=%d->%d ext=%d->%d\n%!"
+        (ch + eh) ch geo.control_height eh geo.extension_height
+    )
+  );
+  if extension_shown_w geo then
+  (
+    let cw, ew = geo.control_width, geo.extension_width in
 
-let abstract_geo geo : float * float * float * float =
-  let win = Ui.window geo.ui in
-  let wx, wy = Api.Window.pos win in
-  let ww, wh = Api.Window.size win in
-  abstract_geo' geo (wx, wy, ww, wh)
+    (* Changing control pane size may change minima gradually *)
+    while extension_w geo < extension_min_w geo do
+      geo.control_width <- geo.control_width - 1;
+      geo.extension_width <- geo.extension_width + 1;
+    done;
 
+    if !App.debug_layout
+    && (cw, ew) <> (geo.control_width, geo.extension_width) then
+    (
+      Printf.printf "[geo clamp w] win=%d ctl=%d->%d ext=%d->%d\n%!"
+        (cw + ew) cw geo.control_width ew geo.extension_width
+    );
+
+let ww, wh = cw + ew, geo.control_height + geo.extension_height in
+check_geo geo (ww, wh);
+
+    let bw = geo.browser_width in
+    let lw = geo.left_width in
+    let uh = geo.upper_height in
+    let dw = geo.directories_width in
+    geo.browser_width <- clamp (browser_min_w geo) (browser_max_w geo) bw;
+    geo.left_width <- clamp (left_min_w geo) (left_max_w geo) lw;
+    geo.upper_height <- clamp (upper_min_h geo) (upper_max_h geo) uh;
+    geo.directories_width <-
+      clamp (directories_min_w geo) (directories_max_w geo) dw;
+
+    if !App.debug_layout && (
+      bw <> geo.browser_width ||
+      lw <> geo.left_width ||
+      uh <> geo.upper_height ||
+      dw <> geo.directories_width
+    ) then
+    (
+      Printf.eprintf
+        "  ext=%d,%d bw=%d->%d lw=%d->%d uh=%d->%d dw=%d->%d\n%!"
+        geo.extension_width geo.extension_height
+        bw geo.browser_width
+        lw geo.left_width
+        uh geo.upper_height
+        dw geo.directories_width
+    )
+;check_geo geo (ww, wh)
+  )
+
+
+(*
 let clamp_geo' geo (ww, wh) =
   assert (ww > 1 && wh > 1);
 check_geo geo (ww, wh);
@@ -695,16 +768,38 @@ check_geo geo (ww, wh);
 
 let clamp_geo geo =
   let win = Ui.window geo.ui in
-  let ww, wh = Api.Window.next_size win in
+  let ww, wh = Api.Window.size win in
   clamp_geo' geo (ww, wh)
+*)
 
-let update_geo' geo (wx, wy, ww, wh) =
-  clamp_geo' geo (ww, wh);
-  geo.window <- abstract_geo' geo (wx, wy, ww, wh)
 
-let update_geo geo =
+(* Resolution-independent Window Geometry *)
+
+let concrete_geo geo : float * float * float * float =
+  let x, y = Api.Window.pos (Ui.window geo.ui) in
+  float x, float y, float geo.extension_width, float geo.extension_height
+
+let abstract_geo geo (wx, wy, ww, wh) : float * float * float * float =
+  let win = Ui.window geo.ui in
+  let sx, sy = Api.Window.min_pos win in
+  let sw, sh = Api.Window.max_size win in
+  let sw', sh' = Api.sub (sw, sh) (control_w geo, control_h geo) in
+  let cx = let cx = control_x geo in if cx >= 0 then cx else ww + cx in
+  let cy = let cy = control_y geo in if cy >= 0 then cy else wh + cy in
+  assert (cx >= 0 && cy >= 0);  (* relative position of control pane *)
+  let lw, ph = geo.extension_width, geo.extension_height in
+  let tweak q = if not (Float.is_finite q) then 1.0 else q in
+  let ax = tweak (float (wx + cx - sx) /. float sw') in
+  let ay = tweak (float (wy + cy - sy) /. float sh') in
+  let aw = clamp 0.0 1.0 (tweak (float lw /. float sw')) in
+  let ah = clamp 0.0 1.0 (tweak (float ph /. float sh')) in
+  (ax, ay, aw, ah)
+
+let update_geo geo (wx, wy, ww, wh) =
+  assert (ww = geo.control_width + geo.extension_width);
+  assert (wh = geo.control_height + geo.extension_height);
   clamp_geo geo;
-  geo.window <- abstract_geo geo
+  geo.window <- abstract_geo geo (wx, wy, ww, wh)
 
 let apply_geo geo (ax, ay, aw, ah) : int * int * int * int =
   let win = Ui.window geo.ui in
@@ -728,13 +823,13 @@ let apply_geo geo (ax, ay, aw, ah) : int * int * int * int =
   if !App.debug_layout then
   (
     Printf.eprintf
-      "[layout apply] abs=%.2f,%.2f,%.2f,%.2f concr=%d,%d,%d+%d,%d+%d scr=%d,%d,%d,%d\n%!"
+      "[geo apply] abs=%.2f,%.2f,%.2f,%.2f concr=%d,%d,%d+%d,%d+%d scr=%d,%d,%d,%d\n%!"
       ax ay aw ah x y ew (control_w geo) eh (control_h geo) sx sy sw sh;
   );
 
-  let w, h = win_w geo, win_h geo in
-  clamp_geo' geo (w, h);
-  x, y, w, h
+  clamp_geo geo;
+
+  x, y, win_w geo, win_h geo
 
 
 let abstract_view_geo geo : int * int =
@@ -757,7 +852,9 @@ let side_enum = ["left", `Left; "right", `Right]
 
 let print_state geo =
   let open Text.Print in
-  let ax, ay, aw, ah = abstract_geo geo in
+  let wx, wy = Api.Window.pos (Ui.window geo.ui) in
+  let ww, wh = win_w geo, win_h geo in
+  let ax, ay, aw, ah = abstract_geo geo (wx, wy, ww, wh) in
   record (fun geo -> [
     "win_pos", pair float float (ax, ay);
     "scaling", pair int int geo.scaling;
@@ -802,7 +899,7 @@ let parse_state geo =  (* assumes playlist and library loaded *)
   let sw, sh = Api.Window.max_size (Ui.window geo.ui) in
   let ww, wh = control_w geo, control_h geo in
   let wx, wy = (sw - ww)/2, (sh - wh)/2 in  (* default to mid-screen *)
-  let ax, ay, aw, ah = abstract_geo' geo (wx, wy, ww, wh) in
+  let ax, ay, aw, ah = abstract_geo geo (wx, wy, ww, wh) in
   let rax, ray, raw, rah = ref ax, ref ay, ref aw, ref ah in
   record (fun r ->
     apply (r $? "scaling") (pair (num (-1) 8) (num (-1) 8))
@@ -857,10 +954,10 @@ let parse_state geo =  (* assumes playlist and library loaded *)
     geo.window <- (!rax, !ray, !raw, !rah);
     Ui.rescale geo.ui geo.scaling;
     let r = apply_geo geo geo.window in
-    if !App.debug_layout then
+    if true || !App.debug_layout then
     (
-      let _, _, ww, wh = r in
-      Printf.eprintf "[layout load] win=%d,%d\n%!" ww wh;
+      let x, y, w, h = r in
+      Printf.eprintf "[geo load] win=%d,%d,%d,%d\n%!" x y w h;
     );
     Ui.reset geo.ui r;
   )

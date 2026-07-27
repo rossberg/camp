@@ -271,41 +271,27 @@ struct
   let current_screen = ref (-1)
   let current_pos = ref (0, 0)   (* buffered during minimization *)
   let current_size = ref (0, 0)
-  let next_pos = ref None        (* defer window changes to frame end *)
-  let next_size = ref None
-  let next_rescale = ref (0, 0)
+  let in_frame = ref false
 
   let update () =
     if not (Raylib.is_window_minimized ()) then
     (
       current_pos := point_of_vec2 (Raylib.get_window_position ());
-      current_size := (Raylib.get_screen_width (), Raylib.get_screen_height ());
+      current_size := Raylib.(get_screen_width (), get_screen_height ());
     )
 
   (* We have to set the window position before events are processed,
    * and the window size after. Otherwise we're seeing strange bobbing. *)
-  let _ = before_frame_finish :=
+  let _ = before_frame_start :=
     (fun () ->
-      Option.iter (fun (x, y) ->
-        if (x, y) <> !current_pos then Raylib.set_window_position x y;
-        next_pos := None;
-      ) !next_pos;
-    ) :: !before_frame_finish
+      assert (not !in_frame);
+      in_frame := true;
+      update ();
+    ) :: !before_frame_start
   let _ = after_frame_finish :=
     (fun () ->
-      if !next_rescale <> (0, 0) then
-      (
-        let x, y = !Screen.scale in
-        let dx, dy = !next_rescale in
-        Screen.scale := max 1 (x + dx), max 1 (y + dy);
-        next_rescale := 0, 0;
-        if !next_size = None then next_size := Some !current_size;
-      );
-      Option.iter (fun (w, h) ->
-        if (w, h) <> !current_size then Raylib.set_window_size w h;
-        next_size := None;
-      ) !next_size;
-      update ();
+      assert !in_frame;
+      in_frame := false;
       Raylib.(set_exit_key Key.Null);  (* seems to be reset somehow? *)
     ) :: !after_frame_finish
 
@@ -329,12 +315,19 @@ struct
   let pos () = uxy !current_pos
   let size () = uxy !current_size
   let screen () = !current_screen
-  let set_pos () x y = next_pos := Some (sx x, sy y)
-  let set_size () w h = next_size := Some (sx w, sy h)
+
+  let set_pos () x y =
+    assert (not !in_frame);
+    Raylib.set_window_position (sx x) (sy y);
+    update ()
+
+  let set_size () w h =
+    assert (not !in_frame);
+    Raylib.set_window_size (sx w) (sy h);
+    update ()
+
   let set_screen () scr = current_screen := scr
   let set_icon () img = if not is_mac then Raylib.set_window_icon img
-  let next_pos () = uxy (Option.value !next_pos ~default: !current_pos)
-  let next_size () = uxy (Option.value !next_size ~default: !current_size)
 
   let min_pos () = Screen.min_pos !current_screen
   let max_size () = Screen.max_size !current_screen
@@ -349,8 +342,9 @@ struct
 
   let scale () = !Screen.scale
   let rescale () dx dy =
-    let dx', dy' = !next_rescale in
-    next_rescale := dx' + dx, dy' + dy
+    assert (not !in_frame);
+    let x, y = !Screen.scale in
+    Screen.scale := max 1 (x + dx), max 1 (y + dy)
 
   let fps () = Raylib.get_fps ()
 end
@@ -808,8 +802,7 @@ module Mouse =
 struct
   let last_win_pos = ref (0, 0) (* store to work around Raylib not updating relative mouse pos on window move *)
   let current_pos = ref (0, 0)  (* work around Raylib mouse pos bug *)
-  let last_pos = ref (0, 0)     (* implement our own mouse delta, since Raylib's is off as well *)
-  let last_abs_pos = ref (0, 0)
+  let last_pos = ref (0, 0)
   let last_press_pos = ref (min_int, min_int)
   let last_press_left = ref 0.0
   let last_press_right = ref 0.0
@@ -822,9 +815,9 @@ struct
   let is_drag_middle = ref false
   let next_cursor = ref Raylib.MouseCursor.Default
 
-  let pos () = Screen.uxy !current_pos
-  let abs_pos () = add (pos ()) (Window.pos ())
-  let delta () = sub (abs_pos ()) !last_abs_pos
+  let abs_pos () = Screen.uxy !current_pos
+  let pos () = sub (abs_pos ()) (Window.pos ())
+  let delta () = Screen.uxy (sub !current_pos !last_pos)
   let wheel () = Screen.ufxy (floats_of_vec2 (Raylib.get_mouse_wheel_move_v ()))
 
   let button = function
@@ -868,12 +861,13 @@ struct
       | `Resize `NW_SE -> Resize_nwse
       | `Resize `All -> Resize_all
 
-  let _ = after_frame_start :=
+  let _ = after_frame_finish :=
     (fun () ->
       (* Work around Raylib issue: if window was moved but mouse hasn't, then
        * mouse pos is off; detect and correct by adding window delta. *)
-      current_pos := point_of_vec2 (Raylib.get_mouse_position ());
+      let mouse_pos = point_of_vec2 (Raylib.get_mouse_position ()) in
       let win_pos = point_of_vec2 (Raylib.get_window_position ()) in
+      current_pos := add mouse_pos win_pos;
       let mouse_delta = point_of_vec2 (Raylib.get_mouse_delta ()) in
       let win_delta = sub win_pos !last_win_pos in
       if not is_mac || mouse_delta <> (0, 0) then
@@ -936,12 +930,11 @@ struct
       (* Deferred update of mouse cursor *)
       Raylib.set_mouse_cursor !next_cursor;
       next_cursor := Raylib.MouseCursor.Default;
-    ) :: !after_frame_start
+    ) :: !after_frame_finish
 
   let _ = before_frame_finish :=
     (fun () ->
-      last_pos := !current_pos;
-      last_abs_pos := abs_pos ();
+      last_pos := !current_pos
     ) :: !before_frame_finish
 end
 

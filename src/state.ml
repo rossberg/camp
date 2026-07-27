@@ -206,7 +206,8 @@ let ok' st =
 let rec ok st =
   match ok' st with
   | errors when errors <> [] ->
-    dump st (List.map ((^) "Invariant violated: ") errors)
+    dump st (List.map ((^) "Invariant violated: ") errors);
+    if !App.debug_strict then failwith "Invariant violated"
   | exception exn ->
     dump st ["Exception during validation: " ^ Printexc.to_string exn ^ "\n" ^
       Printexc.get_backtrace ()]

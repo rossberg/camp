@@ -17,13 +17,13 @@ type t =
   mutable buffered : bool;
   mutable font_sdf : bool;
   mutable palette : int;
-  mutable panes : (rect * rect) array;  (* abstract and concrete rectangles *)
-  mutable modal : bool;             (* whether a pop-up menu is shown *)
-  mutable mouse_owner : string option;   (* whether mouse was owned by a widget *)
-  mutable drag  : drag;             (* associated data for drag operation *)
-  mutable repos : size;             (* requested window reposition delta *)
-  mutable resize : size;            (* requested window resize delta *)
-  mutable delayed : (unit -> unit) list;   (* draw at end of frame *)
+  mutable panes : (rect * rect) array; (* abstract and concrete rectangles *)
+  mutable modal : bool;                (* whether a pop-up menu is shown *)
+  mutable modal_resize : bool;         (* whether a resize happened this frame *)
+  mutable modal_save : bool;           (* modal mode before the resize *)
+  mutable mouse_owner : string option; (* whether mouse was owned by a widget *)
+  mutable drag  : drag;                (* associated data for drag operation *)
+  mutable delayed : (unit -> unit) list; (* draw at end of frame *)
   img_background : image_load;
   img_button : image_load;
   img_nocover : image_load;
@@ -43,10 +43,10 @@ let make win =
     palette = 0;
     panes = Array.make 10 ((0, 0, 0, 0), (0, 0, 0, 0));
     modal = false;
+    modal_resize = false;
+    modal_save = false;
     mouse_owner = None;
     drag = No_drag;
-    repos = 0, 0;
-    resize = 0, 0;
     delayed = [];
     img_background = ref (`Unloaded "bg.jpg");
     img_button = ref (`Unloaded "but.jpg");
@@ -73,9 +73,15 @@ let grab_mouse ui owner =
 
 (* Modal mode *)
 
-let modal ui = ui.modal <- true
-let nonmodal ui = ui.modal <- false
-let is_modal ui = ui.modal
+let modal ui =
+  assert (ui.modal = ui.modal_resize);
+  ui.modal <- true
+
+let nonmodal ui =
+  ui.modal <- ui.modal_resize
+
+let is_modal ui =
+  ui.modal
 
 
 (* Panes *)
@@ -97,10 +103,13 @@ let pane ui i r =
   let ww, wh as wsize = Window.size ui.win in
   let x, y, w, h as r' = rel_rect wsize r in
   if not (x >= 0 && y >= 0 && x + w <= ww && y + h <= wh) then
+  (
     Storage.log (Printf.sprintf
       "invalid element geometry: x=%d y=%d w=%d h=%d winw=%d winh=%d"
       x y w h ww wh
     );
+    if !App.debug_layout then assert false;
+  );
 
   let n = Array.length ui.panes in
   if i >= n then
@@ -313,21 +322,42 @@ type drag += Abort
 let delay ui f =
   ui.delayed <- f :: ui.delayed
 
-let reset ui (x, y, w, h) =
-  Draw.start ui.win `Black;
-  Window.set_pos ui.win x y;
-  Window.set_size ui.win w h;
-  Draw.finish ui.win
+let reset ui (wx, wy, ww, wh) =
+  Window.set_pos ui.win wx wy;
+  Window.set_size ui.win ww wh
 
-let start ui (x, y, w, h) =
+let rescale ui (dx, dy) =
+  if dx <> 0 || dy <> 0 then
+  (
+    Window.rescale ui.win dx dy;
+    font_purge ui;
+  )
+
+let pin ui scr =
+  Window.set_screen ui.win scr
+
+let start ui (wx', wy', ww', wh' as wr') =
+  let wx, wy = Window.pos ui.win in
+  let ww, wh = Window.size ui.win in
+  ui.modal <- ui.modal_save;
+  ui.modal_resize <- wr' <> (wx, wy, ww, wh);
+  if ui.modal_resize then
+  (
+    if !App.debug_layout then
+    (
+      Printf.eprintf "[resize] %d,%d,%d,%d -> %d,%d,%d,%d\n%!"
+        wx wy ww wh wx' wy' ww' wh'
+    );
+    (* Suppress input when window was just resized, mouse pos may be off *)
+    ui.modal_save <- ui.modal;
+    ui.modal <- true;
+    Window.set_pos ui.win wx' wy';
+    Window.set_size ui.win ww' wh';
+  );
+
   Draw.start ui.win (`Trans (`Black, 0x40));
+  background ui 0 0 ww wh;
 
-  Window.set_pos ui.win x y;
-  Window.set_size ui.win w h;
-
-  background ui 0 0 w h;
-
-  Mouse.set_cursor ui.win `Default;
   if
     not (
       Mouse.is_down `Left || Mouse.is_down `Right ||
@@ -340,20 +370,17 @@ let start ui (x, y, w, h) =
   )
 
 
-let finish ui margin (minw, minh) (maxw, maxh) on_screen_change =
+let finish ui margin (varw, varh) =
   List.iter (fun f -> f ()) (List.rev ui.delayed);
   ui.delayed <- [];
 
+  Draw.finish ui.win;
+
   let (wx, wy) as pos = Window.pos ui.win in
   let (ww, wh) as size = Window.size ui.win in
-  let (wx', wy') as pos' = add pos ui.repos in
-  let (ww', wh') as size' = add size ui.resize in
-if ui.repos <> (0,0) then
-Printf.eprintf "[finish] repos=%+d,%+d\n%!" (fst ui.repos) (snd ui.repos);
+  let wr = (wx, wy, ww, wh) in
 
   let cursor lft top rgt bot =
-    let varw = minw <> maxw in
-    let varh = minh <> maxh in
     match varw && lft, varw && rgt, varh && top, varh && bot with
     | true, false, false, false
     | false, true, false, false -> `Resize `E_W
@@ -373,95 +400,71 @@ Printf.eprintf "[finish] repos=%+d,%+d\n%!" (fst ui.repos) (snd ui.repos);
   let bot = inside origin (0, wh - margin, ww, margin) in
   let no_edge = (false, false, false, false) in
 
-  let (wx'', wy''), (ww'', wh''), edge =
-    if ui.mouse_owner <> None then
-    (
-       pos', size', no_edge
-    )
-    else if Mouse.is_down `Right || ui.drag = Abort then
-    (
-      Mouse.set_cursor ui.win `Default;
-      ui.drag <- Abort;
-      pos', size', no_edge
-    )
-    else if not (Mouse.is_down `Left) then
-    (
+  if ui.mouse_owner <> None then
+  (
+    wr, no_edge
+  )
+  else if Mouse.is_down `Right || ui.drag = Abort then
+  (
+    Mouse.set_cursor ui.win `Default;
+    ui.drag <- Abort;
+    wr, no_edge
+  )
+  else if not (Mouse.is_down `Left) then
+  (
+    let cursor = cursor lft top rgt bot in
+    if cursor <> `Point then Mouse.set_cursor ui.win cursor;
+    wr, no_edge
+  )
+  else
+  (
+    match ui.drag with
+    | No_drag ->
       let cursor = cursor lft top rgt bot in
-      if cursor <> `Point then Mouse.set_cursor ui.win cursor;
-      pos', size', no_edge
-    )
-    else
-    (
-      match ui.drag with
-      | No_drag ->
-        let cursor = cursor lft top rgt bot in
-        Mouse.set_cursor ui.win cursor;
+      Mouse.set_cursor ui.win cursor;
+      ui.drag <-
         if cursor = `Point then
-          ui.drag <- Move {target = pos'}
+          Move {target = pos}
         else
         (
           let mx, my = Mouse.abs_pos ui.win in
           let dx = if lft then mx - wx else mx - (wx + ww) in
           let dy = if top then my - wy else my - (wy + wh) in
-          ui.drag <- Resize {offset = dx, dy; edge = lft, top, rgt, bot};
+          Resize {offset = dx, dy; edge = lft, top, rgt, bot}
         );
-        pos', size', no_edge
+      wr, no_edge
 
-      | Move {target} ->
-        Mouse.set_cursor ui.win `Point;
-        let mouse = Mouse.abs_pos ui.win in
-        let delta = Mouse.delta ui.win in
-        let scr = Screen.screen mouse in  (* snap & resize relative to mouse's screen *)
-        let sx, sy = Screen.min_pos scr in
-        let sw, sh = Screen.max_size scr in
-        if scr <> Window.screen ui.win then
-          (* Moved to another screen, callback may update repos or resize *)
-          on_screen_change scr;
-        let size' = add size ui.resize in
-        let target' = add target ui.repos in
-        let wx'', wy'' as target'' = add target' delta in
-        ui.drag <- Move {target = target''};
-        (snap sx (sx + sw - ww) wx'', snap sy (sy + sh - wh) wy''), size', no_edge
+    | Move {target} ->
+      Mouse.set_cursor ui.win `Point;
+      let mouse = Mouse.abs_pos ui.win in
+      let delta = Mouse.delta ui.win in
+      let scr = Screen.screen mouse in  (* snap relative to mouse's screen *)
+      pin ui scr;
+      let sx, sy = Screen.min_pos scr in
+      let sw, sh = Screen.max_size scr in
+      let wx', wy' as target' = add target delta in
+      ui.drag <- Move {target = target'};
+      (snap sx (sx + sw - ww) wx', snap sy (sy + sh - wh) wy', ww, wh), no_edge
 
-      | Resize {offset; edge = lft, top, rgt, bot as edge} ->
-        Mouse.set_cursor ui.win (cursor lft top rgt bot);
-        let scr = Window.screen ui.win in  (* snap relative to window's screen *)
-        let sx, sy = Screen.min_pos scr in
-        let sw, sh = Screen.max_size scr in
-        let mx, my = sub (Mouse.abs_pos ui.win) offset in
-        let mx', my' = snap sx (sx + sw) mx, snap sy (sy + sh) my in
-        let minx, maxx = max sx (wx' + ww' - maxw), wx' + ww' - minw in
-        let miny, maxy = max sy (wy' + wh' - maxh), wy' + wh' - minh in
-        let wx'' = clamp minx maxx (if lft then mx' else wx') in
-        let wy'' = clamp miny maxy (if top then my' else wy') in
-        let ww'' = clamp minw maxw (if rgt then mx' - wx' else ww' - (wx'' - wx')) in
-        let wh'' = clamp minh maxh (if bot then my' - wy' else wh' - (wy'' - wy')) in
-        (wx'', wy''), (ww'', wh''), edge
+    | Resize {offset; edge = lft, top, rgt, bot as edge} ->
+      Mouse.set_cursor ui.win (cursor lft top rgt bot);
+      let scr = Window.screen ui.win in  (* snap relative to window's screen *)
+      let sx, sy = Screen.min_pos scr in
+      let sw, sh = Screen.max_size scr in
+      let mx, my = sub (Mouse.abs_pos ui.win) offset in
+      let mx', my' = snap sx (sx + sw) mx, snap sy (sy + sh) my in
+      let wx' = if lft then mx' else wx in
+      let wy' = if top then my' else wy in
+      let ww' = if rgt then mx' - wx else ww - (wx' - wx) in
+      let wh' = if bot then my' - wy else wh - (wy' - wy) in
+      (wx', wy', ww', wh'), edge
 
-      | _ ->
-        pos', size', no_edge
-    )
-  in
-
-if !App.debug_layout && (wx'',wy'',ww'',wh'')<>(wx,wy,ww,wh) then
-Printf.eprintf "[resize] %d,%d,%d,%d -> %d,%d,%d,%d\n%!" wx wy ww wh wx'' wy'' ww'' wh'';
-(*
-  Window.set_pos ui.win wx'' wy'';   (* deferred until end of frame! *)
-  Window.set_size ui.win ww'' wh'';  (* deferred until end of frame! *)
-*)
-  ui.repos <- 0, 0;
-  ui.resize <- 0, 0;
-
-  Draw.finish ui.win;
-
-  (wx'', wy'', ww'', wh''), edge
+    | _ ->
+      wr, no_edge
+  )
 
 
-let resize ui (dx, dy) (dw, dh) =
-  ui.repos <- add ui.repos (dx, dy);
-  ui.resize <- add ui.resize (dw, dh)
-
-let resize_from ui origin (dw, dh) =
+let resize_repos ui (ox, oy) (dw, dh) =
   (* Figure out whether origin sticks to upper/left or lower/right.
    * If the former, respective window position coordinate remains unchanged.
    * If the latter, move window position along respective axis.
@@ -471,29 +474,13 @@ let resize_from ui origin (dw, dh) =
    * widget after resize!)
    * TODO: Declare pivot explicitly with pane geometry and check widgets?
    *)
-  let ox, oy = add origin ui.repos in
-  let dx, dy =
-    match find_pane ui origin with
-    | Some ((rx, ry, rw, rh), (x, y, w, h)) ->
-      (if rx < 0 || rw < 0 && 2*(ox - x) > w then -dw else 0),
-      (if ry < 0 || rh < 0 && 2*(oy - y) > h then -dh else 0)
-    | None ->
-      (if fst origin < 0 then 0 else -dw),
-      (if snd origin < 0 then 0 else -dh)
-  in
-  resize ui (dx, dy) (dw, dh)
-
-let rescale ui (dx, dy) =
-  if dx <> 0 || dy <> 0 then
-  (
-    Draw.start ui.win `Black;
-    Window.rescale ui.win dx dy;
-    Draw.finish ui.win;
-    font_purge ui;
-  )
-
-let pin ui scr =
-  Window.set_screen ui.win scr
+  match find_pane ui (ox, oy) with
+  | Some ((rx, ry, rw, rh), (x, y, w, h)) ->
+    (if rx < 0 || rw < 0 && 2*(ox - x) > w then -dw else 0),
+    (if ry < 0 || rh < 0 && 2*(oy - y) > h then -dh else 0)
+  | None ->
+    (if ox < 0 then 0 else -dw),
+    (if oy < 0 then 0 else -dh)
 
 
 (* Input Status *)
@@ -501,7 +488,7 @@ let pin ui scr =
 let no_modkey = ([], `None)
 
 let key_status' ui key =
-  if ui.modal then `Untouched else
+  if is_modal ui then `Untouched else
   (* Mouse click or drag masks keys *)
   if Mouse.is_down `Left then
     `Untouched
@@ -519,7 +506,7 @@ let key_status ui (modifiers, key) focus =
     key_status' ui key
 
 let mouse_status ui r owner (#side as side) =
-  if ui.modal
+  if is_modal ui
   || not (has_mouse ui owner || inside (Mouse.pos ui.win) r && (side = `Right || grab_mouse ui owner)) then
     `Untouched
   else if Mouse.is_down side && (side = `Left || not (Mouse.is_down `Middle)) then
@@ -552,7 +539,7 @@ let unexpected_drag ui s owner =
   )
 
 let drag_status ui r owner (stepx, stepy) =
-  if ui.modal || ui.drag = Abort
+  if is_modal ui || ui.drag = Abort
   || not (has_mouse ui owner || inside (Mouse.pos ui.win) r && grab_mouse ui owner) then
     `None
   else if Mouse.is_released `Left then
@@ -604,7 +591,7 @@ let drag_status ui r owner (stepx, stepy) =
   )
 
 let wheel_status ui r =
-  if not ui.modal && inside (Mouse.pos ui.win) r then
+  if not (is_modal ui) && inside (Mouse.pos ui.win) r then
     Mouse.wheel ui.win
   else
     (0.0, 0.0)
@@ -1470,7 +1457,7 @@ let header ui area owner ph gw cols (titles, sorting) hscroll =
       | Some i -> `Click i
       )
     | `None ->
-      if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
+      if not (is_modal ui) && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
         `Menu None
       else
         `None
@@ -1480,7 +1467,7 @@ let header ui area owner ph gw cols (titles, sorting) hscroll =
         ui.drag <- Header_resize {mouse_x = mx; col};
       `None
     | `Header col ->
-      if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
+      if not (is_modal ui) && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
         `Menu (Some col)
       else if status = `Pressed then
       (
@@ -1673,7 +1660,7 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
       find_column w geo.gutter_w cols tab.hscroll (mx - x) in
 
     let result =
-      if not ui.modal && ui.drag = No_drag
+      if not (is_modal ui) && ui.drag = No_drag
       && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
       (
         if inside (mx, my) r then
@@ -1743,7 +1730,7 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
 
         | `Abort -> `Abort
       )
-      else if command && not ui.modal && Mouse.is_pressed `Left then
+      else if command && not (is_modal ui) && Mouse.is_pressed `Left then
       (
         (* Cmd-click on entry: toggle selection of clicked entry *)
         let col = find_column cols mx in
@@ -1761,7 +1748,7 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
           `Click (Some i, col);
         )
       )
-      else if shift && not ui.modal && Mouse.is_down `Left then
+      else if shift && not (is_modal ui) && Mouse.is_down `Left then
       (
         (* Shift-click/drag on playlist: adjust selection range *)
         let default = if i < len then (i, i) else (0, 0) in
@@ -1780,7 +1767,7 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
           Table.select tab pos2 i';
           Table.deselect tab pos1 i'
         );
-        if not ui.modal && Mouse.is_pressed `Left then
+        if not (is_modal ui) && Mouse.is_pressed `Left then
           `Click ((if i < len then Some i else None), find_column cols mx)
         else if Table.IntSet.equal tab.selected old_selection then
           `None
@@ -2056,7 +2043,7 @@ let browser ui area owner geo (tab : _ Table.t) pp_entry =
       Draw.text_width ui.win geo.text_h (font ui geo.text_h)
         (browser_pp_pre nest folded) in
     if mx + tab.hscroll < x + tw
-    && not ui.modal && Mouse.(is_down `Left || is_released `Left) then
+    && not (is_modal ui) && Mouse.(is_down `Left || is_released `Left) then
     (
       (* CLick on triangle *)
       Table.reset_selected tab selected;  (* override selection change*)
@@ -2232,7 +2219,7 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
     let left_mouse_used = (status = `Pressed || status = `Released) in
 
     let result =
-      if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
+      if not (is_modal ui) && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
       (
         if inside (mx, my) r then
         (
@@ -2290,7 +2277,7 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
 
         | `Abort -> `Abort
       )
-      else if command && not ui.modal && Mouse.is_pressed `Left then
+      else if command && not (is_modal ui) && Mouse.is_pressed `Left then
       (
         (* Cmd-click on entry: toggle selection of clicked entry *)
         if on_bg then
@@ -2304,7 +2291,7 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
           `Click (Some k, None);
         )
       )
-      else if shift && not ui.modal && Mouse.is_down `Left then
+      else if shift && not (is_modal ui) && Mouse.is_down `Left then
       (
         (* Shift-click/drag on playlist: adjust selection range *)
         let default = if k < len then (k, k) else (0, 0) in
@@ -2323,7 +2310,7 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
           Table.select tab pos2 k';
           Table.deselect tab pos1 k'
         );
-        if not ui.modal && Mouse.is_pressed `Left then
+        if not (is_modal ui) && Mouse.is_pressed `Left then
           `Click ((if k < len then Some k else None), None)
         else if Table.IntSet.equal tab.selected old_selection then
           `None
@@ -2490,7 +2477,7 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
 (* Pop-ups *)
 
 let popup ui x y w h bw =
-  assert ui.modal;
+  assert (is_modal ui);
   let ww, wh = Window.size ui.win in
   let w' = w + 2 * bw in
   let h' = h + 2 * bw in
@@ -2508,7 +2495,7 @@ type menu_entry =
 let menu_separator = String.concat "" (List.init 80 (Fun.const "·"))
 
 let menu ui x y bw gw ch ph items =
-  assert ui.modal;
+  assert (is_modal ui);
 
   let font = font ui ch in
   let keys =
@@ -2553,7 +2540,7 @@ let menu ui x y bw gw ch ph items =
     ) items
   in
 
-  ui.modal <- false;
+  nonmodal ui;
   let released = Mouse.is_released `Left || Mouse.is_pressed `Right in
   let enabled i =
     match Iarray.get items i with `Entry (_, _, _, b) -> b | _ -> false in
@@ -2567,4 +2554,4 @@ let menu ui x y bw gw ch ph items =
     in
     match Iarray.find_index key_pressed items with
     | Some i -> `Click i
-    | None -> ui.modal <- true; `None
+    | None -> modal ui; `None
