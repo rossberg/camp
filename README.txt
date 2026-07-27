@@ -713,9 +713,8 @@ across sessions:
   or use the dividers between Control pane and Playlist or Library pane. This
   accordingly resizes UI elements in all panes.
 
-  When you resize the Control pane with Playlist and Library both closed and
-  while holding the Ctrl/Command key, then the Control pane preserves its
-  relative horizontal vs. vertical proportions.
+  Holding the Ctrl/Command key while resizing the Control pane preserves its
+  relative horizontal vs. vertical proportions, to the extent possible.
 
 * Text Size: Use the + and - keys with Ctrl/Command (or the context menu from
   the Control pane) to adjust the size of all text in table, list, and edit
