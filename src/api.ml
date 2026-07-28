@@ -43,7 +43,7 @@ struct
     _log "close_window ()";
     close_window ()
 *)
-(*
+(* *)
   let init_audio_device () =
     _log "init_audio_device ()";
     init_audio_device ()
@@ -110,7 +110,7 @@ struct
     _log "detach_audio_mixed_processor func";
     detach_audio_mixed_processor f
 *)
-*)
+(* *)
 end
 *)
 
@@ -202,8 +202,8 @@ struct
      * directly and by need. *)
 
     (* Open dummy window to initialize GLFW for monitor queries to work. *)
-    Raylib.(set_config_flags
-      ConfigFlags.[Window_undecorated; Window_resizable; Window_hidden]);
+    Raylib.(set_config_flags ConfigFlags.(
+      window_undecorated + window_resizable + window_highdpi + window_hidden));
     Raylib.init_window 1 1 "";
     let current = Raylib.get_current_monitor () in
     let monitor_poss = Iarray.init (Raylib.get_monitor_count ())
@@ -303,11 +303,11 @@ struct
     current_screen := Screen.init ();
 
     Raylib.(set_config_flags
-      ConfigFlags.[Window_undecorated; Window_always_run;
-        (*Window_transparent;*) Vsync_hint; Msaa_4x_hint]);
+      ConfigFlags.(window_undecorated + window_always_run +
+        (*Window_transparent +*) vsync_hint + msaa_4x_hint));
     Raylib.init_window (max 1 (sx w)) (max 1 (sy h)) title; (* avoid 0 on Mac *)
     Raylib.set_window_position (sx x) (sy y);
-    Raylib.(clear_window_state ConfigFlags.[Window_hidden]);
+    Raylib.(clear_window_state ConfigFlags.window_hidden);
     update ()
 
   let closed () = Raylib.window_should_close ()
@@ -336,8 +336,8 @@ struct
   let restore () = Raylib.restore_window ()
   let is_minimized () = Raylib.is_window_minimized ()
 
-  let hide () = Raylib.set_window_state [Raylib.ConfigFlags.Window_hidden]
-  let reveal () = Raylib.clear_window_state [Raylib.ConfigFlags.Window_hidden]
+  let hide () = Raylib.(set_window_state ConfigFlags.window_hidden)
+  let reveal () = Raylib.(clear_window_state ConfigFlags.window_hidden)
   let is_hidden () = Raylib.is_window_hidden ()
 
   let scale () = !Screen.scale
@@ -459,14 +459,13 @@ struct
       let font = Ctypes.make Raylib.Font.t in
       Raylib.Font.set_base_size font size;
       let data = File.load `Bin path in
-      let glyphs = Raylib.load_font_data data (String.length data) size
-        Ctypes.(from_voidp int null) max Raylib.FontType.(to_int Sdf) in
-      Raylib.Font.set_glyphs font (Ctypes.CArray.from_ptr glyphs (max - min));
+      let null_arr = Ctypes.(CArray.from_ptr (from_voidp int null) max) in
+      let glyphs = Raylib.load_font_data data size null_arr Raylib.FontType.Sdf in
+      Raylib.Font.set_glyphs font glyphs;
 
-      let recs' = Ctypes.allocate (Ctypes.ptr Raylib.Rectangle.t) (Raylib.Font.recs font) in
-      let atlas = Raylib.gen_image_font_atlas glyphs recs' max size 0 1 in
-      Raylib.Font.set_recs font Ctypes.(!@recs');
+      let atlas, recs = Raylib.gen_image_font_atlas glyphs size 0 1 in
       Raylib.Font.set_texture font (Raylib.load_texture_from_image atlas);
+      Raylib.Font.set_recs font (Ctypes.CArray.start recs);
       Raylib.unload_image atlas;
 
       let shader = if size <= 10 then shader_s else shader_l in
@@ -561,13 +560,14 @@ struct
     let buf = Raylib.load_render_texture w h in
     (* Override texture format to not use alpha channel *)
     Raylib.unload_texture (Raylib.RenderTexture.texture buf);
-    let format = Raylib.PixelFormat.(to_int Uncompressed_r8g8b8) in
+    let format = Raylib.PixelFormat.Uncompressed_r8g8b8 in
     let id' = Raylib.Rlgl.load_texture Ctypes.null w h format 1 in
-    let tex' = Raylib.Texture.create id' w h 1 Raylib.PixelFormat.Uncompressed_r8g8b8 in
+    let tex' = Raylib.Texture.create id' w h 1 format in
     Raylib.RenderTexture.set_texture buf tex';
     (* Mirror Raylib LoadRenderTexture: *)
     Raylib.Rlgl.framebuffer_attach (Raylib.RenderTexture.id buf) id'
-      0 (* = RL_ATTACHMENT_COLOR0 *) 100 (* = RL_ATTACHMENT_TEXTURE2D *) 0;
+      Raylib.Rlgl.FramebufferAttachType.Color_channel0
+      Raylib.Rlgl.FramebufferAttachTextureType.Texture2d 0;
     {texture = buf; scale = sx, sy}
 
   let dispose buf = Raylib.unload_render_texture buf.texture
@@ -681,7 +681,8 @@ struct
 
   let gradient_circ () x y w h c1 c2 =
     let x, y, w, h = sxywh x y w h in
-    Raylib.draw_circle_gradient (x + w/2) (y + h/2) (float (w + h) /. 4.0) (color c1) (color c2)
+    Raylib.draw_circle_gradient
+      (vec2_of_point (x + w/2, y + h/2)) (float (w + h) /. 4.0) (color c1) (color c2)
 
   let circ () x y w h c =
     let x, y, w, h = sxywh x y w h in
@@ -1105,6 +1106,7 @@ struct
     )
 
   let free a sound =
+    assert (sound != silence ());
     Mutex.protect a.mutex (fun () ->
       Raylib.stop_music_stream sound.music;
       Raylib.unload_music_stream sound.music;

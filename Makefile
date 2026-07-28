@@ -52,7 +52,8 @@ deps-try: opam
 	opam install --yes --deps-only .
 
 deps:
-	make deps-try || (opam update && make deps-try)
+	make deps-try || \
+	(echo Retrying after Opam update... && opam update && make deps-try)
 
 upgrade:
 	opam update
