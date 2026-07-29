@@ -1,13 +1,14 @@
 (* Debugging Aid *)
 
-(*
+(* Log Raylib calls *)
 module Raylib =
 struct
   include Raylib
   let _log fmt = Printf.ksprintf (Printf.printf "[Raylib.%s]\n%!") fmt
   let _log1 fmt = Printf.ksprintf (Printf.printf "[Raylib.%s] => %!") fmt
   let _log2 fmt = Printf.ksprintf (Printf.printf "%s\n%!") fmt
-(*
+
+(* Log window functions
   let init_window w h s =
     _log "init_window %d %d \"%s\"" w h s;
     init_window w h s
@@ -43,7 +44,92 @@ struct
     _log "close_window ()";
     close_window ()
 *)
-(* *)
+
+(* Log Image and Texture functions
+  let pixelformat image =
+    try Rlgl.get_pixel_format_name (Image.format image) with Failure _ -> "FAILURE"
+  let load_image path =
+    _log1 "load_image \"%s\"" path;
+    let image = load_image path in
+    _log2 "image(%dx%dx%s)"
+      (Image.width image) (Image.height image) (pixelformat image);
+    image
+  let load_image_from_memory ext data len =
+    _log1 "load_image_from_memory \"%s\" \"%s\" %d"
+      ext
+      String.(escaped (if length data < 12 then data else sub data 0 8 ^ "..."))
+      len;
+    let image = load_image_from_memory ext data len in
+    _log2 "image(%dx%dx%s)"
+      (Image.width image) (Image.height image) (pixelformat image);
+    image
+  let image_from_image image rect =
+    _log1 "image_from_image image(%dx%dx%s) rect(%.0f,%.0f,%.0f,%.0f)"
+      (Image.width image) (Image.height image) (pixelformat image)
+      (Rectangle.x rect) (Rectangle.y rect)
+      (Rectangle.width rect) (Rectangle.height rect);
+    let image' = image_from_image image rect in
+    _log2 "image(%dx%dx%s)"
+      (Image.width image') (Image.height image') (pixelformat image');
+    image
+  let gen_image_font_atlas glyphs size padding pack =
+    _log1 "gen_image_font_atlas glyphs %d %d %d" size padding pack;
+    let image, recs = Raylib.gen_image_font_atlas glyphs size padding pack in
+    _log2 "image(%dx%dx%s), recs"
+      (Image.width image) (Image.height image) (pixelformat image);
+    image, recs
+  let unload_image image =
+    _log "unload_image image(%dx%dx%s)"
+      (Image.width image) (Image.height image) (pixelformat image);
+    unload_image image
+
+  module Texture =
+  struct
+    include Texture
+    let create id w h mipmaps format =
+      _log1 "Texture.create %d %d %d mipmaps %s"
+        (Unsigned.UInt.to_int (TextureId.to_uint id)) w h
+        (Rlgl.get_pixel_format_name format);
+      let texture = Texture.create id w h mipmaps format in
+      _log2 "texture(%d)"
+        (Unsigned.UInt.to_int (TextureId.to_uint (Texture.id texture)));
+      texture
+  end
+  let load_texture_from_image image =
+    _log1 "load_texture_from_image image(%dx%dx%s)"
+      (Image.width image) (Image.height image)
+      (Rlgl.get_pixel_format_name (Image.format image));
+    let texture = load_texture_from_image image in
+    _log2 "texture(%d)"
+      (Unsigned.UInt.to_int (TextureId.to_uint (Texture.id texture)));
+    texture
+  let unload_texture texture =
+    _log "unload_texture texture(%d)"
+      (Unsigned.UInt.to_int (TextureId.to_uint (Texture.id texture)));
+    unload_texture texture
+  let set_texture_filter texture filter =
+    _log "set_texture_filter texture(%d) %d"
+      (Unsigned.UInt.to_int (TextureId.to_uint (Texture.id texture)))
+      (TextureFilter.to_int filter);
+    set_texture_filter texture filter
+
+  let load_render_texture w h =
+    _log1 "load_render_texture %d %d" w h;
+    let buffer = Raylib.load_render_texture w h in
+    _log2 "rendertexture(%d,texture(%d))"
+      (Unsigned.UInt.to_int (FramebufferId.to_uint (RenderTexture.id buffer)))
+      (Unsigned.UInt.to_int
+        (TextureId.to_uint (Texture.id (RenderTexture.texture buffer))));
+    buffer
+  let unload_render_texture buffer =
+    _log "unload_render_texture rendertexture(%d,texture(%d))"
+      (Unsigned.UInt.to_int (FramebufferId.to_uint (RenderTexture.id buffer)))
+      (Unsigned.UInt.to_int
+        (TextureId.to_uint (Texture.id (RenderTexture.texture buffer))));
+    unload_render_texture buffer
+*)
+
+(* Log audio functions
   let init_audio_device () =
     _log "init_audio_device ()";
     init_audio_device ()
@@ -58,11 +144,11 @@ struct
     let music = load_music_stream path in
     _log2 "music(%d)" (Music.ctx_type music);
     music
-(*
+  (*
   let update_music_stream music =
     _log "update_music_stream music(%d)" (Music.ctx_type music);
     update_music_stream music
-*)
+  *)
   let play_music_stream music =
     _log "play_music_stream music(%d)" (Music.ctx_type music);
     play_music_stream music
@@ -81,7 +167,7 @@ struct
     let played = get_music_time_played music in
     let length = get_music_time_length music in
     _log2 "%.2f/%.2fs" played length
-(*
+  (*
   let is_music_stream_playing music =
     _log1 "is_music_stream_playing music(%d)" (Music.ctx_type music);
     let b = is_music_stream_playing music in
@@ -98,21 +184,21 @@ struct
     let length = get_music_time_length music in
     _log2 "%.2fs" length;
     length
-*)
+  *)
   let unload_music_stream music =
     _log "unload_music_stream music(%d)" (Music.ctx_type music);
     unload_music_stream music
-(*
+  (*
   let attach_audio_mixed_processor f =
     _log "attach_audio_mixed_processor func";
     attach_audio_mixed_processor f
   let detach_audio_mixed_processor f =
     _log "detach_audio_mixed_processor func";
     detach_audio_mixed_processor f
+  *)
 *)
-(* *)
 end
-*)
+(* *)
 
 
 (* Graphics/sound API abstraction *)
@@ -501,7 +587,9 @@ struct
       failwith "Image.load_from_memory";
     let n = String.length mime_prefix in
     let ext = "." ^ String.sub mime n (String.length mime - n) in
-    Raylib.load_image_from_memory ext data (String.length data)
+    let raw = Raylib.load_image_from_memory ext data (String.length data) in
+    ignore (Raylib.Image.format raw);  (* force exception on load failure *)
+    raw
 
   let extract img x y w h =
     Raylib.image_from_image img
@@ -558,14 +646,22 @@ struct
     let sx, sy = needed_scale () in
     let w, h = w * sx, h * sy in
     let buf = Raylib.load_render_texture w h in
+    let id = Raylib.Texture.id (Raylib.RenderTexture.texture buf) in
+(*
     (* Override texture format to not use alpha channel *)
+(* This segfaults, reallocate texture instead
+    let id = Raylib.Texture.id (Raylib.RenderTexture.texture buf) in
+    let format = Raylib.PixelFormat.Uncompressed_r8g8b8 in
+    Raylib.Rlgl.update_texture id 0 0 w h format Ctypes.null;
+*)
     Raylib.unload_texture (Raylib.RenderTexture.texture buf);
     let format = Raylib.PixelFormat.Uncompressed_r8g8b8 in
-    let id' = Raylib.Rlgl.load_texture Ctypes.null w h format 1 in
-    let tex' = Raylib.Texture.create id' w h 1 format in
+    let id = Raylib.Rlgl.load_texture Ctypes.null w h format 1 in
+    let tex' = Raylib.Texture.create id w h 1 format in
     Raylib.RenderTexture.set_texture buf tex';
+*)
     (* Mirror Raylib LoadRenderTexture: *)
-    Raylib.Rlgl.framebuffer_attach (Raylib.RenderTexture.id buf) id'
+    Raylib.Rlgl.framebuffer_attach (Raylib.RenderTexture.id buf) id
       Raylib.Rlgl.FramebufferAttachType.Color_channel0
       Raylib.Rlgl.FramebufferAttachTextureType.Texture2d 0;
     {texture = buf; scale = sx, sy}
