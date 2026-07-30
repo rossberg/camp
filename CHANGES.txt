@@ -28,7 +28,7 @@ UI:
 
 Build:
 - [chg] Upgrade to OCaml 5.5
-- [chg] Upgrade to Raylib-OCaml 2.2.1
+- [chg] Upgrade to Raylib-OCaml 2.2.2
 
 
 === 0.9.5 (2026-05-30) ===
