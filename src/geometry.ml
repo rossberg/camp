@@ -401,8 +401,11 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
   let w'', h'' = clamp minw' maxw' w', clamp minh' maxh' h' in
 
   (* Adjust window position *)
-  let to_left = focusw = `Lft || focusw <> `Rgt && geo.extension_side = `Left in
-  let to_top = focush = `Top in
+  let to_top = focush = `Top || y >= win_max_y geo - h in
+  let to_left =
+    focusw = `Lft || focusw <> `Rgt && geo.extension_side = `Left ||
+    x >= win_max_x geo - w
+  in
   let minx, miny = win_min_x geo, win_min_y geo in
   let maxx, maxy = win_max_x geo - w'', win_max_y geo - h'' in
 (*
