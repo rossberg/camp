@@ -427,8 +427,8 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
 
   let dx'', dy'' = x'' - x, y'' - y in
   let dw'', dh'' = w'' - w, h'' - h in
-  let dcw'' = dcw' + dw'' - dw' in
-  let dch'' = dch' + dh'' - dh' in
+  let dcw'' = dcw' + if flexcw then dw'' - dw' else 0 in
+  let dch'' = dch' + if flexch then dh'' - dh' else 0 in
   let dew'' = dw'' - dcw'' in
   let deh'' = dh'' - dch'' in
 
