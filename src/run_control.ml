@@ -360,7 +360,7 @@ let run (st : state) =
 
     let x, y, w, h = Ui.dim geo.ui (Layout.graph_area geo) in
     let l = Geometry.smin geo 1 in
-    let y, h = y + 2, h / l * l - 4 in
+    let y, h = y + 2, (h - 4) / l * l in
     let wbar = (w + 1) / n in
     let wsep =
       Geometry.sx geo (if wbar <= 4 then 1 else if n <= 10 then 2 else 3) in
@@ -373,9 +373,9 @@ let run (st : state) =
     for i = 0 to n - 1 do
       let x' = x + i * wbar in
       Api.Draw.fill win x' y w' h (Ui.unlit_color red);
-      let hy = 10 * h / 12 in
+      let hy = (10 * h / 12) /l * l in
       Api.Draw.fill win x' (y + h - hy) w' hy (Ui.unlit_color yellow);
-      let hg = 8 * h / 12 in
+      let hg = (8 * h / 12) / l * l in
       Api.Draw.fill win x' (y + h - hg) w' hg (Ui.unlit_color green);
       let hr = min h ((int_of_float (bands.(i) /. 5.0 *. float h) + l/2) / l * l) in
       Api.Draw.fill win x' (y + h - hr) w' hr red;
