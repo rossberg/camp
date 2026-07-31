@@ -646,9 +646,8 @@ struct
     let sx, sy = needed_scale () in
     let w, h = w * sx, h * sy in
     let buf = Raylib.load_render_texture w h in
-    let id = Raylib.Texture.id (Raylib.RenderTexture.texture buf) in
-(*
-    (* Override texture format to not use alpha channel *)
+    (* Override texture format to not use alpha channel;
+     * necessary to make text fades work for inverted text *)
 (* This segfaults, reallocate texture instead
     let id = Raylib.Texture.id (Raylib.RenderTexture.texture buf) in
     let format = Raylib.PixelFormat.Uncompressed_r8g8b8 in
@@ -659,7 +658,6 @@ struct
     let id = Raylib.Rlgl.load_texture Ctypes.null w h format 1 in
     let tex' = Raylib.Texture.create id w h 1 format in
     Raylib.RenderTexture.set_texture buf tex';
-*)
     (* Mirror Raylib LoadRenderTexture: *)
     Raylib.Rlgl.framebuffer_attach (Raylib.RenderTexture.id buf) id
       Raylib.Rlgl.FramebufferAttachType.Color_channel0
