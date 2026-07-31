@@ -250,7 +250,7 @@ val grid_table_drag : t -> area -> grid_table -> [`Left | `Inside] ->
 
 (* Pop-ups *)
 
-val popup : t -> int -> int -> int -> int -> int -> area
+val popup : t -> string -> int -> int -> int -> int -> int -> area
 
 type menu_entry =
   [`Separator | `Entry of color * string * (modifier list * key) * bool]

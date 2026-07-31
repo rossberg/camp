@@ -340,7 +340,7 @@ let cover_popup_w g = g.popup_size |>
   min (control_w g + library_w g - 2 * popup_margin g) |>
   min (control_h g + playlist_h g - line_h g - 2 * popup_margin g)
 let cover_popup_image_size g = Ui.image_size g.ui (-1, 0, 0, cover_popup_w g, cover_popup_w g) `Shrink
-let cover_popup g x y iw ih = Ui.popup g.ui x y iw (ih + line_h g) (popup_margin g)
+let cover_popup g x y iw ih = Ui.popup g.ui "cover" x y iw (ih + line_h g) (popup_margin g)
 let cover_popup_image g (p, x, y, w, h) = Ui.image g.ui (p, x, y, w, h - line_h g) `Shrink
 let cover_popup_text g (p, x, y, w, _) ih = Ui.ticker g.ui (p, x, y + ih + pad_h g, w, text_h g)
 

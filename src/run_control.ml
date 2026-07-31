@@ -242,10 +242,11 @@ let run (st : state) =
   (* Exit button *)
   (* This has to come first, otherwise Raylib crashes? *)
   let modal = Ui.is_modal geo.ui in
-  Ui.nonmodal geo.ui;  (* always allow Quit *)
+  if modal then Ui.nonmodal geo.ui;  (* always allow Quit key *)
   Layout.power_shadow geo;
   if not (Layout.power_button geo (Some true))
-  && not (Api.Key.is_modifier_down `Shift) then
+  && not (Api.Key.is_modifier_down `Shift)
+  && (not modal || Ui.key geo.ui Layout.key_quit true) then
   (
     (* Power button clicked: quit *)
     quit st

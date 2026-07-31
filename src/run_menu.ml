@@ -86,13 +86,11 @@ let run (st : state) =
   | `None -> ()
 
   | `Close ->
-    Ui.nonmodal geo.ui;
     geo.menu_shown <- false;
     Menu.clear menu
 
   | `Click k ->
     let f = Option.get st.menu.op in
-    Ui.nonmodal geo.ui;
     geo.menu_shown <- false;
     Menu.clear menu;
     f k

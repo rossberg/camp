@@ -74,11 +74,24 @@ let grab_mouse ui owner =
 (* Modal mode *)
 
 let modal ui =
+  (* The flag modal_resize is set when we temporarily go into modal mode
+   * for 1 frame because the window is being resized. This overrides the
+   * existing modal mode, which is saved in modal_save and reinstated from
+   * there for the next frame (see start function).
+   * Hence, when setting modal mode, modal must either be false before,
+   * or we are in resize mode and the save is non-modal.
+   * Note that it cannot happen that modal_resize is true but modal isn't.
+   *)
   assert (ui.modal = ui.modal_resize);
-  ui.modal <- true
+  assert (not (ui.modal_resize && not ui.modal_save));
+  if not ui.modal_resize then ui.modal <- true;
+  ui.modal_save <- true
 
 let nonmodal ui =
-  ui.modal <- ui.modal_resize
+  assert ui.modal;
+  assert (not (ui.modal_resize && not ui.modal_save));
+  if not ui.modal_resize then ui.modal <- false;
+  ui.modal_save <- false
 
 let is_modal ui =
   ui.modal
@@ -2478,7 +2491,7 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
 
 (* Pop-ups *)
 
-let popup ui x y w h bw =
+let popup ui owner x y w h bw =
   assert (is_modal ui);
   let ww, wh = Window.size ui.win in
   let w' = w + 2 * bw in
@@ -2486,7 +2499,7 @@ let popup ui x y w h bw =
   let x' = max 0 (min x (ww - w')) in
   let y' = max 0 (min y (wh - h')) in
   background ui x' y' w' h';
-  ignore (grab_mouse ui "(popup)");  (* what if it fails? *)
+  ignore (grab_mouse ui owner);  (* what if it fails? *)
   (-1, x' + bw, y' + bw, w, h)
 
 
@@ -2521,7 +2534,7 @@ let menu ui x y bw gw ch ph items =
   let rh = ch + 2 * ph in
   let w = lw + gw + rw + 2 * mw in
   let h = rh * Iarray.length items in
-  let area = popup ui x y w h bw in
+  let area = popup ui "(menu)" x y w h bw in
 
   let _, my = Mouse.pos ui.win in
   let _, y', _, _ = dim ui area in

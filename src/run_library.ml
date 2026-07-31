@@ -1080,6 +1080,7 @@ let run_view (st : state)
     match mouse geo cols tab with
     | Some (Some i, _) ->
       (* Drag with active cover popup: update cover *)
+      Ui.nonmodal geo.ui;
       Run_menu.popup st (popup entries.(i));
     | _ -> ()
   )
