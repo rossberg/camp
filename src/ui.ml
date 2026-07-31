@@ -818,13 +818,13 @@ let button ui area owner ?(protrude = true) modkey focus active =
   Draw.fill ui.win (x + w - 1) (y + 1) 1 (h - 2) `Black;
   if protrude then
   (
-    let grey_top, shine_top = if status = `Pressed then 0x30, 0x20 else 0x60, 0x40 in
+    let grey_top, shine_top = if status = `Pressed then 0x00, 0x00 else 0x60, 0x40 in
     Draw.fill ui.win (x + 1) (y + 1) (w - 3) 1 (`Gray grey_top);
     mouse_focus ui (-1, x + 1, y + 1, w - 3, 1) (2 * w) shine_top 0;
   )
   else
   (
-    let grey_top, shine_top = if status = `Pressed then 0x00, 0x10 else 0x10, 0x20 in
+    let grey_top, shine_top = if status = `Pressed then 0x00, 0x00 else 0x10, 0x20 in
     Draw.fill ui.win (x + 1) (y + 1) (w - 3) 1 (`Gray grey_top);
     mouse_focus ui (-1, x + 1, y + 1, w - 3, 1) 20 shine_top 0;
   );
@@ -2559,7 +2559,13 @@ let menu ui x y bw gw ch ph items =
   let enabled i =
     match Iarray.get items i with `Entry (_, _, _, b) -> b | _ -> false in
   match table ui area "(menu)" gw ch ph cols rows 0 with
-  | Some i, _ when released && enabled i -> `Click i
+  | Some i, _ when released ->
+    if not (inside (Api.Mouse.pos ui.win) (dim ui area)) then
+      `Close
+    else if enabled i then
+      `Click i
+    else
+      (modal ui; `None)
   | None, _ when released -> `Close
   | _ ->
     let key_pressed = function
