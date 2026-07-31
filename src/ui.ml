@@ -94,7 +94,7 @@ let nonmodal ui =
   ui.modal_save <- false
 
 let is_modal ui =
-  ui.modal
+  ui.modal_save
 
 
 (* Panes *)
@@ -521,7 +521,7 @@ let key_status ui (modifiers, key) focus =
     key_status' ui key
 
 let mouse_status ui r owner (#side as side) =
-  if is_modal ui
+  if ui.modal
   || not (has_mouse ui owner || inside (Mouse.pos ui.win) r && (side = `Right || grab_mouse ui owner)) then
     `Untouched
   else if Mouse.is_down side && (side = `Left || not (Mouse.is_down `Middle)) then
@@ -554,7 +554,7 @@ let unexpected_drag ui s owner =
   )
 
 let drag_status ui r owner (stepx, stepy) =
-  if is_modal ui || ui.drag = Abort
+  if ui.modal || ui.drag = Abort
   || not (has_mouse ui owner || inside (Mouse.pos ui.win) r && grab_mouse ui owner) then
     `None
   else if Mouse.is_released `Left then
@@ -606,7 +606,7 @@ let drag_status ui r owner (stepx, stepy) =
   )
 
 let wheel_status ui r =
-  if not (is_modal ui) && inside (Mouse.pos ui.win) r then
+  if not ui.modal && inside (Mouse.pos ui.win) r then
     Mouse.wheel ui.win
   else
     (0.0, 0.0)
@@ -1472,7 +1472,7 @@ let header ui area owner ph gw cols (titles, sorting) hscroll =
       | Some i -> `Click i
       )
     | `None ->
-      if not (is_modal ui) && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
+      if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
         `Menu None
       else
         `None
@@ -1482,7 +1482,7 @@ let header ui area owner ph gw cols (titles, sorting) hscroll =
         ui.drag <- Header_resize {mouse_x = mx; col};
       `None
     | `Header col ->
-      if not (is_modal ui) && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
+      if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
         `Menu (Some col)
       else if status = `Pressed then
       (
@@ -1675,7 +1675,7 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
       find_column w geo.gutter_w cols tab.hscroll (mx - x) in
 
     let result =
-      if not (is_modal ui) && ui.drag = No_drag
+      if not ui.modal && ui.drag = No_drag
       && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
       (
         if inside (mx, my) r then
@@ -1745,7 +1745,7 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
 
         | `Abort -> `Abort
       )
-      else if command && not (is_modal ui) && Mouse.is_pressed `Left then
+      else if command && not ui.modal && Mouse.is_pressed `Left then
       (
         (* Cmd-click on entry: toggle selection of clicked entry *)
         let col = find_column cols mx in
@@ -1763,7 +1763,7 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
           `Click (Some i, col);
         )
       )
-      else if shift && not (is_modal ui) && Mouse.is_down `Left then
+      else if shift && not ui.modal && Mouse.is_down `Left then
       (
         (* Shift-click/drag on playlist: adjust selection range *)
         let default = if i < len then (i, i) else (0, 0) in
@@ -1782,7 +1782,7 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
           Table.select tab pos2 i';
           Table.deselect tab pos1 i'
         );
-        if not (is_modal ui) && Mouse.is_pressed `Left then
+        if not ui.modal && Mouse.is_pressed `Left then
           `Click ((if i < len then Some i else None), find_column cols mx)
         else if Table.IntSet.equal tab.selected old_selection then
           `None
@@ -2058,7 +2058,7 @@ let browser ui area owner geo (tab : _ Table.t) pp_entry =
       Draw.text_width ui.win geo.text_h (font ui geo.text_h)
         (browser_pp_pre nest folded) in
     if mx + tab.hscroll < x + tw
-    && not (is_modal ui) && Mouse.(is_down `Left || is_released `Left) then
+    && not ui.modal && Mouse.(is_down `Left || is_released `Left) then
     (
       (* CLick on triangle *)
       Table.reset_selected tab selected;  (* override selection change*)
@@ -2234,7 +2234,7 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
     let left_mouse_used = (status = `Pressed || status = `Released) in
 
     let result =
-      if not (is_modal ui) && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
+      if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
       (
         if inside (mx, my) r then
         (
@@ -2292,7 +2292,7 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
 
         | `Abort -> `Abort
       )
-      else if command && not (is_modal ui) && Mouse.is_pressed `Left then
+      else if command && not ui.modal && Mouse.is_pressed `Left then
       (
         (* Cmd-click on entry: toggle selection of clicked entry *)
         if on_bg then
@@ -2306,7 +2306,7 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
           `Click (Some k, None);
         )
       )
-      else if shift && not (is_modal ui) && Mouse.is_down `Left then
+      else if shift && not ui.modal && Mouse.is_down `Left then
       (
         (* Shift-click/drag on playlist: adjust selection range *)
         let default = if k < len then (k, k) else (0, 0) in
@@ -2325,7 +2325,7 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
           Table.select tab pos2 k';
           Table.deselect tab pos1 k'
         );
-        if not (is_modal ui) && Mouse.is_pressed `Left then
+        if not ui.modal && Mouse.is_pressed `Left then
           `Click ((if k < len then Some k else None), None)
         else if Table.IntSet.equal tab.selected old_selection then
           `None
