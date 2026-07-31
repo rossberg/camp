@@ -270,7 +270,8 @@ and run' (st : state) (x, y, w, h as r) =
   in
 
   let ext_dx =
-    if extension_shown_w' && geo.extension_side <> extension_side then
+    if ext_dw = 0
+    && extension_shown_w' && geo.extension_side <> extension_side then
     (
       let sx = if Geometry.extension_left geo then -1 else +1 in
       ext_dx + sx * geo.extension_width;

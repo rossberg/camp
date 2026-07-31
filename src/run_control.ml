@@ -872,7 +872,7 @@ let run_toggle_panel (st : state) =
   (
     if Api.Key.is_modifier_down `Shift then
       (* Shift-click: switch sides for library pane *)
-      (if Geometry.extension_shown_w geo then toggle_side st)
+      toggle_side st
     else
       toggle_library st
   )
