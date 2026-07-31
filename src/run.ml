@@ -328,9 +328,8 @@ and run' (st : state) (x, y, w, h as r) =
   let dw, dh = scr_dw + win_dw + div_dw, scr_dh + win_dh + div_dh in
   let dcw, dch = win_dcw + div_dcw, win_dch + div_dch in
 
-  let changed = (dx, dy, dw, dh, dcw, dch) <> (0, 0, 0, 0, 0, 0) in
   let (x'', y'', w'', h'') as r'' =
-    if not changed then r else
+    if (dw, dh, dcw, dch) = (0, 0, 0, 0) then (x + dx, y + dy, w, h) else
     (
       (* Window was resized or a divider used *)
       if !App.debug_layout then

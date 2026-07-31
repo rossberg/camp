@@ -416,7 +416,8 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
 
   let x' = x + dx - if to_left then dw' - dw + w'' - w' else 0 in
   let y' = y + dy - if to_top then dh' - dh + h'' - h' else 0 in
-  let x'', y'' = clamp minx maxx x', clamp miny maxy y' in
+  let x'' = if dw' = 0 then x' else clamp minx maxx x' in
+  let y'' = if dh' = 0 then y' else clamp miny maxy y' in
 
   if !App.debug_layout then
   (
