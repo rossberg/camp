@@ -328,11 +328,11 @@ let fps_key g = Ui.key g.ui key_fps true
 let sdf_key g = Ui.key g.ui key_sdf true
 
 (* Pop-ups *)
-let info_context g = Ui.mouse g.ui (cp, margin g, margin g, margin g + info_w g - volume_w g, info_h g - seek_h g) "" `Right
-let seek_context g = Ui.mouse g.ui (cp, margin g, seek_y g, info_w g - margin g, seek_h g) "" `Right
-let volume_context g = Ui.mouse g.ui (cp, volume_x g, volume_y g, volume_w g, volume_h g) "" `Right
-let shown_context g = Ui.mouse g.ui (cp, margin g + info_w g, margin g, - margin g, info_h g) "" `Right
-let control_context g = Ui.mouse g.ui (cp, margin g, ctl_y g, - margin g, -1) "" `Right
+let info_context g = Ui.mouse g.ui (cp, margin g, margin g, info_w g - volume_w g, info_h g - seek_h g) "info_ctx" `Right
+let seek_context g = Ui.mouse g.ui (cp, margin g, seek_y g, info_w g - margin g, seek_h g) "seek_ctx" `Right
+let volume_context g = Ui.mouse g.ui (cp, volume_x g, volume_y g, volume_w g, volume_h g) "vol_ctx" `Right
+let shown_context g = Ui.mouse g.ui (cp, margin g + info_w g, margin g, - margin g, info_h g) "shown_ctx" `Right
+let control_context g = Ui.mouse g.ui (cp, margin g, ctl_y g, - margin g, -1) "ctl_ctx" `Right
 
 let cover_popup_open g = Ui.mouse g.ui (cover_area g) "cover_but" `Left
 
@@ -487,7 +487,7 @@ let search_button g = Ui.mouse g.ui (bp, margin g, search_y g, search_label_w g,
 let search_key g = Ui.key g.ui key_search true
 let search_box g = Ui.box g.ui (bp, search_x g, search_y g, - divider_w g, line_h g) `Black
 let search_edit g = Ui.rich_edit_text g.ui (bp, search_x g + sx g 2, search_y g, - divider_w g - sx g 2, line_h g) "search_edit" (pad_h g)
-let search_context g = Ui.mouse g.ui (bp, search_x g, search_y g, - divider_w g, line_h g) "" `Right
+let search_context g = Ui.mouse g.ui (bp, search_x g, search_y g, - divider_w g, line_h g) "search_ctx" `Right
 
 (* Browser *)
 let browser_y g = search_y g + line_h g + margin g
