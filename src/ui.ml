@@ -187,21 +187,41 @@ let quant_ceil l v = (v + l - 1) / l * l
 (* Colors *)
 
 type color = Api.color
-type palette = {text : color; warn : color; error : color; hover : color}
+type palette =
+  {name : string; text : color; warn : color; error : color; hover : color}
 
 let palettes =
 [|
-  {text = `RGB 0x78cfeb; warn = `RGB 0xfef46d; error = `RGB 0xd35c6d; hover = `RGB 0x5186bb};
-  {text = `RGB 0x51a6fb; warn = `RGB 0xfef46d; error = `RGB 0xd35c6d; hover = `RGB 0x78cfeb};
-  {text = `RGB 0xddac4d; warn = `RGB 0xffff6d; error = `RGB 0xf14138; hover = `RGB 0xd5b482};
-  {text = `RGB 0xfefcf4; warn = `RGB 0xffff8d; error = `RGB 0xf87148; hover = `RGB 0xffffff};
-  {text = `Green; warn = `Yellow; error = `Red; hover = `Blue};
-  {text = `RGB 0x92f2d6; warn = `RGB 0xc8bd4a; error = `RGB 0xec635b; hover = `RGB 0x5f7eb8};
+  { name = "Teal";
+    text = `RGB 0x78cfeb; warn = `RGB 0xfef46d;
+    error = `RGB 0xd35c6d; hover = `RGB 0x5186bb;
+  };
+  { name = "Blue";
+    text = `RGB 0x51a6fb; warn = `RGB 0xfef46d;
+    error = `RGB 0xd35c6d; hover = `RGB 0x78cfeb;
+  };
+  { name = "Amber";
+    text = `RGB 0xddac4d; warn = `RGB 0xffff6d;
+    error = `RGB 0xf14138; hover = `RGB 0xd5b482;
+  };
+  { name = "White";
+    text = `RGB 0xe0f0ff; warn = `RGB 0xffff8d;
+    error = `RGB 0xf87148; hover = `RGB 0xffffff;
+  };
+  { name = "Green";
+    text = `Green; warn = `Yellow;
+    error = `Red; hover = `Blue;
+  };
+  { name = "Opal";
+    text = `RGB 0x92f2d6; warn = `RGB 0xc8bd4a;
+    error = `RGB 0xec635b; hover = `RGB 0x5f7eb8;
+  };
 |]
 
 let num_palette _ui = Array.length palettes
 let get_palette ui = ui.palette
 let set_palette ui i = ui.palette <- i
+let name_palette ui i = palettes.(i).name
 
 
 let unlit_alpha = 0x30

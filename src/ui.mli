@@ -41,6 +41,7 @@ type color = Api.color
 val num_palette : t -> int
 val get_palette : t -> int
 val set_palette : t -> int -> unit
+val name_palette : t -> int -> string
 
 val text_color : t -> color
 val warn_color : t -> color
