@@ -174,10 +174,12 @@ and run' (st : state) (x, y, w, h as r) =
   (* App invocation with arguments *)
   let m3u = ref "" in
   Storage.load_string queue_file ((:=) m3u);
+  (* Touch queue file to mark it as read. *)
+  (* TODO: this could race, should lock the file *)
+  if !m3u <> "" || Api.Draw.frame win mod 15 = 0 then
+    Storage.save_string queue_file (fun () -> "");
   if !m3u <> "" then
   (
-    (* TODO: this could race, should lock the file *)
-    Storage.save_string queue_file (fun () -> "");
     (* If we're just starting up, and double-click caused it, force playing *)
     if Api.Draw.frame win <= 1 then Control.stop st.control;
     Run_view.external_queue_on_playlist st (M3u.parse !m3u) `QueueAndJump;
