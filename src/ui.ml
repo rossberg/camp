@@ -16,6 +16,7 @@ type t =
   win : window;
   mutable buffered : bool;
   mutable font_sdf : bool;
+  mutable font_pixel : bool;
   mutable palette : int;
   mutable panes : (rect * rect) array; (* abstract and concrete rectangles *)
   mutable modal : bool;                (* whether a pop-up menu is shown *)
@@ -27,7 +28,8 @@ type t =
   img_background : image_load;
   img_button : image_load;
   img_nocover : image_load;
-  fonts : font option array;
+  label_fonts : font option array;
+  display_fonts : font option array;
 }
 
 let no_drag = (min_int, min_int)
@@ -40,6 +42,7 @@ let make win =
   { win;
     buffered = true;
     font_sdf = false (*Screen.is_hires (Window.screen win)*);
+    font_pixel = true;
     palette = 0;
     panes = Array.make 10 ((0, 0, 0, 0), (0, 0, 0, 0));
     modal = false;
@@ -51,7 +54,8 @@ let make win =
     img_background = ref (`Unloaded "bg.jpg");
     img_button = ref (`Unloaded "but.jpg");
     img_nocover = ref (`Unloaded "nocover.jpg");
-    fonts = Array.make 65 None;
+    label_fonts = Array.make 65 None;
+    display_fonts = Array.make 65 None;
   }
 
 let window ui = ui.win
@@ -270,25 +274,37 @@ let mouse_focus ui area r v offset =
 (* Fonts *)
 
 let font_purge ui =
-  Array.map_inplace (Fun.const None) ui.fonts
+  Array.map_inplace (Fun.const None) ui.label_fonts;
+  Array.map_inplace (Fun.const None) ui.display_fonts
 
 let font_is_sdf ui = ui.font_sdf
+let font_is_pixel ui = ui.font_pixel
 
 let font_sdf ui b =
   ui.font_sdf <- b;
   font_purge ui
 
-let font' ui h file min max fonts =
+let font_pixel ui b =
+  ui.font_pixel <- b;
+  font_purge ui
+
+let font' ui h file min max space fonts =
   match fonts.(h) with
   | Some f -> f
   | None ->
-    let f = Font.load ui.win file min max h ui.font_sdf in
+    let f = Font.load ui.win file min max h space ui.font_sdf in
     fonts.(h) <- Some f;
     f
 
-let font ui h =
+let label_font ui h =
   let max = if h < 10 then 0x80 else 0x2800 in
-  font' ui h File.(assets // "font.ttf") 0x0020 max ui.fonts
+  font' ui h File.(assets // "font.ttf") 0x020 max 1 ui.label_fonts
+
+let display_font ui h =
+  if ui.font_pixel then
+    font' ui h File.(assets // "pixelfont.png") 0x020 0x100 3 ui.display_fonts
+  else
+    label_font ui h
 
 
 (* Images *)
@@ -628,7 +644,7 @@ let indicator ui c area on =
 
 let colored_label ui c area align s =
   let x, y, w, h = dim ui area in
-  let font = font ui h in
+  let font = label_font ui h in
   let tw = Draw.text_width ui.win h font s in
   let dx =
     match align with
@@ -775,8 +791,9 @@ let color_text ui area align c inv active s =
   let fg = mode c active in
   let bg = `Black in
   let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
+  let font = display_font ui h in
   Draw.fill ui.win x y w h bg;
-  let tw = Draw.text_width ui.win h (font ui h) s in
+  let tw = Draw.text_width ui.win h font s in
   let dx =
     match align with
     | `Left -> 0
@@ -784,7 +801,7 @@ let color_text ui area align c inv active s =
     | `Right -> w - min w tw
   in
   if tw > w then Draw.clip ui.win x y w h;
-  Draw.text ui.win (x + dx) y h fg (font ui h) s;
+  Draw.text ui.win (x + dx) y h fg font s;
   if tw > w then Draw.unclip ui.win
 
 let text ui area align =
@@ -792,11 +809,12 @@ let text ui area align =
 
 let ticker ui area s =
   let (x, y, w, h), _status = widget ui area None no_modkey in
+  let font = display_font ui h in
   Draw.fill ui.win x y w h `Black;
-  let tw = Draw.text_width ui.win h (font ui h) s in
+  let tw = Draw.text_width ui.win h font s in
   Draw.clip ui.win x y w h;
   let dx = if tw <= w then (w - tw)/2 else w - Draw.frame ui.win mod (w + tw) in
-  Draw.text ui.win (x + dx) y h (fill ui true) (font ui h) s;
+  Draw.text ui.win (x + dx) y h (fill ui true) font s;
   Draw.unclip ui.win
 
 
@@ -1070,7 +1088,7 @@ let edit_text ui area owner ph s scroll selection c focus =
   let (x, y, w, h), status = widget ui area (Some owner) no_modkey in
   let len = String.length s in
   let ch = max 1 (h - 2 * ph) in
-  let font = font ui ch in
+  let font = display_font ui ch in
 
   let focus' = focus || status = `Pressed in
   let selection' =
@@ -1322,7 +1340,7 @@ let draw_table ui area gw ch ph cols rows hscroll =
   let rh = ch + 2 * ph in
   let mw = table_pad gw in  (* inner width padding *)
   let flex = flex_total w gw cols in
-  let font = font ui ch in
+  let font = display_font ui ch in
   (* Draw row background first since it must be unclipped. *)
   Iarray.iteri (fun j (fg, inv, _contents) ->
     let ry = y + j * rh in
@@ -1449,7 +1467,7 @@ let header ui area owner ph gw cols (titles, sorting) hscroll =
     let cx, cw = find_header 0 x in
     let syms = match order with `Asc -> symbols_asc | `Desc -> symbols_desc in
     if k < Array.length syms then
-      let font = font ui th in
+      let font = display_font ui th in
       let tw = Draw.text_width ui.win th font syms.(k) in
       if cw > tw then
         Draw.text ui.win (cx + cw - tw + 4 - hscroll) (y + ph) th `Black font syms.(k)
@@ -2017,7 +2035,7 @@ let browser_entry_text_area ui area geo (tab : _ Table.t) i nest folded =
   let mw = (geo.gutter_w + 1) / 2 in  (* inner width padding *)
   let correction = if Api.is_mac then -2 else +1 in
   let dx = max 0
-    (Draw.text_width ui.win geo.text_h (font ui geo.text_h)
+    (Draw.text_width ui.win geo.text_h (display_font ui geo.text_h)
       (browser_pp_pre nest folded) + mw - tab.hscroll + correction)
   and dy = (i - tab.vscroll) * (geo.text_h + 2 * geo.pad_h) in
   (p, x + dx, y + dy + geo.pad_h, (if w < 0 then w else w - dx), geo.text_h)
@@ -2055,7 +2073,7 @@ let browser ui area owner geo (tab : _ Table.t) pp_entry =
     let x, _, _, _ = dim ui area in
     let nest, folded, _, _ = pp_entry i in
     let tw =
-      Draw.text_width ui.win geo.text_h (font ui geo.text_h)
+      Draw.text_width ui.win geo.text_h (display_font ui geo.text_h)
         (browser_pp_pre nest folded) in
     if mx + tab.hscroll < x + tw
     && not ui.modal && Mouse.(is_down `Left || is_released `Left) then
@@ -2084,7 +2102,7 @@ let draw_grid ui area gw iw ch ph matrix =
   let x, y, w, h = dim ui area in
   Draw.fill ui.win x y w h `Black;
   let mw = (gw + 1)/2 in
-  let font = font ui ch in
+  let font = display_font ui ch in
   let nrows = Iarray.length matrix in
   let ncols =
     if nrows = 0 then 0 else Iarray.length (Iarray.get matrix 0) in
@@ -2511,7 +2529,7 @@ let menu_separator = String.concat "" (List.init 80 (Fun.const "·"))
 let menu ui x y bw gw ch ph items =
   assert (is_modal ui);
 
-  let font = font ui ch in
+  let font = display_font ui ch in
   let keys =
     Iarray.map (function
       | `Separator -> ""

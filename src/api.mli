@@ -106,7 +106,7 @@ type font
 
 module Font :
 sig
-  val load : window -> path -> int -> int -> int -> bool -> font
+  val load : window -> path -> int -> int -> int -> int -> bool -> font
 end
 
 

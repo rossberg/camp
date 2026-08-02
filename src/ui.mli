@@ -54,10 +54,15 @@ val semilit_color : color -> color
 
 (* Fonts *)
 
-val font : t -> int -> Api.font
+val label_font : t -> int -> Api.font
+val display_font : t -> int -> Api.font
 
 val font_sdf : t -> bool -> unit
 val font_is_sdf : t -> bool
+
+val font_pixel : t -> bool -> unit
+val font_is_pixel : t -> bool
+
 
 (* Images *)
 

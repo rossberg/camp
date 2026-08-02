@@ -649,6 +649,7 @@ let print_state geo =
     "text_pad_x", nat geo.pad_x;
     "text_pad_y", nat geo.pad_y;
     "text_sdf", bool (Ui.font_is_sdf geo.ui);
+    "text_pixel", bool (Ui.font_is_pixel geo.ui);
     "ctl_width", nat geo.control_width;
     "ctl_height", nat geo.control_height;
     "play_open", bool geo.playlist_shown;
@@ -695,6 +696,8 @@ let parse_state geo =  (* assumes playlist and library loaded *)
       (fun b -> Ui.buffered geo.ui b);
     apply (r $? "text_sdf") bool
       (fun b -> Ui.font_sdf geo.ui b);
+    apply (r $? "text_pixel") bool
+      (fun b -> Ui.font_pixel geo.ui b);
     apply (r $? "color_palette") (num 0 (Ui.num_palette geo.ui - 1))
       (fun i -> Ui.set_palette geo.ui i);
     apply (r $? "text_size") (num min_text_size max_text_size)

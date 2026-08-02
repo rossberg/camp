@@ -484,7 +484,8 @@ end
 
 (* Fonts *)
 
-type font = {font : Raylib.Font.t; shader : Raylib.Shader.t option}
+type font =
+  {font : Raylib.Font.t; space : int; pad : int; shader : Raylib.Shader.t option}
 
 module Font =
 struct
@@ -536,7 +537,20 @@ struct
   let shader_s = shader 0.45
   let shader_l = shader 0.47
 
-  let load () path min max size sdf =
+  let load () path min max size space sdf =
+    (* Find a pixel font of adequate size. A size is adequate if it is
+     * (1) smaller, but not too small when scaled. Pixel fonts can only be
+     * scaled by integer multiples, otherwise they look ugly. *)
+    let rec find_file base ext size' pad =
+      if size' < 3 then path, 0, space else
+      let path' = Printf.sprintf "%s-%02d%s" base size' ext in
+      if not (File.exists path') || size mod size' >= size' / 2 then
+        find_file base ext (size' - 1) (pad + 1)
+      else
+        path', pad mod size', space * (size / size')
+    in
+    let path', pad, space = if File.exists path then path, 0, space else
+      find_file (File.remove_extension path) (File.extension path) (Screen.sy size) 0 in
     let size =
       Screen.sy size * int_of_float Raylib.(Vector2.y (get_window_scale_dpi ())) in
     if sdf then
@@ -544,7 +558,7 @@ struct
       (* https://github.com/raysan5/raylib/blob/master/examples/text/text_font_sdf.c *)
       let font = Ctypes.make Raylib.Font.t in
       Raylib.Font.set_base_size font size;
-      let data = File.load `Bin path in
+      let data = File.load `Bin path' in
       let null_arr = Ctypes.(CArray.from_ptr (from_voidp int null) max) in
       let glyphs = Raylib.load_font_data data size null_arr Raylib.FontType.Sdf in
       Raylib.Font.set_glyphs font glyphs;
@@ -557,15 +571,15 @@ struct
       let shader = if size <= 10 then shader_s else shader_l in
       Raylib.set_texture_filter (Raylib.Font.texture font)
         Raylib.TextureFilter.Bilinear;
-      {font; shader = Some (Lazy.force shader)}
+      {font; space; pad; shader = Some (Lazy.force shader)}
     )
     else
     (
       let glyphs = Ctypes.(CArray.make int (max - min)) in
       for i = min to max - 1 do Ctypes.CArray.set glyphs (i - min) i done;
-      let font = Raylib.load_font_ex path size (Some glyphs) in
+      let font = Raylib.load_font path' in
       (*Raylib.(set_texture_filter (Font.texture font) TextureFilter.Bilinear);*)
-      {font; shader = None}
+      {font; space; pad; shader = None}
     )
 end
 
@@ -820,10 +834,12 @@ struct
   let text () x y h c f s =
     let x, y, _, h = sxywh x y 1 h in
     shader f.shader;
-    Raylib.draw_text_ex f.font s (vec2_of_point (x, y)) (float h) 1.0 (color c)
+    Raylib.draw_text_ex f.font s (vec2_of_point (x, y + f.pad/2))
+      (float (h - f.pad)) (float (sx f.space)) (color c)
 
   let text_width () h f s : int =
-    fst (point_of_vec2 (Raylib.measure_text_ex f.font s (float h) 1.0))
+    fst (point_of_vec2 (Raylib.measure_text_ex f.font s
+      (float (h - f.pad)) (float (sx f.space))))
 
   let text_spacing () _h _f = 1
 
