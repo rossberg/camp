@@ -236,13 +236,6 @@ and run' (st : state) (x, y, w, h as r) =
   geo.popup_size <- Geometry.(clamp min_popup_size max_popup_size
     (geo.popup_size + 100 * popup_delta));
 
-  let scale_delta =
-    Bool.to_int (Layout.enlarge_scale_key geo) -
-    Bool.to_int (Layout.reduce_scale_key geo)
-  in
-  let scale_old = Api.Window.scale win in
-  Ui.rescale geo.ui (scale_delta, scale_delta);
-
   if Layout.lib_cover_key geo then
     Library.activate_covers st.library (not st.library.covers_shown);
 
@@ -374,35 +367,43 @@ and run' (st : state) (x, y, w, h as r) =
   if Api.Window.is_hidden win then  (* after startup *)
     Api.Window.reveal win;
 
+  (* Scaling *)
+  let scale_delta =
+    Bool.to_int (Layout.enlarge_scale_key geo) -
+    Bool.to_int (Layout.reduce_scale_key geo)
+  in
+  let scale_old = Api.Window.scale win in
   let scale_new = Api.Window.scale win in
   let scaling' =
     fst geo.scaling + (fst scale_new - fst scale_old),
     snd geo.scaling + (snd scale_new - snd scale_old)
   in
   geo.scaling <- scaling';
-  if scale_delta = 0 then
-    (* Not set yet on first frame *)
-    geo.window <- Geometry.abstract_geo geo r''
-  else
-  (
-    (* Reset geometry when scaling was changed *)
+  let r''' =
+    if scale_delta = 0 then
+    (
+      (* Not set yet on first frame *)
+      geo.window <- Geometry.abstract_geo geo r'';
+      (x'' + ext_dx, y'' + ext_dy, w'' + ext_dw, h'' + ext_dh)
+    )
+    else
+    (
+      (* Reset geometry when scaling was changed *)
 (*
-    let scale_x, scale_y = Api.Window.scale win in
-    let rx = float scale_x /. (float scale_x -. float scale_delta) in
-    let ry = float scale_y /. (float scale_y -. float scale_delta) in
-    let dims = [ax; ay; aw; ah] in
-    let scaled_dims = [rx *. ax; ry *. ay; rx *. aw; ry *. ah] in
-    if List.fold_left max 0.0 dims >= 0.97 (* = 1.0 +- eps *)
-    || List.fold_left max 0.0 scaled_dims > 1.0 then
+      let scale_x, scale_y = Api.Window.scale win in
+      let rx = float scale_x /. (float scale_x -. float scale_delta) in
+      let ry = float scale_y /. (float scale_y -. float scale_delta) in
+      let dims = [ax; ay; aw; ah] in
+      let scaled_dims = [rx *. ax; ry *. ay; rx *. aw; ry *. ah] in
+      if List.fold_left max 0.0 dims >= 0.97 (* = 1.0 +- eps *)
+      || List.fold_left max 0.0 scaled_dims > 1.0 then
 *)
-      Ui.reset geo.ui (Geometry.apply_geo geo geo.window);
-  );
+      Ui.rescale geo.ui (scale_delta, scale_delta);
+      Geometry.apply_geo geo geo.window
+    )
+  in
 
-  (* Save state regularly every 3 seconds *)
-  State.save_after st 3.0;
-
-  let r''' = (x'' + ext_dx, y'' + ext_dy, w'' + ext_dw, h'' + ext_dh) in
-  if (ext_dw, ext_dh) <> (0, 0) then
+  if (ext_dw, ext_dh, scale_delta) <> (0, 0, 0) then
   (
     (* When a window gets resized, a scaled version of the old content is
      * visible for one frame. When opening/closing extensions, this creates
@@ -410,7 +411,7 @@ and run' (st : state) (x, y, w, h as r) =
      * To work around that, we draw an empty window in old size for a few frames
      * to clear the frame buffers, then draw an empty window in new size. The
      * latter seems necessary, otherwise we still see the artefact occasionally.
-     * Below is the result of experimentation, who knows why...
+     * Below is the best result of experimentation, who knows why...
      *)
     for _ = 1 to 2 do
       Ui.start geo.ui r;
@@ -421,6 +422,9 @@ and run' (st : state) (x, y, w, h as r) =
       ignore (Ui.finish geo.ui 0 (false, false));
     done;
   );
+
+  (* Save state regularly every 3 seconds *)
+  State.save_after st 3.0;
 
   r'''
 
