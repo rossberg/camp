@@ -405,7 +405,10 @@ type ('dir, 'pl, 'item) pl_ops =
 
 exception Cancel
 
-let punct_re = Str.regexp "[][(){}',;:&?!$%@_0-9*+-]"
+let replace_punct = function
+  | '.' | '_' as c -> c
+  | '\x00'..'@' | '['..'`' | '{'..'\x7f' -> ' '
+  | c -> c
 
 let modify ops (st : state) dir on_start on_pl =
   ignore (Domain.spawn (fun () ->
@@ -430,7 +433,7 @@ let modify ops (st : state) dir on_start on_pl =
           let c = Ui.text_color st.geometry.ui in
           let search =
             File.(remove_extension (name (Log.text log i 1))) |>
-            Str.global_replace punct_re " " |>
+            String.map replace_punct |>
             String.split_on_char ' ' |> List.filter ((<>) "") |>
             List.map Query.quote |> String.concat " "
           in
