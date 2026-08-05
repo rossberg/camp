@@ -198,9 +198,6 @@ and run' (st : state) (x, y, w, h as r) =
   let extension_shown_w = Geometry.extension_shown_w geo in
   let extension_shown_h = Geometry.extension_shown_h geo in
   let extension_side = geo.extension_side in
-  let playlist_shown = geo.playlist_shown in
-  let library_shown = geo.library_shown in
-  let filesel_shown = geo.filesel_shown in
   let menu_shown = geo.menu_shown in
   let popup_shown = geo.popup_shown <> None in
 
@@ -208,10 +205,11 @@ and run' (st : state) (x, y, w, h as r) =
   Run_control.run st;
   if not (Api.Window.is_minimized win) then
   (
-    if playlist_shown then Run_playlist.run st;
-    if filesel_shown then Run_filesel.run st
-    else if library_shown then Run_library.run st;
-    if playlist_shown then Run_view.run_edit_panel st;
+    if geo.settings_shown then Run_settings.run st
+    else if geo.playlist_shown then Run_playlist.run st;
+    if geo.filesel_shown then Run_filesel.run st
+    else if geo.library_shown then Run_library.run st;
+    if geo.playlist_shown then Run_view.run_edit_panel st;
     Run_control.run_toggle_panel st;
     if menu_shown then Run_menu.run st;
     if popup_shown then Run_menu.run_popup st;

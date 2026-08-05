@@ -22,6 +22,7 @@ type t =
   mutable playlist_shown : bool;
   mutable playlist_headers : bool;
   mutable library_shown : bool;
+  mutable settings_shown : bool;
   mutable window : float * float * float * float;
   mutable repair_log_columns : int iarray;
   mutable filesel_shown : bool;
@@ -66,6 +67,7 @@ let make ui =
     playlist_shown = false;
     playlist_headers = false;
     library_shown = false;
+    settings_shown = false;
     window = 1.0, 1.0, 1.0, 1.0;
     repair_log_columns = [|200; 300; 300|];
     filesel_shown = false;
@@ -111,14 +113,20 @@ let label_h g = min max_text_size (smin g g.label)
 let button_label_h g = min max_text_size (smin g g.button_label)
 let gutter_w g = sx g g.gutter
 let scrollbar_w g = smin g g.scrollbar
+let scrollbar_l g = smin g 1
 let indicator_w g = smin g 7
 
 let bottom_h g = line_h g + margin g
 let footer_y g = - line_h g - (bottom_h g - line_h g)/2
 
 let extension_shown_w g = g.library_shown || g.filesel_shown
-let extension_shown_h g = g.playlist_shown
+let extension_shown_h g = g.playlist_shown || g.settings_shown
 let extension_left g = g.extension_side = `Left
+
+let playlist_shown g = g.playlist_shown && not g.settings_shown
+let settings_shown g = g.settings_shown && not g.playlist_shown
+let library_shown g = g.library_shown && not g.filesel_shown
+let filesel_shown g = g.filesel_shown && not g.library_shown
 
 let control_w g = g.control_width
 let control_h g = g.control_height
@@ -138,6 +146,11 @@ let playlist_y g = extension_y g
 let playlist_w g = control_w g
 let playlist_h g = if g.playlist_shown then extension_h g else 0
 
+let settings_x g = control_x g
+let settings_y g = extension_y g
+let settings_w g = control_w g
+let settings_h g = if g.settings_shown then extension_h g else 0
+
 let library_x g = extension_x g
 let library_y g = control_y g
 let library_w g = if g.library_shown then extension_w g else 0
@@ -145,7 +158,7 @@ let library_h g = control_h g + extension_h g
 
 let filesel_x g = extension_x g
 let filesel_y g = control_y g
-let filesel_w g = if g.library_shown then extension_w g else 0
+let filesel_w g = if g.filesel_shown then extension_w g else 0
 let filesel_h g = control_h g + extension_h g
 
 
@@ -172,10 +185,11 @@ let left_max_w g = extension_w g - g.browser_width - left_min_w g
 let upper_max_h g = library_h g - bottom_h g - lower_min_h g
 
 let playlist_min_h g = bottom_h g + max (margin g + 2 * line_h g) (upper_min_h g + lower_min_h g - control_h g)
+let settings_min_h g = 40 + 2 * margin g
 
 let extension_min_w g = max (library_min_w g) (filesel_min_w g)
+let extension_min_h g = max (playlist_min_h g) (settings_min_h g)
 let extension_max_w g = live_win_w g - control_min_w
-let extension_min_h g = playlist_min_h g
 let extension_max_h g = live_win_h g - control_min_h
 
 let control_max_w g = live_win_w g - extension_min_w g

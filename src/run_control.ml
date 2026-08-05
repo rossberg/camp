@@ -932,5 +932,12 @@ let run_toggle_panel (st : state) =
         (fun () -> resize_popup st (+1));
       `Entry (c, "Decrease Popup Cover Size", Layout.key_popupdn, resize_popup_avail st (-1)),
         (fun () -> resize_popup st (-1));
+      `Separator, ignore;
+      `Entry (c, (if geo.settings_shown then "Hide" else "Show") ^ " Settings",
+        Layout.key_settings, true),
+        (fun () ->
+          Playlist.defocus st.playlist;
+          geo.settings_shown <- not geo.settings_shown
+        );
     |]))
   )

@@ -213,7 +213,7 @@ let drag (st : state) table_drag (module View : View) =
   Ui.delay geo.ui (fun () -> table_drag geo tab)
 
 let drag_on_playlist (st : state) =
-  if st.geometry.playlist_shown then
+  if Geometry.playlist_shown st.geometry then
     drag st Layout.playlist_drag (playlist_view st)
 
 let library_drag (st : state) (geo : Geometry.t) =
@@ -225,7 +225,8 @@ let library_drag (st : state) (geo : Geometry.t) =
   if current_is_grid st then grid_drag geo geo.track_grid else drag geo
 
 let drag_on_tracks (st : state) =
-  if st.geometry.library_shown && Library.current_is_shown_playlist st.library then
+  if Geometry.library_shown st.geometry
+  && Library.current_is_shown_playlist st.library then
     drag st (library_drag st) (tracks_view st)
 
 let drop (st : state) tracks table_mouse (module View : View) =
@@ -246,7 +247,7 @@ let drop (st : state) tracks table_mouse (module View : View) =
   )
 
 let drop_on_playlist (st : state) tracks =
-  if st.geometry.playlist_shown then
+  if Geometry.playlist_shown st.geometry then
     drop st tracks (fun geo -> Layout.playlist_mouse geo [||]) (playlist_view st)
 
 let library_mouse (st : state) (geo : Geometry.t) =
@@ -258,7 +259,8 @@ let library_mouse (st : state) (geo : Geometry.t) =
   if current_is_grid st then grid_mouse geo geo.track_grid else mouse geo [||]
 
 let drop_on_tracks (st : state) tracks =
-  if st.geometry.library_shown && Library.current_is_shown_playlist st.library then
+  if Geometry.library_shown st.geometry
+  && Library.current_is_shown_playlist st.library then
     drop st tracks (library_mouse st) (tracks_view st)
 
 
@@ -367,11 +369,11 @@ let set_drop_cursor (st : state) =
   let pl = st.playlist in
   let lib = st.library in
   let droppable =
-    geo.playlist_shown &&
+    Geometry.playlist_shown geo &&
       (* over playlist *)
       Layout.playlist_mouse geo [||] pl.table <> None
     ||
-    geo.library_shown && (
+    Geometry.library_shown geo && (
       (* over library playlist view? *)
       Library.current_is_playlist lib && library_mouse st geo lib.tracks <> None
       ||
@@ -635,7 +637,7 @@ let resolve_dir = modify_dir modify_resolve
 let repair_dir = modify_dir modify_repair
 
 let modify_view modify (st : state) view all =
-  let lib_shown = st.geometry.library_shown in
+  let lib_shown = Geometry.library_shown st.geometry in
   if not lib_shown then Run_control.toggle_library st;
   modify
   {
@@ -719,7 +721,8 @@ let dedupe all _st (module View : View) =
   View.(remove_duplicates it all)
 
 let repair_avail all (st : state) view =
-  wipe_avail all st view && st.library.log = None && not st.geometry.filesel_shown
+  Geometry.library_shown st.geometry &&
+  wipe_avail all st view && st.library.log = None
 let repair all st view =
   repair_view st view all
 
@@ -791,8 +794,8 @@ let reverse_all _st (module View : View) =
   View.(reverse_all it)
 
 let load_avail (st : state) (module View : View) =
-  editable st (module View) &&
-  not st.geometry.filesel_shown && st.library.log = None
+  Geometry.library_shown st.geometry &&
+  editable st (module View) && st.library.log = None
 let load (st : state) (module View : View) =
   Run_filesel.filesel st `File `Read "" ".m3u" (fun path ->
     let tracks = Array.map Track.of_m3u_item (Array.of_list (M3u.load path)) in
@@ -808,7 +811,7 @@ let load (st : state) (module View : View) =
   )
 
 let save_avail (st : state) _view =
-  not st.geometry.filesel_shown && st.library.log = None
+  Geometry.library_shown st.geometry && st.library.log = None
 let save (st : state) (module View : View) =
   Run_filesel.filesel st `File `Write "" ".m3u" (fun path ->
     File.save `Bin path (Track.to_m3u View.(tracks it))
@@ -823,7 +826,7 @@ let save_sel (st : state) (module View : View) =
   )
 
 let save_view_avail (st : state) _view =
-  not st.geometry.filesel_shown && st.geometry.library_shown &&
+  Geometry.library_shown st.geometry &&
   not st.playlist.table.focus && st.library.log = None &&
   ( st.library.search.text <> "" ||
     Table.num_selected st.library.artists > 0 ||
@@ -927,7 +930,7 @@ let search (st : state) =
   State.focus_edit st.library.search st
 
 let search_for_avail (st : state) =
-  st.geometry.library_shown && st.library.current <> None
+  Geometry.library_shown st.geometry && st.library.current <> None
 
 let search_for (st : state) ss =
   let s = String.concat " " (List.map (fun s -> "\"" ^ s ^ "\"") ss) in
@@ -1189,8 +1192,8 @@ let run_edit_panel (st : state) =
   let focus = pl_focus || lib_focus && lib_shows_tracks in
 
   assert (not (pl_focus && lib_focus));
-  assert (geo.playlist_shown || not pl_focus);
-  assert (geo.library_shown || not lib_focus);
+  assert (Geometry.playlist_shown geo || not pl_focus);
+  assert (Geometry.library_shown geo || not lib_focus);
 
   let playlist = playlist_view st in
   let library = tracks_view st in

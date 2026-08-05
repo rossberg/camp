@@ -6,6 +6,7 @@ type config = Config.t
 type geometry = Geometry.t
 type control = Control.t
 type playlist = Ui.cached Playlist.t
+type settings = Settings.t
 type library = Ui.cached Library.t
 type filesel = Ui.cached Filesel.t
 type menu = Menu.t
@@ -16,6 +17,7 @@ type t =
   geometry : geometry;
   control : control;
   playlist : playlist;
+  settings : settings;
   library : library;
   filesel : filesel;
   menu : menu;
@@ -33,6 +35,7 @@ let make ui audio =
     geometry = Geometry.make ui;
     control = Control.make audio;
     playlist = Playlist.make ();
+    settings = Settings.make ();
     library = Library.make ();
     filesel = Filesel.make ();
     menu = Menu.make ();
@@ -48,6 +51,7 @@ let delay st f = st.delayed <- f :: st.delayed
 
 let defocus_all st =
   Playlist.defocus st.playlist;
+  Settings.defocus st.settings;
   Library.defocus st.library;
   Filesel.defocus st.filesel
 
@@ -62,6 +66,9 @@ let focus_edit (ed : Edit.t) st =
 let focus_playlist st =
   Library.deselect_all st.library;
   focus_table st.playlist.table st
+
+let focus_settings st =
+  defocus_all st
 
 let focus_library (tab : _ Table.t) st =
   Playlist.deselect_all st.playlist;
@@ -78,6 +85,9 @@ let foci_edit (ed : Edit.t) = ed.focus, focus_edit ed
 let foci_playlist (pl : _ Playlist.t) =
   let f = fun _ -> focus_playlist in
   [foci_table f pl.table]
+
+let foci_settings (_set : Settings.t) =
+  []
 
 let foci_library (lib : _ Library.t) =
   let f = focus_library in
@@ -98,9 +108,11 @@ let foci_filesel (fs : _ Filesel.t) =
   [foci_table f fs.dirs; foci_table f fs.files; foci_edit fs.input]
 
 let foci st =
-  (if st.geometry.playlist_shown then foci_playlist st.playlist else []) @
-  (if st.geometry.filesel_shown then foci_filesel st.filesel else
-   if st.geometry.library_shown then foci_library st.library else [])
+  let geo = st.geometry in
+  (if Geometry.settings_shown geo then foci_settings st.settings else []) @
+  (if Geometry.playlist_shown geo then foci_playlist st.playlist else []) @
+  (if Geometry.filesel_shown geo then foci_filesel st.filesel else []) @
+  (if Geometry.library_shown geo then foci_library st.library else [])
 
 let focus_switch st foci =
   let rec find = function
