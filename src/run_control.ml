@@ -475,7 +475,7 @@ let run (st : state) =
     let track = Option.get ctl.current in
     let ext = File.extension track.path in
     let format = if ext = "" || ext.[0] <> '.' then "???" else
-      String.uppercase_ascii (String.sub ext 1 (String.length ext - 1)) in
+      String.uppercase_ascii (String.drop_first 1 ext) in
     let bitrate = Control.bitrate ctl in
     let rate = Control.rate ctl in
     let channels = Control.channels ctl in

@@ -585,8 +585,7 @@ struct
   let load_raw_from_memory' mime data =
     if not (String.starts_with ~prefix: mime_prefix mime) then
       failwith "Image.load_from_memory";
-    let n = String.length mime_prefix in
-    let ext = "." ^ String.sub mime n (String.length mime - n) in
+    let ext = "." ^ String.drop_first (String.length mime_prefix) mime in
     let raw = Raylib.load_image_from_memory ext data (String.length data) in
     ignore (Raylib.Image.format raw);  (* force exception on load failure *)
     raw

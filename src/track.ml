@@ -41,7 +41,7 @@ let split_name s =
       else
         loop i (k + 1) ss
     | Some k -> loop i (k + 1) ss
-    | None -> if i = 0 then [] else String.sub s i (len - i) :: ss
+    | None -> if i = 0 then [] else String.drop_first i s :: ss
   in List.rev (loop 0 0 [])
 
 

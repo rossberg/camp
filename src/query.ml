@@ -860,7 +860,7 @@ let parse_query s : (query, string) result =
     in
     Ok {expr = q'; sort = ks}
   with
-  | SyntaxError i -> Error ("Syntax error at \"" ^ String.sub s i (String.length s - i) ^ "\"")
+  | SyntaxError i -> Error ("Syntax error at \"" ^ String.drop_first i s ^ "\"")
   | TypeError -> Error "Type error"
 
 let parse_expr s : (expr, string) result =

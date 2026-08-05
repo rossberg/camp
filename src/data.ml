@@ -308,14 +308,14 @@ let fields_of_name name =
   let len = String.length name in
   let rec find i j =
     if i >= len then [] else
-    if j >= len then [String.sub name i (len - i)] else
+    if j >= len then [String.drop_first i name] else
     match String.index_from_opt name j '-' with
     | Some j when j < len - 1 ->
       if name.[j - 1] <> ' ' || name.[j + 1] <> ' ' then
         find i (j + 2)
       else
         String.sub name i (j - i - 1) :: find (j + 2) (j + 4)
-    | _ -> [String.sub name i (len - i)]
+    | _ -> [String.drop_first i name]
   in find 0 2
 
 let fields_of_path path =
@@ -327,7 +327,7 @@ let fields_of_path path =
 let int_of_pos s =
   match String.index_opt s '.' with
   | None -> int_of_string_opt s
-  | Some i -> int_of_string_opt (String.sub s (i + 1) (String.length s - i - 1))
+  | Some i -> int_of_string_opt (String.drop_first (i + 1) s)
 
 let artist_title = function
   | artist :: title :: rest -> Some (artist, String.concat " - " (title::rest))

@@ -16,7 +16,7 @@ type table = (Data.track, Ui.cached) Table.t
 let exec prog args =
   let cmd = Filename.quote_command prog args in
   let cmd' = if not Sys.win32 then cmd else
-    "\"start /b ^\"^\" " ^ String.sub cmd 1 (String.length cmd - 1) in
+    "\"start /b ^\"^\" " ^ String.drop_first 1 cmd in
   ignore (Sys.command cmd')
 
 let fmt = Printf.sprintf
