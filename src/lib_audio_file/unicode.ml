@@ -175,34 +175,10 @@ let casefold_utf_8 s =
   loop 0 (String.length s - 1)
 
 
-(* TODO: with Camomile, use contains_utf_8 (and remove UCase), once Camomile
- * bug https://github.com/ocaml-community/Camomile/issues/10 is fixed. *)
-let rec string_contains_from' s i s' j =
-  j = String.length s' ||
-  s.[i + j] = s'.[j] && string_contains_from' s i s' (j + 1)
+let includes_utf_8 = String.includes
 
-let string_contains_from s i s' =
-  String.length s - i >= String.length s' &&
-  string_contains_from' s i s' 0
+let includes_utf_8_caseless ~affix s =
+  includes_utf_8 ~affix: (casefold_utf_8 affix) (casefold_utf_8 s)
 
-let rec index_sub_from_opt s i s' =
-  if s' = "" then Some i else
-  match String.index_from_opt s i s'.[0] with
-  | None -> None
-  | Some j ->
-    if j + String.length s' > String.length s then
-      None
-    else if string_contains_from s j s' then
-      Some j
-    else if j + String.length s' >= String.length s then
-      None
-    else
-      index_sub_from_opt s (j + 1) s'
-
-let contains_utf_8 ~inner s = index_sub_from_opt s 0 inner <> None
-
-let contains_utf_8_caseless ~inner s =
-  contains_utf_8 ~inner: (casefold_utf_8 inner) (casefold_utf_8 s)
-
-let contains_utf_8_diacriticless ~inner s =
-  contains_utf_8 ~inner: (search_key_utf_8 inner) (search_key_utf_8 s)
+let includes_utf_8_diacriticless ~affix s =
+  includes_utf_8 ~affix: (search_key_utf_8 affix) (search_key_utf_8 s)

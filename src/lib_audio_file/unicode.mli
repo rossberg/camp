@@ -13,6 +13,6 @@ val sort_key_utf_8 : string -> string
 val compare_utf_8 : string -> string -> int
 
 val search_key_utf_8 : string -> string
-val contains_utf_8 : inner: string -> string -> bool
-val contains_utf_8_caseless : inner: string -> string -> bool
-val contains_utf_8_diacriticless : inner: string -> string -> bool
+val includes_utf_8 : affix: string -> string -> bool
+val includes_utf_8_caseless :affix: string -> string -> bool
+val includes_utf_8_diacriticless : affix: string -> string -> bool
