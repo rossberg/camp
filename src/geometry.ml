@@ -296,7 +296,7 @@ let check_geo geo (ww, wh) =
     if !App.debug_strict then failwith "geometry invariant violation"
   )
 
-let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch clamp_pos =
+let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
   let win = Ui.window geo.ui in
   let x, y = Api.Window.pos win in
   let w, h = Api.Window.size win in
@@ -308,10 +308,10 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch clamp_pos =
   if !App.debug_layout then
   (
     Printf.eprintf
-      "  [change geo] focus=%s%s flex_ctl=%b,%b clamp_pos=%b\n%!"
+      "  [change geo] focus=%s%s flex_ctl=%b,%b\n%!"
       (match focush with `Top -> "T" | `Bot -> "B" | `Hor -> "H" | `None -> "")
       (match focusw with `Lft -> "L" | `Rgt -> "R" | `Ver -> "V" | `None -> "")
-      flexcw flexch clamp_pos;
+      flexcw flexch;
     Printf.eprintf
       "    win=%d%+d,%d%+d,%d%+d,%d%+d ctl=%d%+d,%d%+d ext=%d%+d,%d%+d\n%!"
       x dx y dy w dw h dh cw dcw ch dch ew dew eh deh;
@@ -403,8 +403,8 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch clamp_pos =
   (* Adjust window position *)
   let to_top = focush = `Top || y >= win_max_y geo - h in
   let to_left =
-    focusw = `Lft || focusw <> `Rgt && geo.extension_side = `Left ||
-    x >= win_max_x geo - w
+    focusw = `Lft ||
+    focusw <> `Rgt && (geo.extension_side = `Left || x >= win_max_x geo - w)
   in
   let minx, miny = win_min_x geo, win_min_y geo in
   let maxx, maxy = win_max_x geo - w'', win_max_y geo - h'' in
@@ -419,8 +419,8 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch clamp_pos =
 
   let x' = x + dx - if to_left then dw' - dw + w'' - w' else 0 in
   let y' = y + dy - if to_top then dh' - dh + h'' - h' else 0 in
-  let x'' = if clamp_pos then clamp minx maxx x' else x' in
-  let y'' = if clamp_pos then clamp miny maxy y' else y' in
+  let x'' = if dw = 0 && dh <> 0 then clamp minx maxx x' else x' in
+  let y'' = if dw <> 0 && dh = 0 then clamp miny maxy y' else y' in
 
   if !App.debug_layout then
   (

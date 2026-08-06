@@ -364,7 +364,7 @@ and run' (st : state) (x, y, w, h as r) =
           Geometry.change_geo geo dx dy dw dh dcw dch
             (if win_focusw = `None then div_focusw else win_focusw)
             (if win_focush = `None then div_focush else win_focush)
-            flex_ctl_w flex_ctl_h (win_dw <> 0 || win_dh <> 0)
+            flex_ctl_w flex_ctl_h
         in
 
         if !App.debug_layout then
