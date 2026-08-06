@@ -511,9 +511,11 @@ let resize_repos ui (ox, oy) (dw, dh) =
    *)
   match find_pane ui (ox, oy) with
   | Some ((rx, ry, rw, rh), (x, y, w, h)) ->
+Printf.eprintf "[find_pane %d,%d %+d,%+d] => %d,%d,%d,%d ~ %d,%d,%d,%d\n%!" ox oy dw dh rx ry rw rh x y w h;
     (if rx < 0 || rw < 0 && 2*(ox - x) > w then -dw else 0),
     (if ry < 0 || rh < 0 && 2*(oy - y) > h then -dh else 0)
   | None ->
+Printf.eprintf "[find_pane %d,%d %+d,%+d] => none\n%!" ox oy dw dh;
     (if ox < 0 then 0 else -dw),
     (if oy < 0 then 0 else -dh)
 

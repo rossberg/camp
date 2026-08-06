@@ -291,14 +291,22 @@ and run' (st : state) (x, y, w, h as r) =
   let (scr_dx, scr_dy), (scr_dw, scr_dh) =
     if scr' = scr then (0, 0), (0, 0) else
     (
+let x, y = Api.Screen.pos scr in
+let w, h = Api.Screen.size scr in
+let x', y' = Api.Screen.pos scr' in
+let w', h' = Api.Screen.size scr' in
+Printf.printf "[screen] %d,%d,%d,%d -> %d,%d,%d,%d\n%!" x y w h x' y' w' h';
       (* Window moved to another screen *)
       let ww, wh = Geometry.(win_w geo, win_h geo) in
-      Geometry.clamp_geo geo;
-      let ww', wh' = Geometry.(win_w geo, win_h geo) in
+      let _, _, ww', wh' = Geometry.apply_geo geo geo.window in
       let dsize = ww' - ww, wh' - wh in
       (* Subtract mouse delta to get position relative to current geometry *)
+let (dx,dy),_ =
       Ui.resize_repos geo.ui Api.Mouse.(Api.sub (pos win) (delta win)) dsize,
       dsize
+in
+Printf.printf "  dxpos=%+d,%+d\n%!" dx dy;
+(dx,dy),dsize
     )
   in
 
@@ -338,7 +346,7 @@ and run' (st : state) (x, y, w, h as r) =
         Geometry.change_geo geo dx dy dw dh dcw dch
           (if win_focusw = `None then div_focusw else win_focusw)
           (if win_focush = `None then div_focush else win_focush)
-          flex_ctl_w flex_ctl_h
+          flex_ctl_w flex_ctl_h (win_dw <> 0 || win_dh <> 0)
       in
 
       if !App.debug_layout then
@@ -380,9 +388,14 @@ and run' (st : state) (x, y, w, h as r) =
   in
   geo.scaling <- scaling';
   let r''' =
-    if scale_delta = 0 then
+    if scale_delta = 0 && scr = scr' then
     (
       (* Not set yet on first frame *)
+let x,y,w,h=geo.window in
+let x',y',w',h' as win= Geometry.abstract_geo geo r'' in
+let maxw,maxh=Api.Window.max_size(Ui.window geo.ui) in
+if geo.window <> win then
+Printf.eprintf"[run scale] %.2f,%.2f,%.2f,%.2f @ %d -> %.2f,%.2f,%.2f,%.2f @ %d [%d,%d]\n%!" x y w h (Obj.magic scr) x' y' w' h' (Obj.magic scr') maxw maxh;
       geo.window <- Geometry.abstract_geo geo r'';
       (x'' + ext_dx, y'' + ext_dy, w'' + ext_dw, h'' + ext_dh)
     )

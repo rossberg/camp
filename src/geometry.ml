@@ -296,7 +296,7 @@ let check_geo geo (ww, wh) =
     if !App.debug_strict then failwith "geometry invariant violation"
   )
 
-let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
+let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch clamp_pos =
   let win = Ui.window geo.ui in
   let x, y = Api.Window.pos win in
   let w, h = Api.Window.size win in
@@ -308,10 +308,10 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
   if !App.debug_layout then
   (
     Printf.eprintf
-      "  [change geo] focus=%s%s flex_ctl=%b,%b\n%!"
+      "  [change geo] focus=%s%s flex_ctl=%b,%b clamp_pos=%b\n%!"
       (match focush with `Top -> "T" | `Bot -> "B" | `Hor -> "H" | `None -> "")
       (match focusw with `Lft -> "L" | `Rgt -> "R" | `Ver -> "V" | `None -> "")
-      flexcw flexch;
+      flexcw flexch clamp_pos;
     Printf.eprintf
       "    win=%d%+d,%d%+d,%d%+d,%d%+d ctl=%d%+d,%d%+d ext=%d%+d,%d%+d\n%!"
       x dx y dy w dw h dh cw dcw ch dch ew dew eh deh;
@@ -419,13 +419,13 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
 
   let x' = x + dx - if to_left then dw' - dw + w'' - w' else 0 in
   let y' = y + dy - if to_top then dh' - dh + h'' - h' else 0 in
-  let x'' = if dw' = 0 then x' else clamp minx maxx x' in
-  let y'' = if dh' = 0 then y' else clamp miny maxy y' in
+  let x'' = if clamp_pos then clamp minx maxx x' else x' in
+  let y'' = if clamp_pos then clamp miny maxy y' else y' in
 
   if !App.debug_layout then
   (
-    Printf.eprintf "    x=%d->%d~%d~%d toleft=%b\n%!" x (x + dx) x' x'' to_left;
-    Printf.eprintf "    y=%d->%d~%d~%d totop=%b\n%!" y (y + dh) y' y'' to_top;
+    Printf.eprintf "    x=%d->%d~%d~%d[%d,%d] toleft=%b\n%!" x (x + dx) x' x'' minx maxx to_left;
+    Printf.eprintf "    y=%d->%d~%d~%d[%d,%d] totop=%b\n%!" y (y + dh) y' y'' miny maxy to_top;
   );
 
   let dx'', dy'' = x'' - x, y'' - y in
@@ -584,6 +584,7 @@ let update_geo geo (wx, wy, ww, wh) =
   assert (ww = geo.control_width + geo.extension_width);
   assert (wh = geo.control_height + geo.extension_height);
   clamp_geo geo;
+Printf.eprintf"[update_geo]\n%!";
   geo.window <- abstract_geo geo (wx, wy, ww, wh)
 
 let apply_geo geo (ax, ay, aw, ah) : int * int * int * int =
@@ -609,7 +610,7 @@ let apply_geo geo (ax, ay, aw, ah) : int * int * int * int =
   (
     Printf.eprintf
       "[geo apply] abs=%.2f,%.2f,%.2f,%.2f concr=%d,%d,%d+%d,%d+%d scr=%d,%d,%d,%d\n%!"
-      ax ay aw ah x y ew (control_w geo) eh (control_h geo) sx sy sw sh;
+      ax ay aw ah x y (control_w geo) ew (control_h geo) eh sx sy sw sh;
   );
 
   clamp_geo geo;
@@ -736,6 +737,7 @@ let parse_state geo =  (* assumes playlist and library loaded *)
     apply (r $? "popup_size") (num min_popup_size max_popup_size)
       (fun w -> geo.popup_size <- w);
 
+Printf.eprintf"[parse_state]\n%!";
     geo.window <- (!rax, !ray, !raw, !rah);
     Ui.rescale geo.ui geo.scaling;
     let r = apply_geo geo geo.window in

@@ -366,10 +366,10 @@ let extension_divider_wh_bot g = Ui.divider2 g.ui (ldp, 0, - margin g, -1, -1) "
 (* Playlist Pane *)
 
 let pp = ldp + 1
-let playlist_pane g = Ui.pane g.ui pp (playlist_x g, playlist_y g, playlist_w g, - bottom_h g)
+let playlist_pane g = Ui.pane g.ui pp (playlist_x g, playlist_y g, playlist_w g, -1)
 
 (* Playlist *)
-let playlist_area g = (pp, margin g, margin g, - margin g, -1)
+let playlist_area g = (pp, margin g, margin g, - margin g, - bottom_h g)
 let playlist_table g = Ui.rich_table g.ui (playlist_area g) "pl" (rich_table g 0 g.playlist_headers)
 let playlist_mouse g = Ui.rich_table_mouse g.ui (playlist_area g) (rich_table g 0 g.playlist_headers)
 let playlist_drag g = Ui.rich_table_drag g.ui (playlist_area g) (rich_table g 0 g.playlist_headers) `Above
@@ -416,7 +416,7 @@ let focus_prev_key g = Ui.key g.ui key_prev true
 (* Total text field *)
 let total_w g = - margin g - scrollbar_w g
 let total_x g = edit_x 4 7 g
-let total_y g = playlist_h g + footer_y g  (* Hack: this is outside the pane *)
+let total_y g = footer_y g
 let playlist_total_box g = Ui.box g.ui (pp, total_x g, total_y g, total_w g, line_h g) `Black
 let playlist_total_text g = Ui.text g.ui (pp, total_x g, total_y g + pad_h g, total_w g - (gutter_w g + 1)/2, text_h g) `Right
 
