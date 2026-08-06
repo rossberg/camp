@@ -171,6 +171,12 @@ and run' (st : state) (x, y, w, h as r) =
   let win = Ui.window geo.ui in
   if Api.Window.closed win then Run_control.quit st;
 
+  (* Not set yet on first frame *)
+  geo.window <- Geometry.abstract_geo geo r;
+
+  (* Save state regularly every 3 seconds *)
+  State.save_after st 3.0;
+
   (* App invocation with arguments *)
   let m3u = ref "" in
   Storage.load_string queue_file ((:=) m3u);
@@ -213,6 +219,13 @@ and run' (st : state) (x, y, w, h as r) =
   List.iter (fun f -> f ()) st.delayed;
   st.delayed <- [];
 
+  let extension_shown_w' = Geometry.extension_shown_w geo in
+  let extension_shown_h' = Geometry.extension_shown_h geo in
+  let extension_change =
+    extension_shown_w' <> extension_shown_w ||
+    extension_shown_h' <> extension_shown_h
+  in
+
   (* Adjust font and grid size *)
   let text_delta =
     Bool.to_int (Layout.enlarge_text_key geo) -
@@ -239,40 +252,19 @@ and run' (st : state) (x, y, w, h as r) =
   if Layout.lib_cover_key geo then
     Library.activate_covers st.library (not st.library.covers_shown);
 
-  (* Adjust window size after opening/closing panes *)
-  let extension_shown_w' = Geometry.extension_shown_w geo in
-  let extension_shown_h' = Geometry.extension_shown_h geo in
-
-  let ext_dx, ext_dw =
-    if extension_shown_w' = extension_shown_w then 0, 0 else
-    (
-      let s = if extension_shown_w' then +1 else -1 in
-      let sw, _ = Api.Window.max_size win in
-      let dw' = min (sw - geo.control_width) (s * geo.extension_width) in
-      let dx' = if Geometry.extension_left geo then -dw' else 0 in
-      geo.extension_width <- abs dw';
-      dx', dw'
-    )
-  and ext_dy, ext_dh =
-    if extension_shown_h' = extension_shown_h then 0, 0 else
-    (
-      let s = if extension_shown_h' then +1 else -1 in
-      let _, sh = Api.Window.max_size win in
-      let dh' = min (sh - geo.control_height) (s * geo.extension_height) in
-      geo.extension_height <- abs dh';
-      0, dh'
-    )
+  (* Scaling keys (ignore when extension was changed) *)
+  let scale_delta =
+    if extension_change then 0 else
+    Bool.to_int (Layout.enlarge_scale_key geo) -
+    Bool.to_int (Layout.reduce_scale_key geo)
   in
-
-  let ext_dx =
-    if ext_dw = 0
-    && extension_shown_w' && geo.extension_side <> extension_side then
-    (
-      let sx = if Geometry.extension_left geo then -1 else +1 in
-      ext_dx + sx * geo.extension_width;
-    )
-    else ext_dx
+  let scale_old = Api.Window.scale win in
+  let scale_new = Api.Window.scale win in
+  let scaling' =
+    fst geo.scaling + (fst scale_new - fst scale_old),
+    snd geo.scaling + (snd scale_new - snd scale_old)
   in
+  geo.scaling <- scaling';
 
   (* Finish drawing *)
   let shift = Api.Key.is_modifier_down `Shift in
@@ -286,160 +278,173 @@ and run' (st : state) (x, y, w, h as r) =
   let scr = Api.Window.screen win in
   let (x', y', w', h'), (lft, top, rgt, bot) =
     Ui.finish geo.ui (Geometry.margin geo) (true, true) in
-
+  let x', y', w', h' =
+    if not extension_change then x', y', w', h' else
+    (Ui.pin geo.ui scr; x, y, w, h)  (* undo move or resize *)
+  in
   let scr' = Api.Window.screen win in
-  let (scr_dx, scr_dy), (scr_dw, scr_dh) =
-    if scr' = scr then (0, 0), (0, 0) else
-    (
-let x, y = Api.Screen.pos scr in
-let w, h = Api.Screen.size scr in
-let x', y' = Api.Screen.pos scr' in
-let w', h' = Api.Screen.size scr' in
-Printf.printf "[screen] %d,%d,%d,%d -> %d,%d,%d,%d\n%!" x y w h x' y' w' h';
-      (* Window moved to another screen *)
-      let ww, wh = Geometry.(win_w geo, win_h geo) in
-      let _, _, ww', wh' = Geometry.apply_geo geo geo.window in
-      let dsize = ww' - ww, wh' - wh in
-      (* Subtract mouse delta to get position relative to current geometry *)
-let (dx,dy),_ =
-      Ui.resize_repos geo.ui Api.Mouse.(Api.sub (pos win) (delta win)) dsize,
-      dsize
-in
-Printf.printf "  dxpos=%+d,%+d\n%!" dx dy;
-(dx,dy),dsize
-    )
-  in
-
-  let flex_ctl_w = shift || not extension_shown_w' in
-  let flex_ctl_h = shift || not extension_shown_h' in
-
-  let (win_dx, win_dy), (win_dw, win_dh) = (x' - x, y' - y), (w' - w, h' - h) in
-  let win_dcw = if flex_ctl_w then win_dw else 0 in
-  let win_dch = if flex_ctl_h then win_dh else 0 in
-  let win_focusw = if lft then `Lft else if rgt then `Rgt else `None in
-  let win_focush = if top then `Top else if bot then `Bot else `None in
-
-  let (div_dx, div_dy), (div_dw, div_dh), (div_dcw, div_dch), div_focusw, div_focush =
-    if extension_shown_w' = extension_shown_w
-    && extension_shown_h' = extension_shown_h then
-      run_dividers st
-    else
-      (0, 0), (0, 0), (0, 0), `None, `None
-  in
-
-  let dx, dy = scr_dx + win_dx + div_dx, scr_dy + win_dy + div_dy in
-  let dw, dh = scr_dw + win_dw + div_dw, scr_dh + win_dh + div_dh in
-  let dcw, dch = win_dcw + div_dcw, win_dch + div_dch in
-
-  let (x'', y'', w'', h'') as r'' =
-    if (dw, dh, dcw, dch) = (0, 0, 0, 0) then (x + dx, y + dy, w, h) else
-    (
-      (* Window was resized or a divider used *)
-      if !App.debug_layout then
-      (
-        Printf.eprintf
-          "[win change]\n    win=%d%+d,%d%+d,%d%+d,%d%+d ctl=%d,%d ext=%d,%d\n%!"
-          x dx y dy w dw h dh geo.control_width geo.control_height geo.extension_width geo.extension_height
-      );
-
-      let dx', dy', dw', dh' =
-        Geometry.change_geo geo dx dy dw dh dcw dch
-          (if win_focusw = `None then div_focusw else win_focusw)
-          (if win_focush = `None then div_focush else win_focush)
-          flex_ctl_w flex_ctl_h (win_dw <> 0 || win_dh <> 0)
-      in
-
-      if !App.debug_layout then
-      (
-        Printf.eprintf
-          "  [geo set] win=%d,%d ctl=%d,%d ext=%d,%d bw=%d vw=%d\n%!"
-          (w + dw') (h + dh')
-          geo.control_width geo.control_height
-          geo.extension_width geo.extension_height
-          geo.browser_width geo.left_width;
-        Printf.eprintf
-          "  [geo min] win=%d,%d ctl=%d,%d ext=%d,%d bw=%d vw=%d\n%!"
-          (Geometry.win_min_w geo flex_ctl_w flex_ctl_h)
-          (Geometry.win_min_h geo flex_ctl_w flex_ctl_h)
-          Geometry.control_min_w Geometry.control_min_h
-          (Geometry.extension_min_w geo) (Geometry.extension_min_h geo)
-          (Geometry.browser_min_w geo) (Geometry.left_min_w geo);
-      );
-
-      x + dx', y + dy', w + dw', h + dh'
-    )
-  in
-
-  Geometry.clamp_geo geo;
-
   if Api.Window.is_hidden win then  (* after startup *)
     Api.Window.reveal win;
 
-  (* Scaling *)
-  let scale_delta =
-    Bool.to_int (Layout.enlarge_scale_key geo) -
-    Bool.to_int (Layout.reduce_scale_key geo)
-  in
-  let scale_old = Api.Window.scale win in
-  let scale_new = Api.Window.scale win in
-  let scaling' =
-    fst geo.scaling + (fst scale_new - fst scale_old),
-    snd geo.scaling + (snd scale_new - snd scale_old)
-  in
-  geo.scaling <- scaling';
-  let r''' =
-    if scale_delta = 0 && scr = scr' then
-    (
-      (* Not set yet on first frame *)
-let x,y,w,h=geo.window in
-let x',y',w',h' as win= Geometry.abstract_geo geo r'' in
-let maxw,maxh=Api.Window.max_size(Ui.window geo.ui) in
-if geo.window <> win then
-Printf.eprintf"[run scale] %.2f,%.2f,%.2f,%.2f @ %d -> %.2f,%.2f,%.2f,%.2f @ %d [%d,%d]\n%!" x y w h (Obj.magic scr) x' y' w' h' (Obj.magic scr') maxw maxh;
-      geo.window <- Geometry.abstract_geo geo r'';
-      (x'' + ext_dx, y'' + ext_dy, w'' + ext_dw, h'' + ext_dh)
-    )
-    else
-    (
-      (* Reset geometry when scaling was changed *)
-(*
-      let scale_x, scale_y = Api.Window.scale win in
-      let rx = float scale_x /. (float scale_x -. float scale_delta) in
-      let ry = float scale_y /. (float scale_y -. float scale_delta) in
-      let dims = [ax; ay; aw; ah] in
-      let scaled_dims = [rx *. ax; ry *. ay; rx *. aw; ry *. ah] in
-      if List.fold_left max 0.0 dims >= 0.97 (* = 1.0 +- eps *)
-      || List.fold_left max 0.0 scaled_dims > 1.0 then
-*)
-      Ui.rescale geo.ui (scale_delta, scale_delta);
-      Geometry.apply_geo geo geo.window
-    )
-  in
-
-  if (ext_dw, ext_dh, scale_delta) <> (0, 0, 0) then
+  (* Compute new window geometry *)
+  if scr' <> scr then
   (
-    (* When a window gets resized, a scaled version of the old content is
-     * visible for one frame. When opening/closing extensions, this creates
-     * a very ugly flicker artefact.
-     * To work around that, we draw an empty window in old size for a few frames
-     * to clear the frame buffers, then draw an empty window in new size. The
-     * latter seems necessary, otherwise we still see the artefact occasionally.
-     * Below is the best result of experimentation, who knows why...
-     *)
-    for _ = 1 to 2 do
-      Ui.start geo.ui r;
-      ignore (Ui.finish geo.ui 0 (false, false));
-    done;
-    for _ = 1 to 1 do
-      Ui.start geo.ui r''';
-      ignore (Ui.finish geo.ui 0 (false, false));
-    done;
-  );
+    (* Window was dragged to another screen: adapt size *)
+    assert ((w', h') = (w, h));  (* can only happen on move *)
+    let _, _, w'', h'' = Geometry.apply_geo geo geo.window in
+    (* Subtract mouse delta to get position relative to current geometry *)
+    let origin = Api.Mouse.(Api.sub (pos win) (delta win)) in
+    let dx, dy = Ui.resize_repos geo.ui origin (w'' - w, h'' - h) in
+    let x'', y'' = x' + dx, y' + dy in
 
-  (* Save state regularly every 3 seconds *)
-  State.save_after st 3.0;
+    if !App.debug_layout then
+    (
+      let sx, sy = Api.Screen.pos scr in
+      let sw, sh = Api.Screen.size scr in
+      let sx', sy' = Api.Screen.pos scr' in
+      let sw', sh' = Api.Screen.size scr' in
+      Printf.printf "[geo screen] %d,%d,%d,%d @ %d,%d,%d,%d -> %d,%d,%d,%d @ %d,%d,%d,%d\n%!"
+        x y w h sx sy sw sh x'' y'' w'' h'' sx' sy' sw' sh';
+    );
 
-  r'''
+    x'', y'', w'', h''
+  )
+  else if scale_delta <> 0 then
+  (
+    (* Scaling was changed: adapt geometry, ignore movement or resize *)
+    assert (not extension_change);
+(*
+    let scale_x, scale_y = Api.Window.scale win in
+    let rx = float scale_x /. (float scale_x -. float scale_delta) in
+    let ry = float scale_y /. (float scale_y -. float scale_delta) in
+    let dims = [ax; ay; aw; ah] in
+    let scaled_dims = [rx *. ax; ry *. ay; rx *. aw; ry *. ah] in
+    if List.fold_left max 0.0 dims >= 0.97 (* = 1.0 +- eps *)
+    || List.fold_left max 0.0 scaled_dims > 1.0 then
+*)
+    Ui.rescale geo.ui (scale_delta, scale_delta);
+    Geometry.apply_geo geo geo.window
+  )
+  else
+  (
+    (* Window was possibly moved or resized: clamp geometry *)
+    let flex_ctl_w = shift || not extension_shown_w' in
+    let flex_ctl_h = shift || not extension_shown_h' in
+
+    let (win_dx, win_dy), (win_dw, win_dh) = (x' - x, y' - y), (w' - w, h' - h) in
+    let win_dcw = if flex_ctl_w then win_dw else 0 in
+    let win_dch = if flex_ctl_h then win_dh else 0 in
+    let win_focusw = if lft then `Lft else if rgt then `Rgt else `None in
+    let win_focush = if top then `Top else if bot then `Bot else `None in
+
+    let (div_dx, div_dy), (div_dw, div_dh), (div_dcw, div_dch), div_focusw, div_focush =
+      if extension_shown_w' = extension_shown_w
+      && extension_shown_h' = extension_shown_h then
+        run_dividers st
+      else
+        (0, 0), (0, 0), (0, 0), `None, `None
+    in
+
+    let dx, dy = win_dx + div_dx, win_dy + div_dy in
+    let dw, dh = win_dw + div_dw, win_dh + div_dh in
+    let dcw, dch = win_dcw + div_dcw, win_dch + div_dch in
+
+    let (x'', y'', w'', h'') =
+      if (dw, dh, dcw, dch) = (0, 0, 0, 0) then (x + dx, y + dy, w, h) else
+      (
+        (* Window was resized or a divider used *)
+        if !App.debug_layout then
+        (
+          Printf.eprintf
+            "[win change]\n    win=%d%+d,%d%+d,%d%+d,%d%+d ctl=%d,%d ext=%d,%d\n%!"
+            x dx y dy w dw h dh geo.control_width geo.control_height geo.extension_width geo.extension_height
+        );
+
+        let dx', dy', dw', dh' =
+          Geometry.change_geo geo dx dy dw dh dcw dch
+            (if win_focusw = `None then div_focusw else win_focusw)
+            (if win_focush = `None then div_focush else win_focush)
+            flex_ctl_w flex_ctl_h (win_dw <> 0 || win_dh <> 0)
+        in
+
+        if !App.debug_layout then
+        (
+          Printf.eprintf
+            "  [geo set] win=%d,%d ctl=%d,%d ext=%d,%d bw=%d vw=%d\n%!"
+            (w + dw') (h + dh')
+            geo.control_width geo.control_height
+            geo.extension_width geo.extension_height
+            geo.browser_width geo.left_width;
+          Printf.eprintf
+            "  [geo min] win=%d,%d ctl=%d,%d ext=%d,%d bw=%d vw=%d\n%!"
+            (Geometry.win_min_w geo flex_ctl_w flex_ctl_h)
+            (Geometry.win_min_h geo flex_ctl_w flex_ctl_h)
+            Geometry.control_min_w Geometry.control_min_h
+            (Geometry.extension_min_w geo) (Geometry.extension_min_h geo)
+            (Geometry.browser_min_w geo) (Geometry.left_min_w geo);
+        );
+
+        x + dx', y + dy', w + dw', h + dh'
+      )
+    in
+
+    (* Adjust window size after opening/closing panes *)
+    let ext_dx, ext_dw =
+      if extension_shown_w' = extension_shown_w then 0, 0 else
+      (
+        let s = if extension_shown_w' then +1 else -1 in
+        let sw, _ = Api.Window.max_size win in
+        let dw' = min (sw - geo.control_width) (s * geo.extension_width) in
+        let dx' = if Geometry.extension_left geo then -dw' else 0 in
+        geo.extension_width <- abs dw';
+        dx', dw'
+      )
+    and ext_dy, ext_dh =
+      if extension_shown_h' = extension_shown_h then 0, 0 else
+      (
+        let s = if extension_shown_h' then +1 else -1 in
+        let _, sh = Api.Window.max_size win in
+        let dh' = min (sh - geo.control_height) (s * geo.extension_height) in
+        geo.extension_height <- abs dh';
+        0, dh'
+      )
+    in
+    let ext_dx =
+      if ext_dw = 0
+      && extension_shown_w' && geo.extension_side <> extension_side then
+      (
+        let sx = if Geometry.extension_left geo then -1 else +1 in
+        ext_dx + sx * geo.extension_width;
+      )
+      else ext_dx
+    in
+
+    let r''' = x'' + ext_dx, y'' + ext_dy, w'' + ext_dw, h'' + ext_dh in
+
+    Geometry.clamp_geo geo;
+
+    if (ext_dw, ext_dh, scale_delta) <> (0, 0, 0) then
+    (
+      (* When a window gets resized, a scaled version of the old content is
+       * visible for one frame. When opening/closing extensions, this creates
+       * a very ugly flicker artefact.
+       * To work around that, we draw an empty window in old size for a few frames
+       * to clear the frame buffers, then draw an empty window in new size. The
+       * latter seems necessary, otherwise we still see the artefact occasionally.
+       * Below is the best result of experimentation, who knows why...
+       *)
+      for _ = 1 to 2 do
+        Ui.start geo.ui r;
+        ignore (Ui.finish geo.ui 0 (false, false));
+      done;
+      for _ = 1 to 1 do
+        Ui.start geo.ui r''';
+        ignore (Ui.finish geo.ui 0 (false, false));
+      done;
+    );
+
+    r'''
+  )
 
 
 (* Startup *)
