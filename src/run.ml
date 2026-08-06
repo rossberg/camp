@@ -209,7 +209,8 @@ and run' (st : state) (x, y, w, h as r) =
     else if geo.playlist_shown then Run_playlist.run st;
     if geo.filesel_shown then Run_filesel.run st
     else if geo.library_shown then Run_library.run st;
-    if geo.playlist_shown then Run_view.run_edit_panel st;
+    if geo.playlist_shown && not geo.settings_shown then
+      Run_view.run_edit_panel st;
     Run_control.run_toggle_panel st;
     if menu_shown then Run_menu.run st;
     if popup_shown then Run_menu.run_popup st;

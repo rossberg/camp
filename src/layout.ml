@@ -445,15 +445,15 @@ let settings_wheel g = Ui.wheel g.ui (sp, 0, 0, -1, -1)
 
 let sec_label_h g = label_h g * 3 / 2
 let content_x g = sx g 70
-let button_w g = sx g 12
-let button_h g = sy g 12
+let button_w g = smin g 12
+let button_h g = smin g 12
 let scrolled g y scr = if y - scr >= margin g then y - scr else -1000
 
 let settings_sec_label g y s scr = Ui.label g.ui (sp, margin g, scrolled g y scr, -1, sec_label_h g) `Left s
 let settings_sub_label g y s scr = Ui.label g.ui (sp, 2*margin g, scrolled g y scr, -1, sec_label_h g) `Left s
 let settings_label g x y s scr = Ui.label g.ui (sp, content_x g + x, scrolled g y scr + 2, -1, label_h g) `Left s
 let settings_indicator g x y scr = Ui.indicator g.ui `Green (sp, content_x g + x, scrolled g y scr + 3, indicator_w g, indicator_w g)
-let settings_button g x y scr = Ui.button g.ui (sp, content_x g + x, scrolled g y scr, button_w g, button_h g) "set_but" nokey false (Some false)
+let settings_button g x y scr = Ui.button g.ui (sp, content_x g + x, scrolled g y scr, button_w g, button_h g) ("set_but_" ^ string_of_int x ^ "_" ^ string_of_int y) nokey false (Some false)
 
 let sec_display_y g = margin g
 let sec_display_label g = settings_sec_label g (sec_display_y g) "DISPLAY"
