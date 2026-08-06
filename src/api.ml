@@ -4,9 +4,9 @@
 module Raylib =
 struct
   include Raylib
-  let _log fmt = Printf.ksprintf (Printf.printf "[Raylib.%s]\n%!") fmt
-  let _log1 fmt = Printf.ksprintf (Printf.printf "[Raylib.%s] => %!") fmt
-  let _log2 fmt = Printf.ksprintf (Printf.printf "%s\n%!") fmt
+  let _log fmt = Printf.ksprintf (Printf.eprintf "[Raylib.%s]\n%!") fmt
+  let _log1 fmt = Printf.ksprintf (Printf.eprintf "[Raylib.%s] => %!") fmt
+  let _log2 fmt = Printf.ksprintf (Printf.eprintf "%s\n%!") fmt
 
 (* Log window functions
   let init_window w h s =

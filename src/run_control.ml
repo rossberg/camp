@@ -199,7 +199,7 @@ let sine_wave_callback buf len =
 let sine_stream = ref None
 
 let start_sine_wave () =
-  Printf.printf "[start sine]\n%!";
+  Printf.eprintf "[start sine]\n%!";
   Raylib.set_audio_stream_buffer_size_default 4096;
   let stream = Raylib.load_audio_stream 44100 16 1 in
   Raylib_ocaml.Callbacks.set_audio_stream_callback stream sine_wave_callback;
@@ -207,7 +207,7 @@ let start_sine_wave () =
   sine_stream := Some stream
 
 let stop_sine_wave () =
-  Printf.printf "[stop sine]\n%!";
+  Printf.eprintf "[stop sine]\n%!";
   Option.iter Raylib.unload_audio_stream !sine_stream;
   sine_stream := None
 
@@ -216,7 +216,7 @@ let toggle_sine_wave () =
 
 let tweak_sine_wave c =
   sine_freq := max 6.875 (min 28160.0 (!sine_freq *. Float.pow 2.0 (c /. 12.0)));
-  Printf.printf "[tweak sine %+.0f] freq=%f\n%!" c !sine_freq
+  Printf.eprintf "[tweak sine %+.0f] freq=%f\n%!" c !sine_freq
 
 let run_sine_wave () =
   if Api.Key.is_pressed (`Char '/') then toggle_sine_wave ();

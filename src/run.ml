@@ -291,6 +291,7 @@ and run' (st : state) (x, y, w, h as r) =
   (
     (* Window was dragged to another screen: adapt size *)
     assert ((w', h') = (w, h));  (* can only happen on move *)
+
     let _, _, w'', h'' = Geometry.apply_geo geo geo.window in
     (* Subtract mouse delta to get position relative to current geometry *)
     let origin = Api.Mouse.(Api.sub (pos win) (delta win)) in
@@ -303,7 +304,8 @@ and run' (st : state) (x, y, w, h as r) =
       let sw, sh = Api.Screen.size scr in
       let sx', sy' = Api.Screen.pos scr' in
       let sw', sh' = Api.Screen.size scr' in
-      Printf.printf "[geo screen] %d,%d,%d,%d @ %d,%d,%d,%d -> %d,%d,%d,%d @ %d,%d,%d,%d\n%!"
+      Printf.eprintf
+        "[win screen] %d,%d,%d,%d @ %d,%d,%d,%d -> %d,%d,%d,%d @ %d,%d,%d,%d\n%!"
         x y w h sx sy sw sh x'' y'' w'' h'' sx' sy' sw' sh';
     );
 
@@ -355,9 +357,12 @@ and run' (st : state) (x, y, w, h as r) =
         (* Window was resized or a divider used *)
         if !App.debug_layout then
         (
+          Printf.eprintf "[win change]\n%!";
           Printf.eprintf
-            "[win change]\n    win=%d%+d,%d%+d,%d%+d,%d%+d ctl=%d,%d ext=%d,%d\n%!"
-            x dx y dy w dw h dh geo.control_width geo.control_height geo.extension_width geo.extension_height
+            "    win=%d%+d,%d%+d,%d%+d,%d%+d ctl=%d,%d ext=%d,%d\n%!"
+            x dx y dy w dw h dh
+            geo.control_width geo.control_height
+            geo.extension_width geo.extension_height
         );
 
         let dx', dy', dw', dh' =
@@ -428,9 +433,10 @@ and run' (st : state) (x, y, w, h as r) =
       (* When a window gets resized, a scaled version of the old content is
        * visible for one frame. When opening/closing extensions, this creates
        * a very ugly flicker artefact.
-       * To work around that, we draw an empty window in old size for a few frames
-       * to clear the frame buffers, then draw an empty window in new size. The
-       * latter seems necessary, otherwise we still see the artefact occasionally.
+       * To work around that, we draw an empty window in old size for a few
+       * frames to clear the frame buffers, then draw an empty window in new
+       * size. The latter seems necessary, otherwise we still see the artefact
+       * occasionally.
        * Below is the best result of experimentation, who knows why...
        *)
       for _ = 1 to 2 do

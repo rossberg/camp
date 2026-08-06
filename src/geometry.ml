@@ -526,7 +526,7 @@ let clamp_geo geo =
     if !App.debug_layout
     && (cw, ew) <> (geo.control_width, geo.extension_width) then
     (
-      Printf.printf "[geo clamp w] win=%d ctl=%d->%d ext=%d->%d\n%!"
+      Printf.eprintf "[geo clamp w] win=%d ctl=%d->%d ext=%d->%d\n%!"
         (cw + ew) cw geo.control_width ew geo.extension_width
     );
 
@@ -584,7 +584,6 @@ let update_geo geo (wx, wy, ww, wh) =
   assert (ww = geo.control_width + geo.extension_width);
   assert (wh = geo.control_height + geo.extension_height);
   clamp_geo geo;
-Printf.eprintf"[update_geo]\n%!";
   geo.window <- abstract_geo geo (wx, wy, ww, wh)
 
 let apply_geo geo (ax, ay, aw, ah) : int * int * int * int =
@@ -737,7 +736,6 @@ let parse_state geo =  (* assumes playlist and library loaded *)
     apply (r $? "popup_size") (num min_popup_size max_popup_size)
       (fun w -> geo.popup_size <- w);
 
-Printf.eprintf"[parse_state]\n%!";
     geo.window <- (!rax, !ray, !raw, !rah);
     Ui.rescale geo.ui geo.scaling;
     let r = apply_geo geo geo.window in
