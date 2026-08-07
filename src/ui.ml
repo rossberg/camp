@@ -307,6 +307,7 @@ let font' ui h file min max fonts =
     f
 
 let font ui h =
+  let h = clamp 3 64 h in
   let max = if h < 10 then 0x80 else 0x2800 in
   font' ui h File.(assets // "font.ttf") 0x0020 max ui.fonts
 
@@ -772,6 +773,8 @@ let image_size ui area adjust img =
 
 (* Passive Widgets *)
 
+type owner = string
+
 let widget ui area owner_opt ?(focus = false) modkey =
   let r = dim ui area in
   let mouse =
@@ -875,6 +878,12 @@ let labeled_button ui area owner ?(protrude = true) hsym c txt modkey focus acti
     Draw.fill ui.win (xsym + hsym - hsym/3) ysym (hsym/3) hsym c;
   | ">" ->
     Draw.arrow ui.win xsym ysym hsym hsym c `Right
+  | "<" ->
+    Draw.arrow ui.win xsym ysym hsym hsym c `Left
+  | "/\\" ->
+    Draw.arrow ui.win xsym ysym hsym hsym c `Up
+  | "\\/" ->
+    Draw.arrow ui.win xsym ysym hsym hsym c `Down
   | ">>" ->
     Draw.arrow ui.win xsym ysym (hsym/2 + 1) hsym c `Right;
     Draw.arrow ui.win (xsym + hsym/2) ysym (hsym/2 + 1) hsym c `Right;
@@ -1649,7 +1658,7 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
   let _, _, ty, tw, th = rich_table_inner_area ui area geo in
   let header_area = (p, ax, ay, tw, rh) in
   let table_area = (p, ax, ty, tw, th) in
-  let vscroll_area = 
+  let vscroll_area =
     (p, (if aw < 0 then tw else ax + aw) + 1, ay, geo.scroll_w, ah) in
   let hscroll_area =
     (p, ax, (if ah < 0 then ah - geo.scroll_h else ty + th + 1), tw, geo.scroll_h) in
@@ -2202,7 +2211,7 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
   let _, _, ty, tw, th = grid_table_inner_area ui area geo in
   let header_area = (p, ax, ay, tw, ch) in
   let table_area = (p, ax, ty, tw, th) in
-  let vscroll_area = 
+  let vscroll_area =
     (p, (if aw < 0 then tw else ax + aw + 1), ay, geo.scroll_w, ah) in
   let (x, y, w, h) as r = dim ui table_area in
 
@@ -2508,6 +2517,259 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
     in
     result
   )
+
+
+(* Settings *)
+
+type setting = string * setting_item
+and setting_item =
+  | Flag of bool * (bool -> unit)
+  | Choice of (string * bool * (string -> unit)) list
+  | Text of Edit.t * color * (string -> unit)
+  | Number of string * Edit.t * int * int * int * (int -> unit)
+  | Button of string * (unit -> unit)
+  | Section of setting list
+
+type settings =
+  { margin : int;
+    item_h : int;
+    label_h : int;
+    pad_w : int;
+    pad_h : int;
+    sep_h : int;
+    sep_w : int;
+    indent_w : int;
+    scroll_w : int;
+    scroll_l : int;
+  }
+
+let rec settings_w ui geo = function
+  | [] -> 0, 0
+  | setting :: settings ->
+    let lw1, rw1 = setting_w ui geo setting in
+    let lw', rw' = settings_w ui geo settings in
+    max lw1 lw', max rw1 rw'
+
+and setting_w ui geo (name, item) =
+  let lw = Draw.text_width ui.win geo.item_h (font ui geo.item_h) name in
+  let lw', rw = item_w ui geo item in
+let a,b =
+  max lw lw', max rw (lw - lw' - geo.sep_w)
+in
+(*Printf.eprintf "[setting_w %s] %d %d\n%!" name a b;*)
+a,b
+
+and item_w ui geo = function
+  | Flag _ | Text _ | Number _ | Button _ -> 0, 0  (* always flat *)
+  | Choice choices -> 0, choices_w ui geo choices
+  | Section settings ->
+    let lw, _ = settings_w ui geo settings in
+    lw + geo.indent_w, max_int  (* never flat *)
+
+and choices_w ui geo = function
+  | [] -> 0
+  | (label, _, _) :: choices ->
+    let lw = Draw.text_width ui.win geo.label_h (font ui geo.label_h) label in
+    let w1 = geo.item_h + geo.pad_w + lw in
+    let w' = choices_w ui geo choices in
+    if w' = 0 then w1 else w1 + geo.sep_w + w'
+
+
+let scrolled_area x y w h ymin ymax vscroll f =
+  let y' = y - vscroll in
+  if y' >= ymin && y' + h <= ymax then f (-1, x, y', w, h)
+
+let rec draw_settings ui geo owner xl xr y xmax ymin ymax vscroll = function
+  | [] -> y
+  | setting :: settings ->
+    let y' = draw_setting ui geo owner xl xr y xmax ymin ymax vscroll setting in
+    draw_settings ui geo owner xl xr (y' + geo.pad_h) xmax ymin ymax vscroll settings
+
+and draw_setting ui geo owner xl xr y xmax ymin ymax vscroll (name, item) =
+  let owner' = owner ^ ":" ^ name in
+(*Printf.eprintf "[draw_setting %s] %d-%d,%d\n%!" owner' xl xr y;*)
+  scrolled_area xl y (xr - xl) geo.item_h ymin ymax vscroll (fun area ->
+    label ui area `Left name
+  );
+  let _, wr = item_w ui geo item in
+  if xr + wr >= 0 && xr + wr <= xmax then
+    draw_item_flat ui geo owner' xl xr y xmax ymin ymax vscroll item
+      + geo.sep_h
+  else
+  (
+    (match item with
+    | Section _ ->
+      let nw = Draw.text_width ui.win geo.item_h (font ui geo.item_h) name in
+      let x' = xl + nw + 2 * geo.pad_w in
+      let y' = y + geo.item_h * 4 / 5 in
+      scrolled_area x' y' (xmax - x') 1 ymin ymax vscroll (fun area ->
+        box ui area `White
+      );
+    | _ -> ()
+    );
+    draw_item ui geo owner' (xl + geo.indent_w) xr y xmax ymin ymax vscroll item
+      + geo.sep_h
+  )
+
+and draw_item_flat ui geo owner xl xr y xmax ymin ymax vscroll = function
+  | Choice choices ->
+    draw_choices_flat ui geo owner xr y xmax ymin ymax vscroll choices
+  | Section _ ->
+    assert false
+  | item ->
+    draw_item ui geo owner xl xr y xmax ymin ymax vscroll item
+
+and draw_item ui geo owner xl xr y xmax ymin ymax vscroll = function
+  | Flag (b, f) ->
+    let y' = y + (geo.item_h - geo.label_h) / 2 in
+    scrolled_area xr y' geo.label_h geo.label_h ymin ymax
+      vscroll (fun area ->
+        indicator ui `Green area b;
+        if invisible_button ui area owner [] no_modkey true then
+          f (not b)
+    );
+    y + geo.item_h
+
+  | Choice choices ->
+    draw_choices ui geo owner xr y xmax ymin ymax vscroll choices
+
+  | Text (ed, color, f) ->
+    scrolled_area xr y (xmax - xr) geo.item_h ymin ymax vscroll (fun area ->
+      let s = ed.text in
+      box ui area `Black;
+      ignore (rich_edit_text ui area owner 0 color ed);
+      if s <> ed.text then f ed.text;
+    );
+    y + geo.item_h
+
+  | Number (name, ed, n, nmin, nmax, f) ->
+    let owner' = owner ^ ":" ^ name in
+    let valid () =
+      let n' = Option.value (int_of_string_opt ed.text) ~default: (-1) in
+      n' >= nmin && n' <= nmax
+    in
+    let zeros = String.make (int_of_float (Float.log10 (float nmax)) + 2) '0' in
+    let w1 = Draw.text_width ui.win geo.item_h (font ui geo.item_h) zeros in
+    let color = if valid () then text_color ui else error_color ui in
+    scrolled_area xr y w1 geo.item_h ymin ymax vscroll (fun area ->
+      box ui area `Black;
+      let s = ed.text in
+      let n = Option.value (int_of_string_opt s) ~default: (-1) in
+      let prev = if n = nmax then [] else [string_of_int (n + 1)] in
+      let next = if n = nmin then [] else [string_of_int (n - 1)] in
+      Edit.set_history ed (s::prev) next;
+(*
+Printf.eprintf "[history %s] %s\n%!" owner'
+(String.concat " " (Edit.history ed));
+*)
+      ignore (rich_edit_text ui area owner' 0 color ed);
+      if s <> ed.text && valid () then
+        f (int_of_string ed.text)
+    );
+    let xr' = xr + w1 + geo.pad_w in
+    let sh = geo.item_h/2 in
+    scrolled_area xr' y geo.item_h geo.item_h ymin ymax vscroll (fun area ->
+      if labeled_button ui area (owner' ^ ":dn") sh `White "\\/" no_modkey false (Some false)
+      && n > nmin then
+      (
+        Edit.set ed (string_of_int (n - 1));
+        f (n - 1)
+      )
+    );
+    let xr'' = xr' + geo.item_h in
+    scrolled_area xr'' y geo.item_h geo.item_h ymin ymax vscroll (fun area ->
+      if labeled_button ui area (owner' ^ ":up") sh `White "/\\" no_modkey false (Some false)
+      && n < nmax then
+      (
+        Edit.set ed (string_of_int (n + 1));
+        f (n + 1)
+      )
+    );
+    let xr''' = xr'' + geo.item_h + geo.pad_w in
+    let y' = y + (geo.item_h - geo.label_h) / 2 in
+    scrolled_area xr''' y' (xmax - xr''') geo.label_h ymin ymax vscroll (fun area ->
+      label ui area `Left name
+    );
+    y + geo.item_h
+
+  | Button (name, f) ->
+    let tw = Draw.text_width ui.win geo.item_h (font ui geo.item_h) name in
+    scrolled_area xr y (tw + 2 * geo.margin) geo.item_h ymin ymax vscroll (fun area ->
+      if labeled_button ui area (owner ^ ":" ^ name) geo.label_h `White name no_modkey false
+        (Some false) then f ()
+    );
+    y + geo.item_h
+
+  | Section settings ->
+    let y' = y + geo.item_h + 2 * geo.sep_h in
+    draw_settings ui geo owner xl xr y' xmax ymin ymax vscroll settings + geo.sep_h
+
+and draw_choices_flat ui geo owner x y xmax ymin ymax vscroll = function
+  | [] -> y + geo.item_h
+  | choice :: choices ->
+    let x' = draw_choice ui geo owner x y xmax ymin ymax vscroll choice in
+    draw_choices_flat ui geo owner (x' + geo.sep_w) y xmax ymin ymax vscroll choices
+
+and draw_choices ui geo owner x y xmax ymin ymax vscroll = function
+  | [] -> y
+  | choice :: choices ->
+    let _ = draw_choice ui geo owner x y xmax ymin ymax vscroll choice in
+    let y' = y + geo.item_h + if choices = [] then 0 else 2 * geo.pad_h in
+    draw_choices ui geo owner x y' xmax ymin ymax vscroll choices
+
+and draw_choice ui geo owner x y xmax ymin ymax vscroll (name, b, f) =
+    let y' = y + (geo.item_h - geo.label_h) / 2 in
+    scrolled_area x y' geo.label_h geo.label_h ymin ymax vscroll (fun area ->
+      indicator ui `Green area b
+    );
+    let x' = x + geo.item_h + geo.pad_w in
+    let lw = Draw.text_width ui.win geo.label_h (font ui geo.label_h) name in
+    scrolled_area x' y' lw geo.label_h ymin ymax vscroll (fun area ->
+      label ui area `Left name
+    );
+    scrolled_area x (y - geo.pad_h/2) (x' - x + lw) (geo.item_h + geo.pad_h)
+      ymin ymax vscroll (fun area ->
+      if invisible_button ui area (owner ^ ":" ^ name) [] no_modkey true then
+        f name
+    );
+    x' + lw
+
+
+let settings ui area owner geo vscroll settings =
+  let x, y, w, h as r = dim ui area in
+  let p, ax, ay, _, _ = area in
+
+  Draw.fill ui.win x y 2 (h - 2) (`Gray 0x00);
+  Draw.fill ui.win x y w 2 (`Gray 0x00);
+  Draw.fill ui.win (x + 1) (y + h - 2) (w - 1) 2 (`Gray 0x50);
+  Draw.fill ui.win (x + w - 1) y 1 (h - 2) (`Gray 0x70);
+
+  let wl, _ = settings_w ui geo settings in
+  let y' =
+    draw_settings ui geo owner
+      (x + geo.margin) (x + geo.margin + wl + geo.sep_w) (y + geo.margin)
+      (x + w - 2 * geo.margin - geo.scroll_w) (y + geo.margin) (y + h - geo.margin)
+      vscroll settings
+  in
+
+  (* Vertical scrollbar *)
+  let page_h = h in
+  let set_h = y' - y in
+  let coeff = float (max 1 page_h) /. float (max 1 set_h) /. 4.0 in
+  let _, wdy = wheel_status ui r in
+  let ext = if set_h = 0 then 1.0 else min 1.0 (float page_h /. float set_h) in
+  let pos = if set_h = 0 then 0.0 else float vscroll /. float set_h in
+(*Printf.printf "scroll=%d pos=%.2f/ext=%.2f page_h=%d/set_h=%d\n%!" set.vscroll pos ext page_h set_h;*)
+  let vscroll_area = (p, ax + w - geo.scroll_w - 1, ay + 2, geo.scroll_w, h - 3) in
+  let pos' =
+    scroll_bar ui vscroll_area (owner ^ ":vscroll") geo.scroll_l `Vertical
+      pos ext -. coeff *. wdy
+  in
+  let vscroll' = clamp 0 (max 0 (set_h - page_h))
+    (int_of_float (Float.round (pos' *. float set_h))) in
+(*Printf.printf "pos'=%.2f scroll'=%d\n%!" pos' set.vscroll;*)
+
+  vscroll'
 
 
 (* Pop-ups *)

@@ -70,6 +70,10 @@ let reset_osc ctl =
   ctl.osc_y <- osc_y
 
 
+let min_spec_bands = 4
+let max_spec_bands = 18
+
+
 (* Constructor *)
 
 let make audio =

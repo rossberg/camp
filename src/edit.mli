@@ -59,5 +59,5 @@ val clear_undo : t -> unit
 val prev_history : t -> unit
 val next_history : t -> unit
 val clear_history : t -> unit
-val set_history : t -> string list -> unit
+val set_history : t -> string list -> string list -> unit
 val history : t -> string list

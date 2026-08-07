@@ -1,5 +1,8 @@
 (* Playlist UI *)
 
+open Audio_file
+
+
 type state = State.t
 
 
@@ -11,53 +14,33 @@ let clamp min max v =
   v
 
 
-(*
-Display:
-  Time: Played | Remaining
-  Visualisation: Cover | Turntable | Spectrum | Wave | Oscilloscope | None
-  Spectrum Bands: N
-
-Color Palette: Blue | Opal | Fluor | Mint | Green | Amber | White
-
-Text:
-  Label Size: N
-  Button Label Size: N
-  List Size: N
-  List Padding: N
-  List Gutter: N
-  SDF Rendering: []
-
-Covers:
-  Grid Size: N
-  Grid Padding: N
-  Disable Loading: []
-
-Layout:
-  Scaling: 1x | 2x | 3x | 4x
-  Control Size: N
-  Margin: N
-  Scrollbar Width: N
-  Reflection Radius: N
-
-Playlist:
-  Show Column Headers: []
-
-Library:
-  Side: Left | Right
-
-External Programs:
-  Tagging Program: _
+(* TODO:
+- fix use of history for numbers; don't mess with cursor position
+- focus, scroll to focus, tab focus
+- don't clobber L/R cursor keys
+- close with button
+- open tagger path with filesel button
+- accelerate up/down buttons; hold down
 *)
 
-(*
-type setting = {name : string; item : setting_item}
-and setting_item =
-  | Section of setting list
-  | Flag of bool * (bool -> unit)
-  | Choice of string list * int * (int -> unit)
-  | Number of int * (int -> unit) 
-  | Text of Edit.t
-*)
+
+(* Init *)
+
+let init (st : state) =
+  let set = st.settings in
+  let geo = st.geometry in
+  let ctl = st.control in
+  let cfg = st.config in
+  Edit.set set.text_size (string_of_int geo.text);
+  Edit.set set.text_padding (string_of_int geo.pad_y);
+  Edit.set set.text_gutter (string_of_int geo.gutter);
+  Edit.set set.grid_tracks (string_of_int geo.track_grid);
+  Edit.set set.grid_albums (string_of_int geo.album_grid);
+  Edit.set set.popup_size (string_of_int geo.popup_size);
+  Edit.set set.scroll_width (string_of_int geo.scrollbar);
+  Edit.set set.reflect_radius (string_of_int geo.reflection);
+  Edit.set set.spec_bands (string_of_int ctl.spec_bands);
+  Edit.set set.exec_tag cfg.exec_tag
 
 
 (* Runner *)
@@ -65,42 +48,104 @@ and setting_item =
 let run (st : state) =
   let geo = st.geometry in
   let set = st.settings in
+  let ctl = st.control in
+  let lib = st.library in
+  let cfg = st.config in
 
   Layout.settings_pane geo;
 
-  (* Scrollbar *)
-
-  let _, _, _, page_h = Ui.dim geo.ui (Layout.settings_scrollbar_area geo) in
-  let set_h = Layout.settings_h geo in
-  let coeff = float (max 1 page_h) /. float (max 1 set_h) /. 4.0 in
-  let _, wdy = Layout.settings_wheel geo in
-  let ext = if set_h = 0 then 1.0 else min 1.0 (float page_h /. float set_h) in
-  let pos = if set_h = 0 then 0.0 else float set.vscroll /. float set_h in
-(*Printf.printf "scroll=%d pos=%.2f/ext=%.2f page_h=%d/set_h=%d\n%!" set.vscroll pos ext page_h set_h;*)
-  let pos' = Layout.settings_scrollbar geo pos ext -. coeff *. wdy in
-  set.vscroll <- clamp 0 (max 0 (set_h - page_h))
-    (int_of_float (Float.round (pos' *. float set_h)));
-(*Printf.printf "pos'=%.2f scroll'=%d\n%!" pos' set.vscroll;*)
-
-  (* Display *)
-
-  Layout.sec_display_label geo set.vscroll;
-  Layout.sec_time_label geo set.vscroll;
-
-  Layout.time_elapse_indicator geo set.vscroll (st.control.timemode = `Elapse);
-  Layout.time_elapse_label geo set.vscroll;
-  if Layout.time_elapse_button geo set.vscroll then
-    st.control.timemode <- `Elapse;
-
-  Layout.time_remain_indicator geo set.vscroll (st.control.timemode = `Remain);
-  Layout.time_remain_label geo set.vscroll;
-  if Layout.time_remain_button geo set.vscroll then
-    st.control.timemode <- `Remain;
-
-  (* Color *)
-
-  Layout.sec_color_label geo set.vscroll;
-
-  (* Text *)
-
-  Layout.sec_text_label geo set.vscroll;
+  set.vscroll <-
+    Layout.settings geo set.vscroll
+      [
+        "DISPLAY", Section [
+          "COLOR", Choice (List.init (Ui.num_palette geo.ui) (fun i ->
+            String.uppercase_ascii (Ui.name_palette geo.ui i),
+            Ui.get_palette geo.ui = i,
+            fun _ -> Ui.set_palette geo.ui i
+          ));
+          "TEXT", Number ("SIZE", set.text_size, geo.text, 6, 64,
+            fun n -> geo.text <- n
+          );
+          "", Number ("PADDING", set.text_padding, geo.pad_y, 0, 12,
+            fun n -> geo.pad_y <- n
+          );
+          "", Number ("GUTTER", set.text_gutter, geo.gutter, 1, 15,
+            fun n -> geo.gutter <- n
+          );
+          "SCROLLBAR", Number ("WIDTH", set.scroll_width, geo.scrollbar, 5, 25,
+            fun n -> geo.scrollbar <- n
+          );
+(*
+          "REFLECTION", Number ("RADIUS", set.reflect_radius, geo.reflection, 0, 400,
+            fun n -> geo.reflection <- n
+          );
+*)
+        ];
+        "COVERS", Section [
+          "TRACK VIEW", Number ("SIZE", set.grid_tracks, geo.track_grid,
+            30, 1000, fun n -> geo.track_grid <- n
+          );
+          "ALBUM VIEW", Number ("SIZE", set.grid_albums, geo.album_grid,
+            30, 1000, fun n -> geo.album_grid <- n
+          );
+          "POPUP", Number ("MAX SIZE", set.popup_size, geo.popup_size,
+            100, 1000, fun n -> geo.popup_size <- n
+          );
+          "", Choice [
+            "DISABLE IN LIBRARY", not lib.covers_shown,
+              (fun _ -> Library.activate_covers lib (not lib.covers_shown))
+          ];
+        ];
+        "VISUAL", Section [
+          "TIME", Choice [
+            "ELAPSED", ctl.timemode = `Elapse,
+              (fun _ -> ctl.timemode <- `Elapse);
+            "REMAINING", ctl.timemode = `Remain,
+              (fun _ -> ctl.timemode <- `Remain);
+          ];
+          "ANIMATION", Choice [
+            "COVER", ctl.visual = `Cover,
+              (fun _ -> Control.set_visual ctl `Cover);
+            "TURNTABLE", ctl.visual = `Turntable,
+              (fun _ -> Control.set_visual ctl `Turntable);
+            "SPECTRUM", ctl.visual = `Spectrum,
+              (fun _ -> Control.set_visual ctl `Spectrum);
+            "WAVE", ctl.visual = `Wave,
+              (fun _ -> Control.set_visual ctl `Wave);
+            "OSCILLOSCOPE", ctl.visual = `Oscilloscope,
+              (fun _ -> Control.set_visual ctl `Oscilloscope);
+          ];
+          "SPECTRUM", Number ("BANDS", set.spec_bands, ctl.spec_bands,
+            Control.min_spec_bands, Control.max_spec_bands,
+            fun n -> ctl.spec_bands <- n
+          );
+          "FPS", Choice [
+            "SHOW", ctl.fps, fun _ -> ctl.fps <- not ctl.fps
+          ]
+        ];
+        "PLAYLIST", Section [
+          "HEADERS", Choice [
+            "SHOW", geo.playlist_headers,
+              (fun _ -> geo.playlist_headers <- not geo.playlist_headers);
+          ];
+        ];
+        "LIBRARY", Section [
+          "EXPAND", Choice [
+            "LEFT", geo.extension_side = `Left,
+              (fun _ -> geo.extension_side <- `Left);
+            "RIGHT", geo.extension_side = `Right,
+              (fun _ -> geo.extension_side <- `Right);
+          ];
+        ];
+        "PROGRAMS", Section [
+          "TAGGING", Text (set.exec_tag,
+            (if File.exists set.exec_tag.text then
+              Ui.text_color geo.ui
+            else
+              Ui.error_color geo.ui
+            ),
+            fun s -> if File.exists s then cfg.exec_tag <- s
+          );
+          "", Button ("BROWSE", fun () -> Printf.eprintf "BROWSE\n%!")
+        ];
+      ]

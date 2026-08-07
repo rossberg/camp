@@ -2032,7 +2032,7 @@ let parse_state lib =
         if ss <> [] then
         (
           set_search' lib (List.hd ss);
-          Edit.set_history lib.search ss;
+          Edit.set_history lib.search ss [];
         )
       );
     apply (r $? "browser_scroll") (num 0 (max 0 (length_browser lib - 1)))

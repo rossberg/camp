@@ -26,6 +26,19 @@ let grid_table g img_h has_heading : Ui.grid_table =
     has_heading
   }
 
+let settings g : Ui.settings =
+  { margin = g.margin;
+    item_h = label_h g * 4 / 3;
+    label_h = label_h g;
+    pad_w = label_h g / 3;
+    pad_h = label_h g / 4;
+    sep_h = label_h g * 2 / 3;
+    sep_w = 2 * margin g;
+    indent_w = margin g;
+    scroll_w = scrollbar_w g;
+    scroll_l = scrollbar_l g;
+  }
+
 
 (* Keys *)
 
@@ -437,43 +450,9 @@ let reduce_popup_key g = Ui.key g.ui key_popupdn true
 (* Settings Pane *)
 
 let sp = pp
-let settings_pane g = Ui.pane g.ui sp (settings_x g, settings_y g, settings_w g, - 1)
+let settings_pane g = Ui.pane g.ui sp (settings_x g, settings_y g, settings_w g, -1)
 
-let settings_scrollbar_area g = (sp, - scrollbar_w g - margin g, margin g, scrollbar_w g, - 1)
-let settings_scrollbar g = Ui.scroll_bar g.ui (settings_scrollbar_area g) "set_scroll" (scrollbar_l g) `Vertical
-let settings_wheel g = Ui.wheel g.ui (sp, 0, 0, -1, -1)
-
-let sec_label_h g = label_h g * 3 / 2
-let content_x g = sx g 70
-let button_w g = smin g 12
-let button_h g = smin g 12
-let scrolled g y scr = if y - scr >= margin g then y - scr else -1000
-
-let settings_sec_label g y s scr = Ui.label g.ui (sp, margin g, scrolled g y scr, -1, sec_label_h g) `Left s
-let settings_sub_label g y s scr = Ui.label g.ui (sp, 2*margin g, scrolled g y scr, -1, sec_label_h g) `Left s
-let settings_label g x y s scr = Ui.label g.ui (sp, content_x g + x, scrolled g y scr + 2, -1, label_h g) `Left s
-let settings_indicator g x y scr = Ui.indicator g.ui `Green (sp, content_x g + x, scrolled g y scr + 3, indicator_w g, indicator_w g)
-let settings_button g x y scr = Ui.button g.ui (sp, content_x g + x, scrolled g y scr, button_w g, button_h g) ("set_but_" ^ string_of_int x ^ "_" ^ string_of_int y) nokey false (Some false)
-
-let sec_display_y g = margin g
-let sec_display_label g = settings_sec_label g (sec_display_y g) "DISPLAY"
-
-let sec_time_y g = sec_display_y g + sec_label_h g + margin g
-let sec_time_label g = settings_sub_label g (sec_time_y g) "TIME"
-let time_elapse_indicator g = settings_indicator g 0 (sec_time_y g)
-let time_remain_indicator g = settings_indicator g (sx g 80) (sec_time_y g)
-let time_elapse_button g = settings_button g (indicator_w g + sx g 2) (sec_time_y g)
-let time_remain_button g = settings_button g (indicator_w g + sx g 82) (sec_time_y g)
-let time_elapse_label g = settings_label g (indicator_w g + button_w g + sx g 4) (sec_time_y g) "ELAPSED"
-let time_remain_label g = settings_label g (indicator_w g + button_w g + sx g 84) (sec_time_y g) "REMAINING"
-
-let sec_color_y g = sec_time_y g + sec_label_h g + margin g
-let sec_color_label g = settings_sec_label g (sec_color_y g) "COLOR"
-
-let sec_text_y g = sec_color_y g + sec_label_h g + margin g
-let sec_text_label g = settings_sec_label g (sec_text_y g) "TEXT"
-
-let settings_h _g = 1000
+let settings g = Ui.settings g.ui (sp, margin g, margin g, - margin g, - margin g) "settings" (settings g)
 
 
 (* Browser Pane *)

@@ -893,7 +893,7 @@ let run_toggle_panel (st : state) =
   if Layout.(info_context geo || shown_context geo) then
   (
     let c = Ui.text_color geo.ui in
-    let show s b = (if b then "Show " else "Hide ") ^ s in
+    let show s b = (if b then "Hide " else "Show ") ^ s in
     let side s d = s ^ (match d with `Left -> " Right" | `Right -> " Left") in
     Run_menu.command_menu st (Iarray.append [|
       `Entry (c, "Quit", Layout.key_quit, true),
@@ -901,12 +901,21 @@ let run_toggle_panel (st : state) =
       `Entry (c, "Minimize", Layout.key_min, true),
         (fun () -> minimize st);
       `Separator, ignore;
-      `Entry (c, show "Playlist" (not geo.playlist_shown), Layout.key_pl, true),
+      `Entry (c, show "Playlist" geo.playlist_shown, Layout.key_pl, true),
         (fun () -> toggle_playlist st);
-      `Entry (c, show "Library" (not geo.library_shown), Layout.key_lib, true),
+      `Entry (c, show "Library" geo.library_shown, Layout.key_lib, true),
         (fun () -> toggle_library st);
       `Entry (c, side "Expand to" geo.extension_side, Layout.key_side, true),
         (fun () -> toggle_side st);
+      `Separator, ignore;
+      `Entry (c, show "Settings" geo.settings_shown, Layout.key_settings, true),
+        (fun () ->
+          Playlist.defocus st.playlist;
+          geo.settings_shown <- not geo.settings_shown;
+          if geo.settings_shown then Run_settings.init st;
+        );
+    |] [||])
+(*
     |] (if not geo.playlist_shown then [||] else [|
       `Separator, ignore;
       `Entry (c, "Cycle Color", Layout.key_color, true),
@@ -932,12 +941,6 @@ let run_toggle_panel (st : state) =
         (fun () -> resize_popup st (+1));
       `Entry (c, "Decrease Popup Cover Size", Layout.key_popupdn, resize_popup_avail st (-1)),
         (fun () -> resize_popup st (-1));
-      `Separator, ignore;
-      `Entry (c, (if geo.settings_shown then "Hide" else "Show") ^ " Settings",
-        Layout.key_settings, true),
-        (fun () ->
-          Playlist.defocus st.playlist;
-          geo.settings_shown <- not geo.settings_shown
-        );
     |]))
+*)
   )

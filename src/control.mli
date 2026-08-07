@@ -58,6 +58,9 @@ val set_visual : t -> visual -> unit
 val set_osc : t -> float -> float -> unit
 val reset_osc : t -> unit
 
+val min_spec_bands : int
+val max_spec_bands : int
+
 
 (* Track Control *)
 
