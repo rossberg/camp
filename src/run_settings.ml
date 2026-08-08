@@ -13,13 +13,9 @@ let clamp min max v =
   if v > max then max else
   v
 
-
 (* TODO:
 - fix use of history for numbers; don't mess with cursor position
-- close with button
-- accelerate up/down buttons; hold down
 *)
-
 
 (* Init *)
 
@@ -49,6 +45,13 @@ let run (st : state) focus_change =
   let cfg = st.config in
 
   Layout.settings_pane geo;
+
+  (*Layout.done_label geo;*)
+  if Layout.done_but geo then
+  (
+    geo.settings_shown <- false;
+    State.defocus_all st;
+  );
 
   set.vscroll <-
     Layout.settings geo set.vscroll focus_change

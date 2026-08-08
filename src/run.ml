@@ -191,12 +191,6 @@ and run' (st : state) (x, y, w, h as r) =
     Run_view.external_queue_on_playlist st (M3u.parse !m3u) `QueueAndJump;
   );
 
-  (* Focus keys *)
-  let focus_change =
-    if Layout.focus_next_key geo then (State.focus_next st; true) else
-    if Layout.focus_prev_key geo then (State.focus_prev st; true) else false
-  in
-
   (* Start drawing *)
   Ui.start geo.ui r;
 
@@ -206,6 +200,21 @@ and run' (st : state) (x, y, w, h as r) =
   let extension_side = geo.extension_side in
   let menu_shown = geo.menu_shown in
   let popup_shown = geo.popup_shown <> None in
+
+  (* Global keys *)
+  if Layout.settings_key geo then
+  (
+    geo.settings_shown <- not geo.settings_shown;
+    if geo.settings_shown then
+      Run_settings.init st
+    else
+      State.defocus_all st;
+  );
+
+  let focus_change =
+    if Layout.focus_next_key geo then (State.focus_next st; true) else
+    if Layout.focus_prev_key geo then (State.focus_prev st; true) else false
+  in
 
   (* Run panes *)
   Run_control.run st;

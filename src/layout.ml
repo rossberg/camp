@@ -452,7 +452,20 @@ let reduce_popup_key g = Ui.key g.ui key_popupdn true
 let sp = pp
 let settings_pane g = Ui.pane g.ui sp (settings_x g, settings_y g, settings_w g, -1)
 
-let settings g = Ui.settings g.ui (sp, margin g, margin g, - margin g, - margin g) "settings" (settings g)
+(*
+let done_w g = mode_w g
+let done_h g = mode_h g
+let done_x g = - margin g - done_w g
+let done_y g = margin g
+let done_but g = Ui.button g.ui (sp, done_x g, done_y g, - margin g, done_h g) "settings:done" nokey false (Some false)
+let done_label g = Ui.label g.ui (sp, done_x g - smin g 40, done_y g + (done_h g - label_h g)/2, smin g 36, label_h g) `Right "DONE"
+*)
+let done_w g = sx g 30
+let done_h g = label_h g * 3 / 2
+let done_but g = Ui.labeled_button g.ui (sp, - margin g - done_w g, margin g, - margin g, done_h g) "settings:done" (label_h g) `White "DONE" nokey false (Some false)
+
+let settings_key g = Ui.key g.ui key_settings true
+let settings g = Ui.settings g.ui (sp, margin g, margin g + done_h g + sy g 4, - margin g, - margin g) "settings" (settings g)
 
 
 (* Browser Pane *)
