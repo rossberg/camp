@@ -927,7 +927,7 @@ let search_avail (st : state) =
   st.library.current <> None
 
 let search (st : state) =
-  State.focus_edit st.library.search st
+  State.focus_edit st st.library.search
 
 let search_for_avail (st : state) =
   Geometry.library_shown st.geometry && st.library.current <> None

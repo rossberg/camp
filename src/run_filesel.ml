@@ -19,7 +19,7 @@ let filesel (st : state) kind access path ext f =
   Filesel.init st.filesel;
   Edit.set st.filesel.input ext;
   Edit.move_begin st.filesel.input;
-  State.focus_edit st.filesel.input st;
+  State.focus_edit st st.filesel.input;
   st.geometry.filesel_shown <- true;
   (* Switch side if window exceeds respective border *)
   let geo = st.geometry in

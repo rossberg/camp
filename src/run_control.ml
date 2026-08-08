@@ -58,7 +58,7 @@ let toggle_library (st : state) =
       geo.library_shown <- true;
       if not geo.filesel_shown then
       (
-        State.focus_edit st.library.search st;
+        State.focus_edit st st.library.search;
         (* Switch side if window exceeds respective border *)
         let win = Ui.window geo.ui in
         let wx, _ = Api.Window.pos win in

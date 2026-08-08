@@ -257,8 +257,8 @@ type setting = string * setting_item
 and setting_item =
   | Flag of bool * (bool -> unit)
   | Choice of (string * bool * (string -> unit)) list
-  | Text of Edit.t * color * (string -> unit)
-  | Number of string * Edit.t * int * int * int * (int -> unit)
+  | Text of Edit.t * color * (Edit.t -> unit) * (string -> unit)
+  | Number of string * Edit.t * int * int * int * (Edit.t -> unit) * (int -> unit)
   | Button of string * (unit -> unit)
   | Section of setting list
 

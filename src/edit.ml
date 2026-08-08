@@ -173,8 +173,7 @@ let clear_history ed =
   ed.next <- []
 
 let set_history ed prev next  =
-  set ed (List.hd prev);
-  ed.prev <- List.tl prev;
+  ed.prev <- prev;
   ed.next <- next
 
 let history ed =

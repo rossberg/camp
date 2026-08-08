@@ -133,7 +133,7 @@ let create_list (st : state) ext s view_opt path =
       Option.iter (Library.select_dir lib)
         (Array.find_index ((==) dir) lib.browser.entries)
   );
-  State.focus_table lib.tracks st
+  State.focus_table st lib.tracks
 
 let create_playlist_avail (st : state) =
   Library.current_is_dir st.library &&
@@ -545,7 +545,7 @@ let run_browser (st : state) =
       [|
         `Separator, ignore;
         `Entry (c, "Search...", Layout.key_search, lib.current <> None),
-          (fun () -> State.focus_edit lib.search st);
+          (fun () -> State.focus_edit st lib.search);
       |];
       (if lib.current = None then [||] else
         [|
@@ -584,7 +584,7 @@ let run_browser (st : state) =
     (
       Library.end_rename lib false;
       Edit.defocus lib.rename;
-      State.focus_table browser st;
+      State.focus_table st browser;
     )
     else if Api.Key.(is_released `Return || is_released `Enter)
     || Api.Mouse.is_released `Left && not (Ui.mouse_inside geo.ui area) then
@@ -592,7 +592,7 @@ let run_browser (st : state) =
       Library.end_rename lib (dir.name <> lib.rename.text);
       dir.name <- lib.rename.text;
       Edit.defocus lib.rename;
-      State.focus_table browser st;
+      State.focus_table st browser;
     )
     else
       Ui.modal geo.ui
@@ -747,7 +747,7 @@ let run_browser (st : state) =
   (
     (* Click on Search label: clear and focus search *)
     Library.clear_search lib;
-    State.focus_edit lib.search st;
+    State.focus_edit st lib.search;
   );
 
   let search = lib.search.text in
@@ -757,7 +757,7 @@ let run_browser (st : state) =
   if lib.search.focus then
   (
     (* Have or gained focus: make sure it's consistent *)
-    State.focus_edit lib.search st;
+    State.focus_edit st lib.search;
   );
   if lib.search.text <> search then
   (
@@ -776,18 +776,18 @@ let run_browser (st : state) =
     let history' = nub history in
     Run_menu.command_menu st ([
       `Entry (c, "Clear Search", Layout.key_clear_search, lib.search.text <> ""),
-        (fun () -> Library.clear_search lib; State.focus_edit lib.search st);
+        (fun () -> Library.clear_search lib; State.focus_edit st lib.search);
       `Entry (c, "Clear Search History", Layout.key_clear_history, history <> []),
         (fun () ->
           Library.clear_search lib;
           Edit.clear_history lib.search;
-          State.focus_edit lib.search st
+          State.focus_edit st lib.search;
         );
     ] @ (
       if history = [] then [] else [`Separator, ignore]
     ) @ List.map (fun s ->
       `Entry (c, "Search for " ^ s, Layout.nokey, true),
-        (fun () -> Library.set_search lib s; State.focus_edit lib.search st)
+        (fun () -> Library.set_search lib s; State.focus_edit st lib.search)
     ) history' |> Iarray.of_list)
   )
 

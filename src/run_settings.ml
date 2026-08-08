@@ -13,9 +13,6 @@ let clamp min max v =
   if v > max then max else
   v
 
-(* TODO:
-- fix use of history for numbers; don't mess with cursor position
-*)
 
 (* Init *)
 
@@ -46,13 +43,13 @@ let run (st : state) focus_change =
 
   Layout.settings_pane geo;
 
-  (*Layout.done_label geo;*)
   if Layout.done_but geo then
   (
     geo.settings_shown <- false;
     State.defocus_all st;
   );
 
+  let focus_edit = State.focus_edit st in
   set.vscroll <-
     Layout.settings geo set.vscroll focus_change
       [
@@ -63,27 +60,27 @@ let run (st : state) focus_change =
             fun _ -> Ui.set_palette geo.ui i
           ));
           "TEXT", Number ("SIZE", set.text_size, geo.text, 6, 64,
-            fun n -> geo.text <- n
+            focus_edit, fun n -> geo.text <- n
           );
           "", Number ("PADDING", set.text_padding, geo.pad_y, 0, 12,
-            fun n -> geo.pad_y <- n
+            focus_edit, fun n -> geo.pad_y <- n
           );
           "", Number ("GUTTER", set.text_gutter, geo.gutter, 1, 15,
-            fun n -> geo.gutter <- n
+            focus_edit, fun n -> geo.gutter <- n
           );
           "SCROLLBAR", Number ("WIDTH", set.scroll_width, geo.scrollbar, 5, 25,
-            fun n -> geo.scrollbar <- n
+            focus_edit, fun n -> geo.scrollbar <- n
           );
         ];
         "COVERS", Section [
           "TRACK VIEW", Number ("SIZE", set.grid_tracks, geo.track_grid,
-            30, 1000, fun n -> geo.track_grid <- n
+            30, 1000, focus_edit, fun n -> geo.track_grid <- n
           );
           "ALBUM VIEW", Number ("SIZE", set.grid_albums, geo.album_grid,
-            30, 1000, fun n -> geo.album_grid <- n
+            30, 1000, focus_edit, fun n -> geo.album_grid <- n
           );
           "POPUP", Number ("MAX SIZE", set.popup_size, geo.popup_size,
-            100, 1000, fun n -> geo.popup_size <- n
+            100, 1000, focus_edit, fun n -> geo.popup_size <- n
           );
           "", Choice [
             "DISABLE IN LIBRARY", not lib.covers_shown,
@@ -111,7 +108,7 @@ let run (st : state) focus_change =
           ];
           "SPECTRUM", Number ("BANDS", set.spec_bands, ctl.spec_bands,
             Control.min_spec_bands, Control.max_spec_bands,
-            fun n -> ctl.spec_bands <- n
+            focus_edit, fun n -> ctl.spec_bands <- n
           );
           "FPS", Choice [
             "SHOW", ctl.fps, fun _ -> ctl.fps <- not ctl.fps
@@ -138,7 +135,7 @@ let run (st : state) focus_change =
             else
               Ui.error_color geo.ui
             ),
-            fun s -> if File.exists s then cfg.exec_tag <- s
+            focus_edit, fun s -> if File.exists s then cfg.exec_tag <- s
           );
           "", Button ("BROWSE",
             fun () ->
@@ -148,7 +145,7 @@ let run (st : state) focus_change =
                 if not (Geometry.settings_shown geo) then
                   st.geometry.settings_shown <- true;
                 set.vscroll <- max_int;  (* assume it's at bottom *)
-                State.focus_edit set.exec_tag st;
+                State.focus_edit st set.exec_tag;
               )
           )
         ];

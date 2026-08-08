@@ -55,17 +55,17 @@ let defocus_all st =
   Library.defocus st.library;
   Filesel.defocus st.filesel
 
-let focus_table (tab : _ Table.t) st =
+let focus_table st (tab : _ Table.t) =
   defocus_all st;
   Table.focus tab
 
-let focus_edit (ed : Edit.t) st =
+let focus_edit st (ed : Edit.t) =
   defocus_all st;
   Edit.focus ed
 
 let focus_playlist st =
   Library.deselect_all st.library;
-  focus_table st.playlist.table st
+  focus_table st st.playlist.table
 
 let focus_settings st =
   defocus_all st;
@@ -73,15 +73,15 @@ let focus_settings st =
 
 let focus_library (tab : _ Table.t) st =
   Playlist.deselect_all st.playlist;
-  focus_table tab st
+  focus_table st tab
 
 let focus_filesel (tab : _ Table.t) st =
   Playlist.deselect_all st.playlist;
   Library.deselect_all st.library;
-  focus_table tab st
+  focus_table st tab
 
 let foci_table f (tab : _ Table.t) = tab.focus, f tab
-let foci_edit (ed : Edit.t) = ed.focus, focus_edit ed
+let foci_edit (ed : Edit.t) = ed.focus, fun st -> focus_edit st ed
 
 let foci_playlist (pl : _ Playlist.t) =
   let f = fun _ -> focus_playlist in

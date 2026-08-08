@@ -2525,8 +2525,8 @@ type setting = string * setting_item
 and setting_item =
   | Flag of bool * (bool -> unit)
   | Choice of (string * bool * (string -> unit)) list
-  | Text of Edit.t * color * (string -> unit)
-  | Number of string * Edit.t * int * int * int * (int -> unit)
+  | Text of Edit.t * color * (Edit.t -> unit) * (string -> unit)
+  | Number of string * Edit.t * int * int * int * (Edit.t -> unit) * (int -> unit)
   | Button of string * (unit -> unit)
   | Section of setting list
 
@@ -2605,7 +2605,7 @@ and setting_focus_dy ui geo xr xmax (_name, item) =
   item_focus_dy ui geo xr xmax item
 
 and item_focus_dy ui geo xr xmax = function
-  | Text (ed, _, _) | Number (_, ed, _, _, _, _) when ed.focus -> Some 0
+  | Text (ed, _, _, _) | Number (_, ed, _, _, _, _, _) when ed.focus -> Some 0
   | Flag _ | Choice _ | Button _ | Text _ | Number _ -> None
   | Section settings ->
     Option.map ((+) (geo.item_h + 2 * geo.sep_h))
@@ -2670,16 +2670,17 @@ and draw_item ui geo owner xl xr y xmax ymin ymax vscroll = function
   | Choice choices ->
     draw_choices ui geo owner xr y xmax ymin ymax vscroll choices
 
-  | Text (ed, color, f) ->
+  | Text (ed, color, f, g) ->
     scrolled_area xr y (xmax - xr) geo.item_h ymin ymax vscroll (fun area ->
       let s = ed.text in
       box ui area `Black;
       ignore (rich_edit_text ui area owner 0 color ed);
-      if s <> ed.text then f ed.text;
+      if ed.focus then f ed;
+      if s <> ed.text then g ed.text;
     );
     y + geo.item_h
 
-  | Number (name, ed, n, nmin, nmax, f) ->
+  | Number (name, ed, n, nmin, nmax, f, g) ->
     let owner' = owner ^ ":" ^ name in
     let valid () =
       let n' = Option.value (int_of_string_opt ed.text) ~default: (-1) in
@@ -2692,16 +2693,17 @@ and draw_item ui geo owner xl xr y xmax ymin ymax vscroll = function
       box ui area `Black;
       let s = ed.text in
       let n = Option.value (int_of_string_opt s) ~default: (-1) in
-      let prev = if n = nmax then [] else [string_of_int (n + 1)] in
-      let next = if n = nmin then [] else [string_of_int (n - 1)] in
-      Edit.set_history ed (s::prev) next;
+      let prev = if n >= nmax then [] else [string_of_int (n + 1)] in
+      let next = if n <= nmin then [] else [string_of_int (n - 1)] in
+      Edit.set_history ed prev next;
 (*
 Printf.eprintf "[history %s] %s\n%!" owner'
 (String.concat " " (Edit.history ed));
 *)
       ignore (rich_edit_text ui area owner' 0 color ed);
+      if ed.focus then f ed;
       if s <> ed.text && valid () then
-        f (int_of_string ed.text)
+        g (int_of_string ed.text)
     );
     let xr' = xr + w1 + geo.pad_w in
     let sh = geo.item_h/2 in
@@ -2709,8 +2711,9 @@ Printf.eprintf "[history %s] %s\n%!" owner'
       if labeled_button ui area (owner' ^ ":dn") sh `White "\\/" no_modkey false (Some false)
       && n > nmin then
       (
+        f ed;
         Edit.set ed (string_of_int (n - 1));
-        f (n - 1)
+        g (n - 1)
       )
     );
     let xr'' = xr' + geo.item_h in
@@ -2718,8 +2721,9 @@ Printf.eprintf "[history %s] %s\n%!" owner'
       if labeled_button ui area (owner' ^ ":up") sh `White "/\\" no_modkey false (Some false)
       && n < nmax then
       (
+        f ed;
         Edit.set ed (string_of_int (n + 1));
-        f (n + 1)
+        g (n + 1)
       )
     );
     let xr''' = xr'' + geo.item_h + geo.pad_w in
