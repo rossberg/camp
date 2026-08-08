@@ -349,7 +349,7 @@ let background ui x y w h =
 
 (* Window *)
 
-type drag += Move of {target : point}
+type drag += Move of {overshoot : size}
 type drag += Resize of {offset : size; edge : bool * bool * bool * bool}
 type drag += Abort
 
@@ -379,7 +379,7 @@ let start ui (wx', wy', ww', wh' as wr') =
   (
     if !App.debug_layout then
     (
-      Printf.eprintf "[resize] %d,%d,%d,%d -> %d,%d,%d,%d\n%!"
+      Printf.eprintf "[win resize] %d,%d,%d,%d -> %d,%d,%d,%d\n%!"
         wx wy ww wh wx' wy' ww' wh'
     );
     (* Suppress input when window was just resized, mouse pos may be off *)
@@ -459,7 +459,7 @@ let finish ui margin (varw, varh) =
       Mouse.set_cursor ui.win cursor;
       ui.drag <-
         if cursor = `Point then
-          Move {target = pos}
+          Move {overshoot = 0, 0}
         else
         (
           let mx, my = Mouse.abs_pos ui.win in
@@ -469,17 +469,18 @@ let finish ui margin (varw, varh) =
         );
       wr, no_edge
 
-    | Move {target} ->
+    | Move {overshoot} ->
       Mouse.set_cursor ui.win `Point;
       let mouse = Mouse.abs_pos ui.win in
-      let delta = Mouse.delta ui.win in
+      let delta = Api.add (Mouse.delta ui.win) overshoot in
+      let wx', wy' = add pos delta in
       let scr = Screen.screen mouse in  (* snap relative to mouse's screen *)
       pin ui scr;
       let sx, sy = Screen.min_pos scr in
       let sw, sh = Screen.max_size scr in
-      let wx', wy' as target' = add target delta in
-      ui.drag <- Move {target = target'};
-      (snap sx (sx + sw - ww) wx', snap sy (sy + sh - wh) wy', ww, wh), no_edge
+      let wx'', wy'' = snap sx (sx + sw - ww) wx', snap sy (sy + sh - wh) wy' in
+      ui.drag <- Move {overshoot = wx' - wx'', wy' - wy''};
+      (wx'', wy'', ww, wh), no_edge
 
     | Resize {offset; edge = lft, top, rgt, bot as edge} ->
       Mouse.set_cursor ui.win (cursor lft top rgt bot);
