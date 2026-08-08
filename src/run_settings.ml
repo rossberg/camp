@@ -16,7 +16,6 @@ let clamp min max v =
 
 (* TODO:
 - fix use of history for numbers; don't mess with cursor position
-- scroll to focus
 - close with button
 - open tagger path with filesel button
 - accelerate up/down buttons; hold down
@@ -43,7 +42,7 @@ let init (st : state) =
 
 (* Runner *)
 
-let run (st : state) =
+let run (st : state) focus_change =
   let geo = st.geometry in
   let set = st.settings in
   let ctl = st.control in
@@ -53,7 +52,7 @@ let run (st : state) =
   Layout.settings_pane geo;
 
   set.vscroll <-
-    Layout.settings geo set.vscroll
+    Layout.settings geo set.vscroll focus_change
       [
         "DISPLAY", Section [
           "COLOR", Choice (List.init (Ui.num_palette geo.ui) (fun i ->

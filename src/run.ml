@@ -192,8 +192,10 @@ and run' (st : state) (x, y, w, h as r) =
   );
 
   (* Focus keys *)
-  if Layout.focus_next_key geo then State.focus_next st;
-  if Layout.focus_prev_key geo then State.focus_prev st;
+  let focus_change =
+    if Layout.focus_next_key geo then (State.focus_next st; true) else
+    if Layout.focus_prev_key geo then (State.focus_prev st; true) else false
+  in
 
   (* Start drawing *)
   Ui.start geo.ui r;
@@ -209,7 +211,7 @@ and run' (st : state) (x, y, w, h as r) =
   Run_control.run st;
   if not (Api.Window.is_minimized win) then
   (
-    if geo.settings_shown then Run_settings.run st
+    if geo.settings_shown then Run_settings.run st focus_change
     else if geo.playlist_shown then Run_playlist.run st;
     if geo.filesel_shown then Run_filesel.run st
     else if geo.library_shown then Run_library.run st;

@@ -912,7 +912,10 @@ let run_toggle_panel (st : state) =
         (fun () ->
           Playlist.defocus st.playlist;
           geo.settings_shown <- not geo.settings_shown;
-          if geo.settings_shown then Run_settings.init st;
+          if geo.settings_shown then
+            Run_settings.init st
+          else
+            Settings.defocus st.settings;
         );
     |] [||])
 (*

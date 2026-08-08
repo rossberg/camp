@@ -2553,11 +2553,7 @@ let rec settings_w ui geo = function
 and setting_w ui geo (name, item) =
   let lw = Draw.text_width ui.win geo.item_h (font ui geo.item_h) name in
   let lw', rw = item_w ui geo item in
-let a,b =
   max lw lw', max rw (lw - lw' - geo.sep_w)
-in
-(*Printf.eprintf "[setting_w %s] %d %d\n%!" name a b;*)
-a,b
 
 and item_w ui geo = function
   | Flag _ | Text _ | Number _ | Button _ -> 0, 0  (* always flat *)
@@ -2573,6 +2569,47 @@ and choices_w ui geo = function
     let w1 = geo.item_h + geo.pad_w + lw in
     let w' = choices_w ui geo choices in
     if w' = 0 then w1 else w1 + geo.sep_w + w'
+
+
+let rec settings_h ui geo xr xmax = function
+  | [] -> 0
+  | setting :: settings ->
+    setting_h ui geo xr xmax setting + geo.pad_h +
+    settings_h ui geo xr xmax settings
+
+and setting_h ui geo xr xmax (_name, item) =
+  let _, wr = item_w ui geo item in
+  if xr + wr >= 0 && xr + wr <= xmax then
+    geo.item_h + geo.sep_h  (* flat *)
+  else
+    item_h ui geo xr xmax item + geo.sep_h
+
+and item_h ui geo xr xmax = function
+  | Flag _ | Text _ | Number _ | Button _ -> geo.item_h
+  | Choice choices ->
+    geo.item_h + (List.length choices - 1) * (geo.item_h + 2 * geo.pad_h)
+  | Section settings ->
+    geo.item_h + 3 * geo.sep_h + settings_h ui geo xr xmax settings
+
+
+let rec settings_focus_dy ui geo xr xmax = function
+  | [] -> None
+  | setting :: settings ->
+    match setting_focus_dy ui geo xr xmax setting with
+    | Some _ as some -> some
+    | None ->
+      Option.map ((+) (setting_h ui geo xr xmax setting + geo.pad_h))
+        (settings_focus_dy ui geo xr xmax settings)
+
+and setting_focus_dy ui geo xr xmax (_name, item) =
+  item_focus_dy ui geo xr xmax item
+
+and item_focus_dy ui geo xr xmax = function
+  | Text (ed, _, _) | Number (_, ed, _, _, _, _) when ed.focus -> Some 0
+  | Flag _ | Choice _ | Button _ | Text _ | Number _ -> None
+  | Section settings ->
+    Option.map ((+) (geo.item_h + 2 * geo.sep_h))
+      (settings_focus_dy ui geo xr xmax settings)
 
 
 let scrolled_area x y w h ymin ymax vscroll f =
@@ -2735,7 +2772,7 @@ and draw_choice ui geo owner x y xmax ymin ymax vscroll (name, b, f) =
     x' + lw
 
 
-let settings ui area owner geo vscroll settings =
+let settings ui area owner geo vscroll adjust_vscroll settings =
   let x, y, w, h as r = dim ui area in
   let p, ax, ay, _, _ = area in
 
@@ -2745,11 +2782,25 @@ let settings ui area owner geo vscroll settings =
   Draw.fill ui.win (x + w - 1) y 1 (h - 2) (`Gray 0x70);
 
   let wl, _ = settings_w ui geo settings in
+  let xl = x + geo.margin in
+  let xr = xl + wl + geo.sep_w in
+  let xmax = x + w - 2 * geo.margin - geo.scroll_w in
+  let ymin, ymax = y + geo.margin, y + h - geo.margin in
+
+  let vscroll' =
+    if not adjust_vscroll then vscroll else
+    match settings_focus_dy ui geo xr xmax settings with
+    | None -> vscroll
+    | Some dy ->
+      if dy - geo.item_h >= vscroll && dy + 2 * geo.item_h <= vscroll + h then
+        vscroll
+      else
+        dy - (h - geo.item_h - 2 * geo.margin)/2
+  in
+
   let y' =
-    draw_settings ui geo owner
-      (x + geo.margin) (x + geo.margin + wl + geo.sep_w) (y + geo.margin)
-      (x + w - 2 * geo.margin - geo.scroll_w) (y + geo.margin) (y + h - geo.margin)
-      vscroll settings
+    draw_settings ui geo owner xl xr (y + geo.margin)
+      xmax ymin ymax vscroll' settings
   in
 
   (* Vertical scrollbar *)
@@ -2758,18 +2809,14 @@ let settings ui area owner geo vscroll settings =
   let coeff = float (max 1 page_h) /. float (max 1 set_h) /. 4.0 in
   let _, wdy = wheel_status ui r in
   let ext = if set_h = 0 then 1.0 else min 1.0 (float page_h /. float set_h) in
-  let pos = if set_h = 0 then 0.0 else float vscroll /. float set_h in
+  let pos = if set_h = 0 then 0.0 else float vscroll' /. float set_h in
 (*Printf.printf "scroll=%d pos=%.2f/ext=%.2f page_h=%d/set_h=%d\n%!" set.vscroll pos ext page_h set_h;*)
-  let vscroll_area = (p, ax + w - geo.scroll_w - 1, ay + 2, geo.scroll_w, h - 3) in
+  let scroll_area = (p, ax + w - geo.scroll_w - 1, ay + 2, geo.scroll_w, h - 3) in
   let pos' =
-    scroll_bar ui vscroll_area (owner ^ ":vscroll") geo.scroll_l `Vertical
+    scroll_bar ui scroll_area (owner ^ ":vscroll") geo.scroll_l `Vertical
       pos ext -. coeff *. wdy
   in
-  let vscroll' = clamp 0 (max 0 (set_h - page_h))
-    (int_of_float (Float.round (pos' *. float set_h))) in
-(*Printf.printf "pos'=%.2f scroll'=%d\n%!" pos' set.vscroll;*)
-
-  vscroll'
+  clamp 0 (max 0 (set_h - page_h)) (int_of_float (Float.round (pos' *. float set_h)))
 
 
 (* Pop-ups *)

@@ -275,7 +275,7 @@ type settings =
     scroll_l : int;   (* scrollbar line width *)
   }
 
-val settings : t -> area -> owner -> settings -> int -> setting list -> int
+val settings : t -> area -> owner -> settings -> int -> bool -> setting list -> int
 
 
 (* Pop-ups *)

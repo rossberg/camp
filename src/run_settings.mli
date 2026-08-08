@@ -5,4 +5,4 @@ val init : State.t -> unit
 
 (* Runner *)
 
-val run : State.t -> unit
+val run : State.t -> bool -> unit
