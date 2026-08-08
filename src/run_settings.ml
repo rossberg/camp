@@ -17,7 +17,6 @@ let clamp min max v =
 (* TODO:
 - fix use of history for numbers; don't mess with cursor position
 - close with button
-- open tagger path with filesel button
 - accelerate up/down buttons; hold down
 *)
 
@@ -138,6 +137,16 @@ let run (st : state) focus_change =
             ),
             fun s -> if File.exists s then cfg.exec_tag <- s
           );
-          "", Button ("BROWSE", fun () -> Printf.eprintf "BROWSE\n%!")
+          "", Button ("BROWSE",
+            fun () ->
+              Run_filesel.filesel st `File `Read "" "" (fun path ->
+                cfg.exec_tag <- path;
+                Edit.set set.exec_tag path;
+                if not (Geometry.settings_shown geo) then
+                  st.geometry.settings_shown <- true;
+                set.vscroll <- max_int;  (* assume it's at bottom *)
+                State.focus_edit set.exec_tag st;
+              )
+          )
         ];
       ]

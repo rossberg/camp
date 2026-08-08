@@ -2786,11 +2786,12 @@ let settings ui area owner geo vscroll adjust_vscroll settings =
   let xr = xl + wl + geo.sep_w in
   let xmax = x + w - 2 * geo.margin - geo.scroll_w in
   let ymin, ymax = y + geo.margin, y + h - geo.margin in
+  let hh = settings_h ui geo xr xmax settings in
 
   let vscroll' =
-    if not adjust_vscroll then vscroll else
+    if not adjust_vscroll then min hh vscroll else
     match settings_focus_dy ui geo xr xmax settings with
-    | None -> vscroll
+    | None -> min hh vscroll
     | Some dy ->
       if dy - geo.item_h >= vscroll && dy + 2 * geo.item_h <= vscroll + h then
         vscroll
