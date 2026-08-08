@@ -4,7 +4,7 @@
 / /    / /_| || |\/| || |_/ /  |  \
 \ \   / ___  || |  | ||  __/   |  /
  \ \_/ /   | || |  | || |      | /
-  \___/    |_||_|  |_||_|      |/ 0.9.5
+  \___/    |_||_|  |_||_|      |/ 0.9.6
    _                    _ 
   / \_/ A MUSIC PLAYER / \_/
 
@@ -48,7 +48,7 @@ This README is intentionally written in retro style.
 
 If you downloaded a binary, nothing to see here, skip ahead to Section 2.3.
 
-To build yourself, you'll need OCaml 5.4.0 or greater and Opam along with it.
+To build yourself, you'll need OCaml 5.5.0 or greater and Opam along with it.
 
 On Windows, no way around Cygwin and make. And you'll probably need to manually
 install the mingw64-x86_64-winpthreads package to have libwinpthread.dll in the
@@ -154,10 +154,6 @@ said, they will look pretty empty at first.
 * When the Library is open already, you can Shift-click on the Library toggle
   button to manually switch sides.
 
-* The window can be resized vertically only when the Playlist pane is open,
-  and horizontally when the Library pane is open. Opening the library pane
-  forces the Playlist open as well.
-
 * Generally, a right-click into most areas of the window will open a nifty
   context menu.
 
@@ -189,13 +185,13 @@ Most controls around the Playlist should be intuitive. A few extra tips:
 * Time: Clicking on the time display toggles between played and remaining time.
 
 * Color: Clicking on the line with the audio details will cycle through several
-  color schemes, all inspired by actual HiFi displays from the past. Or use the
-  context menu.
+  color schemes, all inspired by actual HiFi displays from the past. Or open
+  Settings to select one.
 
 * Visualisations: Ctrl/Command-Y or a click in the space between time display
   and visualisation cycles through different visualisations of the track
   playing. Either Cover Art (default), Turntable, Spectrum Analyzer, Wave Form,
-  Oscilloscope, or None.
+  or Oscilloscope.
 
 * Cover: Clicking on the cover art will zoom it into a pop-up. Click again to
   close. This also works during most other visualisation modes.
@@ -219,7 +215,7 @@ Most controls around the Playlist should be intuitive. A few extra tips:
 
 The context menus on the info area or the buttons area reveal additional keys.
 
-If the current track is in the Playlist, its entry is shown in white.
+If the current track is in the Playlist, its entry there is shown in white.
 
 If the current track is in the Library, its home folder is shown in white in
 the Browser. Likewise, respective View entries are shown in white. That way, you
@@ -245,7 +241,7 @@ Mostly, this is operated by drag & drop, e.g., to add files or reorder items.
 * Reorder: Drag the selection to move it up or down the list. This works even
   when the selection has holes.
 
-  Moving the cursor keys with Ctrl/Command pressed also moves the selection
+  Moving the cursor keys with Ctrl/Command pressed likewise moves the selection
   up or down.
 
 The edit buttons at the bottom normally act on the current selection, or the
@@ -304,7 +300,7 @@ Other useful playlist actions:
 
 * Adding/Removing columns (header context menu): Customise which meta data
   columns are shown. You first need to toggle Show Column Headers from the
-  Playlist context menu.
+  Playlist context menu or the Settings pane.
 
 
 3.4 Playing Tracks Like a Pro: the Library
@@ -367,13 +363,11 @@ Browser entries can be manipulated with a few buttons at the bottom:
 * TAG: Invokes an external tag editor. This has to be configured manually,
   my apologies.
 
-  Go to the Application Storage directory (Section 2.4). Open the file
-  `state.conf`. Find the entry `config`, and in it the field `exec_tag`.
-  Set its string value to the path of the tag editor you want to use, for
-  example, I highly recommend Mp3tag [1] on Windows or Mac:
+  Go to the Settings pane (Section 3.7) and set the path to the Tagging
+  Program. I highly recommend Mp3tag [1] on Windows or Mac:
 
   +------------------------------------------------------
-  | exec_tag = "C:\\Program Files\\Mp3tag\\Mp3tag.exe"
+  | C:\\Program Files\\Mp3tag\\Mp3tag.exe
   +------------------------------------------------------
 
 * SCAN: Rescan the selected folder (if the browser has focus), or the current
@@ -442,7 +436,8 @@ like playlists) can be viewed in a number of exciting ways.
   As alternative to Shift you can also hold the middle mouse button.
 
 * Jump: a double-click on a table or grid entry immediately plays that track or
-  all selected tracks. If the tracks already exists in the playlist (in order), then the playlist jumps to the first entry, otherwise the tracks are first
+  all selected tracks. If the tracks already exists in the playlist (in order),
+  then the playlist jumps to the first entry, otherwise the tracks are first
   inserted at the end.
 
 * Queue: a Ctrl/Command-double-click on a selected table or grid entry queues
@@ -706,7 +701,12 @@ searches the library for a file with the same or a similar name.
 --------------------
 
 There are various ways to tweak the user interface. All settings are remembered
-across sessions:
+across sessions.
+
+Some settings are controlled through the Settings pane. Open it via
+Ctrl/Command-comma or the context menu in the info area of the Control pane.
+
+Some things can also be controlled directly:
 
 * UI Resize: Resize the Control pane to seamlessly scale the UI. To do so,
   resize the window with Shift pressed or when Playlist or Library are closed,
@@ -716,12 +716,12 @@ across sessions:
   Holding the Ctrl/Command key while resizing the Control pane preserves its
   relative horizontal vs. vertical proportions, to the extent possible.
 
-* Text Size: Use the + and - keys with Ctrl/Command (or the context menu from
-  the Control pane) to adjust the size of all text in table, list, and edit
-  widgets.
+* Dividers: Drag the dividers between Browser and Views, or between the
+  individual view tables. The configuration of view dividers will be remembered
+  per folder!
 
-* Text Padding: Use the context menu from the Control pane to also adjust the
-  vertical padding around all such text.
+* Text Size: Use the + and - keys with Ctrl/Command to adjust the size of all
+  text in table, list, and edit widgets.
 
 * Grid Size: Use the + and - keys with Shift+Ctrl/Command (or the context
   menu from the Control pane) to adjust the size of covers in grid views.
@@ -735,33 +735,15 @@ across sessions:
   scaling factor for the entire UI. This defaults to 1.
   (Since version 0.9.6, UI resizing is a more fine-grained alternative.)
 
-* Color: Click the audio properties line (or the Control pane's context menu)
-  to cycle through color schemes.
+* Color: Click the audio properties line to cycle through color schemes.
 
-* Visualisation: Ctrl/Command-U (or the Control pane's context menu) cycles
+* Visualisation: Ctrl/Command-Y (or the Control pane's context menu) cycles
   through different track vissualisations in the Control pane: Cover art,
   Turntable, Spectrum analyzer, Wave, Oscilloscope, or All off.
 
-* Dividers: Drag the dividers between Browser and Views, or between the
-  individual view tables. The configuration of view dividers will be remembered
-  per folder!
-
-* Text Rendering: Shift+Ctrl/Command+U switches the rendering procedure for
-  text. On low-resolution screens (up to 1440p) Camp defaults to plain
-  rasterisation, while for higher resolution screens, it defaults to SDF [1].
-  The defaults usually look better on the respective screens, but this option
-  allows to switch manually.
-
-  (That said, neither option looks particularly great with small text at a
-  scaling factor of 1. That is a limitation of the rendering method of the
-  underlying graphics library, that cannot do sub-pixel rendering. You may
-  want to experiment with Text Sizes to find the one that looks best on your
-  system.)
-
-* Hide Covers: Ctrl/Command+Y hides the cover in the Control pane, whereas
-  Shift+Ctrl/Command+Y hides the the covers in Playlist and Library list
-  views. That would primarily be for performance's sake, because covers
-  take a _lot_ of memory.
+* Hide Covers: Settings allow to hide the covers shown in Cover columns in
+  Playlist and Library list views. That would primarily be for performance's
+  sake, because a large library with covers can take a _lot_ of memory.
 
 * FPS: Ctrl/Command+U toggles the display of an FPS counter in the Control
   pane. Note that this is soft-limited to 60.
@@ -796,9 +778,9 @@ the underlying graphics and audio library (Raylib, Section 4.3).
   override.
 
 * Text: It looks great on hi-res screens (like Retina screens or 4K displays),
-  or with UI scaling. Not so much on lower resolutions with a scaling of 1.
-  As mentioned in Section 3.7, you may want to play with different text sizes
-  to find the one that sucks least.
+  or with UI scaling. Not so much on lower resolutions and small scaling.
+  As mentioned in Section 3.7, you may want to play with different UI and text
+  sizes to find the one that sucks least.
 
 * Windowing: The graphics library does not support multiple windows. Hence, the
   one window has to be a rectangular one and with that, the Library pane cannot
@@ -826,6 +808,8 @@ functional programming style, this is not it either. It looks like C.
 Okay, if you insist, here are a few comments regarding the code and its
 organisation.
 
+No A.I. has been bothered with creating any of this code.
+
 
 4.1 Modules
 -----------
@@ -838,13 +822,14 @@ organisation.
 * `Spectrum` implements a naive spectrum analyser. This is just a toy. I didn't
   really know what I was doing. Don't expect an accurate depiction of dB levels.
 
-* `Control`, `Playlist`, `Library`, `Filesel`, `Menu`, and `Log` encapsulate
-  various states and behaviours of the respective components, independent of UI.
+* `Control`, `Playlist`, `Library`, `Filesel`, `Settings`, `Menu`, and `Log`
+  encapsulate various states and behaviours of the respective components,
+  independent of UI.
 
 * `Table` and `Edit` are abstractions for the state of tables and edit fields.
 
-* `Main` and the various `Run_*` modules implement the application-specific UI
-  interaction of the different panes.
+* The various `Run*` modules implement the application-specific UI interaction
+  of the different panes.
 
 * `Geometry` and `Layout` declare global parameters and all the widgets used by
   the actual UI.
