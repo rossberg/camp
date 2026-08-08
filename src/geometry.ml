@@ -401,7 +401,7 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
   let w'', h'' = clamp minw' maxw' w', clamp minh' maxh' h' in
 
   (* Adjust window position *)
-  let to_top = focush = `Top || y >= win_max_y geo - h in
+  let to_top = focush = `Top || focush <> `Bot && y >= win_max_y geo - h in
   let to_left =
     focusw = `Lft ||
     focusw <> `Rgt && (geo.extension_side = `Left || x >= win_max_x geo - w)
@@ -425,7 +425,7 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
   if !App.debug_layout then
   (
     Printf.eprintf "    x=%d->%d~%d~%d[%d,%d] toleft=%b\n%!" x (x + dx) x' x'' minx maxx to_left;
-    Printf.eprintf "    y=%d->%d~%d~%d[%d,%d] totop=%b\n%!" y (y + dh) y' y'' miny maxy to_top;
+    Printf.eprintf "    y=%d->%d~%d~%d[%d,%d] totop=%b\n%!" y (y + dy) y' y'' miny maxy to_top;
   );
 
   let dx'', dy'' = x'' - x, y'' - y in
