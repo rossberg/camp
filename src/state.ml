@@ -68,7 +68,8 @@ let focus_playlist st =
   focus_table st.playlist.table st
 
 let focus_settings st =
-  defocus_all st
+  defocus_all st;
+  Edit.focus (List.hd (Settings.foci st.settings))
 
 let focus_library (tab : _ Table.t) st =
   Playlist.deselect_all st.playlist;
@@ -86,8 +87,8 @@ let foci_playlist (pl : _ Playlist.t) =
   let f = fun _ -> focus_playlist in
   [foci_table f pl.table]
 
-let foci_settings (_set : Settings.t) =
-  []
+let foci_settings (set : Settings.t) =
+  List.map foci_edit (Settings.foci set)
 
 let foci_library (lib : _ Library.t) =
   let f = focus_library in
@@ -109,10 +110,10 @@ let foci_filesel (fs : _ Filesel.t) =
 
 let foci st =
   let geo = st.geometry in
-  (if Geometry.settings_shown geo then foci_settings st.settings else []) @
-  (if Geometry.playlist_shown geo then foci_playlist st.playlist else []) @
-  (if Geometry.filesel_shown geo then foci_filesel st.filesel else []) @
-  (if Geometry.library_shown geo then foci_library st.library else [])
+  (if Geometry.settings_shown geo then foci_settings st.settings else
+   if Geometry.playlist_shown geo then foci_playlist st.playlist else []) @
+  (if Geometry.filesel_shown geo then foci_filesel st.filesel else
+   if Geometry.library_shown geo then foci_library st.library else [])
 
 let focus_switch st foci =
   let rec find = function

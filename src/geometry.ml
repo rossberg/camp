@@ -124,9 +124,9 @@ let extension_shown_h g = g.playlist_shown || g.settings_shown
 let extension_left g = g.extension_side = `Left
 
 let playlist_shown g = g.playlist_shown && not g.settings_shown
-let settings_shown g = g.settings_shown && not g.playlist_shown
+let settings_shown g = g.settings_shown
 let library_shown g = g.library_shown && not g.filesel_shown
-let filesel_shown g = g.filesel_shown && not g.library_shown
+let filesel_shown g = g.filesel_shown
 
 let control_w g = g.control_width
 let control_h g = g.control_height

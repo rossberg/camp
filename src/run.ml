@@ -191,6 +191,10 @@ and run' (st : state) (x, y, w, h as r) =
     Run_view.external_queue_on_playlist st (M3u.parse !m3u) `QueueAndJump;
   );
 
+  (* Focus keys *)
+  if Layout.focus_next_key geo then State.focus_next st;
+  if Layout.focus_prev_key geo then State.focus_prev st;
+
   (* Start drawing *)
   Ui.start geo.ui r;
 

@@ -10,7 +10,6 @@ type t =
   grid_albums : Edit.t;
   popup_size : Edit.t;
   scroll_width : Edit.t;
-  reflect_radius : Edit.t;
   spec_bands : Edit.t;
   exec_tag : Edit.t;
 }
@@ -28,7 +27,6 @@ let make () =
     grid_albums = Edit.make 10;
     popup_size = Edit.make 10;
     scroll_width = Edit.make 10;
-    reflect_radius = Edit.make 10;
     spec_bands = Edit.make 10;
     exec_tag = Edit.make 100;
   }
@@ -47,7 +45,21 @@ let ok set =
 
 (* Focus *)
 
-let defocus _set = ()
+let foci set =  (* needs to be in order of appearance *)
+  [
+    set.text_size;
+    set.text_padding;
+    set.text_gutter;
+    set.scroll_width;
+    set.grid_tracks;
+    set.grid_albums;
+    set.popup_size;
+    set.spec_bands;
+    set.exec_tag;
+  ]
+
+let defocus set =
+  List.iter Edit.defocus (foci set)
 
 
 (* Persistence *)

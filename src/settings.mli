@@ -10,7 +10,6 @@ type t =
   grid_albums : Edit.t;
   popup_size : Edit.t;
   scroll_width : Edit.t;
-  reflect_radius : Edit.t;
   spec_bands : Edit.t;
   exec_tag : Edit.t;
 }
@@ -31,6 +30,7 @@ val ok : t -> error list
 (* Focus *)
 
 val defocus : t -> unit
+val foci : t -> Edit.t list
 
 
 (* Persistence *)

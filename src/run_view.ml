@@ -1345,8 +1345,4 @@ let run_edit_panel (st : state) =
       (* Click on secondary Queue button: replace tracks in playlist *)
       queue st view true
     );
-  );
-
-  (* Focus keys *)
-  if Layout.focus_next_key geo then State.focus_next st;
-  if Layout.focus_prev_key geo then State.focus_prev st
+  )

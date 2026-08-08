@@ -265,7 +265,7 @@ let run (st : state) =
   let remaining = length -. elapsed in
   let focus =
     pl.table.focus ||
-    not (geo.library_shown || geo.filesel_shown || geo.menu_shown)
+    not Geometry.(extension_shown_w geo || extension_shown_h geo)
   in
 
   (* LCD *)

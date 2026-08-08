@@ -16,8 +16,7 @@ let clamp min max v =
 
 (* TODO:
 - fix use of history for numbers; don't mess with cursor position
-- focus, scroll to focus, tab focus
-- don't clobber L/R cursor keys
+- scroll to focus
 - close with button
 - open tagger path with filesel button
 - accelerate up/down buttons; hold down
@@ -38,7 +37,6 @@ let init (st : state) =
   Edit.set set.grid_albums (string_of_int geo.album_grid);
   Edit.set set.popup_size (string_of_int geo.popup_size);
   Edit.set set.scroll_width (string_of_int geo.scrollbar);
-  Edit.set set.reflect_radius (string_of_int geo.reflection);
   Edit.set set.spec_bands (string_of_int ctl.spec_bands);
   Edit.set set.exec_tag cfg.exec_tag
 
@@ -75,11 +73,6 @@ let run (st : state) =
           "SCROLLBAR", Number ("WIDTH", set.scroll_width, geo.scrollbar, 5, 25,
             fun n -> geo.scrollbar <- n
           );
-(*
-          "REFLECTION", Number ("RADIUS", set.reflect_radius, geo.reflection, 0, 400,
-            fun n -> geo.reflection <- n
-          );
-*)
         ];
         "COVERS", Section [
           "TRACK VIEW", Number ("SIZE", set.grid_tracks, geo.track_grid,
