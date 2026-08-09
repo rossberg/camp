@@ -2369,11 +2369,12 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
     let result =
       match header_opt with
       | None -> result
-      | Some heading ->
-        let cols = Iarray.map (Fun.const (40, `Left)) (fst heading) in
+      | Some ((titles, _) as heading) ->
+        let cw = max 5 (w / Iarray.length titles - geo.gutter_w) in
+        let cols = Iarray.map (Fun.const (cw, `Left)) titles in
         match header ui header_area (owner ^ ":header") geo.pad_h geo.gutter_w cols heading tab.hscroll with
         | `Click i -> `Sort i
-        | `Resize ws -> `Resize ws
+        | `Resize ws -> `None
         | `Reorder perm -> `Reorder perm
         | `Menu i -> `HeadMenu i
         | `None -> result
