@@ -1130,9 +1130,11 @@ struct
     | `None -> ""
     | `Char ' ' -> "Space"  (* "␣" *)
     | `Char c as k ->
-      let s = Unicode.uppercase_utf_8 Raylib.(get_key_name (key k)) in
+      let s = Raylib.get_key_name (key k) in
       if s = "-" then "−" (* proper minus sign *) else
-      if s = "=" && c = '+' then "+" (* looks nicer :) *) else s
+      if s = "=" && c = '+' then "+" (* looks nicer :) *) else
+      let s' = Unicode.uppercase_utf_8 s in
+      if s = Unicode.lowercase_utf_8 s' then s' else s
     | `Local c -> name (`Char (local c))
     | `Arrow `Left -> "←"
     | `Arrow `Right -> "→"
