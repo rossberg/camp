@@ -84,7 +84,7 @@ val mouse_focus : t -> area -> int -> int -> int -> unit
 
 val reset : t -> rect -> unit
 val start : t -> rect -> unit
-val finish : t -> int -> bool * bool -> rect * (bool * bool * bool * bool)
+val finish : t -> int -> bool * bool -> rect * (bool * bool * bool * bool) * bool
 
 val rescale : t -> size -> unit
 val pin : t -> screen -> unit

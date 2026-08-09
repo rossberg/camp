@@ -26,6 +26,7 @@ UI:
 - [new] Movable dividers between Control pane and Playlist/Library panes
 - [new] UI elements scale proportionally with Control pane size
 - [new] Add white color palette
+- [new] Detect and adapt to screen resolution changes
 - [chg] Eliminate extra frame between dragging and resizing/moving the window
 - [fix] Correctly persist and restore UI scaling
 - [fix] Correctly adjust window geometry upon screen change with UI scaling

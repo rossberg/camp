@@ -172,7 +172,7 @@ and run' (st : state) (x, y, w, h as r) =
   if Api.Window.closed win then Run_control.quit st;
 
   (* Not set yet on first frame *)
-  geo.window <- Geometry.abstract_geo geo r;
+  if Api.Draw.frame win <= 1 then geo.window <- Geometry.abstract_geo geo r;
 
   (* Save state regularly every 3 seconds *)
   State.save_after st 3.0;
@@ -290,7 +290,7 @@ and run' (st : state) (x, y, w, h as r) =
     geo.control_ratio <- Some (float geo.control_width /. float geo.control_height);
 
   let scr = Api.Window.screen win in
-  let (x', y', w', h'), (lft, top, rgt, bot) =
+  let (x', y', w', h'), (lft, top, rgt, bot), screen_resized =
     Ui.finish geo.ui (Geometry.margin geo) (true, true) in
   let x', y', w', h' =
     if not extension_change then x', y', w', h' else
@@ -301,7 +301,11 @@ and run' (st : state) (x, y, w, h as r) =
     Api.Window.reveal win;
 
   (* Compute new window geometry *)
-  if scr' <> scr then
+  if screen_resized then
+  (
+    Geometry.apply_geo geo geo.window
+  )
+  else if scr' <> scr then
   (
     (* Window was dragged to another screen: adapt size *)
     assert ((w', h') = (w, h));  (* can only happen on move *)

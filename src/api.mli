@@ -148,7 +148,7 @@ end
 module Draw :
 sig
   val start : window -> color -> unit
-  val finish : window -> unit
+  val finish : window -> bool  (* true when screen geometry changed *)
 
   val clip : window -> int -> int -> int -> int -> unit
   val unclip : window -> unit
