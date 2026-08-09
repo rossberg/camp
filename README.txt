@@ -177,7 +177,9 @@ Most controls around the Playlist should be intuitive. A few extra tips:
 
 * Volume: Controlled either by using the mouse wheel while hovering over the
   Control pane, or by directly clicking/dragging the triangular volume bar. You
-  can also press +/- on the keyboard.
+  can also press +/- on the keyboard (if you use a non-English keyboard,
+  please see the context menu that you get by right-clicking on the volume bar
+  for the corresponding key assignments).
 
 * Mute: There is a red Mute sign below the volume bar that is easy to miss.
   Click it.
@@ -218,8 +220,8 @@ The context menus on the info area or the buttons area reveal additional keys.
 If the current track is in the Playlist, its entry there is shown in white.
 
 If the current track is in the Library, its home folder is shown in white in
-the Browser. Likewise, respective View entries are shown in white. That way, you
-can quickly locate it in the library.
+the Browser. Likewise, respective View entries are shown in white. That way,
+you can quickly locate it in the library.
 
 
 3.3 Playing More Tracks: the Playlist
@@ -385,9 +387,9 @@ Other things to do in the Browser:
   individual entries. You cannot move them to another folder, though.
 
 * Jump: A double-click on the selected browser folder immediately plays all
-  tracks from the current view. If the tracks already exists in the playlist (in
-  order), then the playlist jumps to the first entry, otherwise the tracks are
-  first inserted at the end.
+  tracks from the current view. If the tracks already exists in the playlist
+  (in order), then the playlist jumps to the first entry, otherwise the tracks
+  are first inserted at the end.
 
 * Queue: a Ctrl/Command-double-click on the selected browser folder queues
   up all the current view's tracks in the playlist; a triple-click clears out
@@ -771,11 +773,6 @@ the underlying graphics and audio library (Raylib, Section 4.3).
 
   There are plenty of smaller things that aren't super-optimised either. But
   the thing is snappy enough for my purposes, so I remain lazy about it.
-
-* Localisation: The underlying library doesn't offer much in the way of
-  detecting keyboard assignments, so I'm afraid it assumes an English/U.S.
-  keyboard layout. Feel free to hack the source code if you're desperate for an
-  override.
 
 * Text: It looks great on hi-res screens (like Retina screens or 4K displays),
   or with UI scaling. Not so much on lower resolutions and small scaling.

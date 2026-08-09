@@ -183,7 +183,8 @@ type modifier = [`Shift | `Command | `Alt]
 type key =
 [
   | `None
-  | `Char of char
+  | `Char of char   (* key wrt English keyboard *)
+  | `Local of char  (* key wrt local keyboard mapping *)
   | `Arrow of dir
   | `Page of face
   | `End of face
@@ -243,7 +244,7 @@ sig
 
   val char : unit -> Uchar.t
 
-  val key_name : key -> string
+  val name : key -> string
   val modifier_name : modifier -> string
 end
 

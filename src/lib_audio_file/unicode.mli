@@ -9,6 +9,9 @@ val utf8_length : string -> int
 val transcode_utf16 : string -> string
 val asciify : string -> string
 
+val lowercase_utf_8 : string -> string
+val uppercase_utf_8 : string -> string
+
 val sort_key_utf_8 : string -> string
 val compare_utf_8 : string -> string -> int
 

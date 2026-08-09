@@ -861,6 +861,7 @@ type key =
 [
   | `None
   | `Char of char
+  | `Local of char
   | `Arrow of dir
   | `Page of face
   | `End of face
@@ -1034,11 +1035,34 @@ end
 
 module Key =
 struct
-  let key = function
+  let locale = Array.make 128 '\x00'
+
+  let local c =
+    let open Char in
+    let c' = locale.(code c) in
+    if c' <> '\x00' then c' else
+    (
+      (* initialise table lazily, since get_key_name only works after init *)
+      locale.(32) <- ' ';  (* get_key_name does not like Space *)
+      for k = 33 to 127 do
+        match Raylib.(get_key_name (Key.of_int k)) with
+        | s when String.length s = 1 ->
+          locale.(code (Char.lowercase_ascii s.[0])) <- chr k;
+          locale.(code (Char.uppercase_ascii s.[0])) <- chr k;
+        | s -> ()
+        | exception _ -> ()
+      done;
+      locale.(code c)
+    )
+
+  let rec key = function
     | `None -> Raylib.Key.Null
     | `Char '-' -> Raylib.Key.Minus
     | `Char '+' -> Raylib.Key.Equal
+    | `Char '<' -> Raylib.Key.Comma
+    | `Char '>' -> Raylib.Key.Period
     | `Char c -> Raylib.Key.of_int (Char.code (Char.uppercase_ascii c))
+    | `Local c -> key (`Char (local c))
     | `Arrow `Left -> Raylib.Key.Left
     | `Arrow `Right -> Raylib.Key.Right
     | `Arrow `Up -> Raylib.Key.Up
@@ -1102,11 +1126,14 @@ struct
 
   (* Test string: "␣−←→↑↓⤒↟⤓↡⇤⇱⇥⇲⏎⌤⇆↹⎋⌫⌦⎀⁁⇪⇧⌥⎇⌘★" *)
 
-  let key_name = function
+  let rec name = function
     | `None -> ""
     | `Char ' ' -> "Space"  (* "␣" *)
-    | `Char '-' -> "−"
-    | `Char c -> String.make 1 c
+    | `Char c as k ->
+      let s = Unicode.uppercase_utf_8 Raylib.(get_key_name (key k)) in
+      if s = "-" then "−" (* proper minus sign *) else
+      if s = "=" && c = '+' then "+" (* looks nicer :) *) else s
+    | `Local c -> name (`Char (local c))
     | `Arrow `Left -> "←"
     | `Arrow `Right -> "→"
     | `Arrow `Up -> "↑"

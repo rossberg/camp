@@ -155,6 +155,25 @@ let search_key_utf_8 s = Search_key.of_string ~mapping s
 let sort_key_utf_8 s = (Confero.Sort_key.of_string ~mapping s :> string)
 let compare_utf_8 s1 s2 = Confero.collate ~mapping s1 s2
 
+
+let cmap_utf_8 cmap s =
+  let rec loop buf s i max =
+    if i > max then Buffer.contents buf else
+    let dec = String.get_utf_8_uchar s i in
+    let u = Uchar.utf_decode_uchar dec in
+    begin match cmap u with
+    | `Self -> Buffer.add_utf_8_uchar buf u
+    | `Uchars us -> List.iter (Buffer.add_utf_8_uchar buf) us
+    end;
+    loop buf s (i + Uchar.utf_decode_length dec) max
+  in
+  let buf = Buffer.create (String.length s * 2) in
+  loop buf s 0 (String.length s - 1)
+
+let lowercase_utf_8 s = cmap_utf_8 Uucp.Case.Map.to_lower s
+let uppercase_utf_8 s = cmap_utf_8 Uucp.Case.Map.to_upper s
+
+
 (* Adopted from https://erratique.ch/software/uucp/doc/Uucp/Case/index.html#caselesseq *)
 let casefold_utf_8 s =
   let buf = Buffer.create (String.length s * 3) in

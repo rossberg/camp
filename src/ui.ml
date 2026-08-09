@@ -2851,7 +2851,7 @@ let menu ui x y bw gw ch ph items =
     Iarray.map (function
       | `Separator -> ""
       | `Entry (_, _, (mods, key), _) ->
-        String.concat "+" Api.Key.(List.map modifier_name mods @ [key_name key])
+        String.concat "+" Api.Key.(List.map modifier_name mods @ [name key])
     ) items
   in
   let lw = 2 * gw +

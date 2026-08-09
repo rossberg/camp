@@ -44,9 +44,9 @@ let settings g : Ui.settings =
 
 let nokey = ([], `None)
 let plain ch = ([], `Char ch)
-let cmd ch = ([`Command], `Char ch)
 let shift ch = ([`Shift], `Char ch)
-let shiftcmd ch = ([`Shift; `Command], `Char ch)
+let cmd ch = ([`Command], `Local ch)
+let shiftcmd ch = ([`Shift; `Command], `Local ch)
 
 let key_bwd = plain 'Z'
 let key_play = plain 'X'
@@ -106,10 +106,10 @@ let key_visual = cmd 'Y'
 let key_libcover = shiftcmd 'Y'
 let key_undo = cmd 'Z'
 let key_redo = shiftcmd 'Z'
-let key_appendleft = plain ','  (* that's '<' *)
-let key_appendright = plain '.'  (* that's '>' *)
-let key_replaceleft = shift ','  (* that's '<' *)
-let key_replaceright = shift '.'  (* that's '>' *)
+let key_appendleft = plain '<'
+let key_appendright = plain '>'
+let key_replaceleft = shift '<'
+let key_replaceright = shift '>'
 let key_textup = cmd '+'
 let key_textdn = cmd '-'
 let key_padup = nokey
