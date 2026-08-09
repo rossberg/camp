@@ -753,7 +753,7 @@ struct
 
   let frame () = !frame
 
-  let fill () x y w h c =
+  let fill_rect () x y w h c =
     let x, y, w, h = sxywh x y w h in
     Raylib.draw_rectangle x y w h (color c)
 
@@ -799,12 +799,12 @@ struct
     done;
     Raylib.draw_spline_linear (Ctypes.CArray.start array) n w (color c)
 
-  let tri () x1 y1 x2 y2 x3 y3 c =
+  let fill_tri () x1 y1 x2 y2 x3 y3 c =
     let (x1, y1), (x2, y2), (x3, y3) = sxy x1 y1, sxy x2 y2, sxy x3 y3 in
     let vs = Array.map vec2_of_point [|x1, y1; x2, y2; x3, y3|] in
     Raylib.draw_triangle vs.(0) vs.(1) vs.(2) (color c)
 
-  let arrow () x y w h c dir =
+  let fill_arrow () x y w h c dir =
     let x, y, w, h = sxywh x y w h in
     let vs = Array.map vec2_of_point
       (match dir with

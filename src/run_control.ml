@@ -372,19 +372,19 @@ let run (st : state) =
 
     for i = 0 to n - 1 do
       let x' = x + i * wbar in
-      Api.Draw.fill win x' y w' h (Ui.unlit_color red);
+      Api.Draw.fill_rect win x' y w' h (Ui.unlit_color red);
       let hy = (10 * h / 12) /l * l in
-      Api.Draw.fill win x' (y + h - hy) w' hy (Ui.unlit_color yellow);
+      Api.Draw.fill_rect win x' (y + h - hy) w' hy (Ui.unlit_color yellow);
       let hg = (8 * h / 12) / l * l in
-      Api.Draw.fill win x' (y + h - hg) w' hg (Ui.unlit_color green);
+      Api.Draw.fill_rect win x' (y + h - hg) w' hg (Ui.unlit_color green);
       let hr = min h ((int_of_float (bands.(i) /. 5.0 *. float h) + l/2) / l * l) in
-      Api.Draw.fill win x' (y + h - hr) w' hr red;
+      Api.Draw.fill_rect win x' (y + h - hr) w' hr red;
       let hy = min hr hy in
-      Api.Draw.fill win x' (y + h - hy) w' hy yellow;
+      Api.Draw.fill_rect win x' (y + h - hy) w' hy yellow;
       let hg = min hr hg in
-      Api.Draw.fill win x' (y + h - hg) w' hg green;
+      Api.Draw.fill_rect win x' (y + h - hg) w' hg green;
       for j = 0 to (h + 1) / l / 2 - 1 do
-        Api.Draw.fill win x (y + (2 * j + 1)*l) w l `Black;
+        Api.Draw.fill_rect win x (y + (2 * j + 1)*l) w l `Black;
       done
     done
 
@@ -401,7 +401,7 @@ let run (st : state) =
       let v = if i < Array.length data then data.(i) else 0.0 in
       let v' = v *. float h /. float l /. 1.5 in
       let x, y = x + l * i, y + h/2 - l * int_of_float v' in
-      Api.Draw.fill win x y l l `White;
+      Api.Draw.fill_rect win x y l l `White;
     done;
 
   | `Oscilloscope ->

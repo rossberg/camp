@@ -338,10 +338,10 @@ let background ui x y w h =
     done
   done;
 
-  Draw.fill ui.win x y 1 (h - 2) (`Gray 0x50);
-  Draw.fill ui.win x y w 1 (`Gray 0x70);
-  Draw.fill ui.win (x + 1) (y + h - 2) (w - 1) 2 (`Gray 0x10);
-  Draw.fill ui.win (x + w - 1) y 1 (h - 2) (`Gray 0x10);
+  Draw.fill_rect ui.win x y 1 (h - 2) (`Gray 0x50);
+  Draw.fill_rect ui.win x y w 1 (`Gray 0x70);
+  Draw.fill_rect ui.win (x + 1) (y + h - 2) (w - 1) 2 (`Gray 0x10);
+  Draw.fill_rect ui.win (x + w - 1) y 1 (h - 2) (`Gray 0x10);
 
   mouse_focus' ui ((min w h) / 4) 0x20 0;
 
@@ -672,44 +672,44 @@ let draw_lcd ui r c elem =
   let d = s - l in
   match elem with
   | `N ->
-    fill ui.win (x + s) (y + 0) (w - 2*s) l c;
-    tri ui.win (x + d) (y + 0) (x + s) (y + l) (x + s) (y + 0) c;
-    tri ui.win (x + w - d) (y + 0) (x + w - s) (y + 0) (x + w - s) (y + l) c;
+    fill_rect ui.win (x + s) (y + 0) (w - 2*s) l c;
+    fill_tri ui.win (x + d) (y + 0) (x + s) (y + l) (x + s) (y + 0) c;
+    fill_tri ui.win (x + w - d) (y + 0) (x + w - s) (y + 0) (x + w - s) (y + l) c;
   | `S ->
-    fill ui.win (x + s) (y + h - l) (w - 2*s) l c;
-    tri ui.win (x + d) (y + h) (x + s) (y + h) (x + s) (y + h - l) c;
-    tri ui.win (x + w - d) (y + h) (x + w - s) (y + h - l) (x + w - s) (y + h) c;
+    fill_rect ui.win (x + s) (y + h - l) (w - 2*s) l c;
+    fill_tri ui.win (x + d) (y + h) (x + s) (y + h) (x + s) (y + h - l) c;
+    fill_tri ui.win (x + w - d) (y + h) (x + w - s) (y + h - l) (x + w - s) (y + h) c;
   | `C ->
-    fill ui.win (x + s - l/2) (y + m - l/2) (w - 2*s + l/2*2) l c;
+    fill_rect ui.win (x + s - l/2) (y + m - l/2) (w - 2*s + l/2*2) l c;
     let l2 = (l + 1)/2 in
     let s2 = d + l2 in
-    tri ui.win (x + d) (y + m) (x + s2) (y + m + l2) (x + s2) (y + m - l/2) c;
-    tri ui.win (x + w - s2) (y + m + l2) (x + w - d) (y + m) (x + w - s2) (y + m - l/2) c;
+    fill_tri ui.win (x + d) (y + m) (x + s2) (y + m + l2) (x + s2) (y + m - l/2) c;
+    fill_tri ui.win (x + w - s2) (y + m + l2) (x + w - d) (y + m) (x + w - s2) (y + m - l/2) c;
 (*
-    tri ui.win (x + d) (y + m) (x + s2) (y + m) (x + s2) (y + m - l/2) c;
-    tri ui.win (x + d) (y + m) (x + s2) (y + m + l2) (x + s2) (y + m) c;
-    tri ui.win (x + w - d) (y + m) (x + w - s2) (y + m - l/2) (x + w - s2) (y + m) c;
-    tri ui.win (x + w - d) (y + m) (x + w - s2) (y + m) (x + w - s2) (y + m + l2) c;
+    fill_tri ui.win (x + d) (y + m) (x + s2) (y + m) (x + s2) (y + m - l/2) c;
+    fill_tri ui.win (x + d) (y + m) (x + s2) (y + m + l2) (x + s2) (y + m) c;
+    fill_tri ui.win (x + w - d) (y + m) (x + w - s2) (y + m - l/2) (x + w - s2) (y + m) c;
+    fill_tri ui.win (x + w - d) (y + m) (x + w - s2) (y + m) (x + w - s2) (y + m + l2) c;
 *)
   | `NW ->
-    fill ui.win (x + 0) (y + s) l (m' - 2*s) c;
-    tri ui.win (x + 0) (y + d) (x + 0) (y + s) (x + l) (y + s) c;
-    tri ui.win (x + 0) (y + m' - d) (x + l) (y + m' - s) (x + 0) (y + m' - s) c;
+    fill_rect ui.win (x + 0) (y + s) l (m' - 2*s) c;
+    fill_tri ui.win (x + 0) (y + d) (x + 0) (y + s) (x + l) (y + s) c;
+    fill_tri ui.win (x + 0) (y + m' - d) (x + l) (y + m' - s) (x + 0) (y + m' - s) c;
   | `NE ->
-    fill ui.win (x + w - l) (y + s) l (m' - 2*s) c;
-    tri ui.win (x + w) (y + d) (x + w - l) (y + s) (x + w) (y + s) c;
-    tri ui.win (x + w) (y + m' - d) (x + w) (y + m' - s) (x + w - l) (y + m' - s) c;
+    fill_rect ui.win (x + w - l) (y + s) l (m' - 2*s) c;
+    fill_tri ui.win (x + w) (y + d) (x + w - l) (y + s) (x + w) (y + s) c;
+    fill_tri ui.win (x + w) (y + m' - d) (x + w) (y + m' - s) (x + w - l) (y + m' - s) c;
   | `SW ->
-    fill ui.win (x + 0) (y + m + s) l (h - m - 2*s) c;
-    tri ui.win (x + 0) (y + m + d) (x + 0) (y + m + s) (x + l) (y + m + s) c;
-    tri ui.win (x + 0) (y + h - d) (x + l) (y + h - s) (x + 0) (y + h - s) c;
+    fill_rect ui.win (x + 0) (y + m + s) l (h - m - 2*s) c;
+    fill_tri ui.win (x + 0) (y + m + d) (x + 0) (y + m + s) (x + l) (y + m + s) c;
+    fill_tri ui.win (x + 0) (y + h - d) (x + l) (y + h - s) (x + 0) (y + h - s) c;
   | `SE ->
-    fill ui.win (x + w - l) (y + m + s) l (h - m - 2*s) c;
-    tri ui.win (x + w) (y + m + d) (x + w - l) (y + m + s) (x + w) (y + m + s) c;
-    tri ui.win (x + w) (y + h - d) (x + w) (y + h - s) (x + w - l) (y + h - s) c;
+    fill_rect ui.win (x + w - l) (y + m + s) l (h - m - 2*s) c;
+    fill_tri ui.win (x + w) (y + m + d) (x + w - l) (y + m + s) (x + w) (y + m + s) c;
+    fill_tri ui.win (x + w) (y + h - d) (x + w) (y + h - s) (x + w - l) (y + h - s) c;
   | `Dots ->
-    fill ui.win (x + (w - l)/2) (y + h / 4) l l c;
-    fill ui.win (x + (w - l)/2) (y + 3 * h / 4) l l c
+    fill_rect ui.win (x + (w - l)/2) (y + h / 4) l l c;
+    fill_rect ui.win (x + (w - l)/2) (y + 3 * h / 4) l l c
 
 let lcd ui area d =
   let r = dim ui area in
@@ -792,14 +792,14 @@ let widget ui area owner_opt ?(focus = false) modkey =
 
 let box ui area c =
   let (x, y, w, h), _ = widget ui area None no_modkey in
-  Draw.fill ui.win x y w h c
+  Draw.fill_rect ui.win x y w h c
 
 let color_text ui area align c inv active s =
   let (x, y, w, h), _status = widget ui area None no_modkey in
   let fg = mode c active in
   let bg = `Black in
   let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
-  Draw.fill ui.win x y w h bg;
+  Draw.fill_rect ui.win x y w h bg;
   let tw = Draw.text_width ui.win h (font ui h) s in
   let dx =
     match align with
@@ -816,7 +816,7 @@ let text ui area align =
 
 let ticker ui area s =
   let (x, y, w, h), _status = widget ui area None no_modkey in
-  Draw.fill ui.win x y w h `Black;
+  Draw.fill_rect ui.win x y w h `Black;
   let tw = Draw.text_width ui.win h (font ui h) s in
   Draw.clip ui.win x y w h;
   let dx = if tw <= w then (w - tw)/2 else w - Draw.frame ui.win mod (w + tw) in
@@ -837,19 +837,19 @@ let button ui area owner ?(protrude = true) modkey focus active =
   let sx, sy, h' = if status = `Pressed then 800, 400, h + 1 else 0, 200, h in
   Api.Draw.image_part ui.win x y w h' sx sy w h' 0.0 img;
   let grey_left, shine_left = if status = `Pressed then 0x30, 0x20 else 0x50, 0x40 in
-  Draw.fill ui.win (x + 1) (y + 1) 1 (h - 2) (`Gray grey_left);
+  Draw.fill_rect ui.win (x + 1) (y + 1) 1 (h - 2) (`Gray grey_left);
   mouse_focus ui (-1, x + 1, y + 1, 1, h - 2) (2 * w) shine_left 0;
-  Draw.fill ui.win (x + w - 1) (y + 1) 1 (h - 2) `Black;
+  Draw.fill_rect ui.win (x + w - 1) (y + 1) 1 (h - 2) `Black;
   if protrude then
   (
     let grey_top, shine_top = if status = `Pressed then 0x00, 0x00 else 0x60, 0x40 in
-    Draw.fill ui.win (x + 1) (y + 1) (w - 3) 1 (`Gray grey_top);
+    Draw.fill_rect ui.win (x + 1) (y + 1) (w - 3) 1 (`Gray grey_top);
     mouse_focus ui (-1, x + 1, y + 1, w - 3, 1) (2 * w) shine_top 0;
   )
   else
   (
     let grey_top, shine_top = if status = `Pressed then 0x00, 0x00 else 0x10, 0x20 in
-    Draw.fill ui.win (x + 1) (y + 1) (w - 3) 1 (`Gray grey_top);
+    Draw.fill_rect ui.win (x + 1) (y + 1) (w - 3) 1 (`Gray grey_top);
     mouse_focus ui (-1, x + 1, y + 1, w - 3, 1) 20 shine_top 0;
   );
   (*Draw.rect ui.win x y (w - 1) h (border ui status);*)
@@ -872,27 +872,27 @@ let labeled_button ui area owner ?(protrude = true) hsym c txt modkey focus acti
   (match txt with
   | "" -> ()
   | "[]" ->
-    Draw.fill ui.win xsym ysym hsym hsym c
+    Draw.fill_rect ui.win xsym ysym hsym hsym c
   | "||" ->
-    Draw.fill ui.win xsym ysym (hsym/3) hsym c;
-    Draw.fill ui.win (xsym + hsym - hsym/3) ysym (hsym/3) hsym c;
+    Draw.fill_rect ui.win xsym ysym (hsym/3) hsym c;
+    Draw.fill_rect ui.win (xsym + hsym - hsym/3) ysym (hsym/3) hsym c;
   | ">" ->
-    Draw.arrow ui.win xsym ysym hsym hsym c `Right
+    Draw.fill_arrow ui.win xsym ysym hsym hsym c `Right
   | "<" ->
-    Draw.arrow ui.win xsym ysym hsym hsym c `Left
+    Draw.fill_arrow ui.win xsym ysym hsym hsym c `Left
   | "/\\" ->
-    Draw.arrow ui.win xsym ysym hsym hsym c `Up
+    Draw.fill_arrow ui.win xsym ysym hsym hsym c `Up
   | "\\/" ->
-    Draw.arrow ui.win xsym ysym hsym hsym c `Down
+    Draw.fill_arrow ui.win xsym ysym hsym hsym c `Down
   | ">>" ->
-    Draw.arrow ui.win xsym ysym (hsym/2 + 1) hsym c `Right;
-    Draw.arrow ui.win (xsym + hsym/2) ysym (hsym/2 + 1) hsym c `Right;
+    Draw.fill_arrow ui.win xsym ysym (hsym/2 + 1) hsym c `Right;
+    Draw.fill_arrow ui.win (xsym + hsym/2) ysym (hsym/2 + 1) hsym c `Right;
   | "<<" ->
-    Draw.arrow ui.win xsym ysym (hsym/2) hsym c `Left;
-    Draw.arrow ui.win (xsym + hsym/2) ysym (hsym/2) hsym c `Left;
+    Draw.fill_arrow ui.win xsym ysym (hsym/2) hsym c `Left;
+    Draw.fill_arrow ui.win (xsym + hsym/2) ysym (hsym/2) hsym c `Left;
   | "^" ->
-    Draw.arrow ui.win xsym ysym hsym (hsym/2) c `Up;
-    Draw.fill ui.win xsym (ysym + hsym - hsym/3) hsym (hsym/3) c;
+    Draw.fill_arrow ui.win xsym ysym hsym (hsym/2) c `Up;
+    Draw.fill_rect ui.win xsym (ysym + hsym - hsym/3) hsym (hsym/3) c;
   | s ->
     let c =
       match active with
@@ -912,10 +912,10 @@ let progress_bar ui area owner l v =
   let (x, y, w, h), status = widget ui area (Some owner) no_modkey in
   let w = quant_floor l w in
   let w' = quant_ceil l (int_of_float (v *. float w)) in
-  Draw.fill ui.win x y w h (fill ui false);
-  Draw.fill ui.win x y w' h (fill ui true);
+  Draw.fill_rect ui.win x y w h (fill ui false);
+  Draw.fill_rect ui.win x y w' h (fill ui true);
   for i = 0 to w / l / 2 - 1 do
-    Draw.fill ui.win (x + (2*i + 1)*l) y l h `Black
+    Draw.fill_rect ui.win (x + (2*i + 1)*l) y l h `Black
   done;
   Draw.rect ui.win x y w h (border ui status);
   if status <> `Pressed then v else
@@ -927,11 +927,11 @@ let volume_bar ui area owner l v =
   let (x, y, w, h), status = widget ui area (Some owner) no_modkey in
   let h = quant_floor l h in
   let h' = quant_ceil l (int_of_float ((1.0 -. v) *. float h)) in
-  Draw.fill ui.win (x + w - 2) y 2 h (fill ui true);
-  Draw.tri ui.win (x + 2) y (x + w - 2) (y + h) (x + w - 2) y (fill ui true);
-  Draw.fill ui.win x y w h' (`Trans (`Black, 0x100 - unlit_alpha));
+  Draw.fill_rect ui.win (x + w - 2) y 2 h (fill ui true);
+  Draw.fill_tri ui.win (x + 2) y (x + w - 2) (y + h) (x + w - 2) y (fill ui true);
+  Draw.fill_rect ui.win x y w h' (`Trans (`Black, 0x100 - unlit_alpha));
   for j = 0 to h / l / 2 - 1 do
-    Draw.fill ui.win x (y + (2*j + 1)*l) w l `Black
+    Draw.fill_rect ui.win x (y + (2*j + 1)*l) w l `Black
   done;
   if status <> `Pressed then v else
   let _, my = Mouse.pos ui.win in
@@ -956,7 +956,7 @@ let scroll_bar ui area owner l orient v len =
     | `Vertical -> w, quant_floor l h
     | `Horizontal -> quant_floor l w, h
   in
-  Draw.fill ui.win x y w h (fill ui false);
+  Draw.fill_rect ui.win x y w h (fill ui false);
   let x', y', w', h' as r =
     match orient with
     | `Vertical ->
@@ -970,15 +970,15 @@ let scroll_bar ui area owner l orient v len =
       let dx = quant_ceil l (int_of_float (v *. float (w - 2 - (w'' - w')))) in
       x + dx, y, w'', h
   in
-  if len < 1.0 then Draw.fill ui.win x' y' w' h' (fill ui true);
+  if len < 1.0 then Draw.fill_rect ui.win x' y' w' h' (fill ui true);
   (match orient with
   | `Vertical ->
     for j = 0 to h / l / 2 - 1 do
-      Draw.fill ui.win x (y + (2*j + 1)*l) w l `Black
+      Draw.fill_rect ui.win x (y + (2*j + 1)*l) w l `Black
     done
   | `Horizontal ->
     for i = 0 to w / l / 2 - 1 do
-      Draw.fill ui.win (x + (2*i + 1)*l) y l h `Black
+      Draw.fill_rect ui.win (x + (2*i + 1)*l) y l h `Black
     done
   );
   Draw.rect ui.win x y w h (border ui status);
@@ -1175,11 +1175,11 @@ let edit_text ui area owner ph s scroll selection c focus =
     else if l = r then
     (
       Draw.text ui.win (x - scroll') (y + ph) ch c font s;
-      Draw.fill ui.win (x - scroll' + wl) y 1 h c;
+      Draw.fill_rect ui.win (x - scroll' + wl) y 1 h c;
     )
     else
     (
-      Draw.fill ui.win (x - scroll' + wl) y wm h c;
+      Draw.fill_rect ui.win (x - scroll' + wl) y wm h c;
       Draw.text ui.win (x - scroll') (y + ph) ch c font sl;
       Draw.text ui.win (x - scroll' + wl) (y + ph) ch `Black font sm;
       Draw.text ui.win (x - scroll' + wl + wm) (y + ph) ch c font sr;
@@ -1348,7 +1348,7 @@ let fix_w flex cw = if cw < 0 then flex / (- cw) else cw
 
 let draw_table ui area gw ch ph cols rows hscroll =
   let x, y, w, h = dim ui area in
-  Draw.fill ui.win x y w h `Black;
+  Draw.fill_rect ui.win x y w h `Black;
   let rh = ch + 2 * ph in
   let mw = table_pad gw in  (* inner width padding *)
   let flex = flex_total w gw cols in
@@ -1358,7 +1358,7 @@ let draw_table ui area gw ch ph cols rows hscroll =
     let ry = y + j * rh in
     let bg = if j mod 2 = 0 then `Black else `Gray 0x20 in
     let bg = if inv = `Inverted then fg else bg in
-    if bg <> `Black then Draw.fill ui.win x ry w rh bg
+    if bg <> `Black then Draw.fill_rect ui.win x ry w rh bg
   ) rows;
   let cx = ref (x + mw - hscroll) in
   Iarray.iteri (fun i (cw, align) ->
@@ -1465,7 +1465,7 @@ let header ui area owner ph gw cols (titles, sorting) hscroll =
   ignore (
     Iarray.fold_left (fun cx (cw, _) ->
       let cw = if cw < 0 then flex / (- cw) else cw in
-      Draw.fill ui.win (cx + cw + gw/2 - hscroll) y 1 h `Black;
+      Draw.fill_rect ui.win (cx + cw + gw/2 - hscroll) y 1 h `Black;
       cx + cw + gw;
     ) (x + mw) cols - x - mw
   );
@@ -2112,7 +2112,7 @@ let browser ui area owner geo (tab : _ Table.t) pp_entry =
 
 let draw_grid ui area gw iw ch ph matrix =
   let x, y, w, h = dim ui area in
-  Draw.fill ui.win x y w h `Black;
+  Draw.fill_rect ui.win x y w h `Black;
   let mw = (gw + 1)/2 in
   let font = font ui ch in
   let nrows = Iarray.length matrix in
@@ -2126,7 +2126,7 @@ let draw_grid ui area gw iw ch ph matrix =
         let cy = y + mw + j * (iw + gw + ch + 2 * ph) in
         let fg, bg = if inv = `Inverted then `Black, c else c, `Black in
         if bg <> `Black then
-          Draw.fill ui.win (cx - 1) (cy - 1) (iw + 2) (iw + ch + 2 * ph + 2) bg;
+          Draw.fill_rect ui.win (cx - 1) (cy - 1) (iw + 2) (iw + ch + 2 * ph + 2) bg;
         let iw', ih' = Image.size img in
         let scale = float iw /. float (max iw' ih') in
         let dx = int_of_float ((float iw -. scale *. float iw') /. 2.0) in
@@ -2781,10 +2781,10 @@ let settings ui area owner geo vscroll adjust_vscroll settings =
   let x, y, w, h as r = dim ui area in
   let p, ax, ay, _, _ = area in
 
-  Draw.fill ui.win x y 2 (h - 2) (`Gray 0x00);
-  Draw.fill ui.win x y w 2 (`Gray 0x00);
-  Draw.fill ui.win (x + 1) (y + h - 2) (w - 1) 2 (`Gray 0x50);
-  Draw.fill ui.win (x + w - 1) y 1 (h - 2) (`Gray 0x70);
+  Draw.fill_rect ui.win x y 2 (h - 2) (`Gray 0x00);
+  Draw.fill_rect ui.win x y w 2 (`Gray 0x00);
+  Draw.fill_rect ui.win (x + 1) (y + h - 2) (w - 1) 2 (`Gray 0x50);
+  Draw.fill_rect ui.win (x + w - 1) y 1 (h - 2) (`Gray 0x70);
 
   let wl, _ = settings_w ui geo settings in
   let xl = x + geo.margin in

@@ -366,6 +366,7 @@ let external_queue_on_playlist st paths mode =
 
 let set_drop_cursor (st : state) =
   let geo = st.geometry in
+  let win = Ui.window geo.ui in
   let pl = st.playlist in
   let lib = st.library in
   let droppable =
@@ -383,8 +384,22 @@ let set_drop_cursor (st : state) =
       | _ -> false
     )
   in
-  Api.Mouse.set_cursor (Ui.window geo.ui)
-    (if droppable then `Point else `Blocked)
+  Api.Mouse.set_cursor win (if droppable then `Point else `Blocked);
+  Ui.delay geo.ui (fun () ->
+    let mx, my = Api.Mouse.pos win in
+    let color = `Trans (`White, 0xb0) in
+    let r = Geometry.smin geo 10 in
+    let h = Geometry.smin geo 20 in
+    let w = Geometry.smin geo 2 in
+    Api.Draw.fill_circ win (mx - r) (my - (r * 3/4)/2) r (r * 3/4) color;
+    Api.Draw.fill_rect win (mx - w) (my - h) w h color;
+(*
+    for i = 0 to 3 do
+      let r = Geometry.smin geo (6 + 3 * i) in
+      Api.Draw.fill_ring win (mx - r) (my - r) (2 * r) 2 color
+    done
+*)
+  )
 
 
 (* Playlist modification *)
