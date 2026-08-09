@@ -1040,9 +1040,11 @@ struct
   let local c =
     let open Char in
     let c' = locale.(code c) in
-    if c' <> '\x00' then c' else
+    if c' <> '\x00' && Raylib.(get_key_name (Key.of_int (code c'))).[0] = c then
+      c'
+    else
     (
-      (* initialise table lazily, since get_key_name only works after init *)
+      (* (re)initialise table lazily, since get_key_name only works after init *)
       locale.(32) <- ' ';  (* get_key_name does not like Space *)
       for k = 33 to 127 do
         match Raylib.(get_key_name (Key.of_int k)) with
