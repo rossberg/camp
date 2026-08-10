@@ -398,7 +398,8 @@ let finish ui margin (varw, varh) =
   List.iter (fun f -> f ()) (List.rev ui.delayed);
   ui.delayed <- [];
 
-  let screen_changed = Draw.finish ui.win in
+  let screen_change = Draw.finish ui.win in
+  Option.iter (pin ui) screen_change;
 
   let (wx, wy) as pos = Window.pos ui.win in
   let (ww, wh) as size = Window.size ui.win in
@@ -438,19 +439,19 @@ let finish ui margin (varw, varh) =
 
   if owner <> None then
   (
-    wr, no_edge, screen_changed
+    wr, no_edge, screen_change
   )
   else if Mouse.is_down `Right || ui.drag = Abort then
   (
     Mouse.set_cursor ui.win `Default;
     ui.drag <- Abort;
-    wr, no_edge, screen_changed
+    wr, no_edge, screen_change
   )
   else if not (Mouse.is_down `Left) then
   (
     let cursor = cursor lft top rgt bot in
     if cursor <> `Point then Mouse.set_cursor ui.win cursor;
-    wr, no_edge, screen_changed
+    wr, no_edge, screen_change
   )
   else
   (
@@ -468,7 +469,7 @@ let finish ui margin (varw, varh) =
           let dy = if top then my - wy else my - (wy + wh) in
           Resize {offset = dx, dy; edge = lft, top, rgt, bot}
         );
-      wr, no_edge, screen_changed
+      wr, no_edge, screen_change
 
     | Move {overshoot} ->
       Mouse.set_cursor ui.win `Point;
@@ -481,7 +482,7 @@ let finish ui margin (varw, varh) =
       let sw, sh = Screen.max_size scr in
       let wx'', wy'' = snap sx (sx + sw - ww) wx', snap sy (sy + sh - wh) wy' in
       ui.drag <- Move {overshoot = wx' - wx'', wy' - wy''};
-      (wx'', wy'', ww, wh), no_edge, screen_changed
+      (wx'', wy'', ww, wh), no_edge, screen_change
 
     | Resize {offset; edge = lft, top, rgt, bot as edge} ->
       Mouse.set_cursor ui.win (cursor lft top rgt bot);
@@ -494,10 +495,10 @@ let finish ui margin (varw, varh) =
       let wy' = if top then my' else wy in
       let ww' = if rgt then mx' - wx else ww - (wx' - wx) in
       let wh' = if bot then my' - wy else wh - (wy' - wy) in
-      (wx', wy', ww', wh'), edge, screen_changed
+      (wx', wy', ww', wh'), edge, screen_change
 
     | _ ->
-      wr, no_edge, screen_changed
+      wr, no_edge, screen_change
   )
 
 

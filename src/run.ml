@@ -290,10 +290,10 @@ and run' (st : state) (x, y, w, h as r) =
     geo.control_ratio <- Some (float geo.control_width /. float geo.control_height);
 
   let scr = Api.Window.screen win in
-  let (x', y', w', h'), (lft, top, rgt, bot), screen_resized =
+  let (x', y', w', h'), (lft, top, rgt, bot), screen_change =
     Ui.finish geo.ui (Geometry.margin geo) (true, true) in
   let x', y', w', h' =
-    if not extension_change then x', y', w', h' else
+    if not extension_change || screen_change <> None then x', y', w', h' else
     (Ui.pin geo.ui scr; x, y, w, h)  (* undo move or resize *)
   in
   let scr' = Api.Window.screen win in
@@ -301,11 +301,7 @@ and run' (st : state) (x, y, w, h as r) =
     Api.Window.reveal win;
 
   (* Compute new window geometry *)
-  if screen_resized then
-  (
-    Geometry.apply_geo geo geo.window
-  )
-  else if scr' <> scr then
+  if scr' <> scr then
   (
     (* Window was dragged to another screen: adapt size *)
     assert ((w', h') = (w, h));  (* can only happen on move *)
@@ -328,6 +324,11 @@ and run' (st : state) (x, y, w, h as r) =
     );
 
     x'', y'', w'', h''
+  )
+  else if screen_change <> None then
+  (
+    (* Resolution change: adapt geometry *)
+    Geometry.apply_geo geo geo.window
   )
   else if scale_delta <> 0 then
   (
