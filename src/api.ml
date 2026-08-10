@@ -290,12 +290,16 @@ struct
     let current =
       Option.value current_opt ~default: (Raylib.get_current_monitor ()) in
     let monitor_count = Raylib.get_monitor_count () in
-    let count_changed = monitor_count <> Iarray.length !monitors in
+    let count_changed =
+      current_opt <> None && monitor_count <> Iarray.length !monitors in
     if current_opt = None then Raylib.close_window ();
 
     (* Probe all monitors. *)
-    let save_x, save_y = point_of_vec2 (Raylib.get_window_position ()) in
-    let save_w, save_h = Raylib.(get_screen_width (), get_screen_height ()) in
+    let (save_x, save_y), (save_w, save_h) =
+      if current_opt = None then (0, 0), (0, 0) else
+      point_of_vec2 (Raylib.get_window_position ()),
+      Raylib.(get_screen_width (), get_screen_height ())
+    in
     monitors := Iarray.init monitor_count (fun i ->
       (* On Mac, the window size has to be at least as large as the screen
        * before maximization for the probing to work. At the same time, it
