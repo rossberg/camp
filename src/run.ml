@@ -172,7 +172,8 @@ and run' (st : state) (x, y, w, h as r) =
   if Api.Window.closed win then Run_control.quit st;
 
   (* Not set yet on first frame *)
-  if Api.Draw.frame win <= 1 then geo.window <- Geometry.abstract_geo geo r;
+  if Api.Draw.frame win <= 1 then
+    geo.window <- Geometry.abstract_geo geo (Api.Window.screen win) r;
 
   (* Save state regularly every 3 seconds *)
   State.save_after st 3.0;
@@ -306,7 +307,7 @@ and run' (st : state) (x, y, w, h as r) =
     (* Window was dragged to another screen: adapt size *)
     assert ((w', h') = (w, h));  (* can only happen on move *)
 
-    let _, _, w'', h'' = Geometry.apply_geo geo geo.window in
+    let _, _, w'', h'' = Geometry.apply_geo geo scr' geo.window in
     (* Subtract mouse delta to get position relative to current geometry *)
     let origin = Api.Mouse.(Api.sub (pos win) (delta win)) in
     let dx, dy = Ui.resize_repos geo.ui origin (w'' - w, h'' - h) in
@@ -328,7 +329,7 @@ and run' (st : state) (x, y, w, h as r) =
   else if screen_change <> None then
   (
     (* Resolution change: adapt geometry *)
-    Geometry.apply_geo geo geo.window
+    Geometry.apply_geo geo (Option.get screen_change) geo.window
   )
   else if scale_delta <> 0 then
   (
@@ -344,7 +345,7 @@ and run' (st : state) (x, y, w, h as r) =
     || List.fold_left max 0.0 scaled_dims > 1.0 then
 *)
     Ui.rescale geo.ui (scale_delta, scale_delta);
-    Geometry.apply_geo geo geo.window
+    Geometry.apply_geo geo scr' geo.window
   )
   else
   (

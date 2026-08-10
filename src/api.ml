@@ -19,13 +19,13 @@ struct
     _log "set_window_position %d %d" x y;
     set_window_position x y
   let set_config_flags flags =
-    _log "set_config_flags 0x%x" 0(*Raylib.ConfigFlags.to_int flags*);
+    _log "set_config_flags 0x%x" (Raylib.ConfigFlags.to_int flags);
     set_config_flags flags
   let set_window_state flags =
-    _log "set_window_state 0x%x" 0(*Raylib.ConfigFlags.to_int flags*);
+    _log "set_window_state 0x%x" (Raylib.ConfigFlags.to_int flags);
     set_window_state flags
   let clear_window_state flags =
-    _log "clear_window_state 0x%x" 0(*Raylib.ConfigFlags.to_int flags*);
+    _log "clear_window_state 0x%x" (Raylib.ConfigFlags.to_int flags);
     clear_window_state flags
   let maximize_window () =
     _log1 "maximize_window ()";
@@ -281,15 +281,17 @@ struct
 
   let monitors = ref ([||] : monitor iarray)
 
-  let init_monitors startup =
+  let init_monitors current_opt =
     (* Open dummy window to initialize GLFW for monitor queries to work. *)
-    if startup then
+    if current_opt = None then
       Raylib.(set_config_flags ConfigFlags.(
         window_undecorated + window_resizable + window_highdpi + window_hidden));
-    if startup then Raylib.init_window 1 1 "";
-    let current = Raylib.get_current_monitor () in
+    if current_opt = None then Raylib.init_window 1 1 "";
+    let current =
+      Option.value current_opt ~default: (Raylib.get_current_monitor ()) in
     let monitor_count = Raylib.get_monitor_count () in
-    if startup then Raylib.close_window ();
+    let count_changed = monitor_count <> Iarray.length !monitors in
+    if current_opt = None then Raylib.close_window ();
 
     (* Probe all monitors. *)
     let save_x, save_y = point_of_vec2 (Raylib.get_window_position ()) in
@@ -300,12 +302,12 @@ struct
        * cannot be that large at creation time, otherwise the video mode is
        * messed up. Both these facts are extremely odd...
        * Also, we cannot get the monitor width before init_window. *)
-      if startup then Raylib.init_window 1 1 "";
+      if current_opt = None then Raylib.init_window 1 1 "";
       let x, y = point_of_vec2 (Raylib.get_monitor_position i) in
       let w, h = Raylib.(get_monitor_width i, get_monitor_height i) in
       let outer = x, y, w, h in
       let mon =
-        if startup || i = current then
+        if current_opt = None || not count_changed && i = current then
         (
           (* Unfortunately, Raylib does not expose glfwGetWindowWorkarea.
            * Probe screen geometries by opening a dummy window on each and
@@ -331,7 +333,7 @@ struct
           let inner = min_x, min_y, max_w, max_h in
           let hires = Raylib.(Vector2.y (get_window_scale_dpi ())) > 1.0 in
           Raylib.restore_window ();  (* otherwise Raylib doesn't clear flag! *)
-          if startup then
+          if current_opt = None then
             Raylib.close_window ()
           else
           (
@@ -340,10 +342,7 @@ struct
           );
           {outer; inner; hires}
         )
-        else if
-          monitor_count = Iarray.length !monitors &&
-          outer = (Iarray.get !monitors i).outer
-        then
+        else if not count_changed && outer = (Iarray.get !monitors i).outer then
         (
           (* No (dis)connect, assume monitors are still ordered as before. *)
           Iarray.get !monitors i
@@ -358,16 +357,19 @@ struct
       (
         let {inner = min_x, min_y, max_w, max_h; hires; _} = mon in
         Printf.eprintf
-          "[screen %d] pos=%d,%d,%d,%d limit=%d,%d,%d,%d hires=%b\n%!"
-          i x y w h min_x min_y max_w max_h hires
+          "[screen %d] pos=%d,%d,%d,%d limit=%d,%d,%d,%d hires=%b%s\n%!"
+          i x y w h min_x min_y max_w max_h hires (if i = current then " current" else "");
+        if i = current then
+          Printf.eprintf "  win=%d,%d,%d,%d\n%!" save_x save_y save_w save_h;
       );
       mon
     );
 
-    current
+    if count_changed then Raylib.get_current_monitor () else current
+
 
   let init () =
-    let current = init_monitors true in
+    let current = init_monitors None in
 
     (* Default scaling factor. *)
     let min_h = Iarray.fold_left
@@ -385,7 +387,7 @@ struct
     let change = outer <> (x', y', w', h') in
     if not change then None else
     (
-      let current' = init_monitors false in
+      let current' = init_monitors (Some current) in
 
       if !App.debug_layout then
       (

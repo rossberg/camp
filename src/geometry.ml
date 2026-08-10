@@ -578,10 +578,9 @@ let concrete_geo geo : float * float * float * float =
   let x, y = Api.Window.pos (Ui.window geo.ui) in
   float x, float y, float geo.extension_width, float geo.extension_height
 
-let abstract_geo geo (wx, wy, ww, wh) : float * float * float * float =
-  let win = Ui.window geo.ui in
-  let sx, sy = Api.Window.min_pos win in
-  let sw, sh = Api.Window.max_size win in
+let abstract_geo geo scr (wx, wy, ww, wh) : float * float * float * float =
+  let sx, sy = Api.Screen.min_pos scr in
+  let sw, sh = Api.Screen.max_size scr in
   let sw', sh' = Api.sub (sw, sh) (control_w geo, control_h geo) in
   let cx = let cx = control_x geo in if cx >= 0 then cx else ww + cx in
   let cy = let cy = control_y geo in if cy >= 0 then cy else wh + cy in
@@ -594,16 +593,15 @@ let abstract_geo geo (wx, wy, ww, wh) : float * float * float * float =
   let ah = clamp 0.0 1.0 (tweak (float ph /. float sh')) in
   (ax, ay, aw, ah)
 
-let update_geo geo (wx, wy, ww, wh) =
+let update_geo geo scr (wx, wy, ww, wh) =
   assert (ww = geo.control_width + geo.extension_width);
   assert (wh = geo.control_height + geo.extension_height);
   clamp_geo geo;
-  geo.window <- abstract_geo geo (wx, wy, ww, wh)
+  geo.window <- abstract_geo geo scr (wx, wy, ww, wh)
 
-let apply_geo geo (ax, ay, aw, ah) : int * int * int * int =
-  let win = Ui.window geo.ui in
-  let sx, sy = Api.Window.min_pos win in
-  let sw, sh = Api.Window.max_size win in
+let apply_geo geo scr (ax, ay, aw, ah) : int * int * int * int =
+  let sx, sy = Api.Screen.min_pos scr in
+  let sw, sh = Api.Screen.max_size scr in
   let sw', sh' = Api.sub (sw, sh) (control_w geo, control_h geo) in
   let ew = clamp (extension_min_w geo) sw' (int_of_float (aw *. float sw')) in
   let eh = clamp (extension_min_h geo) sh' (int_of_float (ah *. float sh')) in
@@ -622,8 +620,18 @@ let apply_geo geo (ax, ay, aw, ah) : int * int * int * int =
   if !App.debug_layout then
   (
     Printf.eprintf
-      "[geo apply] abs=%.2f,%.2f,%.2f,%.2f concr=%d,%d,%d+%d,%d+%d scr=%d,%d,%d,%d\n%!"
-      ax ay aw ah x y (control_w geo) ew (control_h geo) eh sx sy sw sh;
+      "[geo apply] abs=%.2f,%.2f,%.2f,%.2f concr=%d,%d,%d+%d,%d+%d\n%!"
+      ax ay aw ah x y (control_w geo) ew (control_h geo) eh;
+    Printf.eprintf "  scr=%d,%d,%d,%d @ %d\n%!" sx sy sw sh (scr |> Obj.magic);
+    Printf.eprintf "  ctl=%d~%d,%d~%d,%d,%d\n%!"
+      (control_x geo) cx (control_y geo) cy (control_w geo) (control_h geo);
+    Printf.eprintf "  ext=%d[%d,%d]~%d,%d[%d,%d]~%d\n%!"
+      (int_of_float (aw *. float sw')) (extension_min_w geo) sw' ew
+      (int_of_float (ah *. float sh')) (extension_min_h geo) sh' eh;
+    Printf.eprintf "  win=%d[%d,%d]~%d%+d,%d[%d,%d]~%d%+d,%d,%d\n%!"
+      (int_of_float (ax *. float sw') - cx) (- w + margin) (sw + control_w geo - margin) x sx
+      (int_of_float (ah *. float sh') - cy) (- h + margin) (sh + control_h geo - margin) y sy
+      w h
   );
 
   clamp_geo geo;
@@ -651,9 +659,10 @@ let side_enum = ["left", `Left; "right", `Right]
 
 let print_state geo =
   let open Text.Print in
+  let scr = Api.Window.screen (Ui.window geo.ui) in
   let wx, wy = Api.Window.pos (Ui.window geo.ui) in
   let ww, wh = win_w geo, win_h geo in
-  let ax, ay, aw, ah = abstract_geo geo (wx, wy, ww, wh) in
+  let ax, ay, aw, ah = abstract_geo geo scr (wx, wy, ww, wh) in
   record (fun geo -> [
     "win_pos", pair float float (ax, ay);
     "scaling", pair int int geo.scaling;
@@ -695,10 +704,11 @@ let print_intern geo =
 
 let parse_state geo =  (* assumes playlist and library loaded *)
   let open Text.Parse in
-  let sw, sh = Api.Window.max_size (Ui.window geo.ui) in
+  let scr = Api.Window.screen (Ui.window geo.ui) in
+  let sw, sh = Api.Screen.max_size scr in
   let ww, wh = control_w geo, control_h geo in
   let wx, wy = (sw - ww)/2, (sh - wh)/2 in  (* default to mid-screen *)
-  let ax, ay, aw, ah = abstract_geo geo (wx, wy, ww, wh) in
+  let ax, ay, aw, ah = abstract_geo geo scr (wx, wy, ww, wh) in
   let rax, ray, raw, rah = ref ax, ref ay, ref aw, ref ah in
   record (fun r ->
     apply (r $? "scaling") (pair (num (-1) 8) (num (-1) 8))
@@ -752,7 +762,7 @@ let parse_state geo =  (* assumes playlist and library loaded *)
 
     geo.window <- (!rax, !ray, !raw, !rah);
     Ui.rescale geo.ui geo.scaling;
-    let r = apply_geo geo geo.window in
+    let r = apply_geo geo scr geo.window in
     if !App.debug_layout then
     (
       let x, y, w, h = r in
