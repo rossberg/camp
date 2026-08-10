@@ -12,6 +12,7 @@ type t =
   scroll_width : Edit.t;
   spec_bands : Edit.t;
   exec_tag : Edit.t;
+  exec_tag_flags : Edit.t;
 }
 
 
@@ -29,6 +30,7 @@ let make () =
     scroll_width = Edit.make 10;
     spec_bands = Edit.make 10;
     exec_tag = Edit.make 100;
+    exec_tag_flags = Edit.make 10;
   }
 
 
@@ -56,6 +58,7 @@ let foci set =  (* needs to be in order of appearance *)
     set.popup_size;
     set.spec_bands;
     set.exec_tag;
+    set.exec_tag_flags;
   ]
 
 let defocus set =

@@ -29,7 +29,8 @@ let init (st : state) =
   Edit.set set.popup_size (string_of_int geo.popup_size);
   Edit.set set.scroll_width (string_of_int geo.scrollbar);
   Edit.set set.spec_bands (string_of_int ctl.spec_bands);
-  Edit.set set.exec_tag cfg.exec_tag
+  Edit.set set.exec_tag cfg.exec_tag;
+  Edit.set set.exec_tag_flags cfg.exec_tag_flags
 
 
 (* Runner *)
@@ -147,6 +148,9 @@ let run (st : state) focus_change =
                 set.vscroll <- max_int;  (* assume it's at bottom *)
                 State.focus_edit st set.exec_tag;
               )
-          )
+          );
+          "...FLAGS", Text (set.exec_tag_flags, Ui.text_color geo.ui,
+            focus_edit, fun s -> cfg.exec_tag_flags <- s
+          );
         ];
       ]

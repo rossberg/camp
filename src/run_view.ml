@@ -921,37 +921,29 @@ let tag_avail st (module View : View) =
   try Unix.(access st.config.exec_tag [X_OK]); true
   with Unix.Unix_error _ -> false
 
-let tag (st : state) tracks additive =
+let tag (st : state) tracks _additive =
   let paths = Array.map (fun (track : Data.track) -> track.path) tracks in
   Domain.spawn (fun () ->
     let paths' = List.filter File.exists (Array.to_list paths) in
-    if st.config.exec_tag_max_len = 0 && not additive then
-      exec st.config.exec_tag paths'
-    else
-    (
-      (* Work around Windows command line limits *)
-      let args = ref paths' in
-      let rec pick len max =
-        match !args with
-        | [] -> []
-        | arg1::args' ->
-          let len' = len + String.length arg1 + 5 in
-          if len <> 0 && len' > max then [] else
-          (
-            args := args';
-            arg1 :: pick len' max
-          )
-      in
-      (* Mp3tag immediately resorts the tracks by current column, unless added
-       * with /add. However, /add only works with individual tracks and exec's,
-       * which is very slow, so only use that when (a) we have less then a
-       * certain number of tracks, or (b) when the command line gets too long
-       * for a single call anyways. *)
-      let max =
-        if List.length paths' < 20 then 1 else st.config.exec_tag_max_len in
-      if not additive then exec st.config.exec_tag (pick 0 max);
-      List.iter (fun arg -> exec st.config.exec_tag ["/add"; arg]) !args;
-    )
+    (* Work around command line limits, esp on Windows *)
+    let rec pick len picked = function
+      | [] -> picked, []
+      | arg::args' as args ->
+        let len' = len + String.length arg + 5 in
+        if len > 0 && len' > st.config.exec_max_len then
+          picked, args
+        else
+          pick len' (arg::picked) args'
+    in
+    let args = ref paths' in
+    while !args <> [] do
+      let flags = String.split_all ~sep: " " st.config.exec_tag_flags in
+      let len = List.fold_left (+) 0 (List.map String.length flags) +
+        5 * List.length flags in
+      let picked, args' = pick len (List.rev flags) !args in
+      args := args';
+      exec st.config.exec_tag (List.rev picked)
+    done
   ) |> ignore
 
 
