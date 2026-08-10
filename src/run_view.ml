@@ -689,16 +689,35 @@ let rec array_existsi f a = array_existsi' f a 0
 and array_existsi' f a i =
   i <> Array.length a && (f i a.(i) || array_existsi' f a (i + 1))
 
-let editable (st : state) (module View : View) =
-  View.(table it) == st.playlist.table ||
-  Library.current_is_playlist st.library
+let visible_pl (st : state) =
+  Geometry.playlist_shown st.geometry
+let visible_lib (st : state) =
+  Geometry.library_shown st.geometry && st.library.log = None
+let visible_both st =
+  visible_pl st && visible_lib st
 
-let all_editable (st : state) (module View : View) =
-  View.(table it) == st.playlist.table ||
-  Library.current_is_playlist st.library &&
+let accessible_pl st (module View : View) =
+  visible_pl st && View.(table it) == st.playlist.table
+let accessible_lib st (module View : View) =
+  visible_lib st && View.(table it) != st.playlist.table &&
+  st.library.current <> None
+let accessible st view =
+  accessible_pl st view || accessible_lib st view
+
+let editable_pl st view =
+  accessible_pl st view
+let editable_lib st view =
+  accessible_lib st view && Library.current_is_playlist st.library
+let editable st view =
+  accessible_pl st view || editable_lib st view
+
+let all_editable st view =
+  editable_pl st view ||
+  editable_lib st view &&
   not (Table.has_selection st.library.artists) &&
   not (Table.has_selection st.library.albums) &&
   st.library.search.text = ""
+
 
 let separator_avail st view =
   all_editable st view
@@ -736,8 +755,7 @@ let dedupe all _st (module View : View) =
   View.(remove_duplicates it all)
 
 let repair_avail all (st : state) view =
-  Geometry.library_shown st.geometry &&
-  wipe_avail all st view && st.library.log = None
+  wipe_avail all st view
 let repair all st view =
   repair_view st view all
 
@@ -746,20 +764,20 @@ let clear_avail st (module View : View) =
 let clear _st (module View : View) =
   View.(remove_all it)
 
-let undo_avail _st (module View : View) =
-  !(View.(table it).undos) <> []
+let undo_avail st (module View : View) =
+  editable st (module View) && !(View.(table it).undos) <> []
 let undo (st : state) (module View : View) =
   View.(undo it);
   update_control st
 
-let redo_avail _st (module View : View) =
-  !(View.(table it).redos) <> []
+let redo_avail st (module View : View) =
+  editable st (module View) && !(View.(table it).redos) <> []
 let redo (st : state) (module View : View) =
   View.(redo it);
   update_control st
 
-let copy_avail _st (module View : View) =
-  View.(num_selected it > 0)
+let copy_avail st (module View : View) =
+  accessible st (module View) && View.(num_selected it > 0)
 let copy (st : state) (module View : View) =
   let s = Track.to_m3u View.(selected it) in
   Api.Clipboard.write (Ui.window st.geometry.ui) s
@@ -798,19 +816,18 @@ let reorder _st (module View : View) =
   View.(reorder_all it)
 
 
-let reverse_avail _st (module View : View) =
-  View.(num_selected it > 1)
+let reverse_avail st (module View : View) =
+  editable st (module View) && View.(num_selected it > 1)
 let reverse _st (module View : View) =
   View.(reverse_selected it)
 
-let reverse_all_avail _st (module View : View) =
-  View.(length it > 1)
+let reverse_all_avail st (module View : View) =
+  all_editable st (module View) && View.(length it > 1)
 let reverse_all _st (module View : View) =
   View.(reverse_all it)
 
-let load_avail (st : state) (module View : View) =
-  Geometry.library_shown st.geometry &&
-  editable st (module View) && st.library.log = None
+let load_avail st (module View : View) =
+  all_editable st (module View)
 let load (st : state) (module View : View) =
   Run_filesel.filesel st `File `Read "" ".m3u" (fun path ->
     let tracks = Array.map Track.of_m3u_item (Array.of_list (M3u.load path)) in
@@ -825,8 +842,8 @@ let load (st : state) (module View : View) =
     )
   )
 
-let save_avail (st : state) _view =
-  Geometry.library_shown st.geometry && st.library.log = None
+let save_avail (st : state) (module View : View) =
+  accessible st (module View)
 let save (st : state) (module View : View) =
   Run_filesel.filesel st `File `Write "" ".m3u" (fun path ->
     File.save `Bin path (Track.to_m3u View.(tracks it))
@@ -840,9 +857,8 @@ let save_sel (st : state) (module View : View) =
     File.save `Bin path m3u
   )
 
-let save_view_avail (st : state) _view =
-  Geometry.library_shown st.geometry &&
-  not st.playlist.table.focus && st.library.log = None &&
+let save_view_avail (st : state) view =
+  save_avail st view && not st.playlist.table.focus &&
   ( st.library.search.text <> "" ||
     Table.num_selected st.library.artists > 0 ||
     Table.num_selected st.library.albums > 0 )
@@ -855,8 +871,8 @@ let save_view (st : state) _view =
   ) st.library.current
 
 
-let queue_avail (st : state) (module View : View) =
-  Library.length st.library > 0
+let queue_avail (st : state) _view =
+  visible_both st && Library.length st.library > 0
 let queue (st : state) (module View : View) replace =
   let lib = st.library in
   let tracks = Library.(if has_selection lib then selected else tracks) lib in
@@ -864,7 +880,8 @@ let queue (st : state) (module View : View) replace =
   if not st.playlist.table.focus then Playlist.deselect_all st.playlist;
   ignore (Control.switch_if_empty st.control (Some tracks.(0)))
 
-let inherit_avail (st : state) (module View : View) =
+let inherit_avail (st : state) _view =
+  visible_both st &&
   Library.current_is_shown_playlist st.library &&
   Playlist.length st.playlist > 0
 let inherit_ (st : state) (module View : View) replace =
@@ -876,8 +893,8 @@ let inherit_ (st : state) (module View : View) replace =
     if not st.library.tracks.focus then Library.deselect_all st.library;
   )
 
-let export_avail _st (module View : View) =
-  View.(length it > 0)
+let export_avail st (module View : View) =
+  accessible st (module View) && View.(length it > 0)
 let export with_pos st tracks =
   let paths = Array.map (fun (track : Data.track) -> track.path) tracks in
   Run_filesel.filesel st `Dir `Write "" "" (fun dir_path ->
@@ -894,13 +911,13 @@ let export with_pos st tracks =
   )
 
 
-let rescan_avail _st (module View : View) =
-  View.(length it > 0)
+let rescan_avail st (module View : View) =
+  accessible st (module View) && View.(length it > 0)
 let rescan (st : state) tracks =
   Library.rescan_tracks st.library `Thorough tracks
 
-let tag_avail (st : state) (module View : View) =
-  View.(length it > 0) &&
+let tag_avail st (module View : View) =
+  accessible st (module View) && View.(length it > 0) &&
   try Unix.(access st.config.exec_tag [X_OK]); true
   with Unix.Unix_error _ -> false
 
@@ -938,14 +955,14 @@ let tag (st : state) tracks additive =
   ) |> ignore
 
 
-let search_avail (st : state) =
-  st.library.current <> None
+let search_avail st =
+  visible_lib st
 
 let search (st : state) =
   State.focus_edit st st.library.search
 
-let search_for_avail (st : state) =
-  Geometry.library_shown st.geometry && st.library.current <> None
+let search_for_avail st =
+  search_avail st
 
 let search_for (st : state) ss =
   let s = String.concat " " (List.map (fun s -> "\"" ^ s ^ "\"") ss) in
