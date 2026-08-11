@@ -36,6 +36,11 @@ let make undo_depth =
     undo_depth;
   }
 
+let make_with undo_depth text =
+  let ed = make undo_depth in
+  ed.text <- text;
+  ed
+
 
 (* Accessors *)
 

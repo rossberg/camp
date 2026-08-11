@@ -413,6 +413,8 @@ struct
       Some current'
     )
 
+  let num () = Iarray.length !monitors
+
   let screen pos =
     Option.value ~default: 0
       (Iarray.find_index (fun mon -> inside (sxy pos) mon.outer) !monitors)

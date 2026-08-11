@@ -2525,12 +2525,13 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
 
 type setting = string * setting_item
 and setting_item =
-  | Flag of bool * (bool -> unit)
-  | Choice of (string * bool * (string -> unit)) list
-  | Text of Edit.t * color * (Edit.t -> unit) * (string -> unit)
-  | Number of string * Edit.t * int * int * int * (Edit.t -> unit) * (int -> unit)
-  | Button of string * (unit -> unit)
-  | Section of setting list
+  [ `Flag of bool * (bool -> unit)
+  | `Choice of (string * bool * (string -> unit)) list
+  | `Text of Edit.t * color * (Edit.t -> unit) * (string -> unit)
+  | `Number of string * Edit.t * int * int * int * (Edit.t -> unit) * (int -> unit)
+  | `Button of string * (unit -> unit)
+  | `Section of setting list
+  ]
 
 type settings =
   { margin : int;
@@ -2558,9 +2559,9 @@ and setting_w ui geo (name, item) =
   max lw lw', max rw (lw - lw' - geo.sep_w)
 
 and item_w ui geo = function
-  | Flag _ | Text _ | Number _ | Button _ -> 0, 0  (* always flat *)
-  | Choice choices -> 0, choices_w ui geo choices
-  | Section settings ->
+  | `Flag _ | `Text _ | `Number _ | `Button _ -> 0, 0  (* always flat *)
+  | `Choice choices -> 0, choices_w ui geo choices
+  | `Section settings ->
     let lw, _ = settings_w ui geo settings in
     lw + geo.indent_w, max_int  (* never flat *)
 
@@ -2587,10 +2588,10 @@ and setting_h ui geo xr xmax (_name, item) =
     item_h ui geo xr xmax item + geo.sep_h
 
 and item_h ui geo xr xmax = function
-  | Flag _ | Text _ | Number _ | Button _ -> geo.item_h
-  | Choice choices ->
+  | `Flag _ | `Text _ | `Number _ | `Button _ -> geo.item_h
+  | `Choice choices ->
     geo.item_h + (List.length choices - 1) * (geo.item_h + 2 * geo.pad_h)
-  | Section settings ->
+  | `Section settings ->
     geo.item_h + 3 * geo.sep_h + settings_h ui geo xr xmax settings
 
 
@@ -2607,9 +2608,10 @@ and setting_focus_dy ui geo xr xmax (_name, item) =
   item_focus_dy ui geo xr xmax item
 
 and item_focus_dy ui geo xr xmax = function
-  | Text (ed, _, _, _) | Number (_, ed, _, _, _, _, _) when ed.focus -> Some 0
-  | Flag _ | Choice _ | Button _ | Text _ | Number _ -> None
-  | Section settings ->
+  | `Text (ed, _, _, _) | `Number (_, ed, _, _, _, _, _) when ed.Edit.focus ->
+    Some 0
+  | `Flag _ | `Choice _ | `Button _ | `Text _ | `Number _ -> None
+  | `Section settings ->
     Option.map ((+) (geo.item_h + 2 * geo.sep_h))
       (settings_focus_dy ui geo xr xmax settings)
 
@@ -2637,7 +2639,7 @@ and draw_setting ui geo owner xl xr y xmax ymin ymax vscroll (name, item) =
   else
   (
     (match item with
-    | Section _ ->
+    | `Section _ ->
       let nw = Draw.text_width ui.win geo.item_h (font ui geo.item_h) name in
       let x' = xl + nw + 2 * geo.pad_w in
       let y' = y + geo.item_h * 4 / 5 in
@@ -2651,15 +2653,15 @@ and draw_setting ui geo owner xl xr y xmax ymin ymax vscroll (name, item) =
   )
 
 and draw_item_flat ui geo owner xl xr y xmax ymin ymax vscroll = function
-  | Choice choices ->
+  | `Choice choices ->
     draw_choices_flat ui geo owner xr y xmax ymin ymax vscroll choices
-  | Section _ ->
+  | `Section _ ->
     assert false
   | item ->
     draw_item ui geo owner xl xr y xmax ymin ymax vscroll item
 
 and draw_item ui geo owner xl xr y xmax ymin ymax vscroll = function
-  | Flag (b, f) ->
+  | `Flag (b, f) ->
     let y' = y + (geo.item_h - geo.label_h) / 2 in
     scrolled_area xr y' geo.label_h geo.label_h ymin ymax
       vscroll (fun area ->
@@ -2669,12 +2671,12 @@ and draw_item ui geo owner xl xr y xmax ymin ymax vscroll = function
     );
     y + geo.item_h
 
-  | Choice choices ->
+  | `Choice choices ->
     draw_choices ui geo owner xr y xmax ymin ymax vscroll choices
 
-  | Text (ed, color, f, g) ->
+  | `Text (ed, color, f, g) ->
     scrolled_area xr y (xmax - xr) geo.item_h ymin ymax vscroll (fun area ->
-      let s = ed.text in
+      let s = ed.Edit.text in
       box ui area `Black;
       ignore (rich_edit_text ui area owner 0 color ed);
       if ed.focus then f ed;
@@ -2682,10 +2684,10 @@ and draw_item ui geo owner xl xr y xmax ymin ymax vscroll = function
     );
     y + geo.item_h
 
-  | Number (name, ed, n, nmin, nmax, f, g) ->
+  | `Number (name, ed, n, nmin, nmax, f, g) ->
     let owner' = owner ^ ":" ^ name in
     let valid () =
-      let n' = Option.value (int_of_string_opt ed.text) ~default: (-1) in
+      let n' = Option.value (int_of_string_opt ed.Edit.text) ~default: (-1) in
       n' >= nmin && n' <= nmax
     in
     let zeros = String.make (int_of_float (Float.log10 (float nmax)) + 2) '0' in
@@ -2735,7 +2737,7 @@ Printf.eprintf "[history %s] %s\n%!" owner'
     );
     y + geo.item_h
 
-  | Button (name, f) ->
+  | `Button (name, f) ->
     let tw = Draw.text_width ui.win geo.item_h (font ui geo.item_h) name in
     scrolled_area xr y (tw + 2 * geo.margin) geo.item_h ymin ymax vscroll (fun area ->
       if labeled_button ui area (owner ^ ":" ^ name) geo.label_h `White name no_modkey false
@@ -2743,7 +2745,7 @@ Printf.eprintf "[history %s] %s\n%!" owner'
     );
     y + geo.item_h
 
-  | Section settings ->
+  | `Section settings ->
     let y' = y + geo.item_h + 2 * geo.sep_h in
     draw_settings ui geo owner xl xr y' xmax ymin ymax vscroll settings + geo.sep_h
 

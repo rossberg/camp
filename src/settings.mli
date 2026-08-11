@@ -3,6 +3,7 @@
 type t =
 {
   mutable vscroll : int;
+  mutable developer : bool;
   text_size : Edit.t;
   text_padding : Edit.t;
   text_gutter : Edit.t;

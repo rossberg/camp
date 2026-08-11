@@ -121,6 +121,7 @@ let key_popupdn = cmd '['
 let key_scaleup = shiftcmd ']'
 let key_scaledn = shiftcmd '['
 let key_settings = cmd ','
+let key_devsettings = shiftcmd ','
 
 let key_color = nokey
 
@@ -465,6 +466,7 @@ let done_h g = label_h g * 3 / 2
 let done_but g = Ui.labeled_button g.ui (sp, - margin g - done_w g, margin g, - margin g, done_h g) "settings:done" (label_h g) `White "DONE" nokey false (Some false)
 
 let settings_key g = Ui.key g.ui key_settings true
+let settings_dev g = Ui.key g.ui key_devsettings true
 let settings g = Ui.settings g.ui (sp, margin g, margin g + done_h g + sy g 4, - margin g, - margin g) "settings" (settings g)
 
 

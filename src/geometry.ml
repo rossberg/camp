@@ -622,7 +622,7 @@ let apply_geo geo scr (ax, ay, aw, ah) : int * int * int * int =
     Printf.eprintf
       "[geo apply] abs=%.2f,%.2f,%.2f,%.2f concr=%d,%d,%d+%d,%d+%d\n%!"
       ax ay aw ah x y (control_w geo) ew (control_h geo) eh;
-    Printf.eprintf "  scr=%d,%d,%d,%d @ %d\n%!" sx sy sw sh (scr |> Obj.magic);
+    Printf.eprintf "  scr=%d,%d,%d,%d @ %d\n%!" sx sy sw sh (scr :> int);
     Printf.eprintf "  ctl=%d~%d,%d~%d,%d,%d\n%!"
       (control_x geo) cx (control_y geo) cy (control_w geo) (control_h geo);
     Printf.eprintf "  ext=%d[%d,%d]~%d,%d[%d,%d]~%d\n%!"

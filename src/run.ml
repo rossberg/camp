@@ -210,6 +210,21 @@ and run' (st : state) (x, y, w, h as r) =
       Run_settings.init st
     else
       State.defocus_all st;
+  )
+  else if Layout.settings_dev geo then
+  (
+    let set = st.settings in
+    if geo.settings_shown then
+    (
+      set.developer <- not set.developer;
+    )
+    else
+    (
+      geo.settings_shown <- true;
+      set.developer <- true;
+      Run_settings.init st;
+    );
+    if set.developer then set.vscroll <- max_int;
   );
 
   let focus_change =

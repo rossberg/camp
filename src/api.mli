@@ -33,10 +33,11 @@ val inside : point -> rect -> bool
 
 (* Screen *)
 
-type screen
+type screen = private int
 
 module Screen :
 sig
+  val num : unit -> int
   val screen : point -> screen
   val pos : screen -> point
   val size : screen -> size

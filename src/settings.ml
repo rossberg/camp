@@ -3,6 +3,7 @@
 type t =
 {
   mutable vscroll : int;
+  mutable developer : bool;
   text_size : Edit.t;
   text_padding : Edit.t;
   text_gutter : Edit.t;
@@ -21,6 +22,7 @@ type t =
 let make () =
   {
     vscroll = 0;
+    developer = false;
     text_size = Edit.make 10;
     text_padding = Edit.make 10;
     text_gutter = Edit.make 10;

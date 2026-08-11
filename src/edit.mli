@@ -19,6 +19,7 @@ type t = private
 (* Constructor *)
 
 val make : int -> t
+val make_with : int -> string -> t
 
 
 (* Accessors *)
