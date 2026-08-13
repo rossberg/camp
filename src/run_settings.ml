@@ -181,9 +181,12 @@ let run (st : state) focus_change =
       let amx, amy = Api.Mouse.abs_pos win in
       [
         "GEOMETRY", `Section [
+          "MONITOR", `Text (
+            Edit.make_with 0 (fmt " %d/%d" sn sm),
+            Ui.text_color geo.ui, ignore, ignore
+          );
           "SCREEN", `Text (
-            Edit.make_with 0
-              (fmt " %d  %d  %d  %d  (%d/%d)" sx sy sw sh sn sm),
+            Edit.make_with 0 (fmt " %d  %d  %d  %d" sx sy sw sh),
             Ui.text_color geo.ui, ignore, ignore
           );
           "DESKTOP", `Text (
@@ -192,7 +195,7 @@ let run (st : state) focus_change =
             Ui.text_color geo.ui, ignore, ignore
           );
           "PLACEMENT", `Text (
-            Edit.make_with 0 (fmt " %.2f  %.2f  %.2f  %.2f" ax ay aw ah),
+            Edit.make_with 0 (fmt " %.3f  %.3f  %.3f  %.3f" ax ay aw ah),
             Ui.text_color geo.ui, ignore, ignore
           );
           "WINDOW", `Text (
@@ -210,8 +213,11 @@ let run (st : state) focus_change =
             Ui.text_color geo.ui, ignore, ignore
           );
           "MOUSE", `Text (
-            Edit.make_with 0
-              (fmt " %d  %d  ~  %d  %d" amx amy mx my),
+            Edit.make_with 0 (fmt " %d  %d" amx amy),
+            Ui.text_color geo.ui, ignore, ignore
+          );
+          "...RELATIVE", `Text (
+            Edit.make_with 0 (fmt " %d  %d" mx my),
             Ui.text_color geo.ui, ignore, ignore
           );
         ];
