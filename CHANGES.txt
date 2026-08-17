@@ -3,6 +3,9 @@
 Control:
 - [new] Time tool tip when hovering seek bar
 
+Library:
+- [fix] Guard drag & drop on filtered or unordered playlist view better
+
 
 === 0.9.6 (2026-08-17) ===
 

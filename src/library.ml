@@ -1166,6 +1166,8 @@ let current_is_shown_viewlist lib =
 let current_is_plain_playlist lib =
   current_is (fun (dir : dir) ->
     lib.search.text = "" &&
+    not (Table.has_selection lib.artists) &&
+    not (Table.has_selection lib.albums) &&
     dir.view.tracks.shown <> None && Data.is_playlist dir &&
     dir.view.tracks.sorting <> [] &&
     List.hd dir.view.tracks.sorting = (`Pos, `Asc)

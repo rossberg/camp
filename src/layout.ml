@@ -576,10 +576,11 @@ let left_mouse g = Ui.rich_table_mouse g.ui (left_area g) (rich_table g 1 true)
 let left_drag g = Ui.rich_table_drag g.ui (left_area g) (rich_table g 1 true) `Above
 let left_grid_mouse g iw = Ui.grid_table_mouse g.ui (left_area g) (grid_table g iw true)
 let left_grid_drag g iw = Ui.grid_table_drag g.ui (left_area g) (grid_table g iw true) `Left
+let left_error_box g = Ui.box g.ui (left_area g) (Ui.error_color g.ui)
 let left_spin g = Ui.text g.ui (lp, sx g 4 + pad_w g, margin g + line_h g + sy g 4 + pad_h g, - scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
 
 let left_view =
-  left_pane, left_area, left_table, left_grid, left_mouse, left_grid_mouse, left_spin
+  left_pane, left_area, left_table, left_grid, left_mouse, left_grid_mouse, left_error_box, left_spin
 
 (* Upper right view (optional) *)
 let rp = lp + 1
@@ -594,10 +595,11 @@ let right_mouse g = Ui.rich_table_mouse g.ui (right_area g) (rich_table g 1 true
 let right_drag g = Ui.rich_table_drag g.ui (right_area g) (rich_table g 1 true) `Above
 let right_grid_mouse g iw = Ui.grid_table_mouse g.ui (right_area g) (grid_table g iw true)
 let right_grid_drag g iw = Ui.grid_table_drag g.ui (right_area g) (grid_table g iw true) `Left
+let right_error_box g = Ui.box g.ui (right_area g) (Ui.error_color g.ui)
 let right_spin g = Ui.text g.ui (rp, divider_w g + sx g 4 + pad_w g, margin g + line_h g + sy g 4 + pad_h g, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
 
 let right_view =
-  right_pane, right_area, right_table, right_grid, right_mouse, right_grid_mouse, right_spin
+  right_pane, right_area, right_table, right_grid, right_mouse, right_grid_mouse, right_error_box, right_spin
 
 (* Lower view (optional) *)
 let lp = rp + 1
@@ -612,10 +614,11 @@ let lower_mouse g = Ui.rich_table_mouse g.ui (lower_area g) (rich_table g 1 true
 let lower_drag g = Ui.rich_table_drag g.ui (lower_area g) (rich_table g 1 true) `Above
 let lower_grid_mouse g iw = Ui.grid_table_mouse g.ui (lower_area g) (grid_table g iw true)
 let lower_grid_drag g iw = Ui.grid_table_drag g.ui (lower_area g) (grid_table g iw true) `Left
+let lower_error_box g = Ui.box g.ui (lower_area g) (Ui.error_color g.ui)
 let lower_spin g = Ui.text g.ui (lp, sx g 4 + pad_w g, divider_w g + line_h g + sy g 4 + pad_h g, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
 
 let lower_view =
-  lower_pane, lower_area, lower_table, lower_grid, lower_mouse, lower_grid_mouse, lower_spin
+  lower_pane, lower_area, lower_table, lower_grid, lower_mouse, lower_grid_mouse, lower_error_box, lower_spin
 
 (* Keys *)
 let lib_cover_key g = Ui.key g.ui key_libcover true

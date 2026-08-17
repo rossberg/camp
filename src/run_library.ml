@@ -325,6 +325,7 @@ let run_browser (st : state) =
 
   | `Select ->
     (* TODO: allow multiple selections *)
+    Library.error lib "";
     State.focus_library browser st;
     if Library.selected_dir lib <> dir then
     (
@@ -338,10 +339,12 @@ let run_browser (st : state) =
 
   | `Fold i ->
     (* Click on triangle: fold/unfold entry *)
+    Library.error lib "";
     let dir = browser.entries.(i) in
-    Library.fold_dir st.library dir (not dir.view.folded)
+    Library.fold_dir st.library dir (not dir.view.folded);
 
   | `Click (Some i, _) ->
+    Library.error lib "";
     if Api.Mouse.is_pressed `Left then State.focus_library browser st;
     if Library.selected_dir lib <> dir then
     (
@@ -392,6 +395,7 @@ let run_browser (st : state) =
 
   | `Click (None, _) ->
     (* Click into empty space: deselect everything *)
+    Library.error lib "";
     Library.deselect_dir lib;
     Library.deselect_all lib;
     Library.refresh_artists_albums_tracks lib;
@@ -478,6 +482,7 @@ let run_browser (st : state) =
 
   | `Menu _ ->
     (* Right-click on browser: context menu *)
+    Library.error lib "";
     State.focus_library browser st;
     if Library.selected_dir lib <> dir then
     (
@@ -607,6 +612,7 @@ let run_browser (st : state) =
   if Layout.rename_key geo (browser.focus && not rename_had_focus) then
   (
     (* Return or Enter key pressed: rename dir *)
+    Library.error lib "";
     if not (Library.current_is_all lib) then
       rename st (Library.selected_dir lib)
   );
@@ -614,6 +620,7 @@ let run_browser (st : state) =
   if Layout.fold_key geo browser.focus then
   (
     (* Space key pressed: fold/unfold dir *)
+    Library.error lib "";
     if not (Library.current_is_all lib) then
       Option.iter (fun (dir : dir) ->
         Library.fold_dir lib dir (not dir.view.folded)
@@ -649,6 +656,7 @@ let run_browser (st : state) =
     if Library.rescan_busy lib = None then
     (
       (* Inactive scanning indicator clicked: rescan *)
+      Library.error lib "";
       let mode = if shift then `Thorough else `Quick in
       match Library.selected_dir lib with
       | None -> Library.rescan_root lib mode
@@ -686,6 +694,7 @@ let run_browser (st : state) =
   if have_dir && artists' <> artists then
   (
     (* Click on Artists button: toggle artist pane *)
+    Library.error lib "";
     view.artists.shown <- if artists' then Some `Table else None;
     view.custom <- true;
     if nothing_shown view then
@@ -707,6 +716,7 @@ let run_browser (st : state) =
   if have_dir && albums' <> albums then
   (
     (* Click on Albums button: toggle artist pane *)
+    Library.error lib "";
     view.albums.shown <- cycle_shown view.albums.shown;
     view.custom <- true;
     if nothing_shown view then
@@ -728,6 +738,7 @@ let run_browser (st : state) =
   if have_dir && tracks' <> tracks then
   (
     (* Click on Tracks button: toggle artist pane *)
+    Library.error lib "";
     view.tracks.shown <- cycle_shown view.tracks.shown;
     view.custom <- true;
     if nothing_shown view then
@@ -746,11 +757,13 @@ let run_browser (st : state) =
   if Layout.search_key geo then
   (
     (* Search button pressed: focus search *)
+    Library.error lib "";
     Library.focus_search lib;
   )
   else if Layout.search_button geo then
   (
     (* Click on Search label: clear and focus search *)
+    Library.error lib "";
     Library.clear_search lib;
     State.focus_edit st lib.search;
   );
@@ -767,11 +780,13 @@ let run_browser (st : state) =
   if lib.search.text <> search then
   (
     (* Changed search text: update search in dir *)
+    Library.error lib "";
     Library.refresh_search lib;
   );
 
   if Layout.search_context geo then
   (
+    Library.error lib "";
     let rec nub = function
       | [] -> []
       | x::xs -> x :: nub (List.filter ((<>) x) xs)
@@ -817,7 +832,7 @@ let run_view (st : state)
   let geo = st.geometry in
   let win = Ui.window geo.ui in
 
-  let pane, area, table, grid, mouse, _grid_mouse, spinner = layout in
+  let pane, area, table, grid, mouse, _grid_mouse, _error_box, spinner = layout in
   pane geo;
 
   let busy = refresh_is_busy lib in
@@ -868,11 +883,13 @@ let run_view (st : state)
 
   | `Select ->
     (* New selection: grab focus, update filter *)
+    Library.error lib "";
     State.focus_library tab st;
     refresh_deps lib;
 
   | `Sort i ->
     (* Click on column header: reorder view accordingly *)
+    Library.error lib "";
     let attr = fst view.columns.$(i) in
     let k =
       Bool.to_int (Api.Key.is_modifier_down `Shift) +
@@ -886,6 +903,7 @@ let run_view (st : state)
 
   | `Resize ws ->
     (* Column resizing: update column widths *)
+    Library.error lib "";
     view.columns <-
       Iarray.mapi (fun i (attr, _) -> attr, ws.$(i)) view.columns;
     views.custom <- true;
@@ -893,6 +911,7 @@ let run_view (st : state)
 
   | `Reorder perm ->
     (* Column reordering: update columns *)
+    Library.error lib "";
     view.columns <- Data.permute perm view.columns;
     views.custom <- true;
     Option.iter (Library.save_dir lib) lib.current;
@@ -900,6 +919,7 @@ let run_view (st : state)
   | `Click loc when Api.Mouse.(is_pressed `Left &&
       (is_double_click `Left || is_triple_click `Left)) ->
     (* Double/triple-click on entry: send tracks to playlist *)
+    Library.error lib "";
     Option.iter (fun i ->
       let triple = Api.Mouse.is_triple_click `Left in
       let cmd = Api.Key.is_modifier_down `Command in
@@ -925,6 +945,7 @@ let run_view (st : state)
 
   | `Click loc ->
     (* Single-click: grab focus, update filter *)
+    Library.error lib "";
     if Api.Mouse.is_pressed `Left then
     (
       State.focus_library tab st;
@@ -947,6 +968,7 @@ let run_view (st : state)
 
   | `Move delta ->
     (* Cmd-cursor movement: move selection *)
+    Library.error lib "";
     if editable then
       Library.move_selected lib delta;
 
@@ -959,11 +981,11 @@ let run_view (st : state)
       (
         let outside =
           match traj with
-          | `Inside | `Inward -> not editable
+          | `Inside | `Inward -> false
           | `Outward | `Outside -> true
         in
         if motion <> `Unmoved then Run_view.set_drop_cursor st outside;
-        if outside then
+        if outside || not editable then
         (
           Run_view.drag_on_playlist st;
           drag_on_browser st;
@@ -1001,6 +1023,8 @@ let run_view (st : state)
             | `Outside | `Outward -> ()  (* ignore *)
           );
         )
+        else if not outside && delta <> 0 then
+          Run_view.drag_on_tracks_error st
       )
     );
 
@@ -1046,6 +1070,7 @@ let run_view (st : state)
 
   | `Menu (i_opt, j_opt) ->
     (* Right-click on content: context menu *)
+    Library.error lib "";
     State.focus_library tab st;
     if not (Table.IntSet.equal tab.selected old_selected) then
       refresh_deps lib;
@@ -1063,6 +1088,7 @@ let run_view (st : state)
 
   | `HeadMenu i_opt ->
     (* Right-click on header: header menu *)
+    Library.error lib "";
     State.focus_library tab st;
     let current_attrs = Iarray.to_list (Iarray.map fst view.columns) in
     let unused_attrs = Data.diff_attrs all_attrs current_attrs in

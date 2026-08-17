@@ -43,6 +43,7 @@ val tag_button : State.t -> view -> unit
 
 val drag_on_playlist : State.t -> unit
 val drag_on_tracks : State.t -> unit
+val drag_on_tracks_error : State.t -> unit
 
 val drop_on_playlist : State.t -> Data.track array -> unit
 val drop_on_tracks : State.t -> Data.track array -> unit

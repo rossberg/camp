@@ -201,6 +201,7 @@ let update_control (st : state) =
     Table.dirty st.library.browser;
   )
 
+
 let current_is_grid (st : state) =
   match st.library.current with
   | None -> false
@@ -224,10 +225,26 @@ let library_drag (st : state) (geo : Geometry.t) =
   in
   if current_is_grid st then grid_drag geo geo.track_grid else drag geo
 
+let drag_on_tracks_error (st : state) =
+  let lib = st.library in
+  if Library.current_is_playlist lib then
+  (
+    if lib.search.text <> "" then
+      Library.error lib "Playlist view is filtered by search"
+    else if Table.(has_selection lib.artists || has_selection lib.albums) then
+      Library.error lib "Playlist view is filtered by artist or album"
+    else
+      Library.error lib "Playlist view is not ordered"
+  )
+
 let drag_on_tracks (st : state) =
-  if Geometry.library_shown st.geometry
-  && Library.current_is_shown_playlist st.library then
-    drag st (library_drag st) (tracks_view st)
+  if Geometry.library_shown st.geometry then
+  (
+    if Library.current_is_plain_playlist st.library then
+      drag st (library_drag st) (tracks_view st)
+    else
+      drag_on_tracks_error st
+  )
 
 let drop (st : state) tracks table_mouse (module View : View) =
   if tracks <> [||] then
@@ -260,7 +277,7 @@ let library_mouse (st : state) (geo : Geometry.t) =
 
 let drop_on_tracks (st : state) tracks =
   if Geometry.library_shown st.geometry
-  && Library.current_is_shown_playlist st.library then
+  && Library.current_is_plain_playlist st.library then
     drop st tracks (library_mouse st) (tracks_view st)
 
 
@@ -375,8 +392,9 @@ let set_drop_cursor (st : state) outside =
       Layout.playlist_mouse geo [||] pl.table <> None
     ||
     Geometry.library_shown geo && (
-      (* over library playlist view? *)
-      Library.current_is_playlist lib && library_mouse st geo lib.tracks <> None
+      (* over editable library playlist view? *)
+      Library.current_is_plain_playlist lib &&
+        library_mouse st geo lib.tracks <> None
       ||
       (* over browser entry that is a playlist? *)
       match Layout.browser_mouse geo [||] lib.browser with
