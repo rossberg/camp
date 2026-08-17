@@ -909,7 +909,7 @@ let labeled_button ui area owner ?(protrude = true) hsym c txt modkey focus acti
 
 (* Bars *)
 
-let progress_bar ui area owner l v =
+let progress_bar ui area owner l f_opt v =
   let (x, y, w, h), status = widget ui area (Some owner) no_modkey in
   let w = quant_floor l w in
   let w' = quant_ceil l (int_of_float (v *. float w)) in
@@ -919,6 +919,18 @@ let progress_bar ui area owner l v =
     Draw.fill_rect ui.win (x + (2*i + 1)*l) y l h `Black
   done;
   Draw.rect ui.win x y w h (border ui status);
+  if status <> `Untouched then
+  (
+    Option.iter (fun f ->
+      let mx, _ = Mouse.pos ui.win in
+      let s, th, color = f (float (mx - x) /. float w) in
+      let font = font ui th in
+      let tw = Draw.text_width ui.win th font s in
+      let tx = clamp (x + 1) (x + w - tw - 1) (mx - tw/2) in
+      let ty = y + (h - th)/2 in
+      Draw.text ui.win tx ty th color font s
+    ) f_opt
+  );
   if status <> `Pressed then v else
   let mx, _ = Mouse.pos ui.win in
   clamp 0.0 1.0 (float (mx - x) /. float w)

@@ -12,7 +12,7 @@
 
 (package
   (name camp)
-  (version 0.9.6)
+  (version 0.9.7)
   (synopsis "Camp music player")
   (description "A portable music player in the Winamp tradition")
   (depends

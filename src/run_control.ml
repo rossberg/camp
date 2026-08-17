@@ -535,12 +535,13 @@ let run (st : state) =
   Layout.mute_text geo (Ui.error_color geo.ui) `Inverted ctl.mute "MUTE";
 
   (* Seek bar *)
+  let tip v = Data.string_of_time (v *. length), Layout.prop_h geo, `White in
   let seek (st : state) delta =
     if delta <> 0.0 then
       Control.seek st.control (st.control.progress +. 0.05 *. delta)
   in
   let progress = if length > 0.0 then elapsed /. length else 0.0 in
-  let progress' = Layout.seek_bar geo progress in
+  let progress' = Layout.seek_bar geo (Some tip) progress in
   if (progress' <> ctl.progress || Api.Mouse.is_pressed `Left)
   && progress' <> progress && ctl.current <> None then
   (

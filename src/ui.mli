@@ -119,7 +119,7 @@ val button : t -> area -> owner -> ?protrude: bool -> modifier list * key -> boo
 val labeled_button : t -> area -> owner -> ?protrude: bool -> int -> color -> string -> modifier list * key -> bool -> bool option -> bool
 val invisible_button : t -> area -> owner -> modifier list -> modifier list * key -> bool -> bool
 
-val progress_bar : t -> area -> owner -> int -> float -> float
+val progress_bar : t -> area -> owner -> int -> (float -> string * int * color) option -> float -> float
 val volume_bar : t -> area -> owner -> int -> float -> float
 val scroll_bar : t -> area -> owner -> int -> Api.orientation -> float -> float -> float
 

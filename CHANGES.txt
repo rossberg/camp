@@ -1,3 +1,9 @@
+=== 0.9.7 (WIP) ===
+
+Control:
+- [new] Time tool tip when hovering seek bar
+
+
 === 0.9.6 (2026-08-17) ===
 
 This update supports non-English keyboard layouts. Further, it allows
