@@ -1,4 +1,4 @@
-=== 0.9.6 (WIP) ===
+=== 0.9.6 (2026-08-17) ===
 
 This update supports non-English keyboard layouts. Further, it allows
 continuous scaling of the whole UI as well as customising the meta-data
