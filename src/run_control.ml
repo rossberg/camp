@@ -541,7 +541,8 @@ let run (st : state) =
       Control.seek st.control (st.control.progress +. 0.05 *. delta)
   in
   let progress = if length > 0.0 then elapsed /. length else 0.0 in
-  let progress' = Layout.seek_bar geo (Some tip) progress in
+  let progress' =
+    Layout.seek_bar geo (if silent then None else Some tip) progress in
   if (progress' <> ctl.progress || Api.Mouse.is_pressed `Left)
   && progress' <> progress && ctl.current <> None then
   (
