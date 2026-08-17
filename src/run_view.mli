@@ -50,7 +50,7 @@ val drop_on_tracks : State.t -> Data.track array -> unit
 val external_drop_on_playlist : State.t -> unit
 val external_drop_on_tracks : State.t -> unit
 
-val set_drop_cursor : State.t -> unit
+val set_drop_cursor : State.t -> bool -> unit
 
 type queue_mode = [`Jump | `Queue | `QueueAndJump | `Replace]
 val queue_on_playlist : State.t -> Data.track array -> queue_mode -> unit

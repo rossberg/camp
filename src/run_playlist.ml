@@ -184,12 +184,17 @@ let run (st : state) =
       State.focus_playlist st;
       if Playlist.num_selected pl > 0 then
       (
-        if motion <> `Unmoved then Run_view.set_drop_cursor st;
-        match traj with
-        | `Inside | `Inward -> ()
-        | `Outward | `Outside ->
+        let outside =
+          match traj with
+          | `Inside | `Inward -> false
+          | `Outward | `Outside -> true
+        in
+        if motion <> `Unmoved then Run_view.set_drop_cursor st outside;
+        if outside then
+        (
           Run_view.drag_on_tracks st;
           Run_library.drag_on_browser st;
+        )
       );
 
       (* Invariant:

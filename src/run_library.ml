@@ -397,14 +397,19 @@ let run_browser (st : state) =
     Library.refresh_artists_albums_tracks lib;
     if Api.Mouse.is_pressed `Left then State.focus_library browser st;
 
-  | `Drag (_, motion, _) ->
+  | `Drag (_, motion, traj) ->
     (* Drag: adjust cursor *)
     if Api.Key.are_modifiers_down [] then
     (
       (* State.focus_library browser st; *)  (* don't steal after double-click! *)
       if lib.tracks.entries <> [||] then
       (
-        if motion <> `Unmoved then Run_view.set_drop_cursor st;
+        let outside =
+          match traj with
+          | `Inside | `Inward -> false
+          | `Outward | `Outside -> true
+        in
+        if motion <> `Unmoved then Run_view.set_drop_cursor st outside;
         Run_view.drag_on_playlist st;
       );
 
@@ -952,10 +957,14 @@ let run_view (st : state)
       (* State.focus_library tab st; *)  (* don't steal after double-click! *)
       if Table.num_selected tab > 0 && lib.tracks.entries <> [||] then
       (
-        if motion <> `Unmoved then Run_view.set_drop_cursor st;
-        (match traj with
-        | `Inside | `Inward when editable -> ()
-        | `Inside | `Inward | `Outside | `Outward ->
+        let outside =
+          match traj with
+          | `Inside | `Inward -> not editable
+          | `Outward | `Outside -> true
+        in
+        if motion <> `Unmoved then Run_view.set_drop_cursor st outside;
+        if outside then
+        (
           Run_view.drag_on_playlist st;
           drag_on_browser st;
         );
