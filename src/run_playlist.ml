@@ -10,7 +10,7 @@ let refresh_delay = 9
 let (.$()) = Iarray.get
 
 let start_time = Unix.gettimeofday ()
-let time () = Unix.gettimeofday () -. start_time
+let run_time () = Unix.gettimeofday () -. start_time
 
 
 let rec log10 n = if n < 10 then 0 else 1 + log10 (n / 10)
@@ -56,15 +56,16 @@ let run (st : state) =
   let text_h = Geometry.text_h geo in
   let page = max 1 (int_of_float (Float.floor (float h /. float text_h))) in
   let digits_pos = log10 (len + 1) + 1 in
-  let digits_time = ref 1 in
+  let rtime = ref 0.0 in
   for i = tab.vscroll to min len (tab.vscroll + page) - 1 do
-    let time = Track.time tab.entries.(i) in
-    if time > 599.4 then
-      digits_time := max !digits_time (if time > 5999.4 then 3 else 2)
+    rtime := max !rtime (Track.time tab.entries.(i))
   done;
+  let time = int_of_float (Float.ceil !rtime) in
+  let digits_lo = if time >= 600 then 4 else 3 in
+  let digits_time = log10 (time / 3600 + 9) + digits_lo in
   let font = Ui.font geo.ui text_h in
   let s_pos = String.make digits_pos '0' ^ "." in
-  let s_time = String.make !digits_time '0' ^ ":00" in
+  let s_time = String.make digits_time '0' ^ "::" in
   let cw_pos = Api.Draw.text_width win text_h font s_pos + 1 in
   let cw_time = Api.Draw.text_width win text_h font s_time + 1 in
 (*
@@ -311,7 +312,7 @@ let run (st : state) =
   Run_view.external_drop_on_playlist st;
 
   (* Playlist total *)
-  if int_of_float (time ()) mod 10 = 0 then Playlist.refresh_total pl;
+  if int_of_float (run_time ()) mod 10 = 0 then Playlist.refresh_total pl;
   let fmt_total (t, n) = fmt_time3 t ^ if n > 0 then "+" else "" in
   let s1 =
     if pl.total_selected = (0.0, 0) then "" else
