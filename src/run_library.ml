@@ -58,7 +58,7 @@ let rename (st : state) i_opt =
       State.defocus_all st;
       Edit.focus st.library.rename;
       Edit.set st.library.rename dir.name;
-      Ui.delay st.geometry.ui (fun () -> Ui.modal st.geometry.ui);
+      Ui.modal st.geometry.ui "lib.rename";
       Library.start_rename st.library i;
     )
   ) i_opt
@@ -583,7 +583,7 @@ let run_browser (st : state) =
   (* Browser entry renaming *)
   let rename_had_focus = lib.rename.focus in
   Option.iter (fun i ->
-    Ui.nonmodal geo.ui;
+    Ui.nonmodal geo.ui "lib.browser/rename";
     let dir = entries.(i) in
     let folded = if dir.children = [||] then None else Some dir.view.folded in
     let area = Layout.rename_area geo browser i dir.nest folded in
@@ -605,7 +605,7 @@ let run_browser (st : state) =
       State.focus_table st browser;
     )
     else
-      Ui.modal geo.ui
+      Ui.modal geo.ui "lib.browser/rename"
   ) lib.renaming;
 
   (* Keys *)
@@ -1115,7 +1115,7 @@ let run_view (st : state)
     match mouse geo cols tab with
     | Some (Some i, _) ->
       (* Drag with active cover popup: update cover *)
-      Ui.nonmodal geo.ui;
+      Ui.nonmodal geo.ui "lib.view/drag-cover";
       Run_menu.popup st (popup entries.(i));
     | _ -> ()
   )

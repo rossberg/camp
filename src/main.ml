@@ -5,9 +5,10 @@ open Audio_file
 let args = Arg.align
 [
   "-help", Arg.Unit ignore, "";
-  "--debug-perf", Arg.Set App.debug_perf, "\tLog execution times";
   "--debug-strict", Arg.Set App.debug_strict, "\tAbort on invariant violation";
-  "--debug-layout", Arg.Set App.debug_layout, "\tPrint window layout";
+  "--debug-perf", Arg.Set App.debug_perf, "\tLog execution times";
+  "--debug-layout", Arg.Set App.debug_layout, "\tLog window layout";
+  "--debug-modality", Arg.Set App.debug_modality, "\tLog modality changes";
 ]
 
 let _main =

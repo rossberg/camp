@@ -4,6 +4,7 @@ Control:
 - [new] Time tool tip when hovering seek bar
 
 Library:
+- [fix] Fix crash on browser folder renaming
 - [fix] Guard drag & drop on filtered or unordered playlist view better
 
 UI:

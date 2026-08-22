@@ -270,12 +270,12 @@ and run' (st : state) (x, y, w, h as r) =
   Run_control.resize_grid st grid_delta;
 
   let is_modal = Ui.is_modal geo.ui in
-  if is_modal then Ui.nonmodal geo.ui;  (* temporarily enable keys *)
+  if is_modal then Ui.nonmodal geo.ui "run/popup-key";  (* temporarily enable keys *)
   let popup_delta =
     Bool.to_int (Layout.enlarge_popup_key geo) -
     Bool.to_int (Layout.reduce_popup_key geo)
   in
-  if is_modal then Ui.modal geo.ui;  (* redisable keys *)
+  if is_modal then Ui.modal geo.ui "run/popup-key";  (* redisable keys *)
   geo.popup_size <- Geometry.(clamp min_popup_size max_popup_size
     (geo.popup_size + 100 * popup_delta));
 

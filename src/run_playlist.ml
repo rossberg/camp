@@ -303,7 +303,7 @@ let run (st : state) =
     match Layout.playlist_mouse geo cols tab with
     | Some (Some i, _) ->
       (* Drag with active cover popup: update cover *)
-      Ui.nonmodal geo.ui;
+      Ui.nonmodal geo.ui "pl.run/drag-cover";
       Run_menu.popup st (`Track tab.entries.(i));
     | _ -> ()
   );

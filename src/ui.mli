@@ -13,8 +13,8 @@ val window : t -> window
 val buffered : t -> bool -> unit
 val is_buffered : t -> bool
 
-val modal : t -> unit
-val nonmodal : t -> unit
+val modal : t -> string -> unit
+val nonmodal : t -> string -> unit
 val is_modal : t -> bool
 
 (* Snapping *)

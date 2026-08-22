@@ -73,7 +73,7 @@ let grab_mouse ui owner =
 
 (* Modal mode *)
 
-let modal ui =
+let modal ui label =
   (* The flag modal_resize is set when we temporarily go into modal mode
    * for 1 frame because the window is being resized. This overrides the
    * existing modal mode, which is saved in modal_save and reinstated from
@@ -82,12 +82,16 @@ let modal ui =
    * or we are in resize mode and the save is non-modal.
    * Note that it cannot happen that modal_resize is true but modal isn't.
    *)
+  if !App.debug_modality then
+    Printf.eprintf "[modal %s] frame=%d\n%!" label (Api.Draw.frame ui.win);
   assert (ui.modal = ui.modal_resize);
   assert (not (ui.modal_resize && not ui.modal_save));
   if not ui.modal_resize then ui.modal <- true;
   ui.modal_save <- true
 
-let nonmodal ui =
+let nonmodal ui label =
+  if !App.debug_modality then
+    Printf.eprintf "[nonmodal %s] frame=%d\n%!" label (Api.Draw.frame ui.win);
   assert ui.modal;
   assert (not (ui.modal_resize && not ui.modal_save));
   if not ui.modal_resize then ui.modal <- false;
@@ -2905,7 +2909,7 @@ let menu ui x y bw gw ch ph items =
     ) items
   in
 
-  nonmodal ui;
+  nonmodal ui "ui.menu";
   let released = Mouse.is_released `Left || Mouse.is_pressed `Right in
   let enabled i =
     match Iarray.get items i with `Entry (_, _, _, b) -> b | _ -> false in
@@ -2916,7 +2920,7 @@ let menu ui x y bw gw ch ph items =
     else if enabled i then
       `Click i
     else
-      (modal ui; `None)
+      (modal ui "ui.menu"; `None)
   | None, _ when released -> `Close
   | _ ->
     let key_pressed = function
@@ -2925,4 +2929,4 @@ let menu ui x y bw gw ch ph items =
     in
     match Iarray.find_index key_pressed items with
     | Some i -> `Click i
-    | None -> modal ui; `None
+    | None -> modal ui "ui.menu"; `None

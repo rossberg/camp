@@ -8,7 +8,7 @@ type state = State.t
 let menu' (st : state) items op =
   st.geometry.menu_shown <- true;
   Menu.set st.menu (Api.Mouse.pos (Ui.window st.geometry.ui)) op items;
-  Ui.modal st.geometry.ui
+  Ui.modal st.geometry.ui "menu.menu"
 
 
 let command_menu st cmds =
@@ -72,7 +72,7 @@ let header_menu (st : state) (view : _ Library.view) i current_attrs unused_attr
 let popup (st : state) track_opt =
   st.popup <- track_opt;
   st.geometry.popup_shown <- Some (Api.Mouse.pos (Ui.window st.geometry.ui));
-  Ui.modal st.geometry.ui
+  Ui.modal st.geometry.ui "menu.popup"
 
 
 (* Runners *)
@@ -143,7 +143,7 @@ let run_popup (st : state) =
         List.mem (Control.status ctl) [`Stopped; `Ejected]
     || Api.Mouse.(is_released `Left || is_pressed `Right) then
     (
-      Ui.nonmodal geo.ui;
+      Ui.nonmodal geo.ui "menu.run";
       geo.popup_shown <- None;
     )
   ) geo.popup_shown
