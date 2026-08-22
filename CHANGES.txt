@@ -6,6 +6,9 @@ Control:
 Library:
 - [fix] Guard drag & drop on filtered or unordered playlist view better
 
+UI:
+- [new] Make target FPS configurable
+
 
 === 0.9.6 (2026-08-17) ===
 

@@ -14,6 +14,7 @@ type t =
   spec_bands : Edit.t;
   exec_tag : Edit.t;
   exec_tag_flags : Edit.t;
+  fps : Edit.t;
 }
 
 
@@ -33,6 +34,7 @@ let make () =
     spec_bands = Edit.make 10;
     exec_tag = Edit.make 100;
     exec_tag_flags = Edit.make 10;
+    fps = Edit.make 10;
   }
 
 
@@ -61,6 +63,7 @@ let foci set =  (* needs to be in order of appearance *)
     set.spec_bands;
     set.exec_tag;
     set.exec_tag_flags;
+    set.fps;
   ]
 
 let defocus set =

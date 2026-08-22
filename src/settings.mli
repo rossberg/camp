@@ -14,6 +14,7 @@ type t =
   spec_bands : Edit.t;
   exec_tag : Edit.t;
   exec_tag_flags : Edit.t;
+  fps : Edit.t;
 }
 
 

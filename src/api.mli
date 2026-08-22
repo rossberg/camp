@@ -79,7 +79,9 @@ sig
 
   val scale : window -> int * int
   val rescale : window -> int -> int -> unit
+
   val fps : window -> int
+  val set_fps : window -> int -> unit
 end
 
 

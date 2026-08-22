@@ -30,7 +30,8 @@ let init (st : state) =
   Edit.set set.scroll_width (string_of_int geo.scrollbar);
   Edit.set set.spec_bands (string_of_int ctl.spec_bands);
   Edit.set set.exec_tag cfg.exec_tag;
-  Edit.set set.exec_tag_flags cfg.exec_tag_flags
+  Edit.set set.exec_tag_flags cfg.exec_tag_flags;
+  Edit.set set.fps (string_of_int cfg.fps)
 
 
 (* Runner *)
@@ -43,6 +44,7 @@ let run (st : state) focus_change =
   let ctl = st.control in
   let lib = st.library in
   let cfg = st.config in
+  let win = Ui.window geo.ui in
 
   Layout.settings_pane geo;
 
@@ -113,9 +115,13 @@ let run (st : state) focus_change =
             Control.min_spec_bands, Control.max_spec_bands,
             focus_edit, fun n -> ctl.spec_bands <- n
           );
-          "FPS", `Choice [
-            "SHOW", ctl.fps, fun _ -> ctl.fps <- not ctl.fps
-          ]
+          "FRAMES PER SEC", `Number ("", set.fps, cfg.fps,
+            0, 240,
+            focus_edit, fun n -> cfg.fps <- n; Api.Window.set_fps win n
+          );
+          "", `Choice [
+            "SHOW LIVE VALUE", ctl.fps, fun _ -> ctl.fps <- not ctl.fps
+          ];
         ];
         "PLAYLIST", `Section [
           "HEADERS", `Choice [
@@ -181,6 +187,10 @@ let run (st : state) focus_change =
       let amx, amy = Api.Mouse.abs_pos win in
       [
         "GEOMETRY", `Section [
+          "FPS", `Text (
+            Edit.make_with 0 (fmt " %d/%d" (Api.Window.fps win) cfg.fps),
+            Ui.text_color geo.ui, ignore, ignore
+          );
           "MONITOR", `Text (
             Edit.make_with 0 (fmt " %d/%d" sn sm),
             Ui.text_color geo.ui, ignore, ignore

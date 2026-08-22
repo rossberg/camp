@@ -747,8 +747,10 @@ Some things can also be controlled directly:
   Playlist and Library list views. That would primarily be for performance's
   sake, because a large library with covers can take a _lot_ of memory.
 
-* FPS: Ctrl/Command+U toggles the display of an FPS counter in the Control
-  pane. Note that this is soft-limited to 60.
+* FPS: You can configure the target FPS in the Settings. The default is 60,
+  which should usually be enough. Be aware that higher values can cost both
+  CPU and GPU time. You can also toggle the display of an FPS counter in the
+  Control pane.
 
 The interface does not use any rounded corners anywhere. That's a feature.
 

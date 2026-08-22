@@ -516,6 +516,7 @@ struct
     Screen.scale := max 1 (x + dx), max 1 (y + dy)
 
   let fps () = Raylib.get_fps ()
+  let set_fps () n = Raylib.set_target_fps n
 end
 
 
