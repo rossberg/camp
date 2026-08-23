@@ -2720,10 +2720,6 @@ and draw_item ui geo owner xl xr y xmax ymin ymax vscroll = function
       let prev = if n >= nmax then [] else [string_of_int (n + 1)] in
       let next = if n <= nmin then [] else [string_of_int (n - 1)] in
       Edit.set_history ed prev next;
-(*
-Printf.eprintf "[history %s] %s\n%!" owner'
-(String.concat " " (Edit.history ed));
-*)
       ignore (rich_edit_text ui area owner' 0 color ed);
       if ed.focus then f ed;
       if s <> ed.text && valid () then
@@ -2858,6 +2854,9 @@ let popup ui owner_opt x y w h bw =
   let x' = max 0 (min x (ww - w')) in
   let y' = max 0 (min y (wh - h')) in
   background ui x' y' w' h';
+  let sw = bw / 3 in
+  Draw.fill_rect ui.win (x' + w') (y' + sw) sw h' `Black;
+  Draw.fill_rect ui.win (x' + sw) (y' + h') w' sw `Black;
   Option.iter (fun owner ->
     ignore (grab_mouse ui owner)  (* what if it fails? *)
   ) owner_opt;
