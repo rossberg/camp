@@ -2907,6 +2907,8 @@ let menu ui x y geo hscroll vscroll items =
     match Iarray.get items i with `Entry (_, _, _, b) -> b | _ -> false in
 
   let ww, wh = Window.size ui.win in
+  Draw.fill_rect ui.win 0 0 ww wh (`Trans (`Black, 0x40));
+
   let maxw, maxh = ww - 2 * geo.margin, wh - 2 * geo.margin in
   let mw = (geo.gutter_w + 1)/2 in  (* inner width padding *)
   let rh = geo.text_h + 2 * geo.pad_h in
