@@ -21,6 +21,12 @@ let exec prog args =
 
 let fmt = Printf.sprintf
 
+let area_page (st : state) area =
+  let geo = st.geometry in
+  let _, _, _, h = Ui.dim geo.ui (area geo) in
+  let rh = Geometry.text_h geo + 2 * Geometry.pad_h geo in
+  max 1 (int_of_float (Float.floor (float h /. float rh)))
+
 
 (* Spinner *)
 
@@ -63,6 +69,7 @@ sig
   val tab : table
   val is_same : bool
   val focus : State.t -> unit
+  val area : Geometry.t -> Ui.area
   val deselect_other : unit -> unit
   val refresh_deps : 'a Library.t -> unit
 
@@ -115,6 +122,7 @@ let playlist_view (st : state) : view =
     let it = st.playlist
     let tab = st.playlist
     let focus = State.focus_playlist
+    let area = Layout.playlist_area
     let deselect_other () = Library.deselect_all st.library
     let refresh_deps = ignore
     let modify_view = Some (fun {f} -> f it.view Data.track_attrs)
@@ -134,6 +142,8 @@ let tracks_view (st : state) : view =
     let it = st.library
     let tab = st.library
     let focus = State.focus_library st.library.tracks
+    let area =
+      Layout.(if st.geometry.lower_shown then lower_area else left_area)
     let deselect_other () = Playlist.deselect_all st.playlist
     let refresh_deps = ignore
     let modify_view =
@@ -156,6 +166,8 @@ let albums_view (st : state) : view =
     let it = st.library
     let tab = it.albums
     let focus = State.focus_library tab
+    let area =
+      Layout.(if st.geometry.right_shown then right_area else left_area)
     let deselect_other = ignore
     let refresh_deps lib = Library.refresh_tracks lib
     let modify_view =
@@ -178,6 +190,7 @@ let artists_view (st : state) : view =
     let it = st.library
     let tab = it.artists
     let focus = State.focus_library tab
+    let area = Layout.left_area
     let deselect_other = ignore
     let refresh_deps lib = Library.refresh_albums_tracks lib
     let modify_view =
@@ -351,7 +364,7 @@ let queue_on_playlist (st : state) (tracks : Data.track array) mode =
       Playlist.jump st.playlist i;
       Control.switch st.control tracks.(0);
       Control.play st.control;
-      Playlist.adjust_scroll st.playlist 4;
+      Playlist.adjust_scroll st.playlist (area_page st Layout.playlist_area);
     in
     (match mode with
     | `Jump ->
@@ -740,10 +753,17 @@ let all_editable st view =
   st.library.search.text = ""
 
 
+let adjust_vscroll st (module View : View) =
+  Option.iter (fun pos ->
+    Table.adjust_vscroll View.(table it) pos 1 (area_page st View.area)
+  ) View.(first_selected it)
+
+
 let separator_avail st view =
   all_editable st view
-let separator _st (module View : View) pos =
+let separator st (module View : View) pos =
   View.(insert it) pos [|Data.make_separator ()|];
+  adjust_vscroll st (module View);
   View.deselect_other ()
 
 let remove_avail st (module View : View) =
@@ -788,25 +808,31 @@ let clear _st (module View : View) =
 let undo_avail st (module View : View) =
   editable st (module View) && !(View.(table it).undos) <> []
 let undo (st : state) (module View : View) =
+  adjust_vscroll st (module View);
   View.(undo it);
+  adjust_vscroll st (module View);
   update_control st
 
 let redo_avail st (module View : View) =
   editable st (module View) && !(View.(table it).redos) <> []
 let redo (st : state) (module View : View) =
+  adjust_vscroll st (module View);
   View.(redo it);
+  adjust_vscroll st (module View);
   update_control st
 
 let copy_avail st (module View : View) =
   accessible st (module View) && View.(num_selected it > 0)
 let copy (st : state) (module View : View) =
   let s = Track.to_m3u View.(selected it) in
-  Api.Clipboard.write (Ui.window st.geometry.ui) s
+  Api.Clipboard.write (Ui.window st.geometry.ui) s;
+  adjust_vscroll st (module View)
 
 let cut_avail st view =
   copy_avail st view && remove_avail st view
 let cut st view =
   copy st view;
+  adjust_vscroll st view;
   remove st view
 
 let paste_avail (st : state) view =
@@ -823,6 +849,7 @@ let paste (st : state) (module View : View) =
   (
     let pos = Option.value View.(first_selected it) ~default: View.(length it) in
     View.(insert it) pos tracks;
+    adjust_vscroll st (module View);
     View.deselect_other ();
     update_control st;
   )
@@ -833,14 +860,16 @@ let rec tracks_ordered (a : Data.track array) i =
 
 let reorder_avail st (module View : View) =
   all_editable st (module View) && not (tracks_ordered View.(tracks it) 0)
-let reorder _st (module View : View) =
-  View.(reorder_all it)
+let reorder st (module View : View) =
+  View.(reorder_all it);
+  adjust_vscroll st (module View)
 
 
 let reverse_avail st (module View : View) =
   editable st (module View) && View.(num_selected it > 1)
-let reverse _st (module View : View) =
-  View.(reverse_selected it)
+let reverse st (module View : View) =
+  View.(reverse_selected it);
+  adjust_vscroll st (module View)
 
 let reverse_all_avail st (module View : View) =
   all_editable st (module View) && View.(length it > 1)
