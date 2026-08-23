@@ -1878,7 +1878,7 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
     (* Horizontal scrollbar *)
     let result =
       if geo.scroll_h = 0 then result else
-      let vw = Iarray.fold_left (fun w (cw, _) -> w + cw + geo.gutter_w) 0 cols in
+      let vw = Iarray.fold_left (fun w (cw, _) -> w + cw + geo.gutter_w) 2 cols in
       let vw' = max vw (tab.hscroll + w) in
       let ext = if vw' = 0 then 1.0 else min 1.0 (float w /. float vw') in
       let pos = if vw' = 0 then 0.0 else float tab.hscroll /. float vw' in
