@@ -969,15 +969,17 @@ let tag (st : state) tracks _additive =
 
 
 let search_avail st =
-  visible_lib st
+  true
 
 let search (st : state) =
+  if not st.geometry.library_shown then Run_control.toggle_library st;
   State.focus_edit st st.library.search
 
 let search_for_avail st =
   search_avail st
 
 let search_for (st : state) ss =
+  if not st.geometry.library_shown then Run_control.toggle_library st;
   let s = String.concat " " (List.map (fun s -> "\"" ^ s ^ "\"") ss) in
   Library.set_search st.library s
 
@@ -1065,7 +1067,7 @@ let list_menu (st : state) view searches =
       `Entry (c, "Search...", Layout.key_search, search_avail st),
         (fun () -> search st);
     |];
-    (if searches = [] then [||] else
+    (if searches = [] || not (search_for_avail st) then [||] else
       let s = String.concat " " (List.map (fun s -> "\"" ^ s ^ "\"") searches) in
       [|
         `Entry (c, "Search for " ^ s, Layout.nokey, search_for_avail st),
@@ -1159,7 +1161,7 @@ let edit_menu (st : state) view searches pos_opt =
         (fun () -> redo st view);
       `Separator, ignore;
     |];
-    (if searches = [] then [||] else
+    (if searches = [] || not (search_for_avail st) then [||] else
       let s = String.concat " " (List.map (fun s -> "\"" ^ s ^ "\"") searches) in
       [|
         `Entry (c, "Search for " ^ s, Layout.nokey, search_for_avail st),

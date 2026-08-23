@@ -5,6 +5,8 @@ type op = int -> unit
 type t =
 {
   mutable pos : int * int;
+  mutable hscroll : int;
+  mutable vscroll : int;
   mutable op : op option;
   mutable items : Ui.menu_entry iarray;
 }
@@ -15,6 +17,8 @@ type t =
 let make () =
   {
     pos = 0, 0;
+    hscroll = 0;
+    vscroll = 0;
     op = None;
     items = [||];
   }
@@ -22,12 +26,18 @@ let make () =
 
 let set menu pos op items =
   menu.pos <- pos;
+  menu.hscroll <- 0;
+  menu.vscroll <- 0;
   menu.op <- Some op;
   menu.items <- items
 
 let clear menu =
   menu.op <- None;
   menu.items <- [||]
+
+let set_scroll menu h v =
+  menu.hscroll <- h;
+  menu.vscroll <- v
 
 
 (* Validation *)

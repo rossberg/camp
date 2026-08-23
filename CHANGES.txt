@@ -8,6 +8,7 @@ Library:
 - [fix] Guard drag & drop on filtered or unordered playlist view better
 
 UI:
+- [new] Make context menus scrollable when they don't fit the window
 - [new] Make target FPS configurable
 
 

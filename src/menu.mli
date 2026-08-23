@@ -5,6 +5,8 @@ type op = int -> unit
 type t = private
 {
   mutable pos : int * int;
+  mutable hscroll : int;
+  mutable vscroll : int;
   mutable op : op option;
   mutable items : Ui.menu_entry iarray;
 }
@@ -16,6 +18,8 @@ val make : unit -> t
 
 val set : t -> int * int -> op -> Ui.menu_entry iarray -> unit
 val clear : t -> unit
+
+val set_scroll : t -> int -> int -> unit
 
 
 (* Validation *)

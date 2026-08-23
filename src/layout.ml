@@ -26,6 +26,17 @@ let grid_table g img_h has_heading : Ui.grid_table =
     has_heading
   }
 
+let menu g : Ui.menu =
+  { margin = g.margin;
+    gutter_w = gutter_w g;
+    text_h = text_h g;
+    pad_h = pad_h g;
+    scroll_w = scrollbar_w g;
+    scroll_h = scrollbar_w g;
+    scroll_l = scrollbar_l g;
+    refl_r = g.reflection;
+  }
+
 let settings g : Ui.settings =
   { margin = g.margin;
     item_h = label_h g * 4 / 3;
@@ -148,7 +159,7 @@ let key_scandir = nokey
 
 (* Menu *)
 
-let menu g x y = Ui.menu g.ui x y (popup_margin g) (gutter_w g) (text_h g) (pad_h g)
+let menu g x y = Ui.menu g.ui x y (menu g)
 
 
 (* Control Pane *)
@@ -355,7 +366,7 @@ let cover_popup_w g = g.popup_size |>
   min (control_w g + library_w g - 2 * popup_margin g) |>
   min (control_h g + playlist_h g - line_h g - 2 * popup_margin g)
 let cover_popup_image_size g = Ui.image_size g.ui (-1, 0, 0, cover_popup_w g, cover_popup_w g) `Shrink
-let cover_popup g x y iw ih = Ui.popup g.ui "cover" x y iw (ih + line_h g) (popup_margin g)
+let cover_popup g x y iw ih = Ui.popup g.ui (Some "cover") x y iw (ih + line_h g) (popup_margin g)
 let cover_popup_image g (p, x, y, w, h) = Ui.image g.ui (p, x, y, w, h - line_h g) `Shrink
 let cover_popup_text g (p, x, y, w, _) ih = Ui.ticker g.ui (p, x, y + ih + pad_h g, w, text_h g)
 

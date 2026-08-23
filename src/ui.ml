@@ -441,7 +441,7 @@ let finish ui margin (varw, varh) =
     ui.mouse_owner <- None;
   );
 
-  if owner <> None then
+  if owner <> None || ui.modal then
   (
     wr, no_edge, screen_change
   )
@@ -1622,12 +1622,15 @@ type rich_table_action =
 let rich_table_inner_area _ui area geo =
   let p, ax, ay, aw, ah = area in
   let ty = if not geo.has_heading then ay else ay + geo.text_h + 2 * geo.pad_h + 2 in
+  let tw =
+    aw - (if geo.scroll_w = 0 then 0 else geo.scroll_w + 1)
+  in
   let th =
     ah -
     (if ah < 0 then 0 else ty - ay) -
     (if geo.scroll_h = 0 then 0 else geo.scroll_h + 1)
   in
-  (p, ax, ty, aw - geo.scroll_w - 1, th)
+  (p, ax, ty, tw, th)
 
 let rich_table_mouse ui area geo cols (tab : _ Table.t) =
   let area' = rich_table_inner_area ui area geo in
@@ -1672,11 +1675,11 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
   assert (geo.has_heading = Option.is_some header_opt);
   let p, ax, ay, aw, ah = area in
   let rh = geo.text_h + 2 * geo.pad_h in
-  let _, _, ty, tw, th = rich_table_inner_area ui area geo in
+  let _, tx, ty, tw, th = rich_table_inner_area ui area geo in
   let header_area = (p, ax, ay, tw, rh) in
   let table_area = (p, ax, ty, tw, th) in
   let vscroll_area =
-    (p, (if aw < 0 then tw else ax + aw) + 1, ay, geo.scroll_w, ah) in
+    (p, (if aw < 0 then tw else ax + tw) + 1, ay, geo.scroll_w, ah) in
   let hscroll_area =
     (p, ax, (if ah < 0 then ah - geo.scroll_h else ty + th + 1), tw, geo.scroll_h) in
   let (x, y, w, h) as r = dim ui table_area in
@@ -1855,19 +1858,20 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
     (* Vertical scrollbar *)
     let wdx, wdy = wheel_status ui r in
     let wdx, wdy = if Float.abs wdx > Float.abs wdy then wdx, 0.0 else 0.0, wdy in
-    let vwheel = not shift && len > page || wdy = 0.0 in
-    let h' = page * rh in
-    let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * rh)) in
-    let pos = if len = 0 then 0.0 else float tab.vscroll /. float len in
-    let coeff = max 1.0 (float page /. 4.0) /. float (max 1 len) in
-    let wheel = if vwheel then coeff *. wdy else 0.0 in
-    let pos' = scroll_bar ui vscroll_area (owner ^ ":vscroll") geo.scroll_l `Vertical pos ext -. wheel in
-    let result =
-      if result <> `None || pos = pos' then result else
+    let result, vwheel =
+      if geo.scroll_w = 0 then result, true else
+      let vwheel = not shift && len > page || wdy = 0.0 in
+      let h' = page * rh in
+      let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * rh)) in
+      let pos = if len = 0 then 0.0 else float tab.vscroll /. float len in
+      let coeff = max 1.0 (float page /. 4.0) /. float (max 1 len) in
+      let wheel = if vwheel then coeff *. wdy else 0.0 in
+      let pos' = scroll_bar ui vscroll_area (owner ^ ":vscroll") geo.scroll_l `Vertical pos ext -. wheel in
+      if result <> `None || pos = pos' then result, vwheel else
       (
         Table.set_vscroll tab
           (max 0 (int_of_float (Float.round (pos' *. float len)))) 1 page;
-        `Scroll
+        `Scroll, vwheel
       )
     in
 
@@ -2190,7 +2194,7 @@ type grid_table_action = rich_table_action
 let grid_table_inner_area _ui area geo =
   let p, ax, ay, aw, ah = area in
   let ty = if not geo.has_heading then ay else ay + geo.text_h + 2 in
-  let tw = aw - geo.scroll_w - 1 in
+  let tw = aw - (if geo.scroll_w = 0 then 0 else geo.scroll_w + 1) in
   let th = ah - (if ah < 0 then 0 else ty - ay) in
   (p, ax, ty, tw, th)
 
@@ -2398,13 +2402,14 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
     in
 
     (* Vertical scrollbar *)
-    let len' = (len + line - 1)/line * line in (* round to multiple of line *)
-    let ext = if len = 0 then 1.0 else min 1.0 (float page /. float len') in
-    let pos = if len = 0 then 0.0 else float tab.vscroll /. float len' in
-    let coeff = max 1.0 (float line) /. float (len' - page) in
-    let wheel = coeff *. snd (wheel_status ui r) in
-    let pos' = scroll_bar ui vscroll_area (owner ^ ":scroll") geo.scroll_l `Vertical pos ext -. wheel in
     let result =
+      if geo.scroll_w = 0 then result else
+      let len' = (len + line - 1)/line * line in (* round to multiple of line *)
+      let ext = if len = 0 then 1.0 else min 1.0 (float page /. float len') in
+      let pos = if len = 0 then 0.0 else float tab.vscroll /. float len' in
+      let coeff = max 1.0 (float line) /. float (len' - page) in
+      let wheel = coeff *. snd (wheel_status ui r) in
+      let pos' = scroll_bar ui vscroll_area (owner ^ ":scroll") geo.scroll_l `Vertical pos ext -. wheel in
       if result <> `None || pos = pos' then result else
       (
         Table.set_vscroll tab
@@ -2644,7 +2649,6 @@ let rec draw_settings ui geo owner xl xr y xmax ymin ymax vscroll = function
 
 and draw_setting ui geo owner xl xr y xmax ymin ymax vscroll (name, item) =
   let owner' = owner ^ ":" ^ name in
-(*Printf.eprintf "[draw_setting %s] %d-%d,%d\n%!" owner' xl xr y;*)
   scrolled_area xl y (xr - xl) geo.item_h ymin ymax vscroll (fun area ->
     label ui area `Left name
   );
@@ -2846,7 +2850,7 @@ let settings ui area owner geo vscroll adjust_vscroll settings =
 
 (* Pop-ups *)
 
-let popup ui owner x y w h bw =
+let popup ui owner_opt x y w h bw =
   assert (is_modal ui);
   let ww, wh = Window.size ui.win in
   let w' = w + 2 * bw in
@@ -2854,19 +2858,32 @@ let popup ui owner x y w h bw =
   let x' = max 0 (min x (ww - w')) in
   let y' = max 0 (min y (wh - h')) in
   background ui x' y' w' h';
-  ignore (grab_mouse ui owner);  (* what if it fails? *)
+  Option.iter (fun owner ->
+    ignore (grab_mouse ui owner)  (* what if it fails? *)
+  ) owner_opt;
   (-1, x' + bw, y' + bw, w, h)
 
+
+type menu =
+  { margin : int;
+    gutter_w : int;
+    text_h : int;
+    pad_h : int;
+    scroll_w : int;
+    scroll_h : int;
+    scroll_l : int;
+    refl_r : int;
+  }
 
 type menu_entry =
   [`Separator | `Entry of color * string * (modifier list * key) * bool]
 
 let menu_separator = String.concat "" (List.init 80 (Fun.const "·"))
 
-let menu ui x y bw gw ch ph items =
+let menu ui x y geo hscroll vscroll items =
   assert (is_modal ui);
 
-  let font = font ui ch in
+  let font = font ui geo.text_h in
   let keys =
     Iarray.map (function
       | `Separator -> ""
@@ -2874,59 +2891,89 @@ let menu ui x y bw gw ch ph items =
         String.concat "+" Api.Key.(List.map modifier_name mods @ [name key])
     ) items
   in
-  let lw = 2 * gw +
+  let lw = 2 * geo.gutter_w +
     Iarray.fold_left (fun w -> function
       | `Separator -> w
-      | `Entry (_, s, _, _) -> max w (Draw.text_width ui.win ch font s + 1)
+      | `Entry (_, s, _, _) ->
+        max w (Draw.text_width ui.win geo.text_h font s + 1)
     ) 0 items
   and rw =
     Iarray.fold_left (fun w s ->
-      max w (Draw.text_width ui.win ch font s + 1)
+      max w (Draw.text_width ui.win geo.text_h font s + 1)
     ) 0 keys
   in
 
-  let mw = (gw + 1)/2 in  (* inner width padding *)
-  let rh = ch + 2 * ph in
-  let w = lw + gw + rw + 2 * mw in
+  let enabled i =
+    match Iarray.get items i with `Entry (_, _, _, b) -> b | _ -> false in
+
+  let ww, wh = Window.size ui.win in
+  let maxw, maxh = ww - 2 * geo.margin, wh - 2 * geo.margin in
+  let mw = (geo.gutter_w + 1)/2 in  (* inner width padding *)
+  let rh = geo.text_h + 2 * geo.pad_h in
+  let w = lw + geo.gutter_w + rw + 2 * mw in
   let h = rh * Iarray.length items in
-  let area = popup ui "(menu)" x y w h bw in
+  let scroll_w = if h <= maxh then 0 else geo.scroll_w in
+  let scroll_h = if w <= maxw then 0 else geo.scroll_h in
+  let w' = if scroll_w = 0 then w else w + scroll_w + 1 in
+  let h' = if scroll_h = 0 then h else h + scroll_h + 1 in
+  let w'' = min w' maxw in
+  let h'' = min h' maxh in
+  let area = popup ui None x y w'' h'' geo.margin in
+  let page = (if scroll_h = 0 then h'' else h'' - scroll_h - 1) / rh in
+
+  let geo' : rich_table =
+    { gutter_w = geo.gutter_w;
+      text_h = geo.text_h;
+      pad_h = geo.pad_h;
+      scroll_w;
+      scroll_h;
+      scroll_l = geo.scroll_l;
+      refl_r = geo.refl_r;
+      has_heading = false;
+    }
+  in
 
   let _, my = Mouse.pos ui.win in
-  let _, y', _, _ = dim ui area in
-  let i = if mouse_inside ui area then (my - y')/rh else -1 in
+  let inner = rich_table_inner_area ui area geo' in
+  let _, iy, _, _ = dim ui inner in
+  let i = if mouse_inside ui inner then (my - iy)/rh + vscroll else -1 in
 
   let cols : _ iarray = [|lw, `Left; rw, `Right|] in
   let c_sep = semilit_color (text_color ui) in
-  let rows =
-    Iarray.mapi (fun j entry ->
-      (match entry with
-      | `Separator -> c_sep, `Regular, [|`Text menu_separator; `Text ""|]
-      | `Entry (c, txt, _, enabled) ->
-        let c' = if enabled then c else semilit_color c in
-        let inv = if enabled && i = j then `Inverted else `Regular in
-        c', inv, [|`Text txt; `Text (Iarray.get keys j)|]
-      : _ * _ * _ iarray)
-    ) items
+
+  let tab = Table.make 0 in
+  Table.set tab (Iarray.to_array items);
+  Table.set_hscroll tab hscroll;
+  Table.set_vscroll tab vscroll 1 page;
+  Table.focus tab;
+  if i >= 0 && i < Iarray.length items && enabled i then Table.select tab i i;
+
+  let pp_row j : _ * _ iarray =
+    match Iarray.get items j with
+    | `Separator -> c_sep, [|`Text menu_separator; `Text ""|]
+    | `Entry (c, txt, _, enabled) ->
+      let c' = if enabled then c else semilit_color c in
+      c', [|`Text txt; `Text (Iarray.get keys j)|]
   in
 
   nonmodal ui "ui.menu";
-  let released = Mouse.is_released `Left || Mouse.is_pressed `Right in
-  let enabled i =
-    match Iarray.get items i with `Entry (_, _, _, b) -> b | _ -> false in
-  match table ui area "(menu)" gw ch ph cols rows 0 with
-  | Some i, _ when released ->
-    if not (inside (Api.Mouse.pos ui.win) (dim ui area)) then
+  let owner = "(menu)" in
+  match rich_table ui area owner geo' cols None tab pp_row with
+  | `Click (Some i, _) when enabled i -> `Click i
+  | `Click (Some _, _) -> modal ui "ui.menu"; `None
+  | `Click (None, _) -> `Close
+  | `Scroll -> modal ui "ui.menu"; `Scroll (tab.hscroll, tab.vscroll)
+  | `Sort _ | `Resize _ | `Reorder _ | `HeadMenu _ -> assert false
+  | `None | `Move _ | `Drag _ | `Drop | `Abort | `Menu _ | `Select ->
+    if (Mouse.is_released `Left || Mouse.is_pressed `Right)
+    && not (has_mouse ui owner) then
       `Close
-    else if enabled i then
-      `Click i
     else
-      (modal ui "ui.menu"; `None)
-  | None, _ when released -> `Close
-  | _ ->
-    let key_pressed = function
-      | `Entry (_, _, modkey, _) -> key ui modkey true
-      | `Separator -> false
-    in
-    match Iarray.find_index key_pressed items with
-    | Some i -> `Click i
-    | None -> modal ui "ui.menu"; `None
+      let key_pressed = function
+        | `Entry (_, _, modkey, _) -> key ui modkey true
+        | `Separator -> false
+      in
+      match Iarray.find_index key_pressed items with
+      | Some i -> `Click i
+      | None when key ui ([], `Escape) true -> `Close
+      | None -> modal ui "ui.menu"; `None

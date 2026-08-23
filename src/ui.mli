@@ -193,12 +193,12 @@ val rich_table_mouse : t -> area -> rich_table -> column iarray ->
 val rich_table_drag : t -> area -> rich_table -> [`Above | `Inside] ->
   ('a, cached) Table.t -> unit
 
+(* Browser *)
+
 type browser_action =
   [ table_action
   | `Fold of int
   ]
-
-(* Browser *)
 
 val browser :
   t ->
@@ -282,10 +282,21 @@ val settings : t -> area -> owner -> settings -> int -> bool -> setting list -> 
 
 (* Pop-ups *)
 
-val popup : t -> owner -> int -> int -> int -> int -> int -> area
+val popup : t -> owner option -> int -> int -> int -> int -> int -> area
+
+type menu =
+  { margin : int;
+    gutter_w : int;
+    text_h : int;
+    pad_h : int;
+    scroll_w : int;
+    scroll_h : int;
+    scroll_l : int;
+    refl_r : int;
+  }
 
 type menu_entry =
   [`Separator | `Entry of color * string * (modifier list * key) * bool]
 
-val menu : t -> int -> int -> int -> int -> int -> int -> menu_entry iarray ->
-  [`None | `Close | `Click of int]
+val menu : t -> int -> int -> menu -> int -> int -> menu_entry iarray ->
+  [`None | `Close | `Click of int | `Scroll of int * int]

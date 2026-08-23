@@ -82,7 +82,7 @@ let run (st : state) =
   let menu = st.menu in
   let x, y = menu.pos in
 
-  match Layout.menu geo x y menu.items with
+  match Layout.menu geo x y menu.hscroll menu.vscroll menu.items with
   | `None -> ()
 
   | `Close ->
@@ -94,6 +94,9 @@ let run (st : state) =
     geo.menu_shown <- false;
     Menu.clear menu;
     f k
+
+  | `Scroll (h, v) ->
+    Menu.set_scroll menu h v
 
 
 let run_popup (st : state) =
