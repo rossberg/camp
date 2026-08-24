@@ -910,6 +910,11 @@ let run_toggle_panel (st : state) =
       `Entry (c, side "Expand to" geo.extension_side, Layout.key_side, true),
         (fun () -> toggle_side st);
       `Separator, ignore;
+      `Entry (c, "Cycle Color", Layout.key_color, true),
+        (fun () -> cycle_color st (+1));
+      `Entry (c, "Cycle Visual", Layout.key_visual, true),
+        (fun () -> cycle_visual st);
+      `Separator, ignore;
       `Entry (c, show "Settings" geo.settings_shown, Layout.key_settings, true),
         (fun () ->
           Playlist.defocus st.playlist;
