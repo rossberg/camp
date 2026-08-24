@@ -3,7 +3,7 @@
 type time = float
 type track = Data.track
 
-type visual = [`Cover | `Turntable | `Spectrum | `Wave | `Oscilloscope]
+type visual = [`Cover | `Turntable | `Spectrum | `Waveform | `Oscilloscope]
 
 type t =
 {

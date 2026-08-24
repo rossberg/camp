@@ -106,8 +106,8 @@ let run (st : state) focus_change =
               (fun _ -> Control.set_visual ctl `Turntable);
             "SPECTRUM", ctl.visual = `Spectrum,
               (fun _ -> Control.set_visual ctl `Spectrum);
-            "WAVE", ctl.visual = `Wave,
-              (fun _ -> Control.set_visual ctl `Wave);
+            "WAVEFORM", ctl.visual = `Waveform,
+              (fun _ -> Control.set_visual ctl `Waveform);
             "OSCILLOSCOPE", ctl.visual = `Oscilloscope,
               (fun _ -> Control.set_visual ctl `Oscilloscope);
           ];

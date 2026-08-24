@@ -78,18 +78,6 @@ let toggle_side (st : state) =
     geo.extension_side <- if geo.extension_side = `Left then `Right else `Left
   )
 
-let cycle_visual (st : state) =
-  let ctl = st.control in
-  ctl.raw <- [||];
-  ctl.data <- [||];
-  Control.set_visual ctl
-    (match ctl.visual with
-    | `Cover -> `Turntable
-    | `Turntable -> `Spectrum
-    | `Spectrum -> `Wave
-    | `Wave -> `Oscilloscope
-    | `Oscilloscope -> `Cover
-    )
 
 (*
 let idx_visual (st : state) =
@@ -98,9 +86,22 @@ let idx_visual (st : state) =
   | `Cover -> Some 0
   | `Turntable -> Some 1
   | `Spectrum -> Some 2
-  | `Wave -> Some 3
+  | `Waveform -> Some 3
   | `Oscilloscope -> Some 4
 *)
+
+let next_visual = function
+  | `Cover -> `Turntable
+  | `Turntable -> `Spectrum
+  | `Spectrum -> `Waveform
+  | `Waveform -> `Oscilloscope
+  | `Oscilloscope -> `Cover
+
+let cycle_visual (st : state) =
+  let ctl = st.control in
+  ctl.raw <- [||];
+  ctl.data <- [||];
+  Control.set_visual ctl (next_visual ctl.visual)
 
 
 let toggle_fps (st : state) =
@@ -388,7 +389,7 @@ let run (st : state) =
       done
     done
 
-  | `Wave ->
+  | `Waveform ->
     let data = if ctl.raw = [||] then ctl.data else ctl.raw in
     ctl.raw <- [||];
     ctl.data <- data;
@@ -856,6 +857,7 @@ let run (st : state) =
 
 let run_toggle_panel (st : state) =
   let geo = st.geometry in
+  let ctl = st.control in
 
   Layout.playlist_label geo;
   Layout.playlist_shadow geo;
@@ -897,6 +899,15 @@ let run_toggle_panel (st : state) =
     let c = Ui.text_color geo.ui in
     let show s b = (if b then "Hide " else "Show ") ^ s in
     let side s d = s ^ (match d with `Left -> " Right" | `Right -> " Left") in
+(*
+    let next_vis = next_visual ctl.visual in
+*)
+    let vis_entry name vis =
+      `Entry (c, "Show " ^ name,
+        Layout.nokey (*Layout.(if next_vis = vis then key_visual else nokey)*),
+        ctl.visual <> vis),
+        (fun () -> Control.set_visual ctl vis)
+    in
     Run_menu.command_menu st (Iarray.append [|
       `Entry (c, "Quit", Layout.key_quit, true),
         (fun () -> quit st);
@@ -910,10 +921,11 @@ let run_toggle_panel (st : state) =
       `Entry (c, side "Expand to" geo.extension_side, Layout.key_side, true),
         (fun () -> toggle_side st);
       `Separator, ignore;
-      `Entry (c, "Cycle Color", Layout.key_color, true),
-        (fun () -> cycle_color st (+1));
-      `Entry (c, "Cycle Visual", Layout.key_visual, true),
-        (fun () -> cycle_visual st);
+      vis_entry "Cover" `Cover;
+      vis_entry "Turntable" `Turntable;
+      vis_entry "Spectrum" `Spectrum;
+      vis_entry "Waveform" `Waveform;
+      vis_entry "Oscilloscope" `Oscilloscope;
       `Separator, ignore;
       `Entry (c, show "Settings" geo.settings_shown, Layout.key_settings, true),
         (fun () ->

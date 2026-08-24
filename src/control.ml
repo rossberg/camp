@@ -3,7 +3,7 @@
 type time = float
 type track = Data.track
 
-type visual = [`Cover | `Turntable | `Spectrum | `Wave | `Oscilloscope]
+type visual = [`Cover | `Turntable | `Spectrum | `Waveform | `Oscilloscope]
 
 type t =
 {
@@ -42,7 +42,7 @@ let audio_processor ctl fs =
 
 let needs_processor = function
   | `Cover | `Turntable -> false
-  | `Spectrum | `Wave | `Oscilloscope -> true
+  | `Spectrum | `Waveform | `Oscilloscope -> true
 
 let init_visual ctl  =
   if needs_processor ctl.visual then
@@ -235,7 +235,7 @@ let visual_enum =
   [ "cover", `Cover;
     "turntable", `Turntable;
     "spectrum", `Spectrum;
-    "wave",`Wave;
+    "waveform",`Waveform;
     "oscilloscope", `Oscilloscope
   ]
 
