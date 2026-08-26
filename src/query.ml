@@ -5,8 +5,6 @@ open Data
 
 (* Values *)
 
-type key = Data.query_attr
-
 type value =
   | BoolV of bool
   | IntV of int * string option
@@ -50,57 +48,52 @@ let meta_value (meta_opt : Meta.t option) =
   | `Discs -> IntV (meta.discs, None)
   | `DiscTrack when meta.disc = 0 -> TextV (Printf.sprintf "%3d" meta.track)
   | `DiscTrack -> TextV (Printf.sprintf "%d.%02d" meta.disc meta.track)
-  | `Date -> DateV (meta.date, Some meta.date_txt)
-  | `Year -> IntV (meta.year, None)
+  | `Date when meta.date > 0.0 -> DateV (meta.date, Some meta.date_txt)
+  | `Date -> DateV (date_of_year meta.year, None)
+  | `Year when meta.year > 0 -> IntV (meta.year, None)
+  | `Year -> IntV (year_of_date meta.date, None)
   | `Label -> TextV meta.label
   | `Country -> TextV meta.country
   | `Length -> TimeV (meta.length, None)
   | `Rating -> IntV (meta.rating, None)
   | `Cover -> BoolV (meta.cover <> None)
 
-let value key (track : track) =
-  match key with
-  | `True -> BoolV true
-  | `False -> BoolV false
-  | `Now -> TimeV (Unix.gettimeofday (), None)
-  | `Random -> IntV (Random.int 0x1_0000_0000, None)
+let artist_value attr (artist : artist) =
+  match attr with
+  | `Artist -> TextV artist.name
+  | `Tracks -> IntV (artist.tracks, None)
+  | `Albums -> IntV (artist.albums, None)
+
+let album_value attr (album : album) =
+  match attr with
+  | `AlbumName as attr' -> TextV (Data.album_attr_string album attr')
+  | #file_attr as attr' -> file_value album.path album.file attr'
+  | #format_attr as attr' -> format_value album.format attr'
+  | #meta_attr as attr' -> meta_value album.meta attr'
+
+let track_value attr (track : track) =
+  match attr with
   | `Playlist -> TextV track.playlist
   | `Pos -> IntV (track.pos + 1, None)
-  | `Length ->
-    (match format_value track.format `Length with
-    | TimeV (0.0, _) -> meta_value track.meta `Length
-    | v -> v
-    )
-  | `Year ->
-    (match meta_value track.meta `Year with
-    | IntV (0, _) as v ->
-      (match meta_value track.meta `Date with
-      | DateV (0.0, _) -> v
-      | DateV (t, _) -> IntV (year_of_date t, None)
-      | _ -> assert false
-      )
-    | v -> v
-    )
-  | `Date ->
-    (match meta_value track.meta `Date with
-    | DateV (0.0, _) as v ->
-      (match meta_value track.meta `Year with
-      | IntV (0, _) -> v
-      | IntV (n, _) -> DateV (date_of_year n, None)
-      | _ -> assert false
-      )
-    | v -> v
-    )
-  | #file_attr as attr -> file_value track.path track.file attr
-  | #format_attr as attr -> format_value track.format attr
-  | #meta_attr as attr -> meta_value track.meta attr
-  | `Name | `AlbumName | `Albums | `None -> assert false
+  | `Name | `AlbumName as attr' -> TextV (Data.track_attr_string track attr')
+  | #file_attr as attr' -> file_value track.path track.file attr'
+  | #format_attr as attr' -> format_value track.format attr'
+  | #meta_attr as attr' -> meta_value track.meta attr'
+
+let value (type x a) (k : (x, a) Data.kind) (attr : a) (x : x) : value =
+  match k with
+  | Artist -> artist_value attr x
+  | Album -> album_value attr x
+  | Track -> track_value attr x
+
 
 let string_of_value = function
   | BoolV b -> string_of_bool b
   | IntV (i, _) -> string_of_int i
   | TimeV (t, _) -> Data.string_of_time t
   | DateV (t, _) -> Data.string_of_date_time t
+  | TextV s -> s
+(*
   | TextV s ->
     let buf = Buffer.create (String.length s) in
     String.iter (fun c ->
@@ -110,17 +103,19 @@ let string_of_value = function
         Buffer.add_string buf (Printf.sprintf "\\%02x" (Char.code c))
     ) s;
     "\"" ^ Buffer.contents buf ^ "\""
+*)
 
 
 (* Queries *)
 
+type key = Data.any_attr
 type track = Data.track
 type album = Data.album
 type artist = Data.artist
 type order = Data.order
-type sorting = Data.track_attr Data.sorting
+type 'a sorting = 'a Data.sorting
 
-type fnop = Min | Max | Avg | If
+type fnop = True | False | Now | Random | Min | Max | Avg | If | Id | Textify
 type unop = Not | Neg
 type binop =
   | And | Or | EQ | NE | LT | GT | LE | GE | IN | NI | Add | Sub | Mul | Cat
@@ -134,7 +129,7 @@ type expr =
   | Un of unop * expr
   | Bin of binop * expr * expr
 
-type query = {expr : expr; sort : sorting}
+type query = {expr : expr; sort : Data.track_attr sorting}
 
 type type_ =
   | BoolT
@@ -143,10 +138,16 @@ type type_ =
   | TimeT
   | DateT
 
-let keys =
+type keys = (string * key) list
+
+let artist_keys : keys =
   [
-    "true", `True; "false", `False;
-    "now", `Now; "random", `Random;
+    "artist", `Artist;
+    "albums", `Albums; "tracks", `Tracks;
+  ]
+
+let album_keys : keys =
+  [
     "fileexists", `FileExists;
     "filetime", `FileTime; "filesize", `FileSize;
     "filepath", `FilePath; "filedir", `FileDir;
@@ -154,28 +155,45 @@ let keys =
     "title", `Title; "artist", `Artist;
     "disc", `Disc; "track", `Track; "discs", `Discs; "tracks", `Tracks;
     "disctrack", `DiscTrack;
-    "album", `AlbumTitle; "albumartist", `AlbumArtist;
+    "album", `AlbumTitle; "albumartist", `AlbumArtist; "albumname", `AlbumName;
     "year", `Year; "date", `Date;
     "label", `Label; "country", `Country;
     "length", `Length; "rating", `Rating;
     "codec", `Codec; "channels", `Channels; "depth", `Depth;
     "samplerate", `SampleRate; "bitrate", `BitRate;
     "cover", `Cover;
-    "playlist", `Playlist; "pos", `Pos;
   ]
+
+let track_keys : keys =
+  [
+    "name", `Name; "playlist", `Playlist; "pos", `Pos;
+  ] @ album_keys
+
+let any_keys : keys =
+  List.sort_uniq compare (artist_keys @ album_keys @ track_keys)
+
+let keys (type x a) (k : (x, a) Data.kind) : keys =
+  match k with
+  | Artist -> artist_keys
+  | Album -> album_keys
+  | Track -> track_keys
 
 let fns =
   [
-    "min", Min; "max", Max; "avg", Avg; "if", If
+    "true", True; "false", False;
+    "random", Random; "now", Now;
+    "min", Min; "max", Max; "avg", Avg;
+    "if", If;
+    "", Id;
   ]
 
 
-let empty_query = {expr = Key `False; sort = []}
-let full_query = {expr = Key `True; sort = []}
+let empty_query = {expr = Fn (False, []); sort = []}
+let full_query = {expr = Fn (True, []); sort = []}
 
 
 let string_of_key k =
-  fst (List.find (fun (_, x) -> x = (k :> key)) keys)
+  fst (List.find (fun (_, x) -> x = k) any_keys)
 
 let string_of_fn f =
   fst (List.find (fun (_, x) -> x = f) fns)
@@ -219,29 +237,46 @@ let rec string_of_expr = function
 let string_of_query {expr; sort} =
   string_of_expr expr ^ " ^ " ^
   String.concat " "
-    (List.map (fun (k, o) -> string_of_order o ^ string_of_key k) sort)
+    (List.map (fun (k, o) -> string_of_order o ^ string_of_key (k :> key)) sort)
 
 
 (* Validation *)
 
 exception TypeError
 
-let rec validate q =
-  match q with
-  | Key (`FileExists | `True | `False | `Cover) -> BoolT
-  | Int _
-  | Key (`Random | `FileSize | `Disc | `Track | `Discs | `Tracks | `Pos | `Year)
-  | Key (`Rating | `Channels | `Depth | `SampleRate | `BitRate | `Rate) -> IntT
-  | Time _ | Key `Length -> TimeT
-  | Date _ | Key (`Now | `Date | `FileTime) -> DateT
-  | Text _
-  | Key (`FilePath | `FileDir | `FileName | `FileExt)
-  | Key (`Artist | `Title | `Name | `AlbumArtist | `AlbumTitle | `AlbumName)
-  | Key (`Label | `Country | `Codec | `DiscTrack)
-  | Key `Playlist -> TextT
+let attr_type = function
+  | `FileExists | `Cover -> BoolT
+  | `FileSize | `Disc | `Track | `Discs | `Tracks | `Albums | `Pos | `Year
+  | `Rating | `Channels | `Depth | `SampleRate | `BitRate | `Rate -> IntT
+  | `Length -> TimeT
+  | `Date | `FileTime -> DateT
+  | `FilePath | `FileDir | `FileName | `FileExt
+  | `Artist | `Title | `Name | `AlbumArtist | `AlbumTitle | `AlbumName
+  | `Label | `Country | `Codec | `DiscTrack
+  | `Playlist -> TextT
+
+let rec validate : 'x 'a. ('x, 'a) Data.kind -> expr -> type_ =
+  fun (type x a) (k : (x, a) Data.kind) -> function
+  | Int _ -> IntT
+  | Time _ -> TimeT
+  | Date _ -> DateT
+  | Text _ -> TextT
+  | Key attr ->
+    (match k, attr with
+    | Artist, #artist_attr -> ()
+    | Album, #album_attr -> ()
+    | Track, #track_attr -> ()
+    | _, _ -> raise TypeError
+    );
+    attr_type attr
   | Fn (fn, qs) ->
-    let ts = List.map validate qs in
+    let ts = List.map (validate k) qs in
     (match fn, ts with
+    | (True | False), [] -> BoolT
+    | Random, ts ->
+      if List.exists ((<>) IntT) ts || List.length ts > 2 then raise TypeError;
+      IntT
+    | Now, [] -> DateT
     | (Min | Max), t::ts' ->
       if List.exists ((<>) t) ts' then raise TypeError;
       t
@@ -251,17 +286,21 @@ let rec validate q =
     | If, [t1; t2; t3] ->
       if t1 <> BoolT || t2 <> t3 then raise TypeError;
       t2
+    | Id, [t] ->
+      t
+    | Textify, [t] ->
+      TextT
     | _ -> raise TypeError
     )
   | Un (op, q1) ->
-    (match op, validate q1 with
+    (match op, validate k q1 with
     | Not, BoolT -> BoolT
     | Neg, IntT -> IntT
     | Neg, TimeT -> TimeT
     | _ -> raise TypeError
     )
   | Bin (op, q1, q2) ->
-    (match op, validate q1, validate q2 with
+    (match op, validate k q1, validate k q2 with
     | (And | Or), BoolT, BoolT -> BoolT
     | (EQ | NE | LT | GT | LE | GE), t1, t2 when t1 = t2 -> BoolT
     | (IN | NI), TextT, (TextT | IntT | TimeT | DateT) -> BoolT
@@ -291,16 +330,38 @@ let text = function
   | TimeV (t, None) -> Data.string_of_time t
   | DateV (t, None) -> Data.string_of_date_time t
 
-let rec eval q track =
+let rec eval : 'x 'a. ('x, 'a) Data.kind -> expr -> 'x -> value =
+  fun (type x a) (k : (x, a) Data.kind) q (x : x) ->
   match q with
   | Text s -> TextV s
   | Int (i, s) -> IntV (i, Some s)
   | Time (t, s) -> TimeV (t, Some s)
   | Date (t, s) -> DateV (t, Some s)
-  | Key key -> value key track
+  | Key key ->
+    (match k, key with
+    | Artist, (#Data.artist_attr as attr) -> artist_value attr x
+    | Album, (#Data.album_attr as attr) -> album_value attr x
+    | Track, (#Data.track_attr as attr) -> track_value attr x
+    | _, _ -> assert false
+    )
   | Fn (fn, qs) ->
-    let vs = List.map (fun q -> eval q track) qs in
+    let vs = List.map (fun q -> eval k q x) qs in
     (match fn, vs with
+    | True, [] -> BoolV true
+    | False, [] -> BoolV false
+    | Random, [] -> IntV (Random.int 0x1_0000_0000, None)
+    | Random, [v1] ->
+      (match v1 with
+      | IntV (i, _) -> IntV ((if i < 1 then 0 else Random.int i), None)
+      | _ -> assert false
+      )
+    | Random, [v1; v2] ->
+      (match v1, v2 with
+      | IntV (i1, _), IntV (i2, _) ->
+        IntV ((if i1 >= i2 || i2 < 1 then 0 else Random.int (i2 - i1) + i1), None)
+      | _ -> assert false
+      )
+    | Now, [] -> DateV (Unix.gettimeofday (), None)
     | Min, v1::vs' -> List.fold_left min v1 vs'
     | Max, v1::vs' -> List.fold_left max v1 vs'
     | Avg, v1::vs' ->
@@ -325,19 +386,23 @@ let rec eval q track =
       | BoolV false -> v3
       | _ -> assert false
       )
+    | Id, [v] ->
+      v
+    | Textify, [v] ->
+      TextV (string_of_value v)
     | _ -> assert false
     )
-  | Un (Not, q1) -> BoolV (not (check q1 track))
-  | Bin (And, q1, q2) -> BoolV (check q1 track && check q2 track)
-  | Bin (Or, q1, q2) -> BoolV (check q1 track || check q2 track)
+  | Un (Not, q1) -> BoolV (not (check k q1 x))
+  | Bin (And, q1, q2) -> BoolV (check k q1 x && check k q2 x)
+  | Bin (Or, q1, q2) -> BoolV (check k q1 x || check k q2 x)
   | Un (op, q1) ->
-    (match op, eval q1 track with
+    (match op, eval k q1 x with
     | Neg, IntV (i, _) -> IntV (- i, None)
     | Neg, TimeV (t, _) -> TimeV (-. t, None)
     | _ -> assert false
     )
   | Bin (op, q1, q2) ->
-    (match op, eval q1 track, eval q2 track with
+    (match op, eval k q1 x, eval k q2 x with
     | EQ, v1, v2 -> BoolV (lit v1 = lit v2)
     | NE, v1, v2 -> BoolV (lit v1 <> lit v2)
     | LT, v1, v2 -> BoolV (lit v1 < lit v2)
@@ -362,8 +427,8 @@ let rec eval q track =
     | _ -> assert false
     )
 
-and check q track =
-  match eval q track with
+and check : 'x 'a. ('x, 'a) Data.kind -> expr -> 'x -> bool = fun k q x ->
+  match eval k q x with
   | BoolV b -> b
   | _ -> assert false
 
@@ -451,13 +516,20 @@ let rec iter_dir f (dir : _ dir) =
   Iarray.iter (iter_dir f) dir.children;
   Iarray.iter f dir.tracks
 
-let sort s tracks =
+let sort (type x a) (k : (x, a) Data.kind) (s : a sorting) (xs : x array) =
   if s <> [] then
   (
-    let tracks' =
-      Array.map (fun tr -> Data.key_entry track_attr_string s tr, tr) tracks in
-    Array.stable_sort compare tracks';
-    Array.iteri (fun i (_, tr) -> tracks.(i) <- tr) tracks';
+    let xs' : (string list * x) array =
+      match k with
+      | Artist -> 
+        Array.map (fun x -> Data.key_entry artist_attr_string s x, x) xs
+      | Album ->
+        Array.map (fun x -> Data.key_entry album_attr_string s x, x) xs
+      | Track ->
+        Array.map (fun x -> Data.key_entry track_attr_string s x, x) xs
+    in
+    Array.stable_sort compare xs';
+    Array.iteri (fun i (_, x) -> xs.(i) <- x) xs';
   )
 
 let exec q p dir =
@@ -471,7 +543,7 @@ let exec q p dir =
   let artist_map = ref ArtistMap.empty in
   iter_dir (fun track ->
     let t1 = Unix.gettimeofday () in
-    let b = check q.expr track in
+    let b = check Track q.expr track in
     let t2 = Unix.gettimeofday () in
     t_check := !t_check +. t2 -. t1;
     if b then
@@ -528,7 +600,7 @@ let exec q p dir =
   Dynarray.to_array albums,
   let tracks = Dynarray.to_array tracks in
   let t_sort = Unix.gettimeofday () in
-  sort q.sort tracks;
+  sort Data.Track q.sort tracks;
   let t_finish = Unix.gettimeofday () in
   if !App.debug_perf then
     Printf.eprintf
@@ -578,6 +650,13 @@ let is c s i = i < String.length s && s.[i] = c
 let is_letter = function
   | '0'..'9' | 'A'..'Z' | 'a'..'z' | '_' | '.' | '!' | '?' | '-' -> true
   | c -> c >= '\x80'
+
+let quote_re = Str.regexp "\""
+
+let quote s =
+  if s <> "" && s.[0] <> '-' && String.for_all is_letter s then s else
+  "\"" ^ Str.global_replace quote_re "\\\"" s ^ "\""
+
 
 let scan_word s i =
   let j = ref i in
@@ -694,11 +773,11 @@ let rec token s i =
     )
   | '#' ->
     let x, j = scan_word s (i + 1) in
-    (match List.assoc_opt x keys with
-    | Some key -> KeyToken key, j
+    (match List.assoc_opt x fns with
+    | Some fn -> FnToken fn, j
     | None ->
-      match List.assoc_opt x fns with
-      | Some fn -> FnToken fn, j
+      match List.assoc_opt x any_keys with
+      | Some key -> KeyToken key, j
       | None -> raise (SyntaxError i)
     )
   | c when c >= '\x80' ->
@@ -711,22 +790,26 @@ let search_keys =
   [`Artist; `Title; `AlbumArtist; `AlbumTitle; `Label; `Country; `Date]
 
 let rec coerce_bool = function
-  | Key (`FileExists | `True | `False | `Cover) as q -> q
-  | Text _ | Bin (Cat, _, _) | Key _ as q ->
+  | Text _ | Bin (Cat, _, _) as q ->
     (* Treat text literal in Boolean position as search term *)
     List.fold_right (fun key q' ->
       Bin (Or, Bin (IN, q, Key key), q')
-    ) search_keys (Key `False)
+    ) search_keys (Fn (False, []))
   | Int (_, s) | Time (_, s) | Date (_, s) ->
     (* Treat other literals in Boolean position as search terms as well *)
     coerce_bool (Text s)
-  | Un (Neg, q) ->
+  | Un (Neg, q1) ->
     (* Treat negation in Boolean position as logical negation *)
-    Un (Not, coerce_bool q)
+    Un (Not, coerce_bool q1)
   | Bin (Sub, q1, q2) ->
     (* Treat subtraction in Boolean position as logical negation of r.h.s. *)
     Bin (And, coerce_bool q1, Un (Not, coerce_bool q2))
   | q -> q
+
+let rec coerce_text = function
+  | Int (_, s) | Time (_, s) | Date (_, s) -> Text s
+  | Text _ | Bin (Cat, _, _) as q -> q
+  | q -> Fn (Textify, [q])
 
 
 let rec parse_prim s i =
@@ -755,29 +838,29 @@ let rec parse_prim s i =
 
 and parse_mul s i =
   let q, j = parse_prim s i in
-  parse_mul_rest q s j
+  parse_mul_rest s j q
 
-and parse_mul_rest q1 s i =
+and parse_mul_rest s i q1 =
   match token s i with
   | BinopToken ((Mul) as op), j ->
     let q2, k = parse_prim s j in
-    parse_mul_rest (Bin (op, q1, q2)) s k
+    parse_mul_rest s k (Bin (op, q1, q2))
   | _ -> q1, i
 
 and parse_add s i =
   match token s i with
   | BinopToken Sub, j ->
     let q, k = parse_mul s j in
-    parse_add_rest (Un (Neg, q)) s k
+    parse_add_rest s k (Un (Neg, q))
   | _ ->
     let q, j = parse_mul s i in
-    parse_add_rest q s j
+    parse_add_rest s j q
 
-and parse_add_rest q1 s i =
+and parse_add_rest s i q1 =
   match token s i with
   | BinopToken ((Add | Sub | Cat) as op), j ->
     let q2, k = parse_mul s j in
-    parse_add_rest (Bin (op, q1, q2)) s k
+    parse_add_rest s k (Bin (op, q1, q2))
   | _ -> q1, i
 
 and parse_rel s i =
@@ -800,78 +883,138 @@ and parse_conj s i =
   let tok, _ = token s i in
   match tok with
   | EndToken | SortToken | RParToken | CommaToken | BinopToken Or ->
-    Key `True, i  (* empty conjunction *)
+    Fn (True, []), i  (* empty conjunction *)
   | _ ->
     let q, j = parse_neg s i in
-    parse_conj_rest q s j
+    parse_conj_rest s j q
 
-and parse_conj_rest q1 s i =
+and parse_conj_rest s i q1 =
   let tok, j = token s i in
   match tok with
   | EndToken | SortToken | RParToken | CommaToken | BinopToken Or ->
     q1, i
   | BinopToken And ->
     let q2, k = parse_neg s j in
-    parse_conj_rest (Bin (And, coerce_bool q1, coerce_bool q2)) s k
+    parse_conj_rest s k (Bin (And, coerce_bool q1, coerce_bool q2))
   | _ ->
     let q2, k = parse_neg s i in
-    parse_conj_rest (Bin (And, coerce_bool q1, coerce_bool q2)) s k
+    parse_conj_rest s k (Bin (And, coerce_bool q1, coerce_bool q2))
 
 and parse_disj s i =
   let q, j = parse_conj s i in
-  parse_disj_rest q s j
+  parse_disj_rest s j q
 
-and parse_disj_rest q1 s i =
+and parse_disj_rest s i q1 =
   match token s i with
   | BinopToken Or, j ->
     let q2, k = parse_conj s j in
-    parse_disj_rest (Bin (Or, coerce_bool q1, coerce_bool q2)) s k
+    parse_disj_rest s k (Bin (Or, coerce_bool q1, coerce_bool q2))
   | _ -> q1, i
 
 and parse_list s i qs =
   let q, j = parse_disj s i in
   match token s j with
   | CommaToken, k -> parse_list s k (q::qs)
-  | _ ->
-  List.rev (q::qs), j
+  | _ -> List.rev (q::qs), j
 
 let rec parse_sort s i =
   match token s i with
   | EndToken, _ -> []
-  | KeyToken (#track_attr as key), j -> (key, `Asc) :: parse_sort s j
+  | KeyToken key, j -> (key, `Asc) :: parse_sort s j
   | BinopToken Sub, j ->
     (match token s j with
-    | KeyToken (#track_attr as key), k -> (key, `Desc) :: parse_sort s k
+    | KeyToken key, k -> (key, `Desc) :: parse_sort s k
     | _ -> raise (SyntaxError j)
     )
   | _ -> raise (SyntaxError i)
 
+let rec parse_text s i i0 =
+  if i = String.length s then
+    Text (String.sub s i0 (i - i0))
+  else if s.[i] <> '#' then
+    parse_text s (i + 1) i0
+  else
+    let q1, j = parse_prim s i in
+    let q2 = parse_text s j j in
+    let q12 = if q2 = Text "" then q1 else Bin (Cat, coerce_text q1, q2) in
+    if i = i0 then q12 else
+    Bin (Cat, Text (String.sub s i0 (i - i0)), coerce_text q12)
 
-let parse_query s : (query, string) result =
-  try
-    let q, j = parse_disj s 0 in
-    let q' = coerce_bool q in
-    if validate q' <> BoolT then raise TypeError;
-    let ks =
-      match token s j with
-      | EndToken, _ -> []
-      | SortToken, k -> parse_sort s k
-      | _ -> raise (SyntaxError j)
-    in
-    Ok {expr = q'; sort = ks}
-  with
+
+let try_parse s f =
+  try Ok (f ()) with
   | SyntaxError i -> Error ("Syntax error at \"" ^ String.drop_first i s ^ "\"")
   | TypeError -> Error "Type error"
 
-let parse_expr s : (expr, string) result =
-  match parse_query s with
-  | Ok {expr; sort = []} -> Ok expr
-  | Ok _ -> Error "Syntax error"
-  | Error s -> Error s
+let parse_expr k s : (expr * type_, string) result =
+  try_parse s (fun () ->
+    let q, j = parse_disj s 0 in
+    let t = validate k q in
+    match token s j with
+    | EndToken, _ -> q, t
+    | _ -> raise (SyntaxError j)
+  )
+
+let parse_query s : (query, string) result =
+  try_parse s (fun () ->
+    let q, j = parse_disj s 0 in
+    let q' = coerce_bool q in
+    if validate Track q' <> BoolT then raise TypeError;
+    let sort =
+      match token s j with
+      | EndToken, _ -> []
+      | SortToken, l ->
+        let keys = parse_sort s l in
+        List.map (function
+          | #Data.track_attr as key', order -> key', order
+          | _, _ -> raise TypeError
+        ) keys
+      | _ -> raise (SyntaxError j)
+    in {expr = q'; sort}
+  )
+
+let parse_custom k s : (expr * type_, string) result =
+  try_parse s (fun () ->
+    let q = parse_text s 0 0 in
+    let t = validate k q in
+    coerce_text q, t
+  )
 
 
-let quote_re = Str.regexp "\""
+(* Stringification *)
 
-let quote s =
-  if s <> "" && s.[0] <> '-' && String.for_all is_letter s then s else
-  "\"" ^ Str.global_replace quote_re "\\\"" s ^ "\""
+type Data.custom += Set of (expr * type_, string) result
+
+let custom k s r =
+  match !r with
+  | Set res -> res
+  | Unset ->
+    let res = parse_custom k s in
+    r := Set res;
+    res
+  | _ -> assert false
+
+let custom_string k s r x =
+  match custom k s r with
+  | Ok (q, _) -> string_of_value (eval k q x)
+  | Error _ -> ""
+
+let artist_attr_ex_string artist = function
+  | `Custom (_, s, r) -> custom_string Artist s r artist
+  | #artist_attr as attr -> Data.artist_attr_string artist attr
+
+let album_attr_ex_string album = function
+  | `Custom (l, s, r) -> custom_string Album s r album
+  | #album_attr as attr -> Data.album_attr_string album attr
+
+let track_attr_ex_string track = function
+  | `Custom (l, s, r) -> custom_string Track s r track
+  | #track_attr as attr -> Data.track_attr_string track attr
+
+let any_attr_ex_type = function
+  | `Custom (_, _, r) ->
+    (match !r with
+    | Set (Ok (_, t)) -> Some t
+    | _ -> None
+    )
+  | #any_attr as attr -> Some (attr_type attr)

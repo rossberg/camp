@@ -47,7 +47,7 @@ let spin_changed (st : state) =
 
 (* Because we cannot define a bounded abstract type attr < Data.any_attr
  * in the signature, we have to encode the existential quantification. *)
-type modifyer = {f : 'a. ([< Data.any_attr] as 'a) Library.view -> 'a list -> unit}
+type modifyer = {f : 'a. ([< Data.any_attr_ex] as 'a) Library.view -> 'a list -> unit}
 
 module type View =
 sig

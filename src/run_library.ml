@@ -823,7 +823,7 @@ let run_view (st : state)
     layout grid_w
     (tab : _ Table.t) busy_tab dep_tab
     refresh_is_busy refresh_deps
-    reorder (view : _ Library.view) (views : Library.views)
+    reorder (view : [< Data.any_attr_ex] Library.view) (views : Library.views)
     attr_string prim_attr all_attrs
     path_of text_of color_of
     selected_tracks clicked_tracks
@@ -852,7 +852,7 @@ let run_view (st : state)
     let entry = entries.(i) in
     color_of entry,
     Iarray.map (fun (attr, _) ->
-      match (attr :> Data.any_attr) with
+      match (attr :> Data.any_attr_ex) with
       | `Cover ->
         if not lib.covers_shown then `Text "" else
         (match Library.load_cover lib win (path_of entry) with
@@ -952,7 +952,7 @@ let run_view (st : state)
       match loc with
       | Some i, Some j
         when mode = `Table
-        && (fst view.columns.$(j) :> Data.any_attr) = `Cover ->
+        && (fst view.columns.$(j) :> Data.any_attr_ex) = `Cover ->
         (* Click on cover cell: open cover popup *)
         Run_menu.popup st (popup entries.(i));
       (* Don't do cover pop-up on grid, since that interferes with drag & drop
@@ -1172,7 +1172,7 @@ let run_views (st : state) =
       lib.artists busy_artists lib.albums
       Library.refresh_artists_is_busy Library.refresh_albums_tracks
       Library.reorder_artists view.artists view
-      Data.artist_attr_string `Artist Data.artist_attrs
+      Query.artist_attr_ex_string (Some `Artist) Data.artist_attrs
       (fun _ -> "") (fun _ -> "") color_of
       (fun lib -> lib.tracks.entries) (fun lib _ -> lib.tracks.entries)
       true false (fun _ -> assert false) Run_view.artists_view;
@@ -1203,7 +1203,7 @@ let run_views (st : state) =
       lib.albums busy_albums busy_tracks
       Library.refresh_albums_is_busy Library.refresh_tracks
       Library.reorder_albums view.albums view
-      Data.album_attr_string `None Data.album_attrs
+      Query.album_attr_ex_string None Data.album_attrs
       (fun (album : Data.album) -> album.path) text_of color_of
       (fun lib -> lib.tracks.entries) (fun lib _ -> lib.tracks.entries)
       true false (fun album -> `Album album) Run_view.albums_view;
@@ -1267,7 +1267,7 @@ let run_views (st : state) =
       lib.tracks busy_tracks busy_tracks
       Library.refresh_tracks_is_busy ignore
       Library.reorder_tracks view.tracks view
-      Data.track_attr_string prim_attr Data.track_attrs
+      Query.track_attr_ex_string (Some prim_attr) Data.track_attrs
       (fun (track : Data.track) -> track.path) text_of color_of
       Library.selected (fun lib i -> [|lib.tracks.entries.(i)|])
       false (Library.current_is_plain_playlist lib)

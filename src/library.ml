@@ -35,9 +35,9 @@ type views =
   mutable custom : bool;
   mutable divider_width : int;
   mutable divider_height : int;
-  artists : artist_attr view;
-  albums : album_attr view;
-  tracks : track_attr view;
+  artists : artist_attr_ex view;
+  albums : album_attr_ex view;
+  tracks : track_attr_ex view;
 }
 
 type dir = views Data.dir
@@ -128,7 +128,7 @@ let ok lib =
 (* Constructor *)
 
 let artists_sorting = [`Artist, `Asc]
-let artists_columns : artist_attr columns =
+let artists_columns : artist_attr_ex columns =
 [|
   `Artist, 150;
   `Albums, 20;
@@ -136,7 +136,7 @@ let artists_columns : artist_attr columns =
 |]
 
 let albums_sorting = [`AlbumArtist, `Asc; `AlbumTitle, `Asc; `Codec, `Asc]
-let albums_columns : album_attr columns =
+let albums_columns : album_attr_ex columns =
 [|
   `Cover, 30;
   `Rating, 35;
@@ -155,7 +155,7 @@ let albums_columns : album_attr columns =
 |]
 
 let tracks_sorting = [`Artist, `Asc; `Title, `Asc; `Codec, `Asc]
-let tracks_columns : track_attr columns =
+let tracks_columns : track_attr_ex columns =
 [|
   `Cover, 30;
   `Rating, 35;
@@ -176,14 +176,14 @@ let tracks_columns : track_attr columns =
 |]
 
 let album_sorting = [`DiscTrack, `Asc]
-let album_columns : track_attr columns =
+let album_columns : track_attr_ex columns =
   Iarray.append [|`DiscTrack, 30|]
     (Iarray.of_list
       (List.filter (fun (x, _) -> x <> `Track && x <> `DiscTrack)
         (Iarray.to_list tracks_columns)))
 
 let playlist_sorting = [`Pos, `Asc]
-let playlist_columns : track_attr columns =
+let playlist_columns : track_attr_ex columns =
   Iarray.append [|`Pos, 30|] tracks_columns
 
 let make_view shown columns sorting : _ view =
@@ -382,9 +382,9 @@ let attr_prop = function
   | `FileName -> "File Name", `Left
   | `FileExt -> "File Extension", `Left
   | `FileSize -> "File Size", `Right
-  | `FileTime -> "File Date", `Left
+  | `FileTime -> "File Date", `Left (* ? *)
   | `Codec -> "Format", `Left
-  | `Channels -> "Channels", `Left
+  | `Channels -> "Channels", `Right
   | `Depth -> "Bit Depth", `Right
   | `SampleRate -> "Sample Rate", `Right
   | `BitRate -> "Bit Rate", `Right
@@ -403,15 +403,20 @@ let attr_prop = function
   | `Discs -> "Discs", `Right
   | `DiscTrack -> "Track", `Right
   | `Albums -> "Albums", `Right
-  | `Date -> "Date", `Left
-  | `Year -> "Year", `Left
+  | `Date -> "Date", `Left (* ? *)
+  | `Year -> "Year", `Left (* ? *)
   | `Label -> "Label", `Left
   | `Country -> "Country", `Left
   | `Cover -> "Cover", `Center
-  | `True | `False | `Now | `Random | `None -> assert false
+  | `None -> assert false
+  | `Custom (name, _, _) as attr ->
+    name,
+    match Query.any_attr_ex_type attr with
+    | None | Some (BoolT | TextT | DateT (* ? *)) -> `Left
+    | Some (IntT | TimeT) -> `Right
 
-let attr_name attr = fst (attr_prop (attr :> any_attr))
-let attr_align attr = snd (attr_prop (attr :> any_attr))
+let attr_name attr = fst (attr_prop (attr :> any_attr_ex))
+let attr_align attr = snd (attr_prop (attr :> any_attr_ex))
 
 
 (* Lookup *)
@@ -524,9 +529,9 @@ struct
     ] @ if not (x.custom || full) then [] else [
       "div_w", int x.divider_width;
       "div_h", int x.divider_height;
-      "artists", view Data.Print.artist_attr x.artists;
-      "albums", view Data.Print.album_attr x.albums;
-      "tracks", view Data.Print.track_attr x.tracks;
+      "artists", view Data.Print.artist_attr_ex x.artists;
+      "albums", view Data.Print.album_attr_ex x.albums;
+      "tracks", view Data.Print.track_attr_ex x.tracks;
     ])
 
   let dir (x : dir) = views false x.view
@@ -557,9 +562,9 @@ struct
       custom = default true bool (r $? "custom");
       divider_width = int (r $ "div_w");
       divider_height = int (r $ "div_h");
-      artists = view Data.Parse.artist_attr (r $ "artists");
-      albums = view Data.Parse.album_attr (r $ "albums");
-      tracks = view Data.Parse.track_attr (r $ "tracks");
+      artists = view Data.Parse.artist_attr_ex (r $ "artists");
+      albums = view Data.Parse.album_attr_ex (r $ "albums");
+      tracks = view Data.Parse.track_attr_ex (r $ "tracks");
     })
 
   let views_noncustom (view : views) =
@@ -1292,11 +1297,11 @@ let refresh_view lib (tab : _ Table.t) selected attr_string sorting key f =
       min lib.refresh_time (Unix.gettimeofday () +. refresh_delay)
 
 let refresh_tracks_view lib (_, _, sel) f =
-  refresh_view lib lib.tracks sel track_attr_string tracks_sorting (track_key lib) f
+  refresh_view lib lib.tracks sel Query.track_attr_ex_string tracks_sorting (track_key lib) f
 let refresh_albums_view lib (_, sel, _) f =
-  refresh_view lib lib.albums sel album_attr_string albums_sorting album_key f
+  refresh_view lib lib.albums sel Query.album_attr_ex_string albums_sorting album_key f
 let refresh_artists_view lib (sel, _, _) f =
-  refresh_view lib lib.artists sel artist_attr_string artists_sorting artist_key f
+  refresh_view lib lib.artists sel Query.artist_attr_ex_string artists_sorting artist_key f
 
 let refresh_tracks_sync' lib selections =
   refresh_tracks_view lib selections
@@ -1458,13 +1463,13 @@ let reorder lib tab sorting attr_string key =
   ) lib.current
 
 let reorder_artists lib =
-  reorder lib lib.artists artists_sorting artist_attr_string artist_key
+  reorder lib lib.artists artists_sorting Query.artist_attr_ex_string artist_key
 
 let reorder_albums lib =
-  reorder lib lib.albums albums_sorting album_attr_string album_key
+  reorder lib lib.albums albums_sorting Query.album_attr_ex_string album_key
 
 let reorder_tracks lib =
-  reorder lib lib.tracks tracks_sorting track_attr_string (track_key lib)
+  reorder lib lib.tracks tracks_sorting Query.track_attr_ex_string (track_key lib)
 
 
 let set_views_dir_default lib v = update_views lib.views_dir_default v

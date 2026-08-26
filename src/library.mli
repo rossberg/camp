@@ -17,9 +17,9 @@ type views =
   mutable custom : bool;
   mutable divider_width : int;
   mutable divider_height : int;
-  artists : artist_attr view;
-  albums : album_attr view;
-  tracks : track_attr view;
+  artists : artist_attr_ex view;
+  albums : album_attr_ex view;
+  tracks : track_attr_ex view;
 }
 
 type dir = views Data.dir
@@ -149,8 +149,8 @@ val end_log : 'a t -> unit
 
 (* Views *)
 
-val attr_name : [< any_attr] -> string
-val attr_align : [< any_attr] -> [`Left | `Right | `Center]
+val attr_name : [< any_attr_ex] -> string
+val attr_align : [< any_attr_ex] -> [`Left | `Right | `Center]
 
 val refresh_tracks_sync : 'a t -> unit
 val refresh_albums_tracks_sync : 'a t -> unit

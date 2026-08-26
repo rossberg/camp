@@ -3,7 +3,7 @@
 type path = Data.path
 type time = Data.time
 type track = Data.track
-type track_attr = Data.track_attr
+type track_attr_ex = Data.track_attr_ex
 
 type shuffle
 
@@ -13,7 +13,7 @@ type 'cache t = private
   mutable total : time * int;
   mutable total_selected : time * int;
   mutable shuffle : shuffle option;
-  view : track_attr Library.view;
+  view : track_attr_ex Library.view;
 }
 
 

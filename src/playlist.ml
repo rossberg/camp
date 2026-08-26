@@ -7,7 +7,7 @@ module Map = Map.Make(String)
 type path = Data.path
 type time = Data.time
 type track = Data.track
-type track_attr = Data.track_attr
+type track_attr_ex = Data.track_attr_ex
 
 type shuffle =
 {
@@ -22,7 +22,7 @@ type 'a t =
   mutable total : time * int;
   mutable total_selected : time * int;
   mutable shuffle : shuffle option;
-  view : track_attr Library.view;
+  view : track_attr_ex Library.view;
 }
 
 
@@ -487,7 +487,7 @@ let print_state pl =
     "pos", option nat pl.table.pos;
     "scroll", nat pl.table.vscroll;
     "shuffle", bool (pl.shuffle <> None);
-    "columns", Data.Print.(columns track_attr pl.view.columns);
+    "columns", Data.Print.(columns track_attr_ex pl.view.columns);
   ]) pl
 
 let print_intern pl =
@@ -523,6 +523,6 @@ let parse_state pl =
       (fun i -> Table.set_vscroll pl.table i 1 4);
     apply (r $? "shuffle") bool
       (fun b -> if b then shuffle pl pl.table.pos);
-    apply (r $? "columns") Data.Parse.(columns track_attr)
+    apply (r $? "columns") Data.Parse.(columns track_attr_ex)
       (fun cols -> pl.view.columns <- cols);
   )

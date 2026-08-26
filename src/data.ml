@@ -30,8 +30,15 @@ type meta_attr =
 type artist_attr = [ `Artist | `Albums | `Tracks ]
 type album_attr = [ file_attr | format_attr | meta_attr | `AlbumName ]
 type track_attr = [ album_attr | `Name | `Playlist | `Pos ]
-type query_attr = [ track_attr | `True | `False | `Now | `Random ]
-type any_attr = [ artist_attr | album_attr | track_attr | query_attr | `None ]
+type any_attr = [ artist_attr | album_attr | track_attr ]
+
+type custom = ..
+type custom += Unset
+type custom_attr = [ `Custom of string * string * custom ref ]
+type artist_attr_ex = [ artist_attr | custom_attr ]
+type album_attr_ex = [ album_attr | custom_attr ]
+type track_attr_ex = [ track_attr | custom_attr ]
+type any_attr_ex = [ any_attr | custom_attr ]
 
 type order = [`Asc | `Desc]
 type 'attr sorting = ('attr * order) list
@@ -51,12 +58,12 @@ let album_attrs = file_attrs @ format_attrs @ meta_attrs @ [ `AlbumName ]
 let track_attrs = album_attrs @ [ `Name; `Playlist; `Pos ]
 
 (* Can't use a set since the key cannot be polymorphic. *)
-module AttrMap = Map.Make (struct type t = any_attr let compare = compare end)
+module AttrMap = Map.Make (struct type t = any_attr_ex let compare = compare end)
 
 let diff _ x y = if x <> None && y = None then x else None
 let diff_attrs all_attrs used_attrs =
-  let all_attrs' = List.map (fun a -> (a :> any_attr), a) all_attrs in
-  let used_attrs' = List.map (fun a -> (a :> any_attr), a) used_attrs in
+  let all_attrs' = List.map (fun a -> (a :> any_attr_ex), a) all_attrs in
+  let used_attrs' = List.map (fun a -> (a :> any_attr_ex), a) used_attrs in
   List.map snd
     AttrMap.(to_list (merge diff (of_list all_attrs') (of_list used_attrs')))
 
@@ -139,6 +146,12 @@ type 'view dir =
 }
 
 
+type ('x, 'a) kind =
+  | Artist : (artist, artist_attr) kind
+  | Album : (album, album_attr) kind
+  | Track : (track, track_attr) kind
+
+
 (* Properties *)
 
 let is_known_view_ext path =
@@ -168,10 +181,12 @@ let is_invalid track =
 
 
 let year_of_date t =
+  if t = 0.0 then 0 else
   let tm = File.local_time t in
   tm.tm_year + 1900
 
 let date_of_year y =
+  if y = 0 then 0.0 else
   let tm =
     Unix.{
       tm_year = y - 1900;
@@ -565,14 +580,6 @@ let album_attr_string (album : album) (attr : album_attr) =
 let track_attr_string (track : track) (attr : track_attr) =
   attr_string' get_track_memo set_track_memo track_attr_string' track attr
 
-let query_attr_string (track : track) = function
-  | #track_attr as attr -> track_attr_string track attr
-  | `True -> "T"
-  | `False -> "F"
-  | `Now -> string_of_date_time (Unix.gettimeofday ())
-  | `Random -> string_of_int (Random.int 0x1_0000_0000)
-  | `None -> assert false
-
 
 (* String Comparison *)
 
@@ -596,7 +603,8 @@ let attr_fold attr =
   | `Codec
   | `Artist | `Title | `Name | `AlbumArtist | `AlbumTitle | `AlbumName
   | `Label | `Country
-  | `Playlist ->
+  | `Playlist
+  | `Custom (_, _, _) ->
     Unicode.sort_key_utf_8
 
 let key_entry' e attr_string (attr, order) =
@@ -615,7 +623,7 @@ let rev_order = function
   | `Desc -> `Asc
 
 let rec insert_sorting primary attr i n = function
-  | _ when n <= 0 -> []
+  | _ when n <= 0 -> []  (* cut off excess minor keys *)
   | [] ->
     if i >= 0 then
       [attr, `Asc]
@@ -624,20 +632,20 @@ let rec insert_sorting primary attr i n = function
   | (attr', order)::sorting' when attr = attr' ->
     (match compare i 0 with
     | +1 -> (attr', order)::sorting'
-    | -1 -> sorting'
-    | _ -> (attr, rev_order order)::sorting'
+    | -1 -> sorting'  (* remove occurrence after insertion point *)
+    | _ -> (attr, rev_order order)::sorting'  (* reinsert = reverse *)
     )
   | (attr', order)::sorting' ->
     let sorting'' =
       (attr', order) :: insert_sorting primary attr (i - 1) (n - 1) sorting' in
     if i <> 0 then
       sorting''
-    else if (attr :> any_attr) = (primary :> any_attr) then
-      [attr, `Asc]
+    else if (Some attr :> any_attr_ex option) = (primary :> any_attr_ex option) then
+      [attr, `Asc]  (* if the key is primary, no minors needed *)
     else
       (attr, `Asc)::sorting''
 
-let remove_sorting attr = insert_sorting `None attr (-1) max_int
+let remove_sorting attr = insert_sorting None attr (-1) max_int
 
 
 (* Iteration *)
@@ -770,16 +778,21 @@ struct
     "LAB", `Label;
     "CTY", `Country;
     "COV", `Cover;
-    "TRU", `True;
-    "FLS", `False;
-    "NOW", `Now;
-    "RND", `Random;
   ]
 
   let any_attr = enum attr_enum
   let artist_attr (x : artist_attr) = any_attr (x :> any_attr)
   let album_attr (x : album_attr) = any_attr (x :> any_attr)
   let track_attr (x : track_attr) = any_attr (x :> any_attr)
+
+  let any_attr_ex =
+    variant (function
+      | `Custom (l, v, _) -> l, string v
+      | x -> fst (List.find (fun (_, y) -> x = y) attr_enum), string ""
+    )
+  let artist_attr_ex (x : artist_attr_ex) = any_attr_ex (x :> any_attr_ex)
+  let album_attr_ex (x : album_attr_ex) = any_attr_ex (x :> any_attr_ex)
+  let track_attr_ex (x : track_attr_ex) = any_attr_ex (x :> any_attr_ex)
 
   let sorting attr = list (pair attr order)
   let columns attr = iarray (pair attr nat)
@@ -880,6 +893,29 @@ struct
   let track_attr u =
     match any_attr u with
     | #track_attr as x -> x
+    | _ -> raise Text.Type_error
+
+  let any_attr_ex =
+    variant (fun (l, v) ->
+      match List.assoc_opt l Print.attr_enum, string v with
+      | None, s -> `Custom (l, s, ref Unset)
+      | Some x, "" -> x
+      | _ -> raise Text.Type_error
+    )
+
+  let artist_attr_ex u =
+    match any_attr_ex u with
+    | #artist_attr_ex as x -> x
+    | _ -> raise Text.Type_error
+
+  let album_attr_ex u =
+    match any_attr u with
+    | #album_attr_ex as x -> x
+    | _ -> raise Text.Type_error
+
+  let track_attr_ex u =
+    match any_attr u with
+    | #track_attr_ex as x -> x
     | _ -> raise Text.Type_error
 
   let sorting attr = list (pair attr order)

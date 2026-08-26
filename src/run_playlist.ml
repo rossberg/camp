@@ -126,7 +126,7 @@ let run (st : state) =
         | Some img -> `Image img
         | None -> `Text ""
         )
-      | _ -> `Text (String.trim (Data.track_attr_string track attr))
+      | _ -> `Text (String.trim (Query.track_attr_ex_string track attr))
     ) pl.view.columns
   in
 

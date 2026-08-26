@@ -202,7 +202,9 @@ struct
   let triple f1 f2 f3 = tuple (fun (x1, x2, x3) -> [f1 x1; f2 x2; f3 x3])
   let map f xys = let lus = List.map (fun (x, y) -> string x, f y) xys in Brace (lus, is_short (List.map snd lus))
   let record f x = map Fun.id (f x)
-  let variant f x = let l, t = f x in Brace ([string l, t], flat t)
+  let variant f x =
+    let l, t = f x in
+    if t = Text "" then Text l else Brace ([string l, t], flat t)
   let transform f g x = f (g x)
 
   let (@@@) u1 u2 =
@@ -295,6 +297,7 @@ struct
 
   let variant f = function
     | Brace ([(l, u)], _) -> f (string l, u)
+    | Text l -> f (l, Text "")
     | _ -> raise Type_error
 
   let (|||) f g u =
