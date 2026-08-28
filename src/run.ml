@@ -199,7 +199,6 @@ and run' (st : state) (x, y, w, h as r) =
   let extension_shown_w = Geometry.extension_shown_w geo in
   let extension_shown_h = Geometry.extension_shown_h geo in
   let extension_side = geo.extension_side in
-  let menu_shown = geo.menu_shown in
   let popup_shown = geo.popup_shown <> None in
 
   (* Global keys *)
@@ -228,8 +227,10 @@ and run' (st : state) (x, y, w, h as r) =
   );
 
   let focus_change =
-    if Layout.focus_next_key geo then (State.focus_next st; true) else
-    if Layout.focus_prev_key geo then (State.focus_prev st; true) else false
+    Ui.except_modal geo.ui "focus_change" (fun () ->
+      if Layout.focus_next_key geo then (State.focus_next st; true) else
+      if Layout.focus_prev_key geo then (State.focus_prev st; true) else false
+    )
   in
 
   (* Run panes *)
@@ -243,8 +244,7 @@ and run' (st : state) (x, y, w, h as r) =
     if geo.playlist_shown && not geo.settings_shown then
       Run_view.run_edit_panel st;
     Run_control.run_toggle_panel st;
-    if menu_shown then Run_menu.run st;
-    if popup_shown then Run_menu.run_popup st;
+    if popup_shown then Run_popup.run st;
   );
   List.iter (fun f -> f ()) st.delayed;
   st.delayed <- [];
@@ -269,15 +269,14 @@ and run' (st : state) (x, y, w, h as r) =
   in
   Run_control.resize_grid st grid_delta;
 
-  let is_modal = Ui.is_modal geo.ui in
-  if is_modal then Ui.nonmodal geo.ui "run/popup-key";  (* temporarily enable keys *)
-  let popup_delta =
-    Bool.to_int (Layout.enlarge_popup_key geo) -
-    Bool.to_int (Layout.reduce_popup_key geo)
-  in
-  if is_modal then Ui.modal geo.ui "run/popup-key";  (* redisable keys *)
-  geo.popup_size <- Geometry.(clamp min_popup_size max_popup_size
-    (geo.popup_size + 100 * popup_delta));
+  Ui.except_modal geo.ui "run/cover-key" (fun () ->
+    let cover_delta =
+      Bool.to_int (Layout.enlarge_cover_key geo) -
+      Bool.to_int (Layout.reduce_cover_key geo)
+    in
+    geo.cover_size <- Geometry.(clamp min_cover_size max_cover_size
+      (geo.cover_size + 100 * cover_delta))
+  );
 
   if Layout.lib_cover_key geo then
     Library.activate_covers st.library (not st.library.covers_shown);

@@ -9,7 +9,7 @@ type playlist = Ui.cached Playlist.t
 type settings = Settings.t
 type library = Ui.cached Library.t
 type filesel = Ui.cached Filesel.t
-type menu = Menu.t
+type popup = Popup.t
 
 type t =
 {
@@ -20,8 +20,7 @@ type t =
   settings : settings;
   library : library;
   filesel : filesel;
-  menu : menu;
-  mutable popup : [`Current | `Track of Data.track | `Album of Data.album];
+  popup : popup;
   mutable saved : File.time;
   mutable delayed : (unit -> unit) list;
 }
@@ -38,8 +37,7 @@ let make ui audio =
     settings = Settings.make ();
     library = Library.make ();
     filesel = Filesel.make ();
-    menu = Menu.make ();
-    popup = `Current;
+    popup = Popup.make ();
     saved = Unix.gettimeofday ();
     delayed = [];
   }
@@ -50,10 +48,15 @@ let delay st f = st.delayed <- f :: st.delayed
 (* Focus *)
 
 let defocus_all st =
-  Playlist.defocus st.playlist;
-  Settings.defocus st.settings;
-  Library.defocus st.library;
-  Filesel.defocus st.filesel
+  if st.geometry.popup_shown <> None then
+    Popup.defocus st.popup
+  else
+  (
+    Playlist.defocus st.playlist;
+    Settings.defocus st.settings;
+    Library.defocus st.library;
+    Filesel.defocus st.filesel;
+  )
 
 let focus_table st (tab : _ Table.t) =
   defocus_all st;
@@ -108,8 +111,12 @@ let foci_filesel (fs : _ Filesel.t) =
   let f = focus_filesel in
   [foci_table f fs.dirs; foci_table f fs.files; foci_edit fs.input]
 
+let foci_popup (pop : Popup.t) =
+  List.map foci_edit (Popup.foci pop)
+
 let foci st =
   let geo = st.geometry in
+  if Geometry.popup_shown geo then foci_popup st.popup else
   (if Geometry.settings_shown geo then foci_settings st.settings else
    if Geometry.playlist_shown geo then foci_playlist st.playlist else []) @
   (if Geometry.filesel_shown geo then foci_filesel st.filesel else
@@ -140,7 +147,7 @@ let print_state st =
     "playlist", Playlist.print_state st.playlist;
     "library", Library.print_state st.library;
     "filesel", Filesel.print_state st.filesel;
-    "menu", Menu.print_state st.menu;
+    "popup", Popup.print_state st.popup;
   ]) st
 
 let print_intern st =
@@ -152,7 +159,7 @@ let print_intern st =
     "playlist", Playlist.print_intern st.playlist;
     "library", Library.print_intern st.library;
     "filesel", Filesel.print_intern st.filesel;
-    "menu", Menu.print_intern st.menu;
+    "popup", Popup.print_intern st.popup;
   ]) st
 
 let to_string st = Text.print (print_intern st)
@@ -166,7 +173,7 @@ let parse_state st =
     apply (r $? "playlist") (Playlist.parse_state st.playlist) ignore;
     apply (r $? "library") (Library.parse_state st.library) ignore;
     apply (r $? "filesel") (Filesel.parse_state st.filesel) ignore;
-    apply (r $? "menu") (Menu.parse_state st.menu) ignore;
+    apply (r $? "popup") (Popup.parse_state st.popup) ignore;
   )
 
 
@@ -199,7 +206,7 @@ let ok' st =
   Playlist.ok st.playlist @
   Library.ok st.library @
   Filesel.ok st.filesel @
-  Menu.ok st.menu @
+  Popup.ok st.popup @
   check "at most one focus" (List.length (focus st) <= 1) @
   check "playlist empty when no current track"
     (st.control.current <> None || st.playlist.table.entries = [||]) @
@@ -208,10 +215,10 @@ let ok' st =
       Table.has_selection st.library.tracks)) @
   check "file selection with op"
     (st.geometry.filesel_shown = (st.filesel.op <> None)) @
-  check "menu with op"
-    (st.geometry.menu_shown = (st.menu.op <> None)) @
-  check "menu modal"
-    (not st.geometry.menu_shown || Ui.is_modal st.geometry.ui) @
+  check "popup modal"
+    (st.geometry.popup_shown = None || Ui.is_modal st.geometry.ui) @
+  check "popup kind"
+    ((st.geometry.popup_shown = None) = (st.popup.kind = None)) @
   check "rename modal"
     (st.library.renaming = None || Ui.is_modal st.geometry.ui) @
   []
@@ -266,6 +273,7 @@ let load st =
   );
   st.saved <- Unix.gettimeofday ();
 
+  
   if st.geometry.playlist_shown then focus_playlist st;
   if st.control.current = None && Playlist.length st.playlist > 0 then
   (

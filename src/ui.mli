@@ -16,6 +16,8 @@ val is_buffered : t -> bool
 val modal : t -> string -> unit
 val nonmodal : t -> string -> unit
 val is_modal : t -> bool
+val except_modal : t -> string -> (unit -> 'a) -> 'a
+
 
 (* Snapping *)
 
@@ -24,8 +26,10 @@ val snap : int -> int -> int -> int
 (* Panes *)
 
 type pane = int
+type owner = string
 
 val pane : t -> pane -> rect -> unit
+val popup : t -> owner option -> pane -> rect -> int -> bool -> unit
 
 (* Areas *)
 
@@ -96,7 +100,6 @@ val resize_repos : t -> point -> size -> size
 
 (* Simple Widgets *)
 
-type owner = string
 type align = [`Left | `Center | `Right]
 type inversion = [`Regular | `Inverted]
 type adjustment = [`Crop of orientation | `Shrink]
@@ -280,9 +283,7 @@ type settings =
 val settings : t -> area -> owner -> settings -> int -> bool -> setting list -> int
 
 
-(* Pop-ups *)
-
-val popup : t -> owner option -> int -> int -> int -> int -> int -> area
+(* Menus *)
 
 type menu =
   { margin : int;

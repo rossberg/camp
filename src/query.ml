@@ -115,7 +115,7 @@ type artist = Data.artist
 type order = Data.order
 type 'a sorting = 'a Data.sorting
 
-type fnop = True | False | Now | Random | Min | Max | Avg | If | Id | Textify
+type fnop = True | False | Now | Random | Min | Max | Avg | If | Id
 type unop = Not | Neg
 type binop =
   | And | Or | EQ | NE | LT | GT | LE | GE | IN | NI | Add | Sub | Mul | Cat
@@ -288,8 +288,6 @@ let rec validate : 'x 'a. ('x, 'a) Data.kind -> expr -> type_ =
       t2
     | Id, [t] ->
       t
-    | Textify, [t] ->
-      TextT
     | _ -> raise TypeError
     )
   | Un (op, q1) ->
@@ -388,8 +386,6 @@ let rec eval : 'x 'a. ('x, 'a) Data.kind -> expr -> 'x -> value =
       )
     | Id, [v] ->
       v
-    | Textify, [v] ->
-      TextV (string_of_value v)
     | _ -> assert false
     )
   | Un (Not, q1) -> BoolV (not (check k q1 x))
@@ -772,6 +768,7 @@ let rec token s i =
     | None -> raise (SyntaxError i)
     )
   | '#' ->
+    if i + 1 < String.length s && s.[i + 1] = '(' then FnToken Id, i + 1 else
     let x, j = scan_word s (i + 1) in
     (match List.assoc_opt x fns with
     | Some fn -> FnToken fn, j
@@ -806,11 +803,6 @@ let rec coerce_bool = function
     Bin (And, coerce_bool q1, Un (Not, coerce_bool q2))
   | q -> q
 
-let rec coerce_text = function
-  | Int (_, s) | Time (_, s) | Date (_, s) -> Text s
-  | Text _ | Bin (Cat, _, _) as q -> q
-  | q -> Fn (Textify, [q])
-
 
 let rec parse_prim s i =
   match token s i with
@@ -831,6 +823,7 @@ let rec parse_prim s i =
     let rpar, m = token s l in
     if rpar <> RParToken then raise (SyntaxError l) else
     (match fn, qs with
+    | Id, _ when k = l -> Text "", m  (* special case: #() treated as "" *)
     | If, q1::qs' -> Fn (fn, coerce_bool q1 :: qs'), m
     | _, _ -> Fn (fn, qs), m
     )
@@ -930,15 +923,19 @@ let rec parse_sort s i =
 
 let rec parse_text s i i0 =
   if i = String.length s then
-    Text (String.sub s i0 (i - i0))
+    if i = i0 then [] else [Text (String.sub s i0 (i - i0))]
   else if s.[i] <> '#' then
     parse_text s (i + 1) i0
   else
-    let q1, j = parse_prim s i in
-    let q2 = parse_text s j j in
-    let q12 = if q2 = Text "" then q1 else Bin (Cat, coerce_text q1, q2) in
-    if i = i0 then q12 else
-    Bin (Cat, Text (String.sub s i0 (i - i0)), coerce_text q12)
+    let qs1 = if i = i0 then [] else [Text (String.sub s i0 (i - i0))] in
+    let q, j =
+      if i + 1 < String.length s && s.[i + 1] = '#' then
+        Text "#", i + 2
+      else
+        parse_prim s i
+    in
+    let qs2 = parse_text s j j in
+    qs1 @ [q] @ qs2
 
 
 let try_parse s f =
@@ -973,17 +970,17 @@ let parse_query s : (query, string) result =
     in {expr = q'; sort}
   )
 
-let parse_custom k s : (expr * type_, string) result =
+let parse_custom k s : (expr list * type_, string) result =
   try_parse s (fun () ->
-    let q = parse_text s 0 0 in
-    let t = validate k q in
-    coerce_text q, t
+    let qs = parse_text s 0 0 in
+    let ts = List.map (validate k) qs in
+    qs, if ts = [] then TextT else List.hd ts
   )
 
 
 (* Stringification *)
 
-type Data.custom += Set of (expr * type_, string) result
+type Data.custom += Set of (expr list * type_, string) result
 
 let custom k s r =
   match !r with
@@ -996,7 +993,8 @@ let custom k s r =
 
 let custom_string k s r x =
   match custom k s r with
-  | Ok (q, _) -> string_of_value (eval k q x)
+  | Ok (qs, _t) ->
+    String.concat "" (List.map (fun q -> string_of_value (eval k q x)) qs)
   | Error _ -> ""
 
 let artist_attr_ex_string artist = function
@@ -1014,7 +1012,7 @@ let track_attr_ex_string track = function
 let any_attr_ex_type = function
   | `Custom (_, _, r) ->
     (match !r with
-    | Set (Ok (_, t)) -> Some t
+    | Set (Ok (_qs, t)) -> Some t
     | _ -> None
     )
   | #any_attr as attr -> Some (attr_type attr)

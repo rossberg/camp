@@ -7,7 +7,7 @@ type artist = Data.artist
 type order = Data.order
 type 'a sorting = 'a Data.sorting
 
-type fnop = True | False | Now | Random | Min | Max | Avg | If | Id | Textify
+type fnop = True | False | Now | Random | Min | Max | Avg | If | Id
 type unop = Not | Neg
 type binop =
   | And | Or | EQ | NE | LT | GT | LE | GE | IN | NI | Add | Sub | Mul | Cat
@@ -44,6 +44,7 @@ val quote : string -> string
 
 val parse_query : string -> (query, string) result
 val parse_expr : ('x, 'a) Data.kind -> string -> (expr * type_, string) result
+val parse_custom : ('x, 'a) Data.kind -> string -> (expr list * type_, string) result
 
 val value : ('x, 'a) Data.kind -> 'a -> 'x -> value
 val check : ('x, 'a) Data.kind -> expr -> 'x -> bool

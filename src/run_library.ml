@@ -507,7 +507,7 @@ let run_browser (st : state) =
       else
         "Folders"
     in
-    Run_menu.command_menu st (Iarray.concat [
+    Run_popup.command_menu st (Iarray.concat [
       [|
         `Entry (c, "Rescan" ^ quant ^ " Quick", Layout.key_rescan,
           if all then rescan_all_avail st else rescan_one_avail st),
@@ -794,7 +794,7 @@ let run_browser (st : state) =
     let c = Ui.text_color geo.ui in
     let history = Edit.history lib.search in
     let history' = nub history in
-    Run_menu.command_menu st ([
+    Run_popup.command_menu st ([
       `Entry (c, "Clear Search", Layout.key_clear_search, lib.search.text <> ""),
         (fun () -> Library.clear_search lib; State.focus_edit st lib.search);
       `Entry (c, "Clear Search History", Layout.key_clear_history, history <> []),
@@ -824,10 +824,10 @@ let run_view (st : state)
     (tab : _ Table.t) busy_tab dep_tab
     refresh_is_busy refresh_deps
     reorder (view : [< Data.any_attr_ex] Library.view) (views : Library.views)
-    attr_string prim_attr all_attrs
+    kind attr_string prim_attr all_attrs
     path_of text_of color_of
     selected_tracks clicked_tracks
-    is_filter editable popup make_view =
+    is_filter editable cover make_view =
   let lib = st.library in
   let geo = st.geometry in
   let win = Ui.window geo.ui in
@@ -954,11 +954,11 @@ let run_view (st : state)
         when mode = `Table
         && (fst view.columns.$(j) :> Data.any_attr_ex) = `Cover ->
         (* Click on cover cell: open cover popup *)
-        Run_menu.popup st (popup entries.(i));
+        Run_popup.cover st (cover entries.(i));
       (* Don't do cover pop-up on grid, since that interferes with drag & drop
       | Some i, None when mode = `Grid ->
         (* Click on grid cell: open cover popup *)
-        Run_menu.popup st (popup entries.(i));
+        Run_popup.cover st (cover entries.(i));
       *)
       | _ -> ()
     );
@@ -1097,7 +1097,7 @@ let run_view (st : state)
 *)
     let i = Option.value i_opt ~default: (Iarray.length view.columns) in
     let removable_attrs = if i_opt = None then [] else [fst view.columns.$(i)] in
-    Run_menu.header_menu st view i removable_attrs unused_attrs None
+    Run_popup.header_menu st view kind i removable_attrs unused_attrs None
   );
 
   if busy then
@@ -1112,12 +1112,12 @@ let run_view (st : state)
       else mouse geo cols tab
     with
     *)
-    match mouse geo cols tab with
-    | Some (Some i, _) ->
+    match st.popup.kind, mouse geo cols tab with
+    | Some (`Cover _), Some (Some i, _) ->
       (* Drag with active cover popup: update cover *)
       Ui.nonmodal geo.ui "lib.view/drag-cover";
-      Run_menu.popup st (popup entries.(i));
-    | _ -> ()
+      Run_popup.cover st (cover entries.(i));
+    | _, _ -> ()
   )
 
 
@@ -1172,7 +1172,7 @@ let run_views (st : state) =
       lib.artists busy_artists lib.albums
       Library.refresh_artists_is_busy Library.refresh_albums_tracks
       Library.reorder_artists view.artists view
-      Query.artist_attr_ex_string (Some `Artist) Data.artist_attrs
+      Artist Query.artist_attr_ex_string (Some `Artist) Data.artist_attrs
       (fun _ -> "") (fun _ -> "") color_of
       (fun lib -> lib.tracks.entries) (fun lib _ -> lib.tracks.entries)
       true false (fun _ -> assert false) Run_view.artists_view;
@@ -1203,10 +1203,10 @@ let run_views (st : state) =
       lib.albums busy_albums busy_tracks
       Library.refresh_albums_is_busy Library.refresh_tracks
       Library.reorder_albums view.albums view
-      Query.album_attr_ex_string None Data.album_attrs
+      Album Query.album_attr_ex_string None Data.album_attrs
       (fun (album : Data.album) -> album.path) text_of color_of
       (fun lib -> lib.tracks.entries) (fun lib _ -> lib.tracks.entries)
-      true false (fun album -> `Album album) Run_view.albums_view;
+      true false (fun album -> Popup.Album album) Run_view.albums_view;
 
     (* Divider *)
     if geo.right_shown then
@@ -1267,11 +1267,11 @@ let run_views (st : state) =
       lib.tracks busy_tracks busy_tracks
       Library.refresh_tracks_is_busy ignore
       Library.reorder_tracks view.tracks view
-      Query.track_attr_ex_string (Some prim_attr) Data.track_attrs
+      Track Query.track_attr_ex_string (Some prim_attr) Data.track_attrs
       (fun (track : Data.track) -> track.path) text_of color_of
       Library.selected (fun lib i -> [|lib.tracks.entries.(i)|])
       false (Library.current_is_plain_playlist lib)
-      (fun track -> `Track track) Run_view.tracks_view;
+      (fun track -> Popup.Track track) Run_view.tracks_view;
 
     (* Playlist file drag & drop *)
     Run_view.external_drop_on_tracks st;
@@ -1303,7 +1303,7 @@ let run_log (st : state) =
 
   Layout.log_pane geo;
 
-  if not geo.menu_shown then Table.deselect_all log.table;
+  if geo.popup_shown = None then Table.deselect_all log.table;
 
   let pp_row i = log.table.entries.(i) in
   (match Layout.log_table geo log.columns log.heading log.table pp_row with

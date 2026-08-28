@@ -909,14 +909,14 @@ struct
     | _ -> raise Text.Type_error
 
   let album_attr_ex u =
-    match any_attr u with
+    match any_attr_ex u with
     | #album_attr_ex as x -> x
     | _ -> raise Text.Type_error
 
   let track_attr_ex u =
-    match any_attr u with
+    match any_attr_ex u with
     | #track_attr_ex as x -> x
-    | _ -> raise Text.Type_error
+    | a -> raise Text.Type_error
 
   let sorting attr = list (pair attr order)
   let columns attr = iarray (pair attr nat)

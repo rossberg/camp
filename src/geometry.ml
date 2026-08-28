@@ -26,9 +26,7 @@ type t =
   mutable window : float * float * float * float;
   mutable repair_log_columns : int iarray;
   mutable filesel_shown : bool;
-  mutable menu_shown : bool;
   mutable popup_shown : (int * int) option;
-  mutable popup_size : int;
   mutable browser_width : int;
   mutable directories_width : int;
   mutable left_width : int;
@@ -37,6 +35,7 @@ type t =
   mutable lower_shown : bool;
   mutable album_grid : int;
   mutable track_grid : int;
+  mutable cover_size : int;
 }
 
 
@@ -71,9 +70,7 @@ let make ui =
     window = 1.0, 1.0, 1.0, 1.0;
     repair_log_columns = [|200; 300; 300|];
     filesel_shown = false;
-    menu_shown = false;
     popup_shown = None;
-    popup_size = 500;
     browser_width = 160;
     directories_width = 150;
     left_width = 200;
@@ -82,6 +79,7 @@ let make ui =
     lower_shown = false;
     album_grid = 100;
     track_grid = 100;
+    cover_size = 500;
   }
 
 
@@ -93,8 +91,8 @@ let min_pad_size = 0
 let max_pad_size = 8
 let min_grid_size = 32
 let max_grid_size = 1024
-let min_popup_size = 100
-let max_popup_size = 1000
+let min_cover_size = 100
+let max_cover_size = 1000
 
 let sx g x = x * g.control_width / control_min_w
 let sy g y = y * g.control_height / control_min_h
@@ -102,7 +100,7 @@ let smin g v = min (sx g v) (sy g v)
 let smax g v = max (sx g v) (sy g v)
 
 let margin g = smin g g.margin
-let popup_margin g = margin g / 2
+let cover_margin g = margin g / 2
 let divider_w g = margin g
 
 let text_h g = min max_text_size (smin g g.text)
@@ -127,6 +125,7 @@ let playlist_shown g = g.playlist_shown && not g.settings_shown
 let settings_shown g = g.settings_shown
 let library_shown g = g.library_shown && not g.filesel_shown
 let filesel_shown g = g.filesel_shown
+let popup_shown g = g.popup_shown <> None
 
 let control_w g = g.control_width
 let control_h g = g.control_height
@@ -687,7 +686,7 @@ let print_state geo =
     "album_grid", nat geo.album_grid;
     "track_grid", nat geo.track_grid;
     "repair_cols", iarray nat geo.repair_log_columns;
-    "popup_size", nat geo.popup_size;
+    "cover_size", nat geo.cover_size;
   ]) geo
 
 let print_intern geo =
@@ -700,6 +699,7 @@ let print_intern geo =
     "win_size", pair int int (w, h);
     "ext_width", nat geo.extension_width;
     "ext_height", nat geo.extension_height;
+    "popup_shown", option (pair nat nat) geo.popup_shown;
   ]) geo
 
 let parse_state geo =  (* assumes playlist and library loaded *)
@@ -757,8 +757,8 @@ let parse_state geo =  (* assumes playlist and library loaded *)
       (fun w -> geo.track_grid <- w);
     apply (r $? "repair_cols") (iarray (num 10 1000))
       (fun ws -> if Iarray.length ws = 3 then geo.repair_log_columns <- ws);
-    apply (r $? "popup_size") (num min_popup_size max_popup_size)
-      (fun w -> geo.popup_size <- w);
+    apply (r $? "cover_size") (num min_cover_size max_cover_size)
+      (fun w -> geo.cover_size <- w);
 
     geo.window <- (!rax, !ray, !raw, !rah);
     Ui.rescale geo.ui geo.scaling;

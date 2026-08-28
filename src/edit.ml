@@ -24,6 +24,7 @@ type t =
 (* Constructor *)
 
 let make undo_depth =
+Printf.eprintf "[Edit.make]\n%!";
   {
     text = "";
     prev = [];

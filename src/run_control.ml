@@ -171,13 +171,13 @@ let resize_grid (st : state) delta =
       geo.track_grid <- clamp_grid (inc geo.track_grid);
   ) st.library.current
 
-let clamp_popup = Geometry.(clamp min_popup_size max_popup_size)
+let clamp_cover = Geometry.(clamp min_cover_size max_cover_size)
 
-let resize_popup_avail (st : state) delta =
-  clamp_popup (st.geometry.popup_size + 100 * delta) <> st.geometry.popup_size
+let resize_cover_avail (st : state) delta =
+  clamp_cover (st.geometry.cover_size + 100 * delta) <> st.geometry.cover_size
 
-let resize_popup (st : state) delta =
-  st.geometry.popup_size <- st.geometry.popup_size + 100 * delta
+let resize_cover (st : state) delta =
+  st.geometry.cover_size <- st.geometry.cover_size + 100 * delta
 
 
 (*
@@ -243,16 +243,16 @@ let run (st : state) =
   (* Exit button *)
   (* This has to come first, otherwise Raylib crashes? *)
   let modal = Ui.is_modal geo.ui in
-  if modal then Ui.nonmodal geo.ui "ctl.run/power";  (* always allow Quit key *)
-  Layout.power_shadow geo;
-  if not (Layout.power_button geo (Some true))
-  && not (Api.Key.is_modifier_down `Shift)
-  && (not modal || Ui.key geo.ui Layout.key_quit true) then
-  (
-    (* Power button clicked: quit *)
-    quit st
+  Ui.except_modal geo.ui "ctl.run/power" (fun () ->  (* always allow Quit key *)
+    Layout.power_shadow geo;
+    if not (Layout.power_button geo (Some true))
+    && not (Api.Key.is_modifier_down `Shift)
+    && (not modal || Ui.key geo.ui Layout.key_quit true) then
+    (
+      (* Power button clicked: quit *)
+      quit st
+    )
   );
-  if modal then Ui.modal geo.ui "ctl.run/power";
   Layout.power_label geo;
 
   (* Current status *)
@@ -809,7 +809,7 @@ let run (st : state) =
     let repeat s x = s ^ (match cycled_repeat x with `None -> " None" | `One -> " One" | `All -> " All" | `Marked -> " Selection") in
     let loop s x = s ^ (match cycled_loop x with `None -> " Off" | `A _ -> " Start" | `AB _ -> " End") in
     let unmute x = if x then "Unmute" else "Mute" in
-    Run_menu.command_menu st (Iarray.append [|
+    Run_popup.command_menu st (Iarray.append [|
       `Entry (c, "Start/Stop", Layout.key_startstop, paused || len > 0),
         (fun () -> start_stop st);
       `Entry (c, "Play", Layout.key_play, stopped && len > 0),
@@ -849,7 +849,7 @@ let run (st : state) =
   else if ctl.visual <> `Oscilloscope && old_visual = ctl.visual && not (Control.silent ctl)
     && Layout.cover_popup_open geo then
   (
-    Run_menu.popup st `Current
+    Run_popup.cover st Popup.Current
   )
 
 
@@ -908,7 +908,7 @@ let run_toggle_panel (st : state) =
         ctl.visual <> vis),
         (fun () -> Control.set_visual ctl vis)
     in
-    Run_menu.command_menu st (Iarray.append [|
+    Run_popup.command_menu st (Iarray.append [|
       `Entry (c, "Quit", Layout.key_quit, true),
         (fun () -> quit st);
       `Entry (c, "Minimize", Layout.key_min, true),
@@ -959,10 +959,10 @@ let run_toggle_panel (st : state) =
         (fun () -> resize_grid st (+1));
       `Entry (c, "Decrease Grid Cover Size", Layout.key_griddn, resize_grid_avail st (-1)),
         (fun () -> resize_grid st (-1));
-      `Entry (c, "Increase Popup Cover Size", Layout.key_popupup, resize_popup_avail st (+1)),
-        (fun () -> resize_popup st (+1));
-      `Entry (c, "Decrease Popup Cover Size", Layout.key_popupdn, resize_popup_avail st (-1)),
-        (fun () -> resize_popup st (-1));
+      `Entry (c, "Increase Popup Cover Size", Layout.key_coverup, resize_cover_avail st (+1)),
+        (fun () -> resize_cover st (+1));
+      `Entry (c, "Decrease Popup Cover Size", Layout.key_coverdn, resize_cover_avail st (-1)),
+        (fun () -> resize_cover st (-1));
     |]))
 *)
   )

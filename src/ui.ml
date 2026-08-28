@@ -66,7 +66,7 @@ let has_mouse ui owner =
   Option.exists (String.starts_with ~prefix: owner) ui.mouse_owner
 
 let grab_mouse ui owner =
-  if ui.mouse_owner = None && ui.drag = No_drag then
+  if not ui.modal && ui.mouse_owner = None && ui.drag = No_drag then
     ui.mouse_owner <- Some owner;
   has_mouse ui owner
 
@@ -100,10 +100,18 @@ let nonmodal ui label =
 let is_modal ui =
   ui.modal_save
 
+let except_modal ui label f =
+  let save = is_modal ui in
+  if save then nonmodal ui label;
+  let x = f () in
+  if save then modal ui label;
+  x
+
 
 (* Panes *)
 
 type pane = int
+type owner = string
 
 let rel b v =
   if v >= 0 then v else
@@ -778,8 +786,6 @@ let image_size ui area adjust img =
 
 (* Passive Widgets *)
 
-type owner = string
-
 let widget ui area owner_opt ?(focus = false) modkey =
   let r = dim ui area in
   let mouse =
@@ -1203,7 +1209,7 @@ let edit_text ui area owner ph s scroll selection c focus =
     );
     Draw.unclip ui.win;
 
-    if not focus' then s, scroll', None, Uchar.of_int 0 else
+    if ui.modal || not focus' then s, scroll', None, Uchar.of_int 0 else
 
     let ch = Key.char () in
     if ch >= Uchar.of_int 32 then
@@ -1898,7 +1904,7 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
 
     (* Keys *)
     let result =
-      if result <> `None || not tab.focus then result else
+      if result <> `None || ui.modal || not tab.focus then result else
       (
         let d =
           if key_status' ui (`Arrow `Up) = `Pressed then -1 else
@@ -2424,7 +2430,7 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
 
     (* Keys *)
     let result =
-      if result <> `None || not tab.focus then result else
+      if result <> `None || ui.modal || not tab.focus then result else
       (
         let d =
           if key_status' ui (`Arrow `Up) = `Pressed then -line else
@@ -2846,22 +2852,35 @@ let settings ui area owner geo vscroll adjust_vscroll settings =
 
 (* Pop-ups *)
 
-let popup ui owner_opt x y w h bw =
+let popup' ui r bw greyout =
   assert (is_modal ui);
+  let x, y, w, h = r in
   let ww, wh = Window.size ui.win in
   let w' = w + 2 * bw in
   let h' = h + 2 * bw in
   let x' = max 0 (min x (ww - w')) in
   let y' = max 0 (min y (wh - h')) in
+
+  if greyout then
+    Draw.fill_rect ui.win 0 0 ww wh (`Trans (`Black, 0x40));
+
   background ui x' y' w' h';
   let sw = bw / 3 in
   Draw.fill_rect ui.win (x' + w') (y' + sw) sw h' `Black;
   Draw.fill_rect ui.win (x' + sw) (y' + h') w' sw `Black;
+
+  (x' + bw, y' + bw, w, h)
+
+
+let popup ui owner_opt i r bw greyout =
+  let r' = popup' ui r bw greyout in
+  pane ui i r';
   Option.iter (fun owner ->
     ignore (grab_mouse ui owner)  (* what if it fails? *)
-  ) owner_opt;
-  (-1, x' + bw, y' + bw, w, h)
+  ) owner_opt
 
+
+(* Menus *)
 
 type menu =
   { margin : int;
@@ -2906,7 +2925,6 @@ let menu ui x y geo hscroll vscroll items =
     match Iarray.get items i with `Entry (_, _, _, b) -> b | _ -> false in
 
   let ww, wh = Window.size ui.win in
-  Draw.fill_rect ui.win 0 0 ww wh (`Trans (`Black, 0x40));
 
   let maxw, maxh = ww - 2 * geo.margin, wh - 2 * geo.margin in
   let mw = (geo.gutter_w + 1)/2 in  (* inner width padding *)
@@ -2919,7 +2937,8 @@ let menu ui x y geo hscroll vscroll items =
   let h' = if scroll_h = 0 then h else h + scroll_h + 1 in
   let w'' = min w' maxw in
   let h'' = min h' maxh in
-  let area = popup ui None x y w'' h'' geo.margin in
+  let ax, ay, aw, ah = popup' ui (x, y, w'', h'') geo.margin true in
+  let area = (-1, ax, ay, aw, ah) in
   let page = (if scroll_h = 0 then h'' else h'' - scroll_h - 1) / rh in
 
   let geo' : rich_table =

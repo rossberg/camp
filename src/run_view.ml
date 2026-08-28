@@ -47,7 +47,7 @@ let spin_changed (st : state) =
 
 (* Because we cannot define a bounded abstract type attr < Data.any_attr
  * in the signature, we have to encode the existential quantification. *)
-type modifyer = {f : 'a. ([< Data.any_attr_ex] as 'a) Library.view -> 'a list -> unit}
+type modifyer = {f : 'a. ([< Data.any_attr_ex > `Custom] as 'a) Library.view -> 'a list -> unit}
 
 module type View =
 sig
@@ -489,7 +489,7 @@ let modify ops (st : state) dir on_start on_pl =
             List.map Query.quote |> String.concat " "
           in
           Table.select log.table i i;
-          Run_menu.command_menu st (Iarray.append
+          Run_popup.command_menu st (Iarray.append
             (if not ops.show_path then [||] else
             [|
               `Entry (c, "Show Playlist", Layout.nokey, true),
@@ -1031,7 +1031,7 @@ let select_invert (st : state) (module View : View) =
 
 (* Initiate Menus *)
 
-let _header_menu (st : state) (module View : View) =
+let _header_menu (st : state) (module View : View) kind =
   Option.iter (fun modify -> modify {f = fun (view : _ Library.view) attrs ->
     if view.shown = Some `Table then
     (
@@ -1039,7 +1039,7 @@ let _header_menu (st : state) (module View : View) =
       let unused_attrs = Data.diff_attrs attrs current_attrs in
       let used_attrs = Data.diff_attrs current_attrs unused_attrs in
       let i = Iarray.length view.columns in
-      Run_menu.header_menu st view i used_attrs unused_attrs
+      Run_popup.header_menu st view kind i used_attrs unused_attrs
         (if View.(table it) != st.playlist.table then None else
           Some (fun () -> st.geometry.playlist_shown <- false))
     )
@@ -1071,7 +1071,7 @@ let list_menu (st : state) view searches =
 
   let c = Ui.text_color geo.ui in
   let all, quant, get_tracks = subject_tracks view in
-  Run_menu.command_menu st (Iarray.concat [
+  Run_popup.command_menu st (Iarray.concat [
     [|
       `Entry (c, "Tag" ^ quant, Layout.key_tag, tag_avail st view),
         (fun () -> tag st (get_tracks ()) (not all));
@@ -1137,7 +1137,7 @@ let edit_menu (st : state) view searches pos_opt =
   let c = Ui.text_color geo.ui in
   let all, quant, get_tracks = subject_tracks view in
   let all_a, quant_a, _ = subject_absent_tracks view in
-  Run_menu.command_menu st (Iarray.concat [
+  Run_popup.command_menu st (Iarray.concat [
     [|
       `Entry (c, "Insert Separator", Layout.key_sep, separator_avail st view),
         (fun () -> separator st view pos);

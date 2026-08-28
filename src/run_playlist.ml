@@ -169,7 +169,7 @@ let run (st : state) =
       match loc with
       | Some i, Some j when fst pl.view.columns.$(j) = `Cover ->
         (* Click on cover cell: open cover popup *)
-        Run_menu.popup st (`Track tab.entries.(i));
+        Run_popup.cover st (Popup.Track tab.entries.(i));
       | _ -> ()
     );
     Playlist.refresh_total_selected pl;
@@ -294,18 +294,18 @@ let run (st : state) =
       let attr = fst pl.view.columns.$(i) in
       if attr = `Pos || attr = `Name then [] else [attr]
     in
-    Run_menu.header_menu st pl.view i removable_attrs unused_attrs
+    Run_popup.header_menu st pl.view Track i removable_attrs unused_attrs
       (Some (fun () -> geo.playlist_headers <- false))
   );
 
   if geo.popup_shown <> None && Api.Mouse.is_down `Left then
   (
-    match Layout.playlist_mouse geo cols tab with
-    | Some (Some i, _) ->
+    match st.popup.kind, Layout.playlist_mouse geo cols tab with
+    | Some (`Cover _), Some (Some i, _) ->
       (* Drag with active cover popup: update cover *)
       Ui.nonmodal geo.ui "pl.run/drag-cover";
-      Run_menu.popup st (`Track tab.entries.(i));
-    | _ -> ()
+      Run_popup.cover st (Popup.Track tab.entries.(i));
+    | _, _ -> ()
   );
 
   (* Playlist file drag & drop *)

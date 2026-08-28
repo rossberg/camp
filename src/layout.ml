@@ -127,8 +127,8 @@ let key_padup = nokey
 let key_paddn = nokey
 let key_gridup = shiftcmd '+'
 let key_griddn = shiftcmd '-'
-let key_popupup = cmd ']'
-let key_popupdn = cmd '['
+let key_coverup = cmd ']'
+let key_coverdn = cmd '['
 let key_scaleup = shiftcmd ']'
 let key_scaledn = shiftcmd '['
 let key_settings = cmd ','
@@ -362,18 +362,21 @@ let control_context g = Ui.mouse g.ui (cp, margin g, ctl_y g, - margin g, -1) "c
 
 let cover_popup_open g = Ui.mouse g.ui (cover_area g) "cover_but" `Left
 
-let cover_popup_w g = g.popup_size |>
-  min (control_w g + library_w g - 2 * popup_margin g) |>
-  min (control_h g + playlist_h g - line_h g - 2 * popup_margin g)
-let cover_popup_image_size g = Ui.image_size g.ui (-1, 0, 0, cover_popup_w g, cover_popup_w g) `Shrink
-let cover_popup g x y iw ih = Ui.popup g.ui (Some "cover") x y iw (ih + line_h g) (popup_margin g)
-let cover_popup_image g (p, x, y, w, h) = Ui.image g.ui (p, x, y, w, h - line_h g) `Shrink
-let cover_popup_text g (p, x, y, w, _) ih = Ui.ticker g.ui (p, x, y + ih + pad_h g, w, text_h g)
+let covp = cp + 1
+
+let cover_popup_w g = g.cover_size |>
+  min (control_w g + library_w g - 2 * cover_margin g) |>
+  min (control_h g + playlist_h g - line_h g - 2 * cover_margin g)
+let cover_popup g (x, y, iw, ih) = Ui.popup g.ui (Some "cover") covp (x, y, iw, ih + line_h g) (cover_margin g) false
+
+let cover_popup_image_size g = Ui.image_size g.ui (covp, 0, 0, cover_popup_w g, cover_popup_w g) `Shrink
+let cover_popup_image g = Ui.image g.ui (covp, 0, 0, -1, -line_h g) `Shrink
+let cover_popup_text g = Ui.ticker g.ui (covp, 0, -text_h g, -1, -1)
 
 
 (* Divider Panes *)
 
-let pdp = cp + 1
+let pdp = covp + 1
 let extension_divider_h_pane g = Ui.pane g.ui pdp (playlist_x g, playlist_y g, playlist_w g, divider_w g)
 let extension_divider_h g = Ui.divider g.ui (pdp, margin g, 0, - margin g, -1) "ext_div_h" `Vertical
 let extension_divider_wh_left g = Ui.divider2 g.ui (pdp, 0, 0, margin g, -1) "ext_div_wh_l" `NE_SW
@@ -455,8 +458,8 @@ let reduce_grid_key g = Ui.key g.ui key_griddn true
 let enlarge_scale_key g = Ui.key g.ui key_scaleup true
 let reduce_scale_key g = Ui.key g.ui key_scaledn true
 
-let enlarge_popup_key g = Ui.key g.ui key_popupup true
-let reduce_popup_key g = Ui.key g.ui key_popupdn true
+let enlarge_cover_key g = Ui.key g.ui key_coverup true
+let reduce_cover_key g = Ui.key g.ui key_coverdn true
 
 
 (* Settings Pane *)
@@ -566,6 +569,33 @@ let tag_button = ledit_button 1 3 "TAG" key_tag
 let rescan_button = ledit_button 1 4 "SCAN" key_scandir
 
 
+(* Custom Attribute pop-up *)
+
+let cp = bp + 1
+
+let custom_popup_label_w g = smin g 40
+let custom_popup_x g = custom_popup_label_w g
+let custom_popup_y1 g = 0
+let custom_popup_y2 g = custom_popup_y1 g + line_h g + margin g
+let custom_popup_name_label g = Ui.label g.ui (cp, 0, custom_popup_y1 g + (line_h g - label_h g + sy g 1)/2, custom_popup_label_w g, label_h g) `Left "HEADER"
+let custom_popup_name_box g = Ui.box g.ui (cp, custom_popup_x g, custom_popup_y1 g, -1, line_h g) `Black
+let custom_popup_name_edit g = Ui.rich_edit_text g.ui (cp, custom_popup_x g + sx g 2, custom_popup_y1 g, - sx g 2, line_h g) "custom:name_edit" (pad_h g)
+let custom_popup_text_label g = Ui.label g.ui (cp, 0, custom_popup_y2 g + (line_h g - label_h g + sy g 1)/2, custom_popup_label_w g, label_h g) `Left "TEXT"
+let custom_popup_text_box g = Ui.box g.ui (cp, custom_popup_x g, custom_popup_y2 g, -1, line_h g) `Black
+let custom_popup_text_edit g = Ui.rich_edit_text g.ui (cp, custom_popup_x g + sx g 2, custom_popup_y2 g, - sx g 2, line_h g) "custom:text_edit" (pad_h g)
+
+let custom_popup_button_w g = 2 * edit_w g
+let custom_popup_button_h g = edit_h g
+let custom_popup_button i c label key g = Ui.labeled_button g.ui (cp, - (i + 1) * custom_popup_button_w g, - custom_popup_button_h g, custom_popup_button_w g, custom_popup_button_h g) ("custom:but_" ^ string_of_int i) (button_label_h g) (c g.ui) label key true (Some false)
+
+let custom_popup_ok_button = custom_popup_button 1 Ui.active_color "OK" key_ok
+let custom_popup_cancel_button = custom_popup_button 0 Ui.inactive_color "CANCEL" key_cancel
+
+let custom_popup_w g = smin g 200
+let custom_popup_h g = custom_popup_y2 g + line_h g + margin g + custom_popup_button_h g
+let custom_popup g x y = Ui.popup g.ui None cp (x, y, custom_popup_w g, custom_popup_h g) (margin g) true
+
+
 (* View Panes *)
 
 let left_x g = library_x g + g.browser_width
@@ -577,7 +607,7 @@ let upper_h g = if g.lower_shown then g.upper_height else - bottom_h g
 let lower_h g = - bottom_h g
 
 (* Upper left view *)
-let lp = bp + 1
+let lp = cp + 1
 let left_pane g = Ui.pane g.ui lp (left_x g, left_y g, left_w g, upper_h g)
 
 let left_area g = (lp, 0, margin g, -1, -1)
