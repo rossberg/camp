@@ -449,7 +449,7 @@ let finish ui margin (varw, varh) =
     ui.mouse_owner <- None;
   );
 
-  if owner <> None || ui.modal then
+  if owner <> None || ui.modal_save then
   (
     wr, no_edge, screen_change
   )
