@@ -537,7 +537,7 @@ let search_label g = Ui.label g.ui (bp, margin g, search_y g + (line_h g - label
 let search_button g = Ui.mouse g.ui (bp, margin g, search_y g, search_label_w g, line_h g) "search_but" `Left
 let search_key g = Ui.key g.ui key_search true
 let search_box g = Ui.box g.ui (bp, search_x g, search_y g, - divider_w g, line_h g) `Black
-let search_edit g = Ui.rich_edit_text g.ui (bp, search_x g + sx g 2, search_y g, - divider_w g - sx g 2, line_h g) "search_edit" (pad_h g)
+let search_edit g = Ui.rich_edit_text g.ui (bp, search_x g + sx g 2, search_y g, - divider_w g - sx g 2, line_h g) "search_edit" (pad_h g) true
 let search_context g = Ui.mouse g.ui (bp, search_x g, search_y g, - divider_w g, line_h g) "search_ctx" `Right
 
 (* Browser *)
@@ -550,7 +550,7 @@ let browser_error_box g = Ui.box g.ui (browser_area g) (Ui.error_color g.ui)
 
 let rename_area g = Ui.browser_entry_text_area g.ui (browser_area g) (rich_table g 0 false)
 let rename_box g area = Ui.box g.ui area `Black
-let rename_edit g area = Ui.rich_edit_text g.ui area "name_edit"
+let rename_edit g area pad = Ui.rich_edit_text g.ui area "name_edit" pad true
 
 let fold_key g = Ui.key g.ui key_folddir
 let rename_key g b =
@@ -573,16 +573,29 @@ let rescan_button = ledit_button 1 4 "SCAN" key_scandir
 
 let cp = bp + 1
 
+let custom_popup_w g = smin g 200
+let custom_popup_h g = 2 * line_h g + 2  (* cf Ui.rich_table *)
+let custom_popup g x y = Ui.popup g.ui None cp (x, y, custom_popup_w g, custom_popup_h g) (cover_margin g) true
+
+let custom_popup_ok_button g = Ui.key g.ui key_ok true
+let custom_popup_cancel_button g = Ui.key g.ui key_cancel true
+
+let custom_popup_name_box g = Ui.box g.ui (cp, 0, 0, -1, line_h g) (Ui.text_color g.ui)
+let custom_popup_name_edit g = Ui.rich_edit_text g.ui (cp, gutter_w g / 2, pad_h g, - gutter_w g / 2, text_h g) "custom:name_edit" (pad_h g) true `Black
+let custom_popup_text_box g = Ui.box g.ui (cp, 0, line_h g, -1, line_h g) `Black
+let custom_popup_text_edit g = Ui.rich_edit_text g.ui (cp, gutter_w g / 2, pad_h g + line_h g + 2, - gutter_w g / 2, text_h g) "custom:text_edit" (pad_h g) false
+
+(*
 let custom_popup_label_w g = smin g 40
 let custom_popup_x g = custom_popup_label_w g
 let custom_popup_y1 g = 0
 let custom_popup_y2 g = custom_popup_y1 g + line_h g + margin g
 let custom_popup_name_label g = Ui.label g.ui (cp, 0, custom_popup_y1 g + (line_h g - label_h g + sy g 1)/2, custom_popup_label_w g, label_h g) `Left "HEADER"
 let custom_popup_name_box g = Ui.box g.ui (cp, custom_popup_x g, custom_popup_y1 g, -1, line_h g) `Black
-let custom_popup_name_edit g = Ui.rich_edit_text g.ui (cp, custom_popup_x g + sx g 2, custom_popup_y1 g, - sx g 2, line_h g) "custom:name_edit" (pad_h g)
+let custom_popup_name_edit g = Ui.rich_edit_text g.ui (cp, custom_popup_x g + sx g 2, custom_popup_y1 g + pad_h g, - sx g 2, text_h g) "custom:name_edit" (pad_h g) false (Ui.text_color g.ui)
 let custom_popup_text_label g = Ui.label g.ui (cp, 0, custom_popup_y2 g + (line_h g - label_h g + sy g 1)/2, custom_popup_label_w g, label_h g) `Left "TEXT"
 let custom_popup_text_box g = Ui.box g.ui (cp, custom_popup_x g, custom_popup_y2 g, -1, line_h g) `Black
-let custom_popup_text_edit g = Ui.rich_edit_text g.ui (cp, custom_popup_x g + sx g 2, custom_popup_y2 g, - sx g 2, line_h g) "custom:text_edit" (pad_h g)
+let custom_popup_text_edit g = Ui.rich_edit_text g.ui (cp, custom_popup_x g + sx g 2, custom_popup_y2 g + pad_h g, - sx g 2, text_h g) "custom:text_edit" (pad_h g) false
 
 let custom_popup_button_w g = 2 * edit_w g
 let custom_popup_button_h g = edit_h g
@@ -594,6 +607,7 @@ let custom_popup_cancel_button = custom_popup_button 0 Ui.inactive_color "CANCEL
 let custom_popup_w g = smin g 200
 let custom_popup_h g = custom_popup_y2 g + line_h g + margin g + custom_popup_button_h g
 let custom_popup g x y = Ui.popup g.ui None cp (x, y, custom_popup_w g, custom_popup_h g) (margin g) true
+*)
 
 
 (* View Panes *)
@@ -765,4 +779,4 @@ let file_label_w g = smin g 20
 let file_label g = Ui.label g.ui (fp, 0, footer_y g + (line_h g - label_h g + sy g 1)/2, file_label_w g, label_h g) `Left "FILE"
 let file_button g = Ui.mouse g.ui (fp, margin g, footer_y g, file_label_w g, line_h g) "file_but" `Left
 let file_box g = Ui.box g.ui (fp, file_label_w g, footer_y g, - divider_w g, line_h g) `Black
-let file_edit g = Ui.rich_edit_text g.ui (fp, file_label_w g + 2, footer_y g, - divider_w g - sx g 2, line_h g) "file_edit" (pad_h g)
+let file_edit g = Ui.rich_edit_text g.ui (fp, file_label_w g + 2, footer_y g, - divider_w g - sx g 2, line_h g) "file_edit" (pad_h g) true

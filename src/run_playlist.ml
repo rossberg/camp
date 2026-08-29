@@ -294,7 +294,7 @@ let run (st : state) =
       let attr = fst pl.view.columns.$(i) in
       if attr = `Pos || attr = `Name then [] else [attr]
     in
-    Run_popup.header_menu st pl.view Track i removable_attrs unused_attrs
+    Run_popup.header_menu st pl.table pl.view Track i removable_attrs unused_attrs
       (Some (fun () -> geo.playlist_headers <- false))
   );
 

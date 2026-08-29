@@ -4,7 +4,7 @@
 / /    / /_| || |\/| || |_/ /  |  \
 \ \   / ___  || |  | ||  __/   |  /
  \ \_/ /   | || |  | || |      | /
-  \___/    |_||_|  |_||_|      |/ 0.9.6
+  \___/    |_||_|  |_||_|      |/ 0.9.7
    _                    _ 
   / \_/ A MUSIC PLAYER / \_/
 
@@ -450,12 +450,13 @@ like playlists) can be viewed in a number of exciting ways.
   Ctrl/Command to avoid changing the selection.
 
 * Filter: Selecting one or multiple entries in the artists or albums table
-  filters the downstream albums or tracks table to only show what belongs to the
-  selected artists or albums or both, respectively.
+  filters the downstream albums or tracks table to only show what belongs to
+  the selected artists or albums or both, respectively.
 
 * Columns: Columns in a table can be resized and reordered by drag & drop on
   the column header as you would probably expect. Right-click on a header
-  yields a context menu to remove or add even more columns.
+  yields a context menu to remove or add even more columns. That includes
+  custom columns computed from user-defined formulas (Section 3.4.3).
 
 * Sort: Each table can be sorted according to up to 4 keys, by clicking column
   headers:
@@ -597,10 +598,6 @@ field. And this works even with playlists.
   - #fileext - the extension of a track's file
   - #filedir - the path of the folder a track's file resides in
   - #filepath - the full path of a track's file
-  - #now - the current date & time
-  - #random - a random number (different every time)
-  - #true - the true truth value
-  - #false - the false truth value
 
   For example, only give me Ed Rush tracks that have not vanished from disk:
 
@@ -634,6 +631,12 @@ field. And this works even with playlists.
 
 * Functions: In addition to simple operators, formulas can also contain functions:
 
+  - `#now` - the current date & time
+  - `#random(e1,e2)` - a random number between e1 and e2-1
+  - `#random(e)` - a random number between 0 and e-1
+  - `#random()` - a random number between 0 and 2^32-1
+  - `#true` - the true truth value
+  - `#false` - the false truth value
   - `#min(...)` - minimum of values
   - `#max(...)` - maximum of values
   - `#avg(...)` - average of values (must be numeric or time)
@@ -649,6 +652,16 @@ field. And this works even with playlists.
   produces a separate result. In order to distinguish those, it cannot harm to
   activate the Playlist column and perhaps the Position (#) column of the
   tracks view (Section 3.4.2).
+
+* Custom Columns: Formulas can also be used to define custom columns in Library
+  views or the Playlist (via the table header's context menu). For example,
+  a column that marks new tracks:
+
+  +----------------------------------------
+  | Novelty
+  +----------------------------------------
+  | #if(#filetime > #now - 30d, NEW, "")
+  +----------------------------------------
 
 
 3.5 Viewlists

@@ -88,7 +88,8 @@ let value (type x a) (k : (x, a) Data.kind) (attr : a) (x : x) : value =
 
 
 let string_of_value = function
-  | BoolV b -> string_of_bool b
+  | BoolV true -> "yes"
+  | BoolV false -> "no"
   | IntV (i, _) -> string_of_int i
   | TimeV (t, _) -> Data.string_of_time t
   | DateV (t, _) -> Data.string_of_date_time t
@@ -119,6 +120,7 @@ type fnop = True | False | Now | Random | Min | Max | Avg | If | Id
 type unop = Not | Neg
 type binop =
   | And | Or | EQ | NE | LT | GT | LE | GE | IN | NI | Add | Sub | Mul | Cat
+
 type expr =
   | Text of string
   | Int of int * string
@@ -228,6 +230,7 @@ let rec string_of_expr = function
   | Date (_, s) -> s
   | Text s -> "\"" ^ s ^ "\""
   | Key k -> "#" ^ string_of_key k
+  | Fn (f, []) -> "#" ^ string_of_fn f
   | Fn (f, es) ->
     "#" ^ string_of_fn f ^ "(" ^ String.concat ", " (List.map string_of_expr es) ^ ")"
   | Un (op, e) -> "(" ^ string_of_unop op ^ " " ^ string_of_expr e ^ ")"
@@ -242,7 +245,7 @@ let string_of_query {expr; sort} =
 
 (* Validation *)
 
-exception TypeError
+exception TypeError of expr
 
 let attr_type = function
   | `FileExists | `Cover -> BoolT
@@ -256,7 +259,8 @@ let attr_type = function
   | `Playlist -> TextT
 
 let rec validate : 'x 'a. ('x, 'a) Data.kind -> expr -> type_ =
-  fun (type x a) (k : (x, a) Data.kind) -> function
+  fun (type x a) (k : (x, a) Data.kind) q ->
+  match q with
   | Int _ -> IntT
   | Time _ -> TimeT
   | Date _ -> DateT
@@ -266,7 +270,7 @@ let rec validate : 'x 'a. ('x, 'a) Data.kind -> expr -> type_ =
     | Artist, #artist_attr -> ()
     | Album, #album_attr -> ()
     | Track, #track_attr -> ()
-    | _, _ -> raise TypeError
+    | _, _ -> raise (TypeError q)
     );
     attr_type attr
   | Fn (fn, qs) ->
@@ -274,28 +278,29 @@ let rec validate : 'x 'a. ('x, 'a) Data.kind -> expr -> type_ =
     (match fn, ts with
     | (True | False), [] -> BoolT
     | Random, ts ->
-      if List.exists ((<>) IntT) ts || List.length ts > 2 then raise TypeError;
+      if List.exists ((<>) IntT) ts || List.length ts > 2 then
+        raise (TypeError q);
       IntT
     | Now, [] -> DateT
     | (Min | Max), t::ts' ->
-      if List.exists ((<>) t) ts' then raise TypeError;
+      if List.exists ((<>) t) ts' then raise (TypeError q);
       t
     | Avg, (IntT | TimeT | DateT as t)::ts' ->
-      if List.exists ((<>) t) ts' then raise TypeError;
+      if List.exists ((<>) t) ts' then raise (TypeError q);
       t
     | If, [t1; t2; t3] ->
-      if t1 <> BoolT || t2 <> t3 then raise TypeError;
+      if t1 <> BoolT || t2 <> t3 then raise (TypeError q);
       t2
     | Id, [t] ->
       t
-    | _ -> raise TypeError
+    | _ -> raise (TypeError q)
     )
   | Un (op, q1) ->
     (match op, validate k q1 with
     | Not, BoolT -> BoolT
     | Neg, IntT -> IntT
     | Neg, TimeT -> TimeT
-    | _ -> raise TypeError
+    | _ -> raise (TypeError q)
     )
   | Bin (op, q1, q2) ->
     (match op, validate k q1, validate k q2 with
@@ -309,7 +314,7 @@ let rec validate : 'x 'a. ('x, 'a) Data.kind -> expr -> type_ =
     | Mul, TimeT, IntT -> TimeT
     | Mul, IntT, TimeT -> TimeT
     | Cat, TextT, TextT -> TextT
-    | _ -> raise TypeError
+    | _ -> raise (TypeError q)
     )
 
 
@@ -644,6 +649,9 @@ let string_of_token = function
 
 let is c s i = i < String.length s && s.[i] = c
 let is_letter = function
+  | '0'..'9' | 'A'..'Z' | 'a'..'z' | '_' -> true
+  | c -> false
+let is_letter_ex = function
   | '0'..'9' | 'A'..'Z' | 'a'..'z' | '_' | '.' | '!' | '?' | '-' -> true
   | c -> c >= '\x80'
 
@@ -657,6 +665,13 @@ let quote s =
 let scan_word s i =
   let j = ref i in
   while !j < String.length s && is_letter s.[!j] do
+    incr j
+  done;
+  String.sub s i (!j - i), !j
+
+let scan_word_ex s i =
+  let j = ref i in
+  while !j < String.length s && is_letter_ex s.[!j] do
     incr j
   done;
   String.sub s i (!j - i), !j
@@ -679,7 +694,7 @@ let scan_date s i =
   if m = "" || not (is s.[j] s k) then int, j else
   let d, l = scan_num s (k + 1) in
   if d = "" then int, j else
-  let post, n = scan_word s l in
+  let post, n = scan_word_ex s l in
   let s' = String.sub s i (n - i) in
   if post = "" then
     let t = date (int_of_string y) (int_of_string m) (int_of_string d) in
@@ -743,24 +758,24 @@ let rec token s i =
   | '0'..'9' ->
     let n, j = scan_num s i in
     if is '/' s j || is '-' s j then scan_date s i else
-    let suf, k = scan_word s j in
+    let suf, k = scan_word_ex s j in
     (match suffix suf with
     | Some m -> IntToken (int_of_string n * m, String.sub s i (k - i)), k
     | None ->
       match scan_time s i 0.0 with
       | None ->
-        let s', k = scan_word s i in
+        let s', k = scan_word_ex s i in
         TextToken s', k
       | Some (t, j) ->
-        let post, k = scan_word s j in
-        let s' = String.sub s (i + 1) (k - i) in
+        let post, k = scan_word_ex s j in
+        let s' = String.sub s i (k - i) in
         if post = "" then
           TimeToken (t, s'), k
         else
           TextToken s', k
     )
   | 'a'..'z' | 'A'..'Z' | '_' | '.' | '!' | '?' ->
-    let s', j = scan_word s i in
+    let s', j = scan_word_ex s i in
     TextToken s', j
   | '\"' ->
     (match String.index_from_opt s (i + 1) '\"' with
@@ -768,8 +783,8 @@ let rec token s i =
     | None -> raise (SyntaxError i)
     )
   | '#' ->
-    if i + 1 < String.length s && s.[i + 1] = '(' then FnToken Id, i + 1 else
     let x, j = scan_word s (i + 1) in
+    if x = "" && not (is '(' s (i + 1)) then raise (SyntaxError i) else
     (match List.assoc_opt x fns with
     | Some fn -> FnToken fn, j
     | None ->
@@ -778,7 +793,7 @@ let rec token s i =
       | None -> raise (SyntaxError i)
     )
   | c when c >= '\x80' ->
-    let s', j = scan_word s i in
+    let s', j = scan_word_ex s i in
     TextToken s', j
   | _ -> raise (SyntaxError i)
 
@@ -818,12 +833,12 @@ let rec parse_prim s i =
   | KeyToken key, j -> Key key, j
   | FnToken fn, j ->
     let lpar, k = token s j in
-    if lpar <> LParToken then raise (SyntaxError j) else
+    if lpar <> LParToken then Fn (fn, []), j else
     let qs, l = parse_list s k [] in
     let rpar, m = token s l in
     if rpar <> RParToken then raise (SyntaxError l) else
     (match fn, qs with
-    | Id, _ when k = l -> Text "", m  (* special case: #() treated as "" *)
+    | Id, [] -> Text "", m  (* special case: #() treated as "" *)
     | If, q1::qs' -> Fn (fn, coerce_bool q1 :: qs'), m
     | _, _ -> Fn (fn, qs), m
     )
@@ -905,6 +920,7 @@ and parse_disj_rest s i q1 =
   | _ -> q1, i
 
 and parse_list s i qs =
+  if fst (token s i) = RParToken then List.rev qs, i else
   let q, j = parse_disj s i in
   match token s j with
   | CommaToken, k -> parse_list s k (q::qs)
@@ -921,6 +937,15 @@ let rec parse_sort s i =
     )
   | _ -> raise (SyntaxError i)
 
+let rec parse_text s i qs =
+  let tok, j = token s i in
+  match tok with
+  | EndToken -> List.rev qs
+  | _ ->
+    let q, j = parse_neg s i in
+    parse_text s j (q::qs)
+
+(*
 let rec parse_text s i i0 =
   if i = String.length s then
     if i = i0 then [] else [Text (String.sub s i0 (i - i0))]
@@ -936,12 +961,15 @@ let rec parse_text s i i0 =
     in
     let qs2 = parse_text s j j in
     qs1 @ [q] @ qs2
+*)
 
 
 let try_parse s f =
   try Ok (f ()) with
-  | SyntaxError i -> Error ("Syntax error at \"" ^ String.drop_first i s ^ "\"")
-  | TypeError -> Error "Type error"
+  | SyntaxError i ->
+    Error ("Syntax error at " ^ 
+      if i = String.length s then "end" else "\"" ^ String.drop_first i s ^ "\"")
+  | TypeError q -> Error ("Type error for " ^ string_of_expr q)
 
 let parse_expr k s : (expr * type_, string) result =
   try_parse s (fun () ->
@@ -956,7 +984,7 @@ let parse_query s : (query, string) result =
   try_parse s (fun () ->
     let q, j = parse_disj s 0 in
     let q' = coerce_bool q in
-    if validate Track q' <> BoolT then raise TypeError;
+    if validate Track q' <> BoolT then raise (TypeError q);
     let sort =
       match token s j with
       | EndToken, _ -> []
@@ -964,7 +992,7 @@ let parse_query s : (query, string) result =
         let keys = parse_sort s l in
         List.map (function
           | #Data.track_attr as key', order -> key', order
-          | _, _ -> raise TypeError
+          | key, _ -> raise (TypeError (Key key))
         ) keys
       | _ -> raise (SyntaxError j)
     in {expr = q'; sort}
@@ -972,7 +1000,7 @@ let parse_query s : (query, string) result =
 
 let parse_custom k s : (expr list * type_, string) result =
   try_parse s (fun () ->
-    let qs = parse_text s 0 0 in
+    let qs = parse_text s 0 [] in
     let ts = List.map (validate k) qs in
     let qts = List.combine qs ts in
     match List.filter (function (Text _, _) -> false | _ -> true) qts with

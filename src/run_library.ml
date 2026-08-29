@@ -816,7 +816,11 @@ let run_browser (st : state) =
 
 let convert_sorting columns sorting =
   let index attr = Iarray.find_index (fun (a, _) -> a = attr) columns in
-  List.map (fun (attr, order) -> Option.get (index attr), order) sorting
+  List.filter_map (fun (attr, order) ->
+    match index attr with
+    | Some i -> Some (i, order)
+    | None -> None
+  ) sorting
 
 
 let run_view (st : state)
@@ -872,6 +876,14 @@ let run_view (st : state)
     in img, color_of entry, text_of entry
   in
 
+let customs xs = List.filter_map (function (`Custom _ as a, _) -> Some a | _ -> None) xs in
+let ccols = customs (Iarray.to_list view.columns) in
+let csort = customs view.sorting in
+if ccols<>[] || csort<>[] then
+Printf.eprintf "columns=%s sorting=%s\n%!"
+(String.concat "," (List.map Library.attr_name ccols))
+(String.concat "," (List.map Library.attr_name csort))
+;
   let sorting = convert_sorting view.columns view.sorting in
   let header = Some (headings, sorting) in
   (match
@@ -1097,7 +1109,7 @@ let run_view (st : state)
 *)
     let i = Option.value i_opt ~default: (Iarray.length view.columns) in
     let removable_attrs = if i_opt = None then [] else [fst view.columns.$(i)] in
-    Run_popup.header_menu st view kind i removable_attrs unused_attrs None
+    Run_popup.header_menu st tab view kind i removable_attrs unused_attrs None
   );
 
   if busy then

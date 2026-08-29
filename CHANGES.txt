@@ -3,13 +3,18 @@
 Control:
 - [new] Time tool tip when hovering seek bar
 
+Playlist:
+- [new] Custom computed columns
+
 Library:
+- [new] Custom computed columns in views
 - [fix] Fix crash on browser folder renaming
 - [fix] Guard drag & drop on filtered or unordered playlist view better
 
 UI:
 - [new] Make context menus scrollable when they don't fit the window
 - [new] Make target FPS configurable
+- [fix] Fix scrolling with mouse wheel when hovering table header
 
 
 === 0.9.6 (2026-08-17) ===

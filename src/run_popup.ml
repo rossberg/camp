@@ -13,15 +13,23 @@ let cover (st : state) cov =
 
 (* Custom Column edit creation *)
 
-let edit_custom (st : state) (view : _ Library.view) mouse kind attrs pos name s =
+let edit_custom (st : state) (tab : _ Table.t) (view : _ Library.view) mouse kind attrs pos name s =
   Popup.set_custom st.popup name s
-    (fun s -> Result.is_ok (Query.parse_custom kind s))
+    (fun s ->
+      match Query.parse_custom kind s with
+      | Ok _ -> Library.error st.library ""; true
+      | Error s -> Library.error st.library s; false
+    )
     (fun name' s' ->
-      let _, w = List.nth attrs pos in
+      let attr, w = List.nth attrs pos in
       let attr' = `Custom (name', s', ref Data.Unset) in
-      let attrs' = List.take pos attrs @ [attr', w] @ List.drop (pos + 1) attrs in
+      let attrs' =
+        List.take pos attrs @ [attr', w] @ List.drop (pos + 1) attrs in
       view.columns <- Iarray.of_list attrs';
-      Option.iter (Library.save_dir st.library) st.library.current;
+      view.sorting <-
+        List.map (fun (a, o) -> (if a = attr then attr' else a), o) view.sorting;
+      Table.dirty tab;
+      Option.iter (Library.save_dir st.library) st.library.current
     );
   st.geometry.popup_shown <- Some mouse;
   Ui.modal st.geometry.ui "popup.menu"
@@ -41,23 +49,28 @@ let command_menu st cmds =
 
 (* Header Menu creation *)
 
-let header_menu (st : state) (view : _ Library.view) kind
+let header_menu (st : state) (tab : _ Table.t) (view : _ Library.view) kind
   pos current_attrs unused_attrs hide =
   let mouse = Api.Mouse.pos (Ui.window st.geometry.ui) in
   let c = Ui.text_color st.geometry.ui in
-  let custom =
+  let current_attrs' =
+    if current_attrs <> [] then current_attrs else
+    if pos >= Iarray.length view.columns then [] else
+    [fst (Iarray.get view.columns pos)]
+  and custom =
     if pos >= Iarray.length view.columns then None else
     match Iarray.get view.columns pos with
     | `Custom (l, s, _), _ -> Some (l, s)
     | _ -> None
   in
   let removes =
-    current_attrs |>
+    current_attrs' |>
     List.map (fun a ->
-      `Entry (c, "Remove " ^ Library.attr_name a, Layout.nokey, true), a)
+      `Entry (c, "Remove " ^ Library.attr_name a, Layout.nokey,
+         current_attrs <> []), a)
     |> List.sort compare
   and edits =
-    current_attrs |>
+    current_attrs' |>
     List.map (fun a ->
       `Entry (c, "Edit " ^ Library.attr_name a ^ "...", Layout.nokey,
         custom <> None))
@@ -91,7 +104,7 @@ let header_menu (st : state) (view : _ Library.view) kind
       (
         (* Edit entry *)
         Option.iter (fun (l, s) ->
-          edit_custom st view mouse kind attrs pos l s
+          edit_custom st tab view mouse kind attrs pos l s
         ) custom;
       )
       else if k >= n' && k - n' < List.length adds then
@@ -109,7 +122,7 @@ let header_menu (st : state) (view : _ Library.view) kind
         let attr = `Custom ("", "", ref Data.Unset) in
         let i = min (pos + 1) (List.length attrs) in
         let attrs' = List.take i attrs @ [attr, 40] @ List.drop i attrs in
-        edit_custom st view mouse kind attrs' i "" "";
+        edit_custom st tab view mouse kind attrs' i "" "";
       )
     )
   in
@@ -213,8 +226,10 @@ let run_custom (st : state) (custom : Popup.custom) =
   let x, y = Option.get geo.popup_shown in
 
   Layout.custom_popup geo x y;
+(*
   Layout.custom_popup_name_label geo;
   Layout.custom_popup_text_label geo;
+*)
   Layout.custom_popup_name_box geo;
   Layout.custom_popup_text_box geo;
 
@@ -224,7 +239,7 @@ let run_custom (st : state) (custom : Popup.custom) =
   let expr = custom.expr.text in
   let expr_color =
     Ui.(if custom.valid custom.expr.text then text_color else error_color) in
-  let _ = Layout.custom_popup_name_edit geo (Ui.text_color geo.ui) custom.name in
+  let _ = Layout.custom_popup_name_edit geo custom.name in
   if custom.name.focus then Edit.defocus custom.expr;
   let _ = Layout.custom_popup_text_edit geo (expr_color geo.ui) custom.expr in
   if custom.expr.focus then Edit.defocus custom.name;
@@ -235,12 +250,11 @@ let run_custom (st : state) (custom : Popup.custom) =
   if custom.name.text <> name || custom.expr.text <> expr then
     custom.ok custom.name.text custom.expr.text;  (* update live *)
 
-(*TODO: replace Ok/Cancel buttons with Done button, or none at all? *)
-(* Minimalist: use table header/row look for edits, no labels no buttons *)
   if ok || cancel then
   (
     geo.popup_shown <- None;
     Popup.clear st.popup;
+    Library.error st.library "";
   )
   else
   (

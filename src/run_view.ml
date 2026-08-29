@@ -1031,7 +1031,7 @@ let select_invert (st : state) (module View : View) =
 
 (* Initiate Menus *)
 
-let _header_menu (st : state) (module View : View) kind =
+let _header_menu (st : state) (module View : View) (tab : _ Table.t) kind =
   Option.iter (fun modify -> modify {f = fun (view : _ Library.view) attrs ->
     if view.shown = Some `Table then
     (
@@ -1039,7 +1039,7 @@ let _header_menu (st : state) (module View : View) kind =
       let unused_attrs = Data.diff_attrs attrs current_attrs in
       let used_attrs = Data.diff_attrs current_attrs unused_attrs in
       let i = Iarray.length view.columns in
-      Run_popup.header_menu st view kind i used_attrs unused_attrs
+      Run_popup.header_menu st tab view kind i used_attrs unused_attrs
         (if View.(table it) != st.playlist.table then None else
           Some (fun () -> st.geometry.playlist_shown <- false))
     )

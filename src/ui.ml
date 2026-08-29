@@ -1314,11 +1314,12 @@ let edit_text ui area owner ph s scroll selection c focus =
       s, scroll', Some (lprim, rprim, sec), ch
 
 
-let rich_edit_text ui area owner ph c (edit : Edit.t) =
+let rich_edit_text ui area owner ph highlight c (edit : Edit.t) =
   let _, _, _, h = dim ui area in
   let s', scroll', sel', ch =
-    edit_text ui area owner ph edit.text edit.scroll edit.sel_range c edit.focus in
-  if edit.focus then focus ui area (h / 2);
+    edit_text ui area owner ph edit.text edit.scroll edit.sel_range c edit.focus
+  in
+  if highlight && edit.focus then focus ui area (h / 2);
   if s' <> edit.text then
     Edit.update edit s';
   Edit.scroll edit scroll';
@@ -1862,7 +1863,8 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
     in
 
     (* Vertical scrollbar *)
-    let wdx, wdy = wheel_status ui r in
+    let (hx, hy, hw, hh) = dim ui header_area in
+    let wdx, wdy = wheel_status ui (hx, hy, hw, hh + h) in
     let wdx, wdy = if Float.abs wdx > Float.abs wdy then wdx, 0.0 else 0.0, wdy in
     let result, vwheel =
       if geo.scroll_w = 0 then result, true else
@@ -2414,7 +2416,8 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
       let ext = if len = 0 then 1.0 else min 1.0 (float page /. float len') in
       let pos = if len = 0 then 0.0 else float tab.vscroll /. float len' in
       let coeff = max 1.0 (float line) /. float (len' - page) in
-      let wheel = coeff *. snd (wheel_status ui r) in
+      let (hx, hy, hw, hh) = dim ui header_area in
+      let wheel = coeff *. snd (wheel_status ui (hx, hy, hw, hh + h)) in
       let pos' = scroll_bar ui vscroll_area (owner ^ ":scroll") geo.scroll_l `Vertical pos ext -. wheel in
       if result <> `None || pos = pos' then result else
       (
@@ -2704,7 +2707,7 @@ and draw_item ui geo owner xl xr y xmax ymin ymax vscroll = function
     scrolled_area xr y (xmax - xr) geo.item_h ymin ymax vscroll (fun area ->
       let s = ed.Edit.text in
       box ui area `Black;
-      ignore (rich_edit_text ui area owner 0 color ed);
+      ignore (rich_edit_text ui area owner 0 false color ed);
       if ed.focus then f ed;
       if s <> ed.text then g ed.text;
     );
@@ -2726,7 +2729,7 @@ and draw_item ui geo owner xl xr y xmax ymin ymax vscroll = function
       let prev = if n >= nmax then [] else [string_of_int (n + 1)] in
       let next = if n <= nmin then [] else [string_of_int (n - 1)] in
       Edit.set_history ed prev next;
-      ignore (rich_edit_text ui area owner' 0 color ed);
+      ignore (rich_edit_text ui area owner' 0 false color ed);
       if ed.focus then f ed;
       if s <> ed.text && valid () then
         g (int_of_string ed.text)
