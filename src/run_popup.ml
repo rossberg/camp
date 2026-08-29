@@ -5,10 +5,10 @@ type state = State.t
 
 (* Cover creation *)
 
-let cover (st : state) cov =
-  Popup.set_cover st.popup cov;
+let zoom (st : state) zoom =
+  Popup.set_zoom st.popup zoom;
   st.geometry.popup_shown <- Some (Api.Mouse.pos (Ui.window st.geometry.ui));
-  Ui.modal st.geometry.ui "popup.cover"
+  Ui.modal st.geometry.ui "popup.zoom"
 
 
 (* Custom Column edit creation *)
@@ -166,19 +166,19 @@ let run_menu (st : state) (menu : Popup.menu) =
     menu.vscroll <- v
 
 
-let run_cover (st : state) (cover : Popup.cover) =
+let run_zoom (st : state) (zoom : Popup.zoom) =
   let geo = st.geometry in
   let ctl = st.control in
   let x, y = Option.get geo.popup_shown in
 
-  let cover_opt =
-    match cover with
-    | Track _ | Album _ as cover -> Some cover
+  let zoom_opt =
+    match zoom with
+    | Track _ | Album _ as zoom -> Some zoom
     | Current -> Option.map (fun track -> Popup.Track track) ctl.current
   in
-  Option.iter (fun cover ->
+  Option.iter (fun zoom' ->
     let path, artist, title, year, num =
-      match cover with
+      match zoom' with
       | Popup.Track track ->
         let artist = Data.track_attr_string track `Artist in
         let title = Data.track_attr_string track `Title in
@@ -197,25 +197,27 @@ let run_cover (st : state) (cover : Popup.cover) =
 
       | Popup.Current -> assert false
     in
-    let img = Option.value ~default: (Ui.nocover geo.ui)
-      (Library.load_cover st.library (Ui.window geo.ui) path) in
-    let iw, ih = Layout.cover_popup_image_size geo img in
-    Layout.cover_popup geo (x, y, iw, ih);
+    let img_opt = Library.load_cover st.library (Ui.window geo.ui) path in
+    let img = Option.value img_opt ~default: (Ui.nocover geo.ui) in
+    let iw, ih = Layout.zoom_popup_image_size geo img in
+    Layout.zoom_popup geo (x, y, iw, ih);
     let text =
       artist ^ " - " ^ title ^
       (if year = "" then "" else " (" ^ year ^ ")") ^
       (if num = "" then "" else ", track " ^ num)
     in
-    Layout.cover_popup_image geo img;
-    Layout.cover_popup_text geo text;
-  ) cover_opt;
 
-  if cover_opt = None
-  || cover = Popup.Current && Control.silent ctl &&
+    let vis = if zoom = Current then ctl.zoom else `Cover in
+    Run_visualization.run st (Layout.zoom_popup_image_area geo) vis img_opt;
+    Layout.zoom_popup_text geo text;
+  ) zoom_opt;
+
+  if zoom_opt = None
+  || zoom = Popup.Current && Control.silent ctl &&
       List.mem (Control.status ctl) [`Stopped; `Ejected]
   || Api.Mouse.(is_released `Left || is_pressed `Right) then
   (
-    Ui.nonmodal geo.ui "run.cover";
+    Ui.nonmodal geo.ui "run.zoom";
     geo.popup_shown <- None;
     Popup.clear st.popup;
   )
@@ -265,6 +267,6 @@ let run_custom (st : state) (custom : Popup.custom) =
 let run (st : state) =
   match st.popup.kind with
   | None -> ()
-  | Some (`Cover cover) -> run_cover st cover
+  | Some (`Zoom zoom) -> run_zoom st zoom
   | Some (`Menu menu) -> run_menu st menu
   | Some (`Custom custom) -> run_custom st custom

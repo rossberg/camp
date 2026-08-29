@@ -17,6 +17,7 @@ type t =
   mutable repeat : [`None | `One | `All | `Marked];
   mutable loop : [`None | `A of time | `AB of time * time];
   mutable visual : visual;
+  mutable zoom : visual;
   mutable fps : bool;
   mutable turn_rpm : int;
   mutable spec_bands : int;
@@ -40,26 +41,61 @@ let audio_processor ctl fs =
   let lim = 2 * Spectrum.fft_samples in
   ctl.raw <- if len = 0 || len > lim then fs else Array.append ctl.raw fs
 
-let needs_processor = function
+let needs_processor' = function
   | `Cover | `Turntable -> false
   | `Spectrum | `Waveform | `Oscilloscope -> true
 
+let needs_processor ctl =
+  needs_processor' ctl.visual || needs_processor' ctl.zoom
+
 let init_visual ctl  =
-  if needs_processor ctl.visual then
+  if needs_processor ctl then
     Api.Audio.add_processor ctl.audio (audio_processor ctl)
   else
     Api.Audio.remove_all_processors ctl.audio
 
-let set_visual ctl vis =
-  let old_need = needs_processor ctl.visual in
-  let new_need = needs_processor vis in
-  ctl.visual <- vis;
+let reinit_visual ctl f =
+  let old_need = needs_processor ctl in
+  f ();
+  let new_need = needs_processor ctl in
   if old_need <> new_need then
   (
     ctl.raw <- [||];
     ctl.data <- [||];
     init_visual ctl;
   )
+
+let set_visual ctl vis = reinit_visual ctl (fun () -> ctl.visual <- vis)
+let set_zoom ctl vis = reinit_visual ctl (fun () -> ctl.zoom <- vis)
+
+(*
+let idx_visual (st : state) =
+  match st.control.visual with
+  | `None -> None
+  | `Cover -> Some 0
+  | `Turntable -> Some 1
+  | `Spectrum -> Some 2
+  | `Waveform -> Some 3
+  | `Oscilloscope -> Some 4
+*)
+
+let next_visual = function
+  | `Cover -> `Turntable
+  | `Turntable -> `Spectrum
+  | `Spectrum -> `Waveform
+  | `Waveform -> `Oscilloscope
+  | `Oscilloscope -> `Cover
+
+let cycle_visual ctl =
+  ctl.raw <- [||];
+  ctl.data <- [||];
+  set_visual ctl (next_visual ctl.visual)
+
+let cycle_zoom ctl =
+  ctl.raw <- [||];
+  ctl.data <- [||];
+  set_zoom ctl (next_visual ctl.zoom)
+
 
 let set_osc ctl x y =
   ctl.osc_x <- clamp 0.2 10.0 x;
@@ -89,6 +125,7 @@ let make audio =
     repeat = `None;
     loop = `None;
     visual = `Spectrum;
+    zoom = `Cover;
     fps = false;
     turn_rpm = 45;
     spec_bands;
@@ -270,6 +307,7 @@ let print_state ctl =
     "loop", print_loop ctl.loop;
     "timemode", enum timemode_enum ctl.timemode;
     "visual", enum visual_enum ctl.visual;
+    "zoom", enum visual_enum ctl.zoom;
     "turn_rpm", int ctl.turn_rpm;
     "spec_bands", int ctl.spec_bands;
     "osc_x", float ctl.osc_x;
@@ -302,6 +340,8 @@ let parse_state ctl =
       (fun m -> ctl.timemode <- m);
     apply (r $? "visual") (enum visual_enum)
       (fun v -> set_visual ctl v);
+    apply (r $? "zoom") (enum visual_enum)
+      (fun v -> set_zoom ctl v);
     apply (r $? "turn_rpm") (num 1 120)
       (fun n -> ctl.turn_rpm <- n);
     apply (r $? "spec_bands") (num 4 64)

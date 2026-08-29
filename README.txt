@@ -195,8 +195,9 @@ Most controls around the Playlist should be intuitive. A few extra tips:
   playing. Either Cover Art (default), Turntable, Spectrum Analyzer, Wave Form,
   or Oscilloscope.
 
-* Cover: Clicking on the cover art will zoom it into a pop-up. Click again to
-  close. This also works during most other visualisation modes.
+* Zoom: Clicking on a visualisation will zoom it into a pop-up. Click again to
+  close. While the pop-up show, you can cycle through its visualization mode
+  with Ctrl/Command-Y.
 
 * Oscilloscope: Dragging the mouse horizontally or vertically on it adjusts
   its scaling in the respective direction.
@@ -473,9 +474,9 @@ like playlists) can be viewed in a number of exciting ways.
   to search the current folder for other entries with the same text as in that
   cell. Good way to e.g. find other songs by an artist.
 
-* Cover: Clicking and holding on a cover thumbnail in table view opens a pop-up
-  for the cover. Hold the mouse butten and hover over other entries to flick
-  through covers on the fly.
+* Cover Zoom: Clicking and holding on a cover thumbnail in table view opens a
+  zoom pop-up for the cover. Hold the mouse butten and hover over other
+  entries to flick through covers on the fly.
 
 * Save: the context menu also allows saving the current view as a playlist or
   as a viewlist (Section 3.5).
@@ -741,8 +742,8 @@ Some things can also be controlled directly:
 * Grid Size: Use the + and - keys with Shift+Ctrl/Command (or the context
   menu from the Control pane) to adjust the size of covers in grid views.
 
-* Pop-up Size: Use the [ and ] keys with Ctrl/Command (or the context menu from
-  the Control pane) to adjust the size of cover popups. But note that pop-ups
+* Zoom Size: Use the [ and ] keys with Ctrl/Command (or the context menu from
+  the Control pane) to adjust the size of zoom pop-ups. But note that pop-ups
   cannot protrude from the main window, due to limitations of the graphics
   library. Hence their size will be limited by the current window size.
 

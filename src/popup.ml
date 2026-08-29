@@ -8,7 +8,7 @@ type menu =
   op : int -> unit;
 }
 
-type cover =
+type zoom =
   | Current
   | Track of Data.track
   | Album of Data.album
@@ -23,7 +23,7 @@ type custom =
 
 type t =
 {
-  mutable kind : [`Menu of menu | `Cover of cover | `Custom of custom] option;
+  mutable kind : [`Menu of menu | `Zoom of zoom | `Custom of custom] option;
 }
 
 
@@ -43,8 +43,8 @@ let clear pop =
 let set_menu pop items op =
   pop.kind <- Some (`Menu {hscroll = 0; vscroll = 0; items; op})
 
-let set_cover pop cover =
-  pop.kind <- Some (`Cover cover)
+let set_zoom pop zoom =
+  pop.kind <- Some (`Zoom zoom)
 
 let set_custom pop l s valid ok =
   let name = Edit.make_with 100 l in
@@ -64,7 +64,7 @@ let check msg b = if b then [] else [msg]
 let ok pop =
   List.concat (Option.to_list (Option.map (function
     | `Menu _menu -> []
-    | `Cover _cover -> []
+    | `Zoom _zoom -> []
     | `Custom _custom -> []
   ) pop.kind)) @
   []
@@ -74,7 +74,7 @@ let ok pop =
 
 let foci pop =
   match pop.kind with
-  | None  | Some (`Menu _) | Some (`Cover _) -> []
+  | None  | Some (`Menu _ | `Zoom _) -> []
   | Some (`Custom custom) -> [custom.name; custom.expr]
 
 let defocus pop =
@@ -95,13 +95,13 @@ let print_menu menu =
     "items", nat (Iarray.length menu.items);
   ]) menu
 
-let print_cover cover =
+let print_zoom zoom =
   let open Text.Print in
   variant (function
     | Current -> "current", unit ()
     | Track track -> "track", string track.path
     | Album album -> "album", string album.path
-  ) cover
+  ) zoom
 
 let print_custom cus =
   let open Text.Print in
@@ -116,7 +116,7 @@ let print_intern pop =
   record (fun pop -> [
     "kind", option (variant (function
       | `Menu menu -> "menu", print_menu menu
-      | `Cover cover -> "cover", print_cover cover
+      | `Zoom zoom -> "zoom", print_zoom zoom
       | `Custom custom -> "custom", print_custom custom
     )) pop.kind
   ]) pop

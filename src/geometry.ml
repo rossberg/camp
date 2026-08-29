@@ -35,7 +35,7 @@ type t =
   mutable lower_shown : bool;
   mutable album_grid : int;
   mutable track_grid : int;
-  mutable cover_size : int;
+  mutable zoom_size : int;
 }
 
 
@@ -79,7 +79,7 @@ let make ui =
     lower_shown = false;
     album_grid = 100;
     track_grid = 100;
-    cover_size = 500;
+    zoom_size = 500;
   }
 
 
@@ -91,8 +91,8 @@ let min_pad_size = 0
 let max_pad_size = 8
 let min_grid_size = 32
 let max_grid_size = 1024
-let min_cover_size = 100
-let max_cover_size = 1000
+let min_zoom_size = 100
+let max_zoom_size = 1000
 
 let sx g x = x * g.control_width / control_min_w
 let sy g y = y * g.control_height / control_min_h
@@ -100,7 +100,7 @@ let smin g v = min (sx g v) (sy g v)
 let smax g v = max (sx g v) (sy g v)
 
 let margin g = smin g g.margin
-let cover_margin g = margin g / 2
+let zoom_margin g = margin g / 2
 let divider_w g = margin g
 
 let text_h g = min max_text_size (smin g g.text)
@@ -686,7 +686,7 @@ let print_state geo =
     "album_grid", nat geo.album_grid;
     "track_grid", nat geo.track_grid;
     "repair_cols", iarray nat geo.repair_log_columns;
-    "cover_size", nat geo.cover_size;
+    "zoom_size", nat geo.zoom_size;
   ]) geo
 
 let print_intern geo =
@@ -757,8 +757,8 @@ let parse_state geo =  (* assumes playlist and library loaded *)
       (fun w -> geo.track_grid <- w);
     apply (r $? "repair_cols") (iarray (num 10 1000))
       (fun ws -> if Iarray.length ws = 3 then geo.repair_log_columns <- ws);
-    apply (r $? "cover_size") (num min_cover_size max_cover_size)
-      (fun w -> geo.cover_size <- w);
+    apply (r $? "zoom_size") (num min_zoom_size max_zoom_size)
+      (fun w -> geo.zoom_size <- w);
 
     geo.window <- (!rax, !ray, !raw, !rah);
     Ui.rescale geo.ui geo.scaling;

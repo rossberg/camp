@@ -831,7 +831,7 @@ let run_view (st : state)
     kind attr_string prim_attr all_attrs
     path_of text_of color_of
     selected_tracks clicked_tracks
-    is_filter editable cover make_view =
+    is_filter editable zoom make_view =
   let lib = st.library in
   let geo = st.geometry in
   let win = Ui.window geo.ui in
@@ -876,14 +876,6 @@ let run_view (st : state)
     in img, color_of entry, text_of entry
   in
 
-let customs xs = List.filter_map (function (`Custom _ as a, _) -> Some a | _ -> None) xs in
-let ccols = customs (Iarray.to_list view.columns) in
-let csort = customs view.sorting in
-if ccols<>[] || csort<>[] then
-Printf.eprintf "columns=%s sorting=%s\n%!"
-(String.concat "," (List.map Library.attr_name ccols))
-(String.concat "," (List.map Library.attr_name csort))
-;
   let sorting = convert_sorting view.columns view.sorting in
   let header = Some (headings, sorting) in
   (match
@@ -965,12 +957,12 @@ Printf.eprintf "columns=%s sorting=%s\n%!"
       | Some i, Some j
         when mode = `Table
         && (fst view.columns.$(j) :> Data.any_attr_ex) = `Cover ->
-        (* Click on cover cell: open cover popup *)
-        Run_popup.cover st (cover entries.(i));
-      (* Don't do cover pop-up on grid, since that interferes with drag & drop
+        (* Click on cover cell: open zoom popup *)
+        Run_popup.zoom st (zoom entries.(i));
+      (* Don't do zoom pop-up on grid, since that interferes with drag & drop
       | Some i, None when mode = `Grid ->
-        (* Click on grid cell: open cover popup *)
-        Run_popup.cover st (cover entries.(i));
+        (* Click on grid cell: open zoom popup *)
+        Run_popup.zoom st (zoom entries.(i));
       *)
       | _ -> ()
     );
@@ -1125,10 +1117,10 @@ Printf.eprintf "columns=%s sorting=%s\n%!"
     with
     *)
     match st.popup.kind, mouse geo cols tab with
-    | Some (`Cover _), Some (Some i, _) ->
-      (* Drag with active cover popup: update cover *)
-      Ui.nonmodal geo.ui "lib.view/drag-cover";
-      Run_popup.cover st (cover entries.(i));
+    | Some (`Zoom _), Some (Some i, _) ->
+      (* Drag with active zoom popup: update cover *)
+      Ui.nonmodal geo.ui "lib.view/drag-zoom";
+      Run_popup.zoom st (zoom entries.(i));
     | _, _ -> ()
   )
 

@@ -9,7 +9,7 @@ type t =
   text_gutter : Edit.t;
   grid_tracks : Edit.t;
   grid_albums : Edit.t;
-  cover_size : Edit.t;
+  zoom_size : Edit.t;
   scroll_width : Edit.t;
   spec_bands : Edit.t;
   exec_tag : Edit.t;
@@ -29,7 +29,7 @@ let make () =
     text_gutter = Edit.make 10;
     grid_tracks = Edit.make 10;
     grid_albums = Edit.make 10;
-    cover_size = Edit.make 10;
+    zoom_size = Edit.make 10;
     scroll_width = Edit.make 10;
     spec_bands = Edit.make 10;
     exec_tag = Edit.make 100;
@@ -59,7 +59,7 @@ let foci set =  (* needs to be in order of appearance *)
     set.scroll_width;
     set.grid_tracks;
     set.grid_albums;
-    set.cover_size;
+    set.zoom_size;
     set.spec_bands;
     set.exec_tag;
     set.exec_tag_flags;

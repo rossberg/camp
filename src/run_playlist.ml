@@ -169,7 +169,7 @@ let run (st : state) =
       match loc with
       | Some i, Some j when fst pl.view.columns.$(j) = `Cover ->
         (* Click on cover cell: open cover popup *)
-        Run_popup.cover st (Popup.Track tab.entries.(i));
+        Run_popup.zoom st (Popup.Track tab.entries.(i));
       | _ -> ()
     );
     Playlist.refresh_total_selected pl;
@@ -301,10 +301,10 @@ let run (st : state) =
   if geo.popup_shown <> None && Api.Mouse.is_down `Left then
   (
     match st.popup.kind, Layout.playlist_mouse geo cols tab with
-    | Some (`Cover _), Some (Some i, _) ->
+    | Some (`Zoom _), Some (Some i, _) ->
       (* Drag with active cover popup: update cover *)
       Ui.nonmodal geo.ui "pl.run/drag-cover";
-      Run_popup.cover st (Popup.Track tab.entries.(i));
+      Run_popup.zoom st (Popup.Track tab.entries.(i));
     | _, _ -> ()
   );
 

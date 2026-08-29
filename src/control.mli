@@ -17,6 +17,7 @@ type t =
   mutable repeat : [`None | `One | `All | `Marked];
   mutable loop : [`None | `A of time | `AB of time * time];
   mutable visual : visual;
+  mutable zoom : visual;
   mutable fps : bool;
   mutable turn_rpm : int;
   mutable spec_bands : int;
@@ -54,6 +55,9 @@ val volume : t -> float -> unit
 (* Visuals *)
 
 val set_visual : t -> visual -> unit
+val set_zoom : t -> visual -> unit
+val cycle_visual : t -> unit
+val cycle_zoom : t -> unit
 
 val set_osc : t -> float -> float -> unit
 val reset_osc : t -> unit

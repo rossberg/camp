@@ -6,7 +6,7 @@ val run : State.t -> unit
 
 (* Initiate Menus *)
 
-val cover : State.t -> Popup.cover -> unit
+val zoom : State.t -> Popup.zoom -> unit
 
 val command_menu : State.t -> (Ui.menu_entry * (unit -> unit)) iarray -> unit
 val header_menu :

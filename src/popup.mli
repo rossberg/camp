@@ -8,7 +8,7 @@ type menu =
   op : int -> unit;
 }
 
-type cover =
+type zoom =
   | Current
   | Track of Data.track
   | Album of Data.album
@@ -23,7 +23,7 @@ type custom =
 
 type t = private
 {
-  mutable kind : [`Menu of menu | `Cover of cover | `Custom of custom] option;
+  mutable kind : [`Menu of menu | `Zoom of zoom | `Custom of custom] option;
 }
 
 
@@ -33,7 +33,7 @@ val make : unit -> t
 
 val clear : t -> unit
 val set_menu : t -> Ui.menu_entry iarray -> (int -> unit) -> unit
-val set_cover : t -> cover -> unit
+val set_zoom : t -> zoom -> unit
 val set_custom : t -> string -> string ->
   (string -> bool) -> (string -> string -> unit) -> unit
 

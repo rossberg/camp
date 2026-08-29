@@ -1,6 +1,7 @@
 === 0.9.7 (WIP) ===
 
 Control:
+- [new] All visualisations can be zoomed into a pop-up
 - [new] Time tool tip when hovering seek bar
 
 Playlist:

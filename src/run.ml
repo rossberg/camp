@@ -269,13 +269,13 @@ and run' (st : state) (x, y, w, h as r) =
   in
   Run_control.resize_grid st grid_delta;
 
-  Ui.except_modal geo.ui "run/cover-key" (fun () ->
-    let cover_delta =
-      Bool.to_int (Layout.enlarge_cover_key geo) -
-      Bool.to_int (Layout.reduce_cover_key geo)
+  Ui.except_modal geo.ui "run/zoom-key" (fun () ->
+    let zoom_delta =
+      Bool.to_int (Layout.enlarge_zoom_key geo) -
+      Bool.to_int (Layout.reduce_zoom_key geo)
     in
-    geo.cover_size <- Geometry.(clamp min_cover_size max_cover_size
-      (geo.cover_size + 100 * cover_delta))
+    geo.zoom_size <- Geometry.(clamp min_zoom_size max_zoom_size
+      (geo.zoom_size + 100 * zoom_delta))
   );
 
   if Layout.lib_cover_key geo then

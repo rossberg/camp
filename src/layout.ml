@@ -127,8 +127,8 @@ let key_padup = nokey
 let key_paddn = nokey
 let key_gridup = shiftcmd '+'
 let key_griddn = shiftcmd '-'
-let key_coverup = cmd ']'
-let key_coverdn = cmd '['
+let key_zoomup = cmd ']'
+let key_zoomdn = cmd '['
 let key_scaleup = shiftcmd ']'
 let key_scaledn = shiftcmd '['
 let key_settings = cmd ','
@@ -323,6 +323,7 @@ let visual_x g = lcd_x g 5 + sx g 28
 let visual_y g = info_y g + info_margin g
 let visual_w g = volume_x g - sx g 16
 let visual_h g = prop_y g - info_margin g
+let visual_area g = (cp, visual_x g, visual_y g, visual_w g, visual_h g)
 let visual_indicator g i = Ui.box g.ui (cp, visual_x g - sx g 8, visual_y g + sy g 8 * i, sx g 4, sy g 4) (Ui.text_color g.ui)
 let visual_button g = Ui.mouse g.ui (cp, visual_x g - sx g 20, visual_y g, sx g 20, visual_h g) "vis_but" `Left
 let visual_key g = Ui.key g.ui key_visual true
@@ -332,16 +333,8 @@ let cover_h g = visual_h g
 let cover_x g = visual_x g + (visual_w g - cover_w g) / 2
 let cover_y g = visual_y g
 let cover_area g = (cp, cover_x g, cover_y g, cover_w g, cover_h g)
-let cover g = Ui.image g.ui (cover_area g) (`Crop `Vertical)
 
-let graph_x g = visual_x g
-let graph_y g = visual_y g
-let graph_w g = visual_w g
-let graph_h g = visual_h g
-let graph_area g = (cp, graph_x g, graph_y g, graph_w g, graph_h g)
-let graph_drag g = Ui.drag g.ui (graph_area g)
-
-let novisual_button g = Ui.mouse g.ui (graph_area g) "graph_but" `Left
+let novisual_button g = Ui.mouse g.ui (visual_area g) "graph_but" `Left
 
 (* Hidden mode buttons *)
 let color_y g = prop_y g
@@ -360,23 +353,23 @@ let volume_context g = Ui.mouse g.ui (cp, volume_x g, volume_y g, volume_w g, vo
 let shown_context g = Ui.mouse g.ui (cp, margin g + info_w g, margin g, - margin g, info_h g) "shown_ctx" `Right
 let control_context g = Ui.mouse g.ui (cp, margin g, ctl_y g, - margin g, -1) "ctl_ctx" `Right
 
-let cover_popup_open g = Ui.mouse g.ui (cover_area g) "cover_but" `Left
+let zoom_popup_open g = Ui.mouse g.ui (visual_area g) "zoom_but" `Left
 
-let covp = cp + 1
+let zp = cp + 1
 
-let cover_popup_w g = g.cover_size |>
-  min (control_w g + library_w g - 2 * cover_margin g) |>
-  min (control_h g + playlist_h g - line_h g - 2 * cover_margin g)
-let cover_popup g (x, y, iw, ih) = Ui.popup g.ui (Some "cover") covp (x, y, iw, ih + line_h g) (cover_margin g) false
+let zoom_popup_w g = g.zoom_size |>
+  min (control_w g + library_w g - 2 * zoom_margin g) |>
+  min (control_h g + playlist_h g - line_h g - 2 * zoom_margin g)
+let zoom_popup g (x, y, iw, ih) = Ui.popup g.ui (Some "zoom") zp (x, y, iw, ih + line_h g) (zoom_margin g) false
 
-let cover_popup_image_size g = Ui.image_size g.ui (covp, 0, 0, cover_popup_w g, cover_popup_w g) `Shrink
-let cover_popup_image g = Ui.image g.ui (covp, 0, 0, -1, -line_h g) `Shrink
-let cover_popup_text g = Ui.ticker g.ui (covp, 0, -text_h g, -1, -1)
+let zoom_popup_image_size g = Ui.image_size g.ui (zp, 0, 0, zoom_popup_w g, zoom_popup_w g) `Shrink
+let zoom_popup_image_area g = (zp, 0, 0, -1, -line_h g)
+let zoom_popup_text g = Ui.ticker g.ui (zp, 0, -text_h g, -1, -1)
 
 
 (* Divider Panes *)
 
-let pdp = covp + 1
+let pdp = zp + 1
 let extension_divider_h_pane g = Ui.pane g.ui pdp (playlist_x g, playlist_y g, playlist_w g, divider_w g)
 let extension_divider_h g = Ui.divider g.ui (pdp, margin g, 0, - margin g, -1) "ext_div_h" `Vertical
 let extension_divider_wh_left g = Ui.divider2 g.ui (pdp, 0, 0, margin g, -1) "ext_div_wh_l" `NE_SW
@@ -458,8 +451,8 @@ let reduce_grid_key g = Ui.key g.ui key_griddn true
 let enlarge_scale_key g = Ui.key g.ui key_scaleup true
 let reduce_scale_key g = Ui.key g.ui key_scaledn true
 
-let enlarge_cover_key g = Ui.key g.ui key_coverup true
-let reduce_cover_key g = Ui.key g.ui key_coverdn true
+let enlarge_zoom_key g = Ui.key g.ui key_zoomup true
+let reduce_zoom_key g = Ui.key g.ui key_zoomdn true
 
 
 (* Settings Pane *)
@@ -575,7 +568,7 @@ let cp = bp + 1
 
 let custom_popup_w g = smin g 200
 let custom_popup_h g = 2 * line_h g + 2  (* cf Ui.rich_table *)
-let custom_popup g x y = Ui.popup g.ui None cp (x, y, custom_popup_w g, custom_popup_h g) (cover_margin g) true
+let custom_popup g x y = Ui.popup g.ui None cp (x, y, custom_popup_w g, custom_popup_h g) (zoom_margin g) true
 
 let custom_popup_ok_button g = Ui.key g.ui key_ok true
 let custom_popup_cancel_button g = Ui.key g.ui key_cancel true

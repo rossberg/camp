@@ -26,7 +26,7 @@ let init (st : state) =
   Edit.set set.text_gutter (string_of_int geo.gutter);
   Edit.set set.grid_tracks (string_of_int geo.track_grid);
   Edit.set set.grid_albums (string_of_int geo.album_grid);
-  Edit.set set.cover_size (string_of_int geo.cover_size);
+  Edit.set set.zoom_size (string_of_int geo.zoom_size);
   Edit.set set.scroll_width (string_of_int geo.scrollbar);
   Edit.set set.spec_bands (string_of_int ctl.spec_bands);
   Edit.set set.exec_tag cfg.exec_tag;
@@ -84,8 +84,8 @@ let run (st : state) focus_change =
           "ALBUM VIEW", `Number ("SIZE", set.grid_albums, geo.album_grid,
             30, 1000, focus_edit, fun n -> geo.album_grid <- n
           );
-          "POPUP", `Number ("MAX SIZE", set.cover_size, geo.cover_size,
-            100, 1000, focus_edit, fun n -> geo.cover_size <- n
+          "ZOOM", `Number ("MAX SIZE", set.zoom_size, geo.zoom_size,
+            100, 1000, focus_edit, fun n -> geo.zoom_size <- n
           );
           "", `Choice [
             "DISABLE IN LIBRARY", not lib.covers_shown,

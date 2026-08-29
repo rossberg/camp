@@ -10,7 +10,7 @@
     state app
     run_popup run_filesel run_control
     run_view run_library
-    run_playlist run_settings
+    run_playlist run_settings run_visualization
     run main
   )
   (libraries unix directories audio_file raylib raylib-callbacks)

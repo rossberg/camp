@@ -9,7 +9,7 @@ type t =
   text_gutter : Edit.t;
   grid_tracks : Edit.t;
   grid_albums : Edit.t;
-  cover_size : Edit.t;
+  zoom_size : Edit.t;
   scroll_width : Edit.t;
   spec_bands : Edit.t;
   exec_tag : Edit.t;
