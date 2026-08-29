@@ -974,7 +974,10 @@ let parse_custom k s : (expr list * type_, string) result =
   try_parse s (fun () ->
     let qs = parse_text s 0 0 in
     let ts = List.map (validate k) qs in
-    qs, if ts = [] then TextT else List.hd ts
+    let qts = List.combine qs ts in
+    match List.filter (function (Text _, _) -> false | _ -> true) qts with
+    | [(_, t)] -> qs, t
+    | _ -> qs, TextT
   )
 
 

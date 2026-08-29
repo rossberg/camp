@@ -14,15 +14,8 @@ let cover (st : state) cov =
 (* Custom Column edit creation *)
 
 let edit_custom (st : state) (view : _ Library.view) mouse kind attrs pos name s =
-Printf.eprintf "[edit_custom]\n%!";
   Popup.set_custom st.popup name s
-    (fun s -> Result.is_ok (Query.parse_custom kind s)
-|| match Query.parse_expr kind s with
-| Ok _ -> true
-| Error s ->
-Printf.eprintf "%s\n%!" s;
-false
-  )
+    (fun s -> Result.is_ok (Query.parse_custom kind s))
     (fun name' s' ->
       let _, w = List.nth attrs pos in
       let attr' = `Custom (name', s', ref Data.Unset) in
@@ -227,6 +220,8 @@ let run_custom (st : state) (custom : Popup.custom) =
 
   Ui.nonmodal geo.ui "run.custom";
 
+  let name = custom.name.text in
+  let expr = custom.expr.text in
   let expr_color =
     Ui.(if custom.valid custom.expr.text then text_color else error_color) in
   let _ = Layout.custom_popup_name_edit geo (Ui.text_color geo.ui) custom.name in
@@ -237,11 +232,15 @@ let run_custom (st : state) (custom : Popup.custom) =
   let ok = Layout.custom_popup_ok_button geo in
   let cancel = Layout.custom_popup_cancel_button geo in
 
+  if custom.name.text <> name || custom.expr.text <> expr then
+    custom.ok custom.name.text custom.expr.text;  (* update live *)
+
+(*TODO: replace Ok/Cancel buttons with Done button, or none at all? *)
+(* Minimalist: use table header/row look for edits, no labels no buttons *)
   if ok || cancel then
   (
     geo.popup_shown <- None;
     Popup.clear st.popup;
-    if ok then custom.ok custom.name.text custom.expr.text;
   )
   else
   (
