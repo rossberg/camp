@@ -761,9 +761,10 @@ Some things can also be controlled directly:
   sake, because a large library with covers can take a _lot_ of memory.
 
 * FPS: You can configure the target FPS in the Settings. The default is 60,
-  which should usually be enough. Be aware that higher values can cost both
-  CPU and GPU time. You can also toggle the display of an FPS counter in the
-  Control pane.
+  which should usually be enough. Whether higher values have any visible effect
+  depends on your monitors video mode and refresh rate; also, be aware that
+  they can cost a premium in both CPU and GPU time. You can also toggle the
+  display of a live FPS counter in the Control pane.
 
 The interface does not use any rounded corners anywhere. That's a feature.
 
