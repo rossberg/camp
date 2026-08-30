@@ -198,16 +198,23 @@ let run_zoom (st : state) (zoom : Popup.zoom) =
       | Popup.Current -> assert false
     in
     let img_opt = Library.load_cover st.library (Ui.window geo.ui) path in
-    let img = Option.value img_opt ~default: (Ui.nocover geo.ui) in
-    let iw, ih = Layout.zoom_popup_image_size geo img in
-    Layout.zoom_popup geo (x, y, iw, ih);
+    let vis = if zoom = Current then ctl.zoom else `Cover in
+    let w, h =
+      match vis with
+      | `Cover ->
+        Layout.zoom_popup_image_size geo
+          (Option.value img_opt ~default: (Ui.nocover geo.ui))
+      | `Turntable | `Oscilloscope ->
+        let w = Layout.zoom_popup_w geo in w, w
+      | `Spectrum | `Waveform ->
+        let w = Layout.zoom_popup_w geo in w, w/2
+    in
+    Layout.zoom_popup geo (x, y, w, h);
     let text =
       artist ^ " - " ^ title ^
       (if year = "" then "" else " (" ^ year ^ ")") ^
       (if num = "" then "" else ", track " ^ num)
     in
-
-    let vis = if zoom = Current then ctl.zoom else `Cover in
     Run_visualization.run st (Layout.zoom_popup_image_area geo) vis img_opt;
     Layout.zoom_popup_text geo text;
   ) zoom_opt;

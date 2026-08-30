@@ -149,7 +149,11 @@ let run (st : State.t) area vis img_opt =
     ctl.raw <- [||];
     ctl.data <- data;
 
-    Api.Draw.fill_rect win x y w h `Black;
+    if w = h then
+      Api.Draw.fill_circ win x y w h `Black
+    else
+      Api.Draw.fill_rect win x y w h `Black;
+
     if len > 0 then
     (
       (match Ui.drag geo.ui area "osc_drag" (1, 1) with
