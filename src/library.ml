@@ -1835,7 +1835,7 @@ let remove_duplicates lib all =
   let mems = ref Set.empty in
   let dups = ref IntSet.empty in
   Array.iteri (fun i (track : track) ->
-    if all || is_selected lib i then
+    if not (M3u.is_separator track.path) && (all || is_selected lib i) then
     (
       if Set.mem track.path !mems then
         dups := IntSet.add i !dups

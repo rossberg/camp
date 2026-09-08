@@ -6,6 +6,7 @@ Control:
 
 Playlist:
 - [new] Custom computed columns
+- [chg] Playlist dedupe now ignores separators
 
 Library:
 - [new] Custom computed columns in views

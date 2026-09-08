@@ -1,5 +1,7 @@
 (* Playlist *)
 
+open Audio_file
+
 module IntSet = Set.Make(Int)
 module Set = Set.Make(String)
 module Map = Map.Make(String)
@@ -401,7 +403,7 @@ let remove_duplicates pl all =
   let mems = ref Set.empty in
   let dups = ref IntSet.empty in
   Array.iteri (fun i (track : track) ->
-    if all || is_selected pl i then
+    if not (M3u.is_separator track.path) && (all || is_selected pl i) then
     (
       if Set.mem track.path !mems then
         dups := IntSet.add i !dups
