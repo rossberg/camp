@@ -12,7 +12,8 @@ let filesel (st : state) kind access path ext f =
     try f path with Sys_error msg ->
       let op = match access with `Read -> "reading" | `Write -> "writing" in
       Library.error st.library ("Error " ^ op ^ " file " ^ path ^ ", " ^ msg);
-      Layout.browser_error_box st.geometry;  (* flash *)
+      let (module WindowUi) = Option.get st.layout in
+      WindowUi.Library.Browser.error_box ();  (* flash *)
   in
   if path <> "" then Filesel.set_dir_path st.filesel path;
   st.filesel.op <- Some Filesel.{kind; access; run};
@@ -40,14 +41,15 @@ let run (st : state) =
   let geo = st.geometry in
   let op = Option.get fs.op in
 
+  let (module WindowUi) = Option.get st.layout in
+  let module FileselUi = WindowUi.Filesel () in
+
   (* Update after possible window resize *)
   geo.directories_width <-
     Geometry.clamp (Geometry.directories_min_w geo) (Geometry.directories_max_w geo)
     geo.directories_width;
 
   (* Directories *)
-
-  Layout.directories_pane geo;
 
   (* Refresh drive list every 5 seconds *)
   if int_of_float (Unix.gettimeofday () *. 50.0) mod 50 = 0 then
@@ -75,7 +77,7 @@ let run (st : state) =
   in
 
   let dir = Filesel.selected_dir fs in
-  (match Layout.directories_table geo dirs pp_entry with
+  (match FileselUi.Dirs.table dirs pp_entry with
   | `None | `Scroll | `Move _ | `Drag _ | `Drop | `Abort -> ()
 
   | `Select ->
@@ -112,8 +114,6 @@ let run (st : state) =
 
   (* Files *)
 
-  Layout.files_pane geo;
-
   let files = fs.files in
   let cols = Filesel.columns fs in
 
@@ -126,7 +126,7 @@ let run (st : state) =
   in
 
   let ok =
-    match Layout.files_table geo cols (Some Filesel.heading) files pp_row with
+    match FileselUi.Files.table cols (Some Filesel.heading) files pp_row with
     | `None | `Scroll | `Move _ | `Drag _ | `Drop | `Abort -> false
 
     | `Click (Some i, _)
@@ -178,9 +178,9 @@ let run (st : state) =
   in
 
   (* Input *)
-  Layout.file_label geo;
-  Layout.file_box geo;
-  if Layout.file_button geo then
+  FileselUi.Input.label ();
+  FileselUi.Input.box ();
+  if FileselUi.Input.button () then
   (
     (* Click on File label: clear search *)
     if fs.input.text <> "" then
@@ -191,7 +191,7 @@ let run (st : state) =
     Ui.(if File.is_name fs.input.text then text_color else error_color)
       geo.ui
   in
-  let ch = Layout.file_edit geo c fs.input in
+  let ch = FileselUi.Input.edit c fs.input in
   if fs.input.focus then
   (
     (* Have or gained focus: make sure it's consistent *)
@@ -215,17 +215,17 @@ let run (st : state) =
     not (dir_avail || overwrite_avail) && (file_avail || is_write && is_valid)
   in
 
-  let ok_button geo =
-    ok_avail && not (Layout.select_ok_button geo (Some true)) ||
-    not ok_avail && Layout.select_ok_button geo None
-  and overwrite_button geo =
-    not (Layout.select_overwrite_button geo (Some true))
+  let ok_button () =
+    ok_avail && not (FileselUi.Button.ok (Some true)) ||
+    not ok_avail && FileselUi.Button.ok None
+  and overwrite_button () =
+    not (FileselUi.Button.overwrite (Some true))
   in
 
   if
-    overwrite_avail && overwrite_button geo ||
-    not overwrite_avail && ok_button geo ||
-    dir_avail && Layout.return_key geo ||
+    overwrite_avail && overwrite_button () ||
+    not overwrite_avail && ok_button () ||
+    dir_avail && FileselUi.Key.return () ||
     (ok_avail || dir_avail) && ok
   then
   (
@@ -250,7 +250,7 @@ let run (st : state) =
     )
   );
 
-  if Layout.select_cancel_button geo (Some false) && not ok then
+  if FileselUi.Button.cancel (Some false) && not ok then
   (
     Filesel.reset fs;
     geo.filesel_shown <- false;
@@ -259,7 +259,7 @@ let run (st : state) =
 
   (* Pane divider *)
 
-  let directories_width', _ = Layout.directories_divider geo geo.directories_width
+  let directories_width', _ = FileselUi.divider geo.directories_width
     (Geometry.directories_min_w geo) (Geometry.directories_max_w geo) in
   (* Possible drag of divider: update pane width *)
   geo.directories_width <- directories_width'

@@ -7,8 +7,7 @@ type t =
   text_size : Edit.t;
   text_padding : Edit.t;
   text_gutter : Edit.t;
-  grid_tracks : Edit.t;
-  grid_albums : Edit.t;
+  grid_size : Edit.t;
   zoom_size : Edit.t;
   scroll_width : Edit.t;
   spec_bands : Edit.t;
@@ -27,8 +26,7 @@ let make () =
     text_size = Edit.make 10;
     text_padding = Edit.make 10;
     text_gutter = Edit.make 10;
-    grid_tracks = Edit.make 10;
-    grid_albums = Edit.make 10;
+    grid_size = Edit.make 10;
     zoom_size = Edit.make 10;
     scroll_width = Edit.make 10;
     spec_bands = Edit.make 10;
@@ -57,8 +55,7 @@ let foci set =  (* needs to be in order of appearance *)
     set.text_padding;
     set.text_gutter;
     set.scroll_width;
-    set.grid_tracks;
-    set.grid_albums;
+    set.grid_size;
     set.zoom_size;
     set.spec_bands;
     set.exec_tag;

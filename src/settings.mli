@@ -7,8 +7,7 @@ type t =
   text_size : Edit.t;
   text_padding : Edit.t;
   text_gutter : Edit.t;
-  grid_tracks : Edit.t;
-  grid_albums : Edit.t;
+  grid_size : Edit.t;
   zoom_size : Edit.t;
   scroll_width : Edit.t;
   spec_bands : Edit.t;

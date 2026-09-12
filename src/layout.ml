@@ -1,775 +1,1115 @@
 (* UI Layout *)
 
-(* Basic parameters *)
-
 open Geometry
 
-let rich_table g sh has_heading : Ui.rich_table =
-  { gutter_w = gutter_w g;
-    text_h = text_h g;
-    pad_h = pad_h g;
-    scroll_w = scrollbar_w g;
-    scroll_h = sh * scrollbar_w g;
-    scroll_l = scrollbar_l g;
-    refl_r = g.reflection;
-    has_heading
-  }
-
-let grid_table g img_h has_heading : Ui.grid_table =
-  { gutter_w = gutter_w g;
-    img_h;
-    text_h = text_h g;
-    pad_h = pad_h g;
-    scroll_w = scrollbar_w g;
-    scroll_l = scrollbar_l g;
-    refl_r = g.reflection;
-    has_heading
-  }
-
-let menu g : Ui.menu =
-  { margin = g.margin;
-    gutter_w = gutter_w g;
-    text_h = text_h g;
-    pad_h = pad_h g;
-    scroll_w = scrollbar_w g;
-    scroll_h = scrollbar_w g;
-    scroll_l = scrollbar_l g;
-    refl_r = g.reflection;
-  }
-
-let settings g : Ui.settings =
-  { margin = g.margin;
-    item_h = label_h g * 4 / 3;
-    label_h = label_h g;
-    pad_w = label_h g / 3;
-    pad_h = label_h g / 4;
-    sep_h = label_h g * 2 / 3;
-    sep_w = 2 * margin g;
-    indent_w = margin g;
-    scroll_w = scrollbar_w g;
-    scroll_l = scrollbar_l g;
-  }
-
-
-(* Keys *)
-
-let nokey = ([], `None)
-let plain ch = ([], `Char ch)
-let shift ch = ([`Shift], `Char ch)
-let cmd ch = ([`Command], `Local ch)
-let shiftcmd ch = ([`Shift; `Command], `Local ch)
-
-let key_bwd = plain 'Z'
-let key_play = plain 'X'
-let key_pause = plain 'C'
-let key_stop = plain 'V'
-let key_fwd = plain 'B'
-let key_eject = plain 'N'
-let key_startstop = plain ' '
-
-let key_loop = plain 'L'
-let key_repeat = plain 'R'
-let key_shuffle = plain 'S'
-
-let key_mute = plain '0'
-let key_volup = plain '+'
-let key_voldn = plain '-'
-
-let key_next = ([], `Tab)
-let key_prev = ([`Shift], `Tab)
-let key_del = ([], `Delete)
-let key_del2 = ([], `Backspace)
-let key_sep = ([], `Insert)
-let key_rw = ([], `Arrow `Left)
-let key_ff = ([], `Arrow `Right)
-
-let key_ok = ([], `Return)
-let key_overwrite = ([`Shift], `Return)
-let key_cancel = ([], `Escape)
-
-let key_all = cmd 'A'
-let key_rev = cmd 'B'
-let key_copy = cmd 'C'
-let key_search = cmd 'F'
-let key_invert = cmd 'I'
-let key_crop = cmd 'K'
-let key_lib = cmd 'L'
-let key_side = shiftcmd 'L'
-let key_queue = cmd 'M'
-let key_none = cmd 'N'
-let key_load = cmd 'O'
-let key_pl = cmd 'P'
-let key_quit = cmd 'Q'
-let key_min = shiftcmd 'Q'
-let key_rescan = cmd 'R'
-let key_rescan2 = shiftcmd 'R'
-let key_save = cmd 'S'
-let key_save2 = shiftcmd 'S'
-let key_tag = cmd 'T'
-let key_tag2 = shiftcmd 'T'
-let key_fps = cmd 'U'
-let key_sdf = shiftcmd 'U'
-let key_paste = cmd 'V'
-let key_wipe = cmd 'W'
-let key_dedupe = shiftcmd 'W'
-let key_cut = cmd 'X'
-let key_visual = cmd 'Y'
-let key_libcover = shiftcmd 'Y'
-let key_undo = cmd 'Z'
-let key_redo = shiftcmd 'Z'
-let key_appendleft = plain '<'
-let key_appendright = plain '>'
-let key_replaceleft = shift '<'
-let key_replaceright = shift '>'
-let key_textup = cmd '+'
-let key_textdn = cmd '-'
-let key_padup = nokey
-let key_paddn = nokey
-let key_gridup = shiftcmd '+'
-let key_griddn = shiftcmd '-'
-let key_zoomup = cmd ']'
-let key_zoomdn = cmd '['
-let key_scaleup = shiftcmd ']'
-let key_scaledn = shiftcmd '['
-let key_settings = cmd ','
-let key_devsettings = shiftcmd ','
-
-let key_color = nokey
-
-let key_reorder = nokey
-let key_export = nokey
-
-let key_clear_search = nokey
-let key_clear_history = nokey
-
-let key_artists = nokey
-let key_albums = nokey
-let key_tracks = nokey
-
-let key_folddir = plain ' '
-let key_namedir = ([], `Return)
-let key_namedir2 = ([], `Enter)
-let key_adddir = nokey
-let key_deldir = nokey
-let key_newdir = nokey
-let key_revdir = nokey
-let key_viewdir = nokey
-let key_scandir = nokey
-
-
-(* Menu *)
-
-let menu g x y = Ui.menu g.ui x y (menu g)
-
-
-(* Control Pane *)
-
-let cp = 0
-let control_pane g = Ui.pane g.ui cp (control_x g, control_y g, control_w g, control_h g)
-
-(* Power and pane activation buttons *)
-let power_w g = sx g 35
-let power_h g = sy g 22
-let power_x g = - margin g - power_w g
-let power_y g = margin g
-let power_total_h g = power_h g + sy g 3 + label_h g
-
-let power_area g = (cp, power_x g, power_y g, power_w g, power_h g)
-let power_button g = Ui.button g.ui (power_area g) "power_but" key_quit true
-let power_label g = Ui.label g.ui (cp, power_x g, power_y g + power_h g + sy g 3, power_w g, label_h g) `Center "POWER"
-let power_shadow g = Ui.box g.ui (cp, power_x g, power_y g, power_w g + sx g 1, power_h g + sy g 2) `Black
-let minimize_button g = Ui.invisible_button g.ui (power_area g) "power_but" [`Shift] key_min true
-
-let shown_w g = power_w g
-let shown_h g = sy g 12
-let shown_x g = power_x g
-let shown_total_h g = indicator_w g + 1 + shown_h g + sy g 2 + label_h g
-let shown_y i g = power_y g + power_total_h g + i * shown_total_h g + (i + 1) * sy g 5 + indicator_w g + sy g 1
-let shown_indicator_x g = shown_x g + (shown_w g - indicator_w g)/2 + sy g 1
-
-let shown_indicator i g = Ui.indicator g.ui `Green (cp, shown_indicator_x g, shown_y i g - indicator_w g - sy g 1, indicator_w g, indicator_w g)
-let shown_button i key g = Ui.button g.ui (cp, shown_x g, shown_y i g, shown_w g, shown_h g) ("shown_but_" ^ string_of_int i) key true
-let shown_label i txt g = Ui.label g.ui (cp, shown_x g, shown_y i g + shown_h g + sy g 2, shown_w g, label_h g) `Center txt
-let shown_shadow i g = Ui.box g.ui (cp, shown_x g, shown_y i g, shown_w g, shown_h g + sy g 1) `Black
-
-let playlist_indicator = shown_indicator 0
-let playlist_button = shown_button 0 key_pl
-let playlist_label = shown_label 0 "PLAYLIST"
-let playlist_shadow = shown_shadow 0
-
-let library_indicator = shown_indicator 1
-let library_button = shown_button 1 key_lib
-let library_label = shown_label 1 "LIBRARY"
-let library_shadow = shown_shadow 1
-let library_side_key g = Ui.key g.ui key_side true
-
-(* Control buttons *)
-let ctl_w g = sx g 39
-let ctl_h g = sy g 30
-let ctl_y g = - sy g 8 - ctl_h g
-let control_button i sym key g =
-  Ui.labeled_button g.ui (cp, margin g + i * ctl_w g, ctl_y g, ctl_w g, ctl_h g)
-    ("ctl_but_" ^ string_of_int i) ~protrude: false (smin g 10) (Ui.active_color g.ui) sym key
-
-let bwd_button = control_button 0 "<<" key_bwd
-let play_button = control_button 1 ">" key_play
-let pause_button = control_button 2 "||" key_pause
-let stop_button = control_button 3 "[]" key_stop
-let fwd_button = control_button 4 ">>" key_fwd
-let eject_button = control_button 5 "^" key_eject
-
-let button_shadow g = Ui.box g.ui (cp, margin g - smin g 1, ctl_y g, 6 * ctl_w g + smin g 3, ctl_h g + smin g 5) `Black
-
-let start_stop_key g = Ui.key g.ui key_startstop
-let rw_key g = Ui.key g.ui key_rw
-let ff_key g = Ui.key g.ui key_ff
-
-(* Play mode buttons *)
-let mode_w g = sx g 25
-let mode_h g = sy g 12
-let mode_x i g = - margin g - mode_w g - i * (mode_w g + sx g 10)
-let mode_y g = ctl_y g + indicator_w g + (ctl_h g - indicator_w g - mode_h g - label_h g) / 2
-let mode_sep g = sx g 4
-let mode_indicator_x g x = function
-  | `Center -> x + (mode_w g - indicator_w g)/2 + sx g 1
-  | `Left -> x + (mode_w g - 2 * indicator_w g - mode_sep g) / 2
-  | `Right -> x + mode_w g - (mode_w g - 2 * indicator_w g - mode_sep g) / 2 - indicator_w g
-
-let mode_indicator i al g = Ui.indicator g.ui `Green (cp, mode_indicator_x g (mode_x i g) al, mode_y g - indicator_w g - sx g 1, indicator_w g, indicator_w g)
-let mode_button i key g = Ui.button g.ui (cp, mode_x i g, mode_y g, mode_w g, mode_h g) ("mode_but_" ^ string_of_int i) key
-let mode_label i label g = Ui.label g.ui (cp, mode_x i g, mode_y g + mode_h g + sy g 2, mode_w g, label_h g) `Center label
-let mode_shadow i g = Ui.box g.ui (cp, mode_x i g, mode_y g, mode_w g, mode_h g + sy g 1) `Black
-
-let shuffle_indicator = mode_indicator 2 `Center
-let shuffle_button = mode_button 2 key_shuffle
-let shuffle_label = mode_label 2 "SHUFFLE"
-let shuffle_shadow = mode_shadow 2
-
-let repeat_indicator1 = mode_indicator 1 `Left
-let repeat_indicator2 = mode_indicator 1 `Right
-let repeat_button = mode_button 1 key_repeat
-let repeat_label = mode_label 1 "REPEAT"
-let repeat_shadow = mode_shadow 1
-
-let loop_indicator1 = mode_indicator 0 `Left
-let loop_indicator2 = mode_indicator 0 `Right
-let loop_button = mode_button 0 key_loop
-let loop_label = mode_label 0 "LOOP"
-let loop_shadow = mode_shadow 0
-
-(* Display box *)
-let info_x g = margin g
-let info_y g = margin g
-let info_w g = - power_w g - 2 * margin g
-let info_h g = ctl_y g - margin g
-let info_margin g = smin g 4
-let info_area g = (cp, info_x g, info_y g, info_w g, info_h g)
-let info_box g = Ui.box g.ui (info_area g) `Black
-let info_refl g = Ui.mouse_focus g.ui (info_area g) (control_h g + info_h g) 0x30 0
-
-(* Volume *)
-let volume_w g = sx g 27
-let volume_h g = sy g 50
-let volume_x g = info_w g - info_margin g - volume_w g
-let volume_y g = info_y g + info_margin g
-
-let mute_w g = sx g 22
-let mute_h g = label_h g
-let mute_x g = volume_x g - sx g 4
-let mute_y g = volume_y g + volume_h g - mute_h g
-let mute_area g = (cp, mute_x g, mute_y g, mute_w g, mute_h g)
-
-let volume_bar g = Ui.volume_bar g.ui (cp, volume_x g, volume_y g, volume_w g, volume_h g) "vol_bar" (smin g 1)
-let volume_wheel g = Ui.wheel g.ui (cp, 0, 0, control_w g, control_h g)
-
-let mute_text g = Ui.color_text g.ui (cp, mute_x g, mute_y g, mute_w g, mute_h g) `Center
-let mute_button g = Ui.invisible_button g.ui (mute_area g) "mute_but" [] key_mute true
-let mute_drag g = Ui.drag g.ui (mute_area g)
-
-let volup_key g = Ui.key g.ui key_volup
-let voldown_key g = Ui.key g.ui key_voldn
-
-(* Info *)
-let seek_margin g = info_margin g / 2
-let seek_h g = smin g 14
-let seek_y g = info_h g - seek_margin g - seek_h g
-let ticker_h g = min 64 (sy g 16)
-let ticker_y g = seek_y g - ticker_h g - sy g 3
-let prop_h g = min 64 (smin g (*12*) 13)
-let prop_y g = ticker_y g - prop_h g - sy g 2
-let prop_w g = (*if flex_h g > 20 then info_w g - info_margin g else*) mute_x g
-
-let prop_text g = Ui.text g.ui (cp, info_x g + info_margin g, prop_y g, prop_w g, prop_h g) `Left
-let title_ticker g = Ui.ticker g.ui (cp, info_x g + info_margin g, ticker_y g, info_w g - info_margin g, ticker_h g)
-let seek_bar g = Ui.progress_bar g.ui (cp, info_x g + seek_margin g, seek_y g, info_w g - seek_margin g, seek_h g) "seek_bar" (smin g 1)
-
-(* Time *)
-let lcd_space g = sx g 3
-let colon_w g = sx g 4
-let lcd_w g = sx g 14
-let lcd_h g = sy g 20
-let lcd_x g i = margin g + info_margin g + i * (lcd_w g + lcd_space g)
-let lcd_y g = margin g + info_margin g + sy g 10
-let lcd_sign g = Ui.lcd g.ui (cp, lcd_x g 0, lcd_y g, lcd_w g, lcd_h g)
-let lcd_min1 g = Ui.lcd g.ui (cp, lcd_x g 1, lcd_y g, lcd_w g, lcd_h g)
-let lcd_min2 g = Ui.lcd g.ui (cp, lcd_x g 2, lcd_y g, lcd_w g, lcd_h g)
-let lcd_colon g = Ui.lcd g.ui (cp, lcd_x g 3, lcd_y g, colon_w g, lcd_h g)
-let lcd_sec1 g = Ui.lcd g.ui (cp, lcd_x g 3 + colon_w g + lcd_space g, lcd_y g, lcd_w g, lcd_h g)
-let lcd_sec2 g = Ui.lcd g.ui (cp, lcd_x g 4 + colon_w g + lcd_space g, lcd_y g, lcd_w g, lcd_h g)
-let lcd_button g = Ui.mouse g.ui (cp, lcd_x g 0, lcd_y g, colon_w g + lcd_x g 4, lcd_h g) "lcd_but" `Left
-
-(* Visuals *)
-let visual_x g = lcd_x g 5 + sx g 28
-let visual_y g = info_y g + info_margin g
-let visual_w g = volume_x g - sx g 16
-let visual_h g = prop_y g - info_margin g
-let visual_area g = (cp, visual_x g, visual_y g, visual_w g, visual_h g)
-let visual_indicator g i = Ui.box g.ui (cp, visual_x g - sx g 8, visual_y g + sy g 8 * i, sx g 4, sy g 4) (Ui.text_color g.ui)
-let visual_button g = Ui.mouse g.ui (cp, visual_x g - sx g 20, visual_y g, sx g 20, visual_h g) "vis_but" `Left
-let visual_key g = Ui.key g.ui key_visual true
-
-let cover_w g = visual_w g - sx g 20
-let cover_h g = visual_h g
-let cover_x g = visual_x g + (visual_w g - cover_w g) / 2
-let cover_y g = visual_y g
-let cover_area g = (cp, cover_x g, cover_y g, cover_w g, cover_h g)
-
-let novisual_button g = Ui.mouse g.ui (visual_area g) "graph_but" `Left
-
-(* Hidden mode buttons *)
-let color_y g = prop_y g
-let color_button g = Ui.mouse g.ui (cp, margin g, color_y g, mute_x g, ticker_y g + ticker_h g) "color_but" `Left
-
-let fps_w g = smin g 40
-let fps_text g = Ui.text g.ui (cp, visual_w g - fps_w g, margin g + info_margin g, fps_w g, smin g 12) `Left
-let fps_key g = Ui.key g.ui key_fps true
-
-let sdf_key g = Ui.key g.ui key_sdf true
-
-(* Pop-ups *)
-let info_context g = Ui.mouse g.ui (cp, margin g, margin g, info_w g - volume_w g, info_h g - seek_h g) "info_ctx" `Right
-let seek_context g = Ui.mouse g.ui (cp, margin g, seek_y g, info_w g - margin g, seek_h g) "seek_ctx" `Right
-let volume_context g = Ui.mouse g.ui (cp, volume_x g, volume_y g, volume_w g, volume_h g) "vol_ctx" `Right
-let shown_context g = Ui.mouse g.ui (cp, margin g + info_w g, margin g, - margin g, info_h g) "shown_ctx" `Right
-let control_context g = Ui.mouse g.ui (cp, margin g, ctl_y g, - margin g, -1) "ctl_ctx" `Right
-
-let zoom_popup_open g = Ui.mouse g.ui (visual_area g) "zoom_but" `Left
-
-let zp = cp + 1
-
-let zoom_popup_w g = g.zoom_size |>
-  min (control_w g + library_w g - 2 * zoom_margin g) |>
-  min (control_h g + playlist_h g - line_h g - 2 * zoom_margin g)
-let zoom_popup g (x, y, iw, ih) = Ui.popup g.ui (Some "zoom") zp (x, y, iw, ih + line_h g) (zoom_margin g) false
-
-let zoom_popup_image_size g = Ui.image_size g.ui (zp, 0, 0, zoom_popup_w g, zoom_popup_w g) `Shrink
-let zoom_popup_image_area g = (zp, 0, 0, -1, -line_h g)
-let zoom_popup_text g = Ui.ticker g.ui (zp, 0, -text_h g, -1, -1)
-
-
-(* Divider Panes *)
-
-let pdp = zp + 1
-let extension_divider_h_pane g = Ui.pane g.ui pdp (playlist_x g, playlist_y g, playlist_w g, divider_w g)
-let extension_divider_h g = Ui.divider g.ui (pdp, margin g, 0, - margin g, -1) "ext_div_h" `Vertical
-let extension_divider_wh_left g = Ui.divider2 g.ui (pdp, 0, 0, margin g, -1) "ext_div_wh_l" `NE_SW
-let extension_divider_wh_right g = Ui.divider2 g.ui (pdp, - margin g, 0, -1, -1) "ext_div_wh_r" `NW_SE
-
-let ldp = pdp + 1
-let extension_divider_x g = (if extension_left g then control_x else library_x) g
-let extension_divider_w_pane g = Ui.pane g.ui ldp (extension_divider_x g, library_y g, divider_w g, -1)
-let extension_divider_w_upper g = Ui.divider g.ui (ldp, 0, margin g, -1, playlist_y g - library_y g - margin g) "ext_div_w_u" `Horizontal
-let extension_divider_w_lower g = Ui.divider g.ui (ldp, 0, playlist_y g - library_y g + divider_w g, -1, - margin g) "ext_div_w_l" `Horizontal
-let extension_divider_wh_mid g = Ui.divider2 g.ui (ldp, 0, playlist_y g - library_y g, -1, divider_w g) "ext_div_wh_m" (if extension_left g then `NE_SW else `NW_SE)
-let extension_divider_wh_top g = Ui.divider2 g.ui (ldp, 0, 0, -1, margin g) "ext_div_wh_t" (if extension_left g then `NW_SE else `NE_SW)
-let extension_divider_wh_bot g = Ui.divider2 g.ui (ldp, 0, - margin g, -1, -1) "ext_div_wh_b" (if extension_left g then `NE_SW else `NW_SE)
-
-
-(* Playlist Pane *)
-
-let pp = ldp + 1
-let playlist_pane g = Ui.pane g.ui pp (playlist_x g, playlist_y g, playlist_w g, -1)
-
-(* Playlist *)
-let playlist_area g = (pp, margin g, margin g, - margin g, - bottom_h g)
-let playlist_table g = Ui.rich_table g.ui (playlist_area g) "pl" (rich_table g 0 g.playlist_headers)
-let playlist_mouse g = Ui.rich_table_mouse g.ui (playlist_area g) (rich_table g 0 g.playlist_headers)
-let playlist_drag g = Ui.rich_table_drag g.ui (playlist_area g) (rich_table g 0 g.playlist_headers) `Above
-
-
-(* Edit Pane *)
-
-let ep = pp + 1
-let edit_pane g = Ui.pane g.ui ep (playlist_x g, - bottom_h g, playlist_w g, bottom_h g)
-
-(* Buttons *)
-let edit_sep g = sx g 5
-let edit_w g = sx g 27
-let edit_h g = line_h g + smin g 7
-let edit_x i j g = margin g + i * edit_sep g + j * edit_w g
-let edit_y g = if extension_shown_h g then - edit_h g else control_h g (* effectively hidden *)
-let edit_area i j g = (ep, edit_x i j g, edit_y g, edit_w g, edit_h g)
-let edit_button i j label key g = Ui.labeled_button g.ui (edit_area i j g) ("edit_but_" ^ string_of_int j) (button_label_h g) (Ui.inactive_color g.ui) label key true
-let edit_button2 i j key g = Ui.invisible_button g.ui (edit_area i j g) ("edit_but_" ^ string_of_int j) [`Shift] key true
-
-(*let tag_button = edit_button 0 0 "TAG" key_tag*)
-let tag_add_button = edit_button2 0 0 key_tag2
-let sep_button = edit_button 0 0 "SEP" key_sep
-let del_button = edit_button 1 1 "DEL" key_del
-let crop_button = edit_button 1 2 "CROP" key_crop
-let wipe_button = edit_button 1 3 "WIPE" key_wipe
-let dedupe_button = edit_button2 2 4 key_dedupe
-let del_button_alt g = Ui.key g.ui key_del2 true
-let undo_button = edit_button 2 4 "UNDO" key_undo
-let redo_button = edit_button2 3 5 key_redo
-let save_button = edit_button 3 5 "SAVE" key_save
-let save_view_button = edit_button2 4 6 key_save2
-let load_button = edit_button 3 6 "LOAD" key_load
-
-let del_key g = Ui.key g.ui key_del true
-let cut_key g = Ui.key g.ui key_cut true
-let copy_key g = Ui.key g.ui key_copy true
-let paste_key g = Ui.key g.ui key_paste true
-let rev_key g = Ui.key g.ui key_rev
-
-let focus_next_key g = Ui.key g.ui key_next true
-let focus_prev_key g = Ui.key g.ui key_prev true
-
-(* Total text field *)
-let total_w g = - margin g - scrollbar_w g
-let total_x g = edit_x 4 7 g
-let total_y g = footer_y g
-let playlist_total_box g = Ui.box g.ui (pp, total_x g, total_y g, total_w g, line_h g) `Black
-let playlist_total_text g = Ui.text g.ui (pp, total_x g, total_y g + pad_h g, total_w g - (gutter_w g + 1)/2, text_h g) `Right
-
-let enlarge_text_key g = Ui.key g.ui key_textup true
-let reduce_text_key g = Ui.key g.ui key_textdn true
-
-let enlarge_grid_key g = Ui.key g.ui key_gridup true
-let reduce_grid_key g = Ui.key g.ui key_griddn true
-
-let enlarge_scale_key g = Ui.key g.ui key_scaleup true
-let reduce_scale_key g = Ui.key g.ui key_scaledn true
-
-let enlarge_zoom_key g = Ui.key g.ui key_zoomup true
-let reduce_zoom_key g = Ui.key g.ui key_zoomdn true
-
-
-(* Settings Pane *)
-
-let sp = pp
-let settings_pane g = Ui.pane g.ui sp (settings_x g, settings_y g, settings_w g, -1)
-
-(*
-let done_w g = mode_w g
-let done_h g = mode_h g
-let done_x g = - margin g - done_w g
-let done_y g = margin g
-let done_but g = Ui.button g.ui (sp, done_x g, done_y g, - margin g, done_h g) "settings:done" nokey false (Some false)
-let done_label g = Ui.label g.ui (sp, done_x g - smin g 40, done_y g + (done_h g - label_h g)/2, smin g 36, label_h g) `Right "DONE"
-*)
-let done_w g = sx g 30
-let done_h g = label_h g * 3 / 2
-let done_but g = Ui.labeled_button g.ui (sp, - margin g - done_w g, margin g, - margin g, done_h g) "settings:done" (label_h g) `White "DONE" nokey false (Some false)
-
-let settings_key g = Ui.key g.ui key_settings true
-let settings_dev g = Ui.key g.ui key_devsettings true
-let settings g = Ui.settings g.ui (sp, margin g, margin g + done_h g + sy g 4, - margin g, - margin g) "settings" (settings g)
-
-
-(* Browser Pane *)
-
-let bp = ep + 1
-let browser_pane g = Ui.pane g.ui bp (library_x g, library_y g, g.browser_width, -1)
-
-(* Divider *)
-let browser_divider g = Ui.divider g.ui (bp, - divider_w g, margin g, divider_w g, - bottom_h g) "br_div" `Horizontal
-
-(* Scan and view buttons *)
-let scan_w g = sx g 32
-let scan_y g = margin g
-let scan_indicator_w g = indicator_w g * 12 / 7
-let scan_indicator_area g = (bp, margin g + (scan_w g - scan_indicator_w g)/2, scan_y g + label_h g + 2, scan_indicator_w g, scan_indicator_w g)
-let scan_indicator g = Ui.indicator g.ui `Yellow (scan_indicator_area g)
-let scan_button g = Ui.mouse g.ui (scan_indicator_area g) "scan_but" `Left
-let scan_label g = Ui.label g.ui (bp, margin g, scan_y g, scan_w g, label_h g) `Center "SCANNING"
-
-let view_w g = sx g 25
-let view_h g = sy g 12
-let view_x i g = - margin g - view_w g - i * (view_w g + sx g 12) - sx g 2
-let view_y g = margin g + indicator_w g + 1
-let view_sep g = mode_sep g
-let view_indicator_x g x = function
-  | `Center -> x + (view_w g - indicator_w g)/2 + 1
-  | `Left -> x + (view_w g - 2 * indicator_w g - view_sep g) / 2
-  | `Right -> x + view_w g - (view_w g - 2 * indicator_w g - view_sep g) / 2 - indicator_w g
-
-let view_indicator i al g = Ui.indicator g.ui `Green (bp, view_indicator_x g (view_x i g) al, view_y g - indicator_w g - sx g 1, indicator_w g, indicator_w g)
-let view_button i key g = Ui.button g.ui (bp, view_x i g, view_y g, view_w g, view_h g ) ("view_but_" ^ string_of_int i) key false
-let view_label i label g = Ui.label g.ui (bp, view_x i g - sx g 4, view_y g + view_h g + sx g 1, view_w g + 8, label_h g) `Center label
-
-let artists_indicator = view_indicator 2 `Center
-let artists_button = view_button 2 key_artists
-let artists_label = view_label 2 "ARTISTS"
-
-let albums_indicator1 = view_indicator 1 `Left
-let albums_indicator2 = view_indicator 1 `Right
-let albums_button = view_button 1 key_albums
-let albums_label = view_label 1 "ALBUMS"
-
-let tracks_indicator1 = view_indicator 0 `Left
-let tracks_indicator2 = view_indicator 0 `Right
-let tracks_button = view_button 0 key_tracks
-let tracks_label = view_label 0 "TRACKS"
-
-(* Search *)
-let search_label_w g = smin g 30
-let search_x g = margin g + search_label_w g + sx g 3
-let search_y g = 2 * margin g + indicator_w g + view_h g + label_h g
-let search_label g = Ui.label g.ui (bp, margin g, search_y g + (line_h g - label_h g + sy g 1)/2, search_label_w g, label_h g) `Left "SEARCH"
-let search_button g = Ui.mouse g.ui (bp, margin g, search_y g, search_label_w g, line_h g) "search_but" `Left
-let search_key g = Ui.key g.ui key_search true
-let search_box g = Ui.box g.ui (bp, search_x g, search_y g, - divider_w g, line_h g) `Black
-let search_edit g = Ui.rich_edit_text g.ui (bp, search_x g + sx g 2, search_y g, - divider_w g - sx g 2, line_h g) "search_edit" (pad_h g) true
-let search_context g = Ui.mouse g.ui (bp, search_x g, search_y g, - divider_w g, line_h g) "search_ctx" `Right
-
-(* Browser *)
-let browser_y g = search_y g + line_h g + margin g
-let browser_area g = (bp, margin g, browser_y g, - divider_w g, - bottom_h g)
-let browser_table g = Ui.browser g.ui (browser_area g) "br" (rich_table g 0 false)
-let browser_mouse g = Ui.rich_table_mouse g.ui (browser_area g) (rich_table g 0 false)
-let browser_drag g = Ui.rich_table_drag g.ui (browser_area g) (rich_table g 0 false)
-let browser_error_box g = Ui.box g.ui (browser_area g) (Ui.error_color g.ui)
-
-let rename_area g = Ui.browser_entry_text_area g.ui (browser_area g) (rich_table g 0 false)
-let rename_box g area = Ui.box g.ui area `Black
-let rename_edit g area pad = Ui.rich_edit_text g.ui area "name_edit" pad true
-
-let fold_key g = Ui.key g.ui key_folddir
-let rename_key g b =
-  b && (Ui.key g.ui key_namedir b || Ui.key g.ui key_namedir2 b)
-
-(* Buttons *)
-let ledit_w g = edit_w g
-let ledit_h g = edit_h g
-let ledit_button i j label key g = Ui.labeled_button g.ui (bp, margin g + i * sx g 5 + j * ledit_w g, - ledit_h g, ledit_w g, ledit_h g) ("ledit_but_" ^ string_of_int j) (button_label_h g) (Ui.inactive_color g.ui) label key true
-
-let insert_button = ledit_button 0 0 "ADD" key_adddir
-(*let remove_button = ledit_button 0 1 "DEL" key_deldir*)
-let create_button = ledit_button 0 1 "NEW" key_newdir
-let view_button = ledit_button 0 2 "VIEW" key_viewdir
-let tag_button = ledit_button 1 3 "TAG" key_tag
-let rescan_button = ledit_button 1 4 "SCAN" key_scandir
-
-
-(* Custom Attribute pop-up *)
-
-let cp = bp + 1
-
-let custom_popup_w g = smin g 200
-let custom_popup_h g = 2 * line_h g + 2  (* cf Ui.rich_table *)
-let custom_popup g x y = Ui.popup g.ui None cp (x, y, custom_popup_w g, custom_popup_h g) (zoom_margin g) true
-
-let custom_popup_ok_button g = Ui.key g.ui key_ok true
-let custom_popup_cancel_button g = Ui.key g.ui key_cancel true
-
-let custom_popup_name_box g = Ui.box g.ui (cp, 0, 0, -1, line_h g) (Ui.text_color g.ui)
-let custom_popup_name_edit g = Ui.rich_edit_text g.ui (cp, gutter_w g / 2, pad_h g, - gutter_w g / 2, text_h g) "custom:name_edit" (pad_h g) true `Black
-let custom_popup_text_box g = Ui.box g.ui (cp, 0, line_h g, -1, line_h g) `Black
-let custom_popup_text_edit g = Ui.rich_edit_text g.ui (cp, gutter_w g / 2, pad_h g + line_h g + 2, - gutter_w g / 2, text_h g) "custom:text_edit" (pad_h g) false
-
-(*
-let custom_popup_label_w g = smin g 40
-let custom_popup_x g = custom_popup_label_w g
-let custom_popup_y1 g = 0
-let custom_popup_y2 g = custom_popup_y1 g + line_h g + margin g
-let custom_popup_name_label g = Ui.label g.ui (cp, 0, custom_popup_y1 g + (line_h g - label_h g + sy g 1)/2, custom_popup_label_w g, label_h g) `Left "HEADER"
-let custom_popup_name_box g = Ui.box g.ui (cp, custom_popup_x g, custom_popup_y1 g, -1, line_h g) `Black
-let custom_popup_name_edit g = Ui.rich_edit_text g.ui (cp, custom_popup_x g + sx g 2, custom_popup_y1 g + pad_h g, - sx g 2, text_h g) "custom:name_edit" (pad_h g) false (Ui.text_color g.ui)
-let custom_popup_text_label g = Ui.label g.ui (cp, 0, custom_popup_y2 g + (line_h g - label_h g + sy g 1)/2, custom_popup_label_w g, label_h g) `Left "TEXT"
-let custom_popup_text_box g = Ui.box g.ui (cp, custom_popup_x g, custom_popup_y2 g, -1, line_h g) `Black
-let custom_popup_text_edit g = Ui.rich_edit_text g.ui (cp, custom_popup_x g + sx g 2, custom_popup_y2 g + pad_h g, - sx g 2, text_h g) "custom:text_edit" (pad_h g) false
-
-let custom_popup_button_w g = 2 * edit_w g
-let custom_popup_button_h g = edit_h g
-let custom_popup_button i c label key g = Ui.labeled_button g.ui (cp, - (i + 1) * custom_popup_button_w g, - custom_popup_button_h g, custom_popup_button_w g, custom_popup_button_h g) ("custom:but_" ^ string_of_int i) (button_label_h g) (c g.ui) label key true (Some false)
-
-let custom_popup_ok_button = custom_popup_button 1 Ui.active_color "OK" key_ok
-let custom_popup_cancel_button = custom_popup_button 0 Ui.inactive_color "CANCEL" key_cancel
-
-let custom_popup_w g = smin g 200
-let custom_popup_h g = custom_popup_y2 g + line_h g + margin g + custom_popup_button_h g
-let custom_popup g x y = Ui.popup g.ui None cp (x, y, custom_popup_w g, custom_popup_h g) (margin g) true
-*)
-
-
-(* View Panes *)
-
-let left_x g = library_x g + g.browser_width
-let left_y g = library_y g
-let left_w g = if g.right_shown then g.left_width else library_w g - g.browser_width
-let right_x g = left_x g + g.left_width
-let right_w g = if g.right_shown then library_w g - g.browser_width - g.left_width else 0
-let upper_h g = if g.lower_shown then g.upper_height else - bottom_h g
-let lower_h g = - bottom_h g
-
-(* Upper left view *)
-let lp = cp + 1
-let left_pane g = Ui.pane g.ui lp (left_x g, left_y g, left_w g, upper_h g)
-
-let left_area g = (lp, 0, margin g, -1, -1)
-let left_table g = Ui.rich_table g.ui (left_area g) "lft_tbl" (rich_table g 1 true)
-let left_grid g iw = Ui.grid_table g.ui (left_area g) "lft_grid" (grid_table g iw true)
-let left_mouse g = Ui.rich_table_mouse g.ui (left_area g) (rich_table g 1 true)
-let left_drag g = Ui.rich_table_drag g.ui (left_area g) (rich_table g 1 true) `Above
-let left_grid_mouse g iw = Ui.grid_table_mouse g.ui (left_area g) (grid_table g iw true)
-let left_grid_drag g iw = Ui.grid_table_drag g.ui (left_area g) (grid_table g iw true) `Left
-let left_error_box g = Ui.box g.ui (left_area g) (Ui.error_color g.ui)
-let left_spin g = Ui.text g.ui (lp, sx g 4 + pad_w g, margin g + line_h g + sy g 4 + pad_h g, - scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
-
-let left_view =
-  left_pane, left_area, left_table, left_grid, left_mouse, left_grid_mouse, left_error_box, left_spin
-
-(* Upper right view (optional) *)
-let rp = lp + 1
-let right_pane g = Ui.pane g.ui rp (right_x g, left_y g, right_w g, upper_h g)
-
-let right_divider g = Ui.divider g.ui (rp, 0, 0, divider_w g, -1) "rgt_div" `Horizontal
-
-let right_area g = (rp, divider_w g, margin g, -1, -1)
-let right_table g = Ui.rich_table g.ui (right_area g) "rgt_tbl" (rich_table g 1 true)
-let right_grid g iw = Ui.grid_table g.ui (right_area g) "rgt_grid" (grid_table g iw true)
-let right_mouse g = Ui.rich_table_mouse g.ui (right_area g) (rich_table g 1 true)
-let right_drag g = Ui.rich_table_drag g.ui (right_area g) (rich_table g 1 true) `Above
-let right_grid_mouse g iw = Ui.grid_table_mouse g.ui (right_area g) (grid_table g iw true)
-let right_grid_drag g iw = Ui.grid_table_drag g.ui (right_area g) (grid_table g iw true) `Left
-let right_error_box g = Ui.box g.ui (right_area g) (Ui.error_color g.ui)
-let right_spin g = Ui.text g.ui (rp, divider_w g + sx g 4 + pad_w g, margin g + line_h g + sy g 4 + pad_h g, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
-
-let right_view =
-  right_pane, right_area, right_table, right_grid, right_mouse, right_grid_mouse, right_error_box, right_spin
-
-(* Lower view (optional) *)
-let lp = rp + 1
-let lower_pane g = Ui.pane g.ui lp (left_x g, left_y g + g.upper_height, library_w g - g.browser_width, lower_h g)
-
-let lower_divider g = Ui.divider g.ui (lp, 0, 0, -1, divider_w g) "low_div" `Vertical
-
-let lower_area g = (lp, 0, divider_w g, -1, -1)
-let lower_table g = Ui.rich_table g.ui (lower_area g) "low_tbl" (rich_table g 1 true)
-let lower_grid g iw = Ui.grid_table g.ui (lower_area g) "low_grid" (grid_table g iw true)
-let lower_mouse g = Ui.rich_table_mouse g.ui (lower_area g) (rich_table g 1 true)
-let lower_drag g = Ui.rich_table_drag g.ui (lower_area g) (rich_table g 1 true) `Above
-let lower_grid_mouse g iw = Ui.grid_table_mouse g.ui (lower_area g) (grid_table g iw true)
-let lower_grid_drag g iw = Ui.grid_table_drag g.ui (lower_area g) (grid_table g iw true) `Left
-let lower_error_box g = Ui.box g.ui (lower_area g) (Ui.error_color g.ui)
-let lower_spin g = Ui.text g.ui (lp, sx g 4 + pad_w g, divider_w g + line_h g + sy g 4 + pad_h g, -scrollbar_w g - gutter_w g, text_h g) `Left `Regular true
-
-let lower_view =
-  lower_pane, lower_area, lower_table, lower_grid, lower_mouse, lower_grid_mouse, lower_error_box, lower_spin
-
-(* Keys *)
-let lib_cover_key g = Ui.key g.ui key_libcover true
-
-
-(* Log Pane *)
-
-let log_x g = library_x g + g.browser_width
-let log_w g = library_w g - g.browser_width
-let log_pane g = Ui.pane g.ui lp (log_x g, library_y g, log_w g, - bottom_h g)
-
-let log_area g = (lp, 0, margin g, -1, -1)
-let log_table g = Ui.rich_table g.ui (log_area g) "log_tbl" (rich_table g 1 true)
-
-let log_button_w g = (g.browser_width - margin g - divider_w g) / 2
-let log_button_h g = edit_h g
-let log_button i c label key g = Ui.labeled_button g.ui (bp, margin g + i * log_button_w g, - log_button_h g, log_button_w g, log_button_h g) ("log_but_" ^ string_of_int i) (button_label_h g) (c g.ui) label key true
-
-let log_ok_button = log_button 0 Ui.active_color "OK" key_ok
-let log_cancel_button = log_button 1 Ui.inactive_color "CANCEL" key_cancel
-
-
-(* Message Pane *)
-
-let mp = lp + 1
-let info_pane g = Ui.pane g.ui mp (library_x g + g.browser_width, - bottom_h g, library_w g - g.browser_width, bottom_h g)
-
-(* Buttons *)
-let lcopy_w g = edit_w g
-let lcopy_h g = edit_h g
-let lcopy_x i j g = - i * sx g 5 - (2 - j) * lcopy_w g
-let lcopy_area i j g = (mp, lcopy_x i j g, - lcopy_h g, lcopy_w g, lcopy_h g)
-let lcopy_button i j label key g = Ui.labeled_button g.ui (lcopy_area i j g) ("lcopy_but_" ^ string_of_int j) (button_label_h g) (Ui.inactive_color g.ui) label key true
-let lcopy_button2 i j key g = Ui.invisible_button g.ui (lcopy_area i j g) ("lcopy_but_" ^ string_of_int j) [`Shift] key true
-
-let appendleft_button = lcopy_button 0 0 " < " key_appendleft
-let appendright_button = lcopy_button 0 1 " > " key_appendright
-let replaceleft_button = lcopy_button2 0 0 key_replaceleft
-let replaceright_button = lcopy_button2 0 1 key_replaceright
-
-let appendlib_button g =
-  (if g.extension_side = `Left then appendleft_button else appendright_button) g
-let replacelib_button g =
-  (if g.extension_side = `Left then replaceleft_button else replaceright_button) g
-let appendpl_button g =
-  (if g.extension_side = `Left then appendright_button else appendleft_button) g
-let replacepl_button g =
-  (if g.extension_side = `Left then replaceright_button else replaceleft_button) g
-
-let key_appendlib g =
-  if g.extension_side = `Left then key_appendleft else key_appendright
-let key_replacelib g =
-  if g.extension_side = `Left then key_replaceleft else key_replaceright
-let key_appendpl g =
-  if g.extension_side = `Left then key_appendright else key_appendleft
-let key_replacepl g =
-  if g.extension_side = `Left then key_replaceright else key_replaceleft
-
-(* Message *)
-let msg_x = 0
-let msg_w g = lcopy_x 0 0 g - sx g 4
-let msg_box g = Ui.box g.ui (mp, msg_x, footer_y g, msg_w g, line_h g) `Black
-let msg_text g = Ui.color_text g.ui (mp, msg_x + sx g 2, footer_y g + pad_h g, msg_w g - sx g 4, text_h g) `Left
-
-
-(* Directories Pane *)
-
-let dp = mp + 1
-let directories_pane g = Ui.pane g.ui dp (library_x g, library_y g, g.directories_width, -1)
-
-(* Divider *)
-let directories_divider g = Ui.divider g.ui (dp, - divider_w g, margin g, divider_w g, - bottom_h g) "dir_div" `Horizontal
-
-(* Directories Browser *)
-let directories_area g = (dp, margin g, margin g, - divider_w g, - bottom_h g)
-let directories_table g = Ui.browser g.ui (directories_area g) "dir_tbl" (rich_table g 1 false)
-let directories_mouse g = Ui.rich_table_mouse g.ui (directories_area g) (rich_table g 1 false)
-
-(* Buttons *)
-let select_button_w g = (g.directories_width - margin g - divider_w g) / 2
-let select_button_h g = edit_h g
-let select_button i c label key g = Ui.labeled_button g.ui (dp, margin g + i * select_button_w g, - select_button_h g, select_button_w g, select_button_h g) ("sel_but_" ^ string_of_int i) (button_label_h g) (c g.ui) label key true
-
-let select_ok_button = select_button 0 Ui.active_color "OK" key_ok
-let select_overwrite_button = select_button 0 Ui.error_color "OVERWRITE" key_overwrite
-let select_cancel_button = select_button 1 Ui.inactive_color "CANCEL" key_cancel
-
-let return_key g = Ui.key g.ui key_ok true
-
-
-(* Files Pane *)
-
-let fp = dp + 1
-let files_pane g = Ui.pane g.ui fp (library_x g + g.directories_width, library_y g, library_w g - g.directories_width, library_h g)
-
-(* Table *)
-let files_area g = (fp, 0, margin g, -1, -bottom_h g)
-let files_table g = Ui.rich_table g.ui (files_area g) "file_tbl" (rich_table g 1 true)
-let files_mouse g = Ui.rich_table_mouse g.ui (files_area g) (rich_table g 1 true)
-
-(* Input field *)
-let file_label_w g = smin g 20
-let file_label g = Ui.label g.ui (fp, 0, footer_y g + (line_h g - label_h g + sy g 1)/2, file_label_w g, label_h g) `Left "FILE"
-let file_button g = Ui.mouse g.ui (fp, margin g, footer_y g, file_label_w g, line_h g) "file_but" `Left
-let file_box g = Ui.box g.ui (fp, file_label_w g, footer_y g, - divider_w g, line_h g) `Black
-let file_edit g = Ui.rich_edit_text g.ui (fp, file_label_w g + 2, footer_y g, - divider_w g - sx g 2, line_h g) "file_edit" (pad_h g) true
+
+(* Key Binndings *)
+
+module KeyBind =
+struct
+  type t = Api.(modifier list * key)
+
+  let na = ([], `None)
+  let plain ch = ([], `Char ch)
+  let shift ch = ([`Shift], `Char ch)
+  let cmd ch = ([`Command], `Local ch)
+  let shiftcmd ch = ([`Shift; `Command], `Local ch)
+
+  let bwd = plain 'Z'
+  let play = plain 'X'
+  let pause = plain 'C'
+  let stop = plain 'V'
+  let fwd = plain 'B'
+  let eject = plain 'N'
+  let start_stop = plain ' '
+
+  let loop = plain 'L'
+  let repeat = plain 'R'
+  let shuffle = plain 'S'
+
+  let mute = plain '0'
+  let vol_up = plain '+'
+  let vol_dn = plain '-'
+
+  let next = ([], `Tab)
+  let prev = ([`Shift], `Tab)
+  let del = ([], `Delete)
+  let del2 = ([], `Backspace)
+  let sep = ([], `Insert)
+  let rw = ([], `Arrow `Left)
+  let ff = ([], `Arrow `Right)
+
+  let ok = ([], `Return)
+  let overwrite = ([`Shift], `Return)
+  let cancel = ([], `Escape)
+
+  let all = cmd 'A'
+  let rev = cmd 'B'
+  let copy = cmd 'C'
+  let search = cmd 'F'
+  let invert = cmd 'I'
+  let crop = cmd 'K'
+  let lib = cmd 'L'
+  let side = shiftcmd 'L'
+  let queue = cmd 'M'
+  let none = cmd 'N'
+  let load = cmd 'O'
+  let pl = cmd 'P'
+  let quit = cmd 'Q'
+  let min = shiftcmd 'Q'
+  let rescan = cmd 'R'
+  let rescan2 = shiftcmd 'R'
+  let save = cmd 'S'
+  let save2 = shiftcmd 'S'
+  let tag = cmd 'T'
+  let tag2 = shiftcmd 'T'
+  let fps = cmd 'U'
+  let sdf = shiftcmd 'U'
+  let paste = cmd 'V'
+  let wipe = cmd 'W'
+  let dedupe = shiftcmd 'W'
+  let cut = cmd 'X'
+  let visual = cmd 'Y'
+  let covers = shiftcmd 'Y'
+  let undo = cmd 'Z'
+  let redo = shiftcmd 'Z'
+  let append_left = plain '<'
+  let append_right = plain '>'
+  let replace_left = shift '<'
+  let replace_right = shift '>'
+  let text_up = cmd '+'
+  let text_dn = cmd '-'
+  let pad_up = na
+  let pad_dn = na
+  let grid_up = shiftcmd '+'
+  let grid_dn = shiftcmd '-'
+  let zoom_up = cmd ']'
+  let zoom_dn = cmd '['
+  let scale_up = shiftcmd ']'
+  let scale_dn = shiftcmd '['
+  let settings = cmd ','
+  let dev_settings = shiftcmd ','
+
+  let color = na
+
+  let reorder = na
+  let export = na
+
+  let clear_search = na
+  let clear_history = na
+
+  let artists = na
+  let albums = na
+  let tracks = na
+
+  let fold_dir = plain ' '
+  let name_dir = ([], `Return)
+  let name_dir2 = ([], `Enter)
+  let add_dir = na
+  let del_dir = na
+  let new_dir = na
+  let rev_dir = na
+  let view_dir = na
+  let scan_dir = na
+  let repair_dir = na
+end
+
+
+(* Main Window *)
+
+module Window (G : sig val it : t end) =
+struct
+  let g = G.it
+
+  (* Basic Parameters *)
+
+  let subowner owner sub = owner ^ ":" ^ sub
+  let idxowner owner i = owner ^ "_" ^ string_of_int i
+
+  let rich_table_style sh has_heading : Ui.rich_table_style =
+    { gutter_w = gutter_w g;
+      text_h = text_h g;
+      pad_h = pad_h g;
+      scroll_w = scrollbar_w g;
+      scroll_h = sh * scrollbar_w g;
+      scroll_l = scrollbar_l g;
+      refl_r = g.reflection;
+      has_heading
+    }
+
+  let grid_table_style has_heading : Ui.grid_table_style =
+    { gutter_w = gutter_w g;
+      img_h = g.grid;
+      text_h = text_h g;
+      pad_h = pad_h g;
+      scroll_w = scrollbar_w g;
+      scroll_l = scrollbar_l g;
+      refl_r = g.reflection;
+      has_heading
+    }
+
+  let menu_style : Ui.menu_style =
+    { margin = g.margin;
+      gutter_w = gutter_w g;
+      text_h = text_h g;
+      pad_h = pad_h g;
+      scroll_w = scrollbar_w g;
+      scroll_h = scrollbar_w g;
+      scroll_l = scrollbar_l g;
+      refl_r = g.reflection;
+    }
+
+  let settings_style : Ui.settings_style =
+    { margin = g.margin;
+      item_h = label_h g * 4 / 3;
+      label_h = label_h g;
+      pad_w = label_h g / 3;
+      pad_h = label_h g / 4;
+      sep_h = label_h g * 2 / 3;
+      sep_w = 2 * margin g;
+      indent_w = margin g;
+      scroll_w = scrollbar_w g;
+      scroll_l = scrollbar_l g;
+    }
+
+
+  let sx, sy, smin = sx g, sy g, smin g
+  let margin = margin g
+  let footer = footer_y g
+  let bottom = bottom_h g
+  let sep = sep g
+  let div = divider_w g
+  let line = line_h g
+  let text = text_h g
+  let gutter = gutter_w g
+  let padw, padh = pad_w g, pad_h g
+
+  let focus_key k b = Ui.key g.ui k b
+  let key k () = focus_key k true
+
+
+  (* Global keys *)
+
+  module Key =
+  struct
+    let next_focus = key KeyBind.next
+    let prev_focus = key KeyBind.prev
+
+    let enlarge_text = key KeyBind.text_up
+    let reduce_text = key KeyBind.text_dn
+
+    let enlarge_grid = key KeyBind.grid_up
+    let reduce_grid = key KeyBind.grid_dn
+
+    let enlarge_scale = key KeyBind.scale_up
+    let reduce_scale = key KeyBind.scale_dn
+
+    let enlarge_zoom = key KeyBind.zoom_up
+    let reduce_zoom = key KeyBind.zoom_dn
+
+    let settings = key KeyBind.settings
+    let dev_settings = key KeyBind.dev_settings
+
+    let covers = key KeyBind.covers
+  end
+
+
+  (* Control Pane *)
+
+  module Control =
+  struct
+    let x, y, w, h as r = (control_x g, control_y g, control_w g, control_h g)
+    let p = Ui.pane g.ui "ctl" r
+
+    let iw = indicator_w g
+    let lh = label_h g
+
+    (* Power and pane activation buttons *)
+    module Power =
+    struct
+      let w = sx 35
+      let h = sy 22
+      let x = - margin - w
+      let y = margin
+      let total_h = h + sy 3 + lh
+
+      let key = key KeyBind.quit
+      let button () =
+        Ui.button g.ui "power_but" (p, x, y, w, h) KeyBind.quit true (Some false)
+      let label () =
+        Ui.label g.ui (p, x, y + h + sy 3, w, lh) `Center "POWER"
+      let shadow () = Ui.box g.ui (p, x, y, w + sx 1, h + sy 2) `Black
+      let minimize () =
+        Ui.invisible_button g.ui "power_but" (p, x, y, w, h) [`Shift]
+          KeyBind.min true
+    end
+
+    module Shown =
+    struct
+      let x = Power.x
+      let w = Power.w
+      let h = sy 12
+      let total_h = iw + 1 + h + sy 2 + lh
+      let ix = x + (w - iw)/2 + sy 1
+
+      module Mk (X : sig val i : int val label : string val key : KeyBind.t end) =
+      struct
+        open X
+
+        let y = Power.y + Power.total_h + i*total_h + (i + 1) * sy 5 + iw + sy 1
+
+        let indicator = Ui.indicator g.ui `Green (p, ix, y - iw - sy 1, iw, iw)
+        let button =
+          Ui.button g.ui (idxowner "shown_but" i) (p, x, y, w, h) key true
+        let label () = Ui.label g.ui (p, x, y + h + sy 2, w, lh) `Center label
+        let shadow () = Ui.box g.ui (p, x, y, w, h + sy 1) `Black
+      end
+
+      module Playlist =
+        Mk (struct let i = 0 let label = "PLAYLIST" let key = KeyBind.pl end)
+      module Library =
+        Mk (struct let i = 1 let label = "LIBRARY" let key = KeyBind.lib end)
+
+      module Key =
+      struct
+        let side = key KeyBind.side
+      end
+    end
+
+    (* Navigation buttons *)
+    module Nav =
+    struct
+      let w = sx 39
+      let h = sy 30
+      let y = - sy 8 - h
+
+      let mk_button i sym key =
+        Ui.labeled_button g.ui (idxowner "ctl_but" i)
+          (p, margin + i * w, y, w, h) ~protrude: false (smin 10)
+          (Ui.active_color g.ui) sym key
+
+      let bwd = mk_button 0 "<<" KeyBind.bwd
+      let play = mk_button 1 ">" KeyBind.play
+      let pause = mk_button 2 "||" KeyBind.pause
+      let stop = mk_button 3 "[]" KeyBind.stop
+      let fwd = mk_button 4 ">>" KeyBind.fwd
+      let eject = mk_button 5 "^" KeyBind.eject
+
+      let shadow () =
+        Ui.box g.ui (p, margin - smin 1, y, 6 * w + smin 3, h + smin 5) `Black
+
+      module Key =
+      struct
+        let start_stop = focus_key KeyBind.start_stop
+        let rw = focus_key KeyBind.rw
+        let ff = focus_key KeyBind.ff
+      end
+    end
+
+    (* Play mode buttons *)
+    module Mode =
+    struct
+      let w = sx 25
+      let h = sy 12
+      let y = Nav.y + iw + (Nav.h - iw - h - lh) / 2
+
+      module Mk (X : sig val i : int val label : string val key : KeyBind.t end) =
+      struct
+        open X
+
+        let x = - margin - w - i * (w + sx 10)
+
+        let ix = function
+          | `Center -> x + (w - iw)/2 + sx 1
+          | `Left -> x + (w - 2 * iw - sep) / 2
+          | `Right -> x + w - (w - 2 * iw - sep) / 2 - iw
+
+        let mk_indicator al =
+          Ui.indicator g.ui `Green (p, ix al, y - iw - sx 1, iw, iw)
+
+        let indicator = mk_indicator `Center
+        let indicator1 = mk_indicator `Left
+        let indicator2 = mk_indicator `Right
+
+        let button = Ui.button g.ui (idxowner "mode_but" i) (p, x, y, w, h) key
+        let label () = Ui.label g.ui (p, x, y + h + sy 2, w, lh) `Center label
+        let shadow () = Ui.box g.ui (p, x, y, w, h + sy 1) `Black
+      end
+
+      module Shuffle =
+        Mk (struct let i = 2 let label = "SHUFFLE" let key = KeyBind.shuffle end)
+      module Repeat =
+        Mk (struct let i = 1 let label = "REPEAT" let key = KeyBind.repeat end)
+      module Loop =
+        Mk (struct let i = 0 let label = "LOOP" let key = KeyBind.loop end)
+    end
+
+    (* Display box *)
+    module Info =
+    struct
+      let x = margin
+      let y = margin
+      let w = - Power.w - 2 * margin
+      let h = Nav.y - margin
+      let margin' = smin 4
+
+      let area = (p, x, y, w, h)
+      let box () = Ui.box g.ui area `Black
+      let refl () = Ui.mouse_focus g.ui area (control_h g + h) 0x30 0
+
+      (* Volume *)
+      module Volume =
+      struct
+        let info_w, info_y = w, y
+        let w = sx 27
+        let h = sy 50
+        let x = info_w - margin' - w
+        let y = info_y + margin'
+
+        let bar = Ui.volume_bar g.ui "vol_bar" (p, x, y, w, h) (smin 1)
+        let wheel () = Ui.wheel g.ui (p, 0, 0, control_w g, control_h g)
+
+        module Key =
+        struct
+          let up = focus_key KeyBind.vol_up
+          let down = focus_key KeyBind.vol_dn
+        end
+      end
+
+      (* Mute *)
+      module Mute =
+      struct
+        let w = sx 22
+        let h = lh
+        let x = Volume.x - sx 4
+        let y = Volume.y + Volume.h - h
+        let area = (p, x, y, w, h)
+
+        let text b =
+          Ui.color_text g.ui (p, x, y, w, h) `Center `Red `Inverted b "MUTE"
+        let button () = Ui.invisible_button g.ui "mute_but" area [] KeyBind.mute true
+        let drag () = Ui.drag g.ui "mute_drag" area (0, 0)
+      end
+
+      (* Seek bar *)
+      module Seek =
+      struct
+        let info_x, info_w, info_h = x, w, h
+        let margin = margin' / 2
+        let w = info_w - margin
+        let h = smin 14
+        let x = info_x + margin
+        let y = info_h - margin - h
+
+        let bar v = Ui.progress_bar g.ui "seek_bar" (p, x, y, w, h) (smin 1) v
+      end
+
+      (* Ticker *)
+      module Ticker =
+      struct
+        let info_x, info_w = x, w
+        let w = info_w - margin'
+        let h = min 64 (sy 16)
+        let x = info_x + margin'
+        let y = Seek.y - h - sy 3
+
+        let title = Ui.ticker g.ui (p, x, y, w, h)
+      end
+
+      (* Property line *)
+      module Prop =
+      struct
+        let info_x = x
+        let w = Mute.x
+        let h = min 64 (smin (*12*) 13)
+        let x = info_x + margin'
+        let y = Ticker.y - h - sy 2
+
+        let text = Ui.text g.ui (p, x, y, w, h) `Left `Regular true
+      end
+
+      (* Time *)
+      module Lcd =
+      struct
+        let space = sx 3
+        let col = sx 4
+        let w = sx 14
+        let h = sy 20
+        let x i = margin + margin' + i * (w + space)
+        let y = margin + margin' + sy 10
+
+        let sign = Ui.lcd g.ui (p, x 0, y, w, h)
+        let min1 = Ui.lcd g.ui (p, x 1, y, w, h)
+        let min2 = Ui.lcd g.ui (p, x 2, y, w, h)
+        let colon = Ui.lcd g.ui (p, x 3, y, col, h)
+        let sec1 = Ui.lcd g.ui (p, x 3 + col + space, y, w, h)
+        let sec2 = Ui.lcd g.ui (p, x 4 + col + space, y, w, h)
+
+        let button () = Ui.mouse g.ui "lcd_but" (p, x 0, y, col + x 4, h) `Left
+      end
+
+      (* Visuals *)
+      module Visual =
+      struct
+        let x = Lcd.x 5 + sx 28
+        let y = y + margin'
+        let w = Volume.x - sx 16
+        let h = Prop.y - margin'
+        let area = (p, x, y, w, h)
+
+        let button () =
+          Ui.mouse g.ui "vis_but" (p, x - sx 20, y, sx 20, h) `Left
+        let key = key KeyBind.visual
+
+        let cw = w - sx 20
+        let ch = h
+        let cx = x + (w - cw) / 2
+        let cy = y
+        let cover_area = (p, cx, cy, cw, ch)
+
+        let fw = smin 40
+        let fps =
+          Ui.text g.ui (p, w - fw, margin + margin', fw, smin 12)
+            `Left `Regular true
+      end
+
+      (* Keys & Hidden mode buttons *)
+      module Button =
+      struct
+        let fps = key KeyBind.fps
+        let sdf = key KeyBind.sdf
+
+        let zoom () = Ui.mouse g.ui "zoom_but" Visual.area `Left
+        let color () =
+          Ui.mouse g.ui "color_but"
+            (p, margin, Prop.y, Mute.x, Ticker.y + Ticker.h) `Left
+      end
+    end
+
+    (* Context menus *)
+    module Context =
+    struct
+      open Info
+      let mouse area owner = Ui.mouse g.ui area owner `Right
+
+      let info = mouse "info_ctx" (p, margin, margin, w - Volume.w, h - Seek.h)
+      let seek = mouse "seek_ctx" (p, margin, Seek.y, w - margin, Seek.h)
+      let volume = mouse "vol_ctx" (p, Volume.x, Volume.y, Volume.w, Volume.h)
+      let shown = mouse "shown_ctx" (p, margin + Info.w, margin, -margin, Info.h)
+      let nav = mouse "nav_ctx" (p, margin, Nav.y, -margin, -1)
+    end
+  end
+
+
+  (* Divider Panes *)
+
+  module Divider =
+  struct
+    module Y () =
+    struct
+      let px, py, pw = playlist_x g, playlist_y g, playlist_w g
+      let p = Ui.pane g.ui "div_y" (px, py, pw, div)
+
+      let mid =
+        Ui.divider g.ui "ext_div_h" (p, margin, 0, -margin, -1) `Vertical
+      let left =
+        Ui.divider2 g.ui "ext_div_wh_l" (p, 0, 0, margin, -1) `NE_SW
+      let right =
+        Ui.divider2 g.ui "ext_div_wh_r" (p, -margin, 0, -1, -1) `NW_SE
+    end
+
+    module X () =
+    struct
+      let cx = control_x g
+      let py = playlist_y g
+      let lx, ly = library_x g, library_y g
+
+      let left = extension_left g
+      let p = Ui.pane g.ui "div_x" ((if left then cx else lx), ly, div, -1)
+
+      let upper =
+        Ui.divider g.ui "ext_div_w_u"
+          (p, 0, margin, -1, py - ly - margin) `Horizontal
+      let lower =
+        Ui.divider g.ui "ext_div_w_l"
+          (p, 0, py - ly + div, -1, - margin) `Horizontal
+      let mid =
+        Ui.divider2 g.ui "ext_div_wh_m"
+          (p, 0, py - ly, -1, div) (if left then `NE_SW else `NW_SE)
+      let top =
+        Ui.divider2 g.ui "ext_div_wh_t"
+          (p, 0, 0, -1, margin) (if left then `NW_SE else `NE_SW)
+      let bot =
+        Ui.divider2 g.ui "ext_div_wh_b"
+          (p, 0, - margin, -1, -1) (if left then `NE_SW else `NW_SE)
+    end
+  end
+
+
+  (* Playlist *)
+
+  module Playlist =
+  struct
+    let sep = edit_sep g
+
+    let p = Ui.pane g.ui "pl" (playlist_x g, playlist_y g, playlist_w g, -1)
+
+    let style = rich_table_style 0 g.playlist_headers
+    let area = (p, margin, margin, -margin, -bottom)
+
+    let table args = Ui.rich_table g.ui "pl" area style args
+    let mouse args = Ui.rich_table_mouse g.ui area style args
+    let drag args = Ui.rich_table_drag g.ui area style `Above args
+
+    module Total =
+    struct
+      let tw = -margin - scrollbar_w g
+      let tx = margin + 4 * sep + 7 * edit_w g  (* = Edit.x 4 7 *)
+      let ty = footer
+
+      let box () = Ui.box g.ui (p, tx, ty, tw, line) `Black
+      let text =
+        Ui.text g.ui (p, tx, ty + padh, tw - (gutter + 1)/2, text)
+          `Right `Regular true
+    end
+
+    (* Edit Pane *)
+
+    module Edit =
+    struct
+      let p = Ui.pane g.ui "edit" (playlist_x g, -bottom, playlist_w g, bottom)
+
+      let w, h, sep = edit_w g, edit_h g, edit_sep g
+
+      (* Buttons *)
+      module Button =
+      struct
+        let x i j = margin + i * sep + j * w
+        let y = if extension_shown_h g then -h else control_h g (* effectively hidden *)
+        let area i j = (p, x i j, y, w, h)
+
+        let button i j label key =
+          Ui.labeled_button g.ui (idxowner "edit_but" j) (area i j)
+            (button_label_h g) (Ui.inactive_color g.ui) label key true
+        let shift_button i j key =
+          Ui.invisible_button g.ui (idxowner "edit_but" j) (area i j)
+            [`Shift] key
+
+        (*let tag = button 0 0 "TAG" KeyBind.tag*)
+        (*let tag_add = shift_button 0 0 KeyBind.tag2*)
+        let sep = button 0 0 "SEP" KeyBind.sep
+        let del = button 1 1 "DEL" KeyBind.del
+        let crop = button 1 2 "CROP" KeyBind.crop
+        let wipe = button 1 3 "WIPE" KeyBind.wipe
+        let dedupe = shift_button 2 4 KeyBind.dedupe
+        let undo = button 2 4 "UNDO" KeyBind.undo
+        let redo = shift_button 3 5 KeyBind.redo
+        let save = button 3 5 "SAVE" KeyBind.save
+        let view = shift_button 4 6 KeyBind.save2
+        let load = button 3 6 "LOAD" KeyBind.load
+      end
+
+      module Key =
+      struct
+        let del = focus_key KeyBind.del
+        let del_alt = focus_key KeyBind.del2
+        let cut = focus_key KeyBind.cut
+        let copy = focus_key KeyBind.copy
+        let paste = focus_key KeyBind.paste
+        let rev = focus_key KeyBind.rev
+      end
+
+      (* Total text field *)
+      module Total =
+      struct
+        let w = - margin - scrollbar_w g
+        let x = Button.x 4 7
+        let y = footer
+
+        let box = Ui.box g.ui (p, x, y, w, line) `Black
+        let text =
+          Ui.text g.ui (p, x, y + padh, w - (gutter + 1)/2, text) `Right
+      end
+    end
+  end
+
+
+  (* Settings Pane *)
+
+  module Settings () =
+  struct
+    let p = Ui.pane g.ui "set" (settings_x g, settings_y g, settings_w g, -1)
+
+  (*
+    let done_w = Mode.w
+    let done_h = Mode.h
+    let done_x = - margin - done_w
+    let done_y = margin
+    let done_but =
+      Ui.button g.ui (subowner "settings" "done")
+        (p, done_x, done_y, -margin, done_h) nokey false (Some false)
+    let done_label =
+      Ui.label g.ui
+        (p, done_x - smin g 40, done_y + (done_h - label_h g)/2, smin g 36, label_h g)
+        `Right "DONE"
+  *)
+    let done_w = sx 30
+    let done_h = label_h g * 3 / 2
+    let done_ () =
+      Ui.labeled_button g.ui (subowner "settings" "done")
+        (p, -margin - done_w, margin, -margin, done_h) (label_h g)
+        `White "DONE" KeyBind.na false (Some false)
+
+    let settings args =
+      Ui.settings g.ui "settings"
+        (p, margin, margin + done_h + sy 4, -margin, -margin) settings_style
+        args
+  end
+
+
+  (* Library *)
+
+  module Library =
+  struct
+    (* Browser Pane *)
+
+    let p = Ui.pane g.ui "brow" (library_x g, library_y g, g.browser_width, -1)
+
+    let lh = label_h g
+    let iw = indicator_w g
+
+    (* Scan button *)
+    module Scan =
+    struct
+      let w = sx 32
+      let y = margin
+      let iw' = iw * 12 / 7
+
+      let area = (p, margin + (w - iw')/2, y + label_h g + 2, iw', iw')
+      let indicator = Ui.indicator g.ui `Yellow area
+      let button () = Ui.mouse g.ui "scan_but" area `Left
+      let label () = Ui.label g.ui (p, margin, y, w, lh) `Center "SCANNING"
+    end
+
+    (* View button *)
+    module Toggle =
+    struct
+      let w = sx 25
+      let h = sy 12
+      let y = margin + iw + 1
+
+      module Mk (X : sig val i : int val label : string val key : KeyBind.t end) =
+      struct
+        open X
+
+        let x = - margin - w - i * (w + sx 12) - sx 2
+        let ix = function
+          | `Center -> x + (w - iw)/2 + 1
+          | `Left -> x + (w - 2 * iw - sep) / 2
+          | `Right -> x + w - (w - 2 * iw - sep) / 2 - iw
+
+        let mk_indicator al =
+          Ui.indicator g.ui `Green (p, ix al, y - iw - sx 1, iw, iw)
+
+        let indicator = mk_indicator `Center
+        let indicator1 = mk_indicator `Left
+        let indicator2 = mk_indicator `Right
+
+        let button =
+          Ui.button g.ui (idxowner "view_but" i) (p, x, y, w, h) key false
+        let label () =
+          Ui.label g.ui (p, x - sx 4, y + h + sx 1, w + sx 8, lh) `Center label
+      end
+
+      module Artists =
+        Mk (struct let i = 2 let label = "ARTISTS" let key = KeyBind.artists end)
+      module Albums =
+        Mk (struct let i = 1 let label = "ALBUMS" let key = KeyBind.albums end)
+      module Tracks =
+        Mk (struct let i = 0 let label = "TRACKS" let key = KeyBind.tracks end)
+    end
+
+    (* Search *)
+    module Search =
+    struct
+      let lw = smin 30
+      let x = margin + lw + sx 3
+      let y = 2 * margin + iw + Toggle.h + lh
+
+      let box () = Ui.box g.ui (p, x, y, - div, line) `Black
+      let label () =
+        Ui.label g.ui (p, margin, y + (line - lh + sy 1)/2, lw, lh) `Left "SEARCH"
+      let button () = Ui.mouse g.ui "search_but" (p, margin, y, lw, line) `Left
+      let edit =
+        Ui.rich_edit_text g.ui "search_edit"
+          (p, x + sx 2, y, - div - sx 2, line) padh true
+
+      let key = key KeyBind.search
+      let context () = Ui.mouse g.ui "search_ctx" (p, x, y, -div, line) `Right
+    end
+
+    (* Browser *)
+    module Browser =
+    struct
+      let y = Search.y + line + margin
+
+      let style = rich_table_style 0 false
+      let area = (p, margin, y, -div, -bottom)
+
+      let table args = Ui.browser g.ui "br" area style args
+      let mouse args = Ui.rich_table_mouse g.ui area style args
+      let drag args = Ui.rich_table_drag g.ui area style args
+      let error_box () = Ui.box g.ui area (Ui.error_color g.ui)
+
+      module Key =
+      struct
+        let fold = focus_key KeyBind.fold_dir
+        let rename b =
+          focus_key KeyBind.name_dir b || focus_key KeyBind.name_dir2 b
+      end
+
+      module Rename =
+      struct
+        let area args = Ui.browser_entry_text_area g.ui area style args
+        let box area = Ui.box g.ui area `Black
+        let edit area pad = Ui.rich_edit_text g.ui "name_edit" area pad true
+      end
+
+      (* Divider *)
+      let divider =
+        Ui.divider g.ui "br_div" (p, -div, margin, div, -bottom) `Horizontal
+    end
+
+    (* Buttons *)
+    module Edit =
+    struct
+      let w = edit_w g
+      let h = edit_h g
+      let button i j label key =
+        Ui.labeled_button g.ui (idxowner "ledit_but" j)
+          (p, margin + i * sx 5 + j * w, -h, w, h) (button_label_h g)
+          (Ui.inactive_color g.ui) label key true
+
+      let insert = button 0 0 "ADD" KeyBind.add_dir
+      (*let remove = button 0 1 "DEL" KeyBind.deldir*)
+      let create = button 0 1 "NEW" KeyBind.new_dir
+      let view = button 0 2 "VIEW" KeyBind.view_dir
+      let tag = button 1 3 "TAG" KeyBind.tag
+      let rescan = button 1 4 "SCAN" KeyBind.scan_dir
+
+      let del = focus_key KeyBind.del
+      let del_alt = focus_key KeyBind.del2
+      let copy = focus_key KeyBind.copy
+    end
+
+
+    (* View Panes *)
+
+    module View =
+    struct
+      let libw = library_w g
+
+      let style = rich_table_style 1 true
+      let grid_style = grid_table_style true
+
+      let make_mouse area =
+        let mouse = Ui.rich_table_mouse g.ui area style in
+        let grid_mouse = Ui.grid_table_mouse g.ui area grid_style in
+        mouse, grid_mouse
+
+      let make_drag area =
+        let drag = Ui.rich_table_drag g.ui area style `Above in
+        let grid_drag = Ui.grid_table_drag g.ui area grid_style `Left in
+        drag, grid_drag
+
+      let make_view owner area (spin_off_x, spin_off_y) =
+        let table = Ui.rich_table g.ui (subowner owner "tbl") area style in
+        let grid = Ui.grid_table g.ui (subowner owner "grid") area grid_style in
+        let mouse, grid_mouse = make_mouse area in
+        let p, _, _, _, _ = area in
+        let spin_x = spin_off_x + sx 4 + padw in
+        let spin_y = margin + line + spin_off_y + sy 4 + padh in
+        let spin_w = - scrollbar_w g - gutter in
+        let spin =
+          Ui.text g.ui (p, spin_x, spin_y, spin_w, text) `Left `Regular true in
+        area, table, grid, mouse, grid_mouse, spin
+
+      (* Upper left view *)
+      module Left =
+      struct
+        let x = library_x g + g.browser_width
+        let y = library_y g
+        let w = if g.right_shown then g.left_width else libw - g.browser_width
+        let h = if g.lower_shown then g.upper_height else -bottom
+        let p = Ui.pane g.ui "lft" (x, y, w, h)
+        let area = (p, 0, margin, -1, -1)
+
+        let view () = make_view "lft" area (0, 0)
+        let mouse () = make_mouse area
+        let drag () = make_drag area
+      end
+
+      (* Upper right view (optional) *)
+      module Right =
+      struct
+        let x = Left.x + g.left_width
+        let y = Left.y
+        let w = libw - g.browser_width - g.left_width
+        let h = Left.h
+        let p = Ui.pane g.ui "rgt" (x, y, w, h)
+        let area = (p, div, margin, -1, -1)
+
+        let view () = make_view "rgt" area (div, 0)
+        let mouse () = make_mouse area
+        let drag () = make_drag area
+      end
+
+      (* Lower view (optional) *)
+      module Lower =
+      struct
+        let x = Left.x
+        let y = Left.y + g.upper_height
+        let w = libw - g.browser_width
+        let h = -bottom
+        let p = Ui.pane g.ui "low" (x, y, w, h)
+        let area = (p, 0, div, -1, -1)
+
+        let view () = make_view "low" area (0, div)
+        let mouse () = make_mouse area
+        let drag () = make_drag area
+      end
+
+      (* Dividers *)
+      module Divider =
+      struct
+        let right = Ui.divider g.ui "rgt_div" (Right.p, 0, 0, div, -1) `Horizontal
+        let lower = Ui.divider g.ui "low_div" (Lower.p, 0, 0, -1, div) `Vertical
+      end
+    end
+
+
+    (* Log Pane *)
+
+    module Log =
+    struct
+      let p' = p
+      let x = library_x g + g.browser_width
+      let w = library_w g - g.browser_width
+      let p = Ui.pane g.ui "log" (x, library_y g, w, -bottom)
+
+      let area = (p, 0, margin, -1, -1)
+      let table args =
+        Ui.rich_table g.ui "log_tbl" area (rich_table_style 1 true) args
+
+      module Button =
+      struct
+        let bw = (g.browser_width - margin - div) / 2
+        let bh = edit_h g
+        let bx i = margin + i * bw
+        let by = -bh
+        let button i color label key =
+          Ui.labeled_button g.ui (idxowner "log_but" i) (p', bx i, by, bw, bh)
+            (button_label_h g) (color g.ui) label key true
+
+        let ok = button 0 Ui.active_color "OK" KeyBind.ok
+        let cancel = button 1 Ui.inactive_color "CANCEL" KeyBind.cancel
+      end
+    end
+
+
+    (* Message Pane *)
+
+    module Message =
+    struct
+      let x = library_x g + g.browser_width
+      let y = -bottom
+      let w = library_w g - g.browser_width
+      let h = bottom
+      let p = Ui.pane g.ui "msg" (x, y, w, h)
+
+      let mw = -2 * w (* = Copy.x 0 0 *) - sx 4
+      let box () = Ui.box g.ui (p, 0, footer, mw, line) `Black
+      let text =
+        Ui.color_text g.ui (p, sx 2, footer + padh, mw - sx 4, text) `Left
+    end
+
+
+    (* Copy Buttons *)
+
+    module Copy =
+    struct
+      let p = Message.p
+
+      module Button =
+      struct
+        let w = edit_w g
+        let h = edit_h g
+        let x i j = - i * sx 5 - (2 - j) * w
+        let area i j = (p, x i j, -h, w, h)
+
+        let button i j label key =
+          Ui.labeled_button g.ui (idxowner "copy_but" j) (area i j)
+            (button_label_h g) (Ui.inactive_color g.ui) label key true
+        let shift_button i j key =
+          Ui.invisible_button g.ui (idxowner "copy_but" j) (area i j)
+            [`Shift] key
+
+        let append_left = button 0 0 " < " KeyBind.append_left
+        let append_right = button 0 1 " > " KeyBind.append_right
+        let replace_left = shift_button 0 0 KeyBind.replace_left
+        let replace_right = shift_button 0 1 KeyBind.replace_right
+
+        let append_lib, replace_lib, append_pl, replace_pl =
+          if g.extension_side = `Left then
+            append_left, replace_left, append_right, replace_right
+          else
+            append_right, replace_right, append_left, replace_left
+      end
+
+      module KeyBind =
+      struct
+        let append_lib, replace_lib, append_pl, replace_pl =
+          if g.extension_side = `Left then
+            KeyBind.(append_left, replace_left, append_right, replace_right)
+          else
+            KeyBind.(append_right, replace_right, append_left, replace_left)
+      end
+    end
+  end
+
+
+  (* File Selector *)
+
+  module Filesel () =
+  struct
+    (* Browser *)
+    module Dirs =
+    struct
+      let p = Ui.pane g.ui "dirs"
+        (library_x g, library_y g, g.directories_width, -1)
+
+      let style = rich_table_style 1 false
+      let area = (p, margin, margin, -div, -bottom)
+      let table args = Ui.browser g.ui "dir_tbl" area style args
+      let mouse args = Ui.rich_table_mouse g.ui area style args
+    end
+
+    (* Files *)
+    module Files =
+    struct
+      let p = Ui.pane g.ui "files"
+        (library_x g + g.directories_width, library_y g, library_w g - g.directories_width, library_h g)
+
+      let style = rich_table_style 1 true
+      let area = (p, 0, margin, -1, -bottom)
+      let table args = Ui.rich_table g.ui "file_tbl" area style args
+      let mouse args = Ui.rich_table_mouse g.ui area style args
+    end
+
+    (* Input field *)
+    module Input =
+    struct
+      let lw = smin 20
+      let lh = label_h g
+      let p = Files.p
+
+      let label () =
+        Ui.label g.ui (p, 0, footer + (line - lh + sy 1)/2, lw, lh) `Left "FILE"
+      let button () =
+        Ui.mouse g.ui "file_but" (p, margin, footer, lw, line) `Left
+      let box () =
+        Ui.box g.ui (p, lw, footer, -div, line) `Black
+      let edit =
+        Ui.rich_edit_text g.ui "file_edit"
+          (p, lw + 2, footer, - div - sx 2, line) padh true
+    end
+
+    (* Buttons *)
+    module Button =
+    struct
+      let bw = (g.directories_width - margin - div) / 2
+      let bh = edit_h g
+      let button i color label key =
+        Ui.labeled_button g.ui (idxowner "sel_but" i)
+          (Dirs.p, margin + i * bw, -bh, bw, bh)
+          (button_label_h g) (color g.ui) label key true
+
+      let ok = button 0 Ui.active_color "OK" KeyBind.ok
+      let overwrite = button 0 Ui.error_color "OVERWRITE" KeyBind.overwrite
+      let cancel = button 1 Ui.inactive_color "CANCEL" KeyBind.cancel
+    end
+
+    (* Keys *)
+    module Key =
+    struct
+      let return = key KeyBind.ok
+    end
+
+    (* Divider *)
+    let divider =
+      Ui.divider g.ui "dir_div" (Dirs.p, -div, margin, div, -bottom)
+        `Horizontal
+  end
+
+
+  (* Context Menu *)
+
+  module Menu () =
+  struct
+    let menu x y = Ui.menu g.ui x y menu_style
+  end
+
+
+  (* Zoom Pop-up *)
+
+  module Zoom (Z : sig val size : int -> int * int end) =
+  struct
+    let w0 = g.zoom_size |>
+      min (control_w g + library_w g - 2 * zoom_margin g) |>
+      min (control_h g + playlist_h g - line - 2 * zoom_margin g)
+    let w, h0 = Z.size w0
+    let h = h0 + line
+    let x, y = Option.get g.popup_shown
+    let p = Ui.popup g.ui "zoom" (x, y, w, h) (zoom_margin g) false
+
+    let image_area = (p, 0, 0, -1, -line)
+    let text = Ui.ticker g.ui (p, 0, -text, -1, -1)
+  end
+
+
+  (* Custom Attribute pop-up *)
+
+  module Custom () =
+  struct
+    let w = smin 200
+    let h = 2 * line + 2  (* cf Ui.rich_table *)
+    let x, y = Option.get (g.popup_shown)
+    let p = Ui.popup g.ui "custom" (x, y, w, h) (zoom_margin g) true
+
+    module Name =
+    struct
+      let box () = Ui.box g.ui (p, 0, 0, -1, line) (Ui.text_color g.ui)
+      let edit =
+        Ui.rich_edit_text g.ui (subowner "custom" "name_edit")
+          (p, gutter / 2, padh, - gutter / 2, text) padh true `Black
+    end
+
+    module Text =
+    struct
+      let box () = Ui.box g.ui (p, 0, line, -1, line) `Black
+      let edit =
+        Ui.rich_edit_text g.ui (subowner "custom" "text_edit")
+          (p, gutter / 2, padh + line + 2, - gutter / 2, text) padh false
+    end
+
+    module Key =
+    struct
+      let ok = key KeyBind.ok
+      let cancel = key KeyBind.cancel
+    end
+  end
+end
+
+module type Window =
+  module type of Window
+    (struct let it = Geometry.make (Ui.make (Api.Window.init 0 0 0 0 "")) end)

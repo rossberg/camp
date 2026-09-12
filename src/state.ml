@@ -10,6 +10,7 @@ type settings = Settings.t
 type library = Ui.cached Library.t
 type filesel = Ui.cached Filesel.t
 type popup = Popup.t
+type layout = (module Layout.Window)
 
 type t =
 {
@@ -21,6 +22,7 @@ type t =
   library : library;
   filesel : filesel;
   popup : popup;
+  mutable layout : layout option;
   mutable saved : File.time;
   mutable delayed : (unit -> unit) list;
 }
@@ -38,6 +40,7 @@ let make ui audio =
     library = Library.make ();
     filesel = Filesel.make ();
     popup = Popup.make ();
+    layout = None;
     saved = Unix.gettimeofday ();
     delayed = [];
   }

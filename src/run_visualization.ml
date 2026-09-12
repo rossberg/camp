@@ -59,7 +59,7 @@ let run (st : State.t) area vis img_opt =
   (match vis with
   | `Cover ->
     Option.iter (fun img ->
-      Ui.image geo.ui (-1, x, y, w, h) (`Crop `Vertical) img;
+      Ui.image geo.ui area (`Crop `Vertical) img;
     ) img_opt
 
   | `Turntable ->
@@ -156,7 +156,7 @@ let run (st : State.t) area vis img_opt =
 
     if len > 0 then
     (
-      (match Ui.drag geo.ui area "osc_drag" (1, 1) with
+      (match Ui.drag geo.ui "osc_drag" area (1, 1) with
       | `None | `Click | `Drop | `Abort -> ()
       | `Take ->
         (* Dobule-click on oscilloscope: reset *)

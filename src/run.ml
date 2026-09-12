@@ -9,6 +9,7 @@ type state = State.t
 
 let run_dividers (st : state) =
   let geo = st.geometry in
+  let (module WindowUi) = Option.get st.layout in
 
   let shift = Api.Key.is_modifier_down `Shift in
   let cmd = Api.Key.is_modifier_down `Command in
@@ -42,16 +43,15 @@ let run_dividers (st : state) =
       ctl_w, ctl_h, 0, 0, `None, `None
     else
     (
-      Layout.extension_divider_h_pane geo;
+      let module DividerUi = WindowUi.Divider.Y () in
 
-      let ctl_midh', mid =
-        Layout.extension_divider_h geo ctl_h ctl_minh ctl_maxh in
+      let ctl_midh', mid = DividerUi.mid ctl_h ctl_minh ctl_maxh in
       let win_lftw = win_maxw - win_w in
       let (win_lftw', ctl_lfth'), lft =
         if Geometry.(extension_shown_w geo && extension_left geo) then
           (win_lftw, ctl_h), false
         else
-          Layout.extension_divider_wh_left geo (win_lftw, ctl_h)
+          DividerUi.left (win_lftw, ctl_h)
             (win_maxw - win_maxw, ctl_minh) (win_maxw - win_minw, ctl_maxh)
             (win_maxw - win_w - win_x + scr_x, -1) (-1, -1)
       in
@@ -60,7 +60,7 @@ let run_dividers (st : state) =
         if Geometry.(extension_shown_w geo && not (extension_left geo)) then
           (win_rgtw, ctl_h), false
         else
-          Layout.extension_divider_wh_right geo (win_rgtw, ctl_h)
+          DividerUi.right (win_rgtw, ctl_h)
             (win_minw, ctl_minh) (win_maxw, ctl_maxh)
             (-1, -1) (scr_w + scr_x - win_x, -1)
       in
@@ -83,7 +83,7 @@ let run_dividers (st : state) =
       ctl_w1', ctl_h1', 0, 0, focus_w1, focus_h1
     else
     (
-      Layout.extension_divider_w_pane geo;
+      let module DividerUi = WindowUi.Divider.X () in
 
       let w, minw, maxw =
         if Geometry.extension_left geo
@@ -91,21 +91,21 @@ let run_dividers (st : state) =
         else Geometry.(ctl_w, control_min_w, control_max_w geo)
       in
 
-      let uppw', upp = Layout.extension_divider_w_upper geo w minw maxw in
-      let loww', low = Layout.extension_divider_w_lower geo w minw maxw in
+      let uppw', upp = DividerUi.upper w minw maxw in
+      let loww', low = DividerUi.lower w minw maxw in
       let (midw', ctl_midh'), mid =
-        Layout.extension_divider_wh_mid geo (w, ctl_h)
+        DividerUi.mid (w, ctl_h)
           (minw, ctl_minh) (maxw, ctl_maxh) (-1, -1) (-1, -1)
       in
       let win_toph = win_maxh - win_h in
       let (topw', win_toph'), top =
-        Layout.extension_divider_wh_top geo (w, win_toph)
+        DividerUi.top (w, win_toph)
           (minw, win_maxh - win_maxh) (maxw, win_maxh - win_minh)
           (-1, win_maxh - win_h - win_y + scr_y) (-1, -1)
       in
       let win_both = win_h in
       let (botw', win_both'), bot =
-        Layout.extension_divider_wh_bot geo (w, win_both)
+        DividerUi.bot (w, win_both)
           (minw, win_minh) (maxw, win_maxh)
           (-1, -1) (-1, scr_h + scr_y - win_y)
       in
@@ -195,6 +195,9 @@ and run' (st : state) (x, y, w, h as r) =
   (* Start drawing *)
   Ui.start geo.ui r;
 
+  let module WindowUi = Layout.Window (struct let it = geo end) in
+  st.layout <- Some (module WindowUi);
+
   (* Remember current geometry for later *)
   let extension_shown_w = Geometry.extension_shown_w geo in
   let extension_shown_h = Geometry.extension_shown_h geo in
@@ -202,7 +205,7 @@ and run' (st : state) (x, y, w, h as r) =
   let popup_shown = geo.popup_shown <> None in
 
   (* Global keys *)
-  if Layout.settings_key geo then
+  if WindowUi.Key.settings () then
   (
     geo.settings_shown <- not geo.settings_shown;
     if geo.settings_shown then
@@ -210,7 +213,7 @@ and run' (st : state) (x, y, w, h as r) =
     else
       State.defocus_all st;
   )
-  else if Layout.settings_dev geo then
+  else if WindowUi.Key.dev_settings () then
   (
     let set = st.settings in
     if geo.settings_shown then
@@ -228,8 +231,8 @@ and run' (st : state) (x, y, w, h as r) =
 
   let focus_change =
     Ui.except_modal geo.ui "focus_change" (fun () ->
-      if Layout.focus_next_key geo then (State.focus_next st; true) else
-      if Layout.focus_prev_key geo then (State.focus_prev st; true) else false
+      if WindowUi.Key.next_focus () then (State.focus_next st; true) else
+      if WindowUi.Key.prev_focus () then (State.focus_prev st; true) else false
     )
   in
 
@@ -258,34 +261,34 @@ and run' (st : state) (x, y, w, h as r) =
 
   (* Adjust font and grid size *)
   let text_delta =
-    Bool.to_int (Layout.enlarge_text_key geo) -
-    Bool.to_int (Layout.reduce_text_key geo)
+    Bool.to_int (WindowUi.Key.enlarge_text ()) -
+    Bool.to_int (WindowUi.Key.reduce_text ())
   in
   Run_control.resize_text st text_delta;
 
   let grid_delta =
-    Bool.to_int (Layout.enlarge_grid_key geo) -
-    Bool.to_int (Layout.reduce_grid_key geo)
+    Bool.to_int (WindowUi.Key.enlarge_grid ()) -
+    Bool.to_int (WindowUi.Key.reduce_grid ())
   in
   Run_control.resize_grid st grid_delta;
 
   Ui.except_modal geo.ui "run/zoom-key" (fun () ->
     let zoom_delta =
-      Bool.to_int (Layout.enlarge_zoom_key geo) -
-      Bool.to_int (Layout.reduce_zoom_key geo)
+      Bool.to_int (WindowUi.Key.enlarge_zoom ()) -
+      Bool.to_int (WindowUi.Key.reduce_zoom ())
     in
     geo.zoom_size <- Geometry.(clamp min_zoom_size max_zoom_size
       (geo.zoom_size + 100 * zoom_delta))
   );
 
-  if Layout.lib_cover_key geo then
+  if WindowUi.Key.covers () then
     Library.activate_covers st.library (not st.library.covers_shown);
 
   (* Scaling keys (ignore when extension was changed) *)
   let scale_delta =
     if extension_change then 0 else
-    Bool.to_int (Layout.enlarge_scale_key geo) -
-    Bool.to_int (Layout.reduce_scale_key geo)
+    Bool.to_int (WindowUi.Key.enlarge_scale ()) -
+    Bool.to_int (WindowUi.Key.reduce_scale ())
   in
   let scale_old = Api.Window.scale win in
   let scale_new = Api.Window.scale win in

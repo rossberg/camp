@@ -23,7 +23,7 @@ let fmt = Printf.sprintf
 
 let area_page (st : state) area =
   let geo = st.geometry in
-  let _, _, _, h = Ui.dim geo.ui (area geo) in
+  let _, _, _, h = Ui.dim geo.ui area in
   let rh = Geometry.text_h geo + 2 * Geometry.pad_h geo in
   max 1 (int_of_float (Float.floor (float h /. float rh)))
 
@@ -69,7 +69,7 @@ sig
   val tab : table
   val is_same : bool
   val focus : State.t -> unit
-  val area : Geometry.t -> Ui.area
+  val area : Ui.area
   val deselect_other : unit -> unit
   val refresh_deps : 'a Library.t -> unit
 
@@ -114,6 +114,7 @@ end
 type view = (module View)
 
 let playlist_view (st : state) : view =
+  let (module WindowUi) = Option.get st.layout in
   (module struct
     include Playlist
     module Select = Playlist
@@ -122,7 +123,7 @@ let playlist_view (st : state) : view =
     let it = st.playlist
     let tab = st.playlist
     let focus = State.focus_playlist
-    let area = Layout.playlist_area
+    let area = WindowUi.Playlist.area
     let deselect_other () = Library.deselect_all st.library
     let refresh_deps = ignore
     let modify_view = Some (fun {f} -> f it.view Data.track_attrs)
@@ -134,6 +135,7 @@ let playlist_view (st : state) : view =
   end)
 
 let tracks_view (st : state) : view =
+  let (module WindowUi) = Option.get st.layout in
   (module struct
     include Library
     module Select = Library
@@ -143,7 +145,8 @@ let tracks_view (st : state) : view =
     let tab = st.library
     let focus = State.focus_library st.library.tracks
     let area =
-      Layout.(if st.geometry.lower_shown then lower_area else left_area)
+      WindowUi.Library.View.(
+        if st.geometry.lower_shown then Lower.area else Left.area)
     let deselect_other () = Playlist.deselect_all st.playlist
     let refresh_deps = ignore
     let modify_view =
@@ -158,6 +161,7 @@ let tracks_view (st : state) : view =
   end)
 
 let albums_view (st : state) : view =
+  let (module WindowUi) = Option.get st.layout in
   (module struct
     include Library
     module Select = Table
@@ -167,7 +171,8 @@ let albums_view (st : state) : view =
     let tab = it.albums
     let focus = State.focus_library tab
     let area =
-      Layout.(if st.geometry.right_shown then right_area else left_area)
+      WindowUi.Library.View.(
+        if st.geometry.right_shown then Right.area else Left.area)
     let deselect_other = ignore
     let refresh_deps lib = Library.refresh_tracks lib
     let modify_view =
@@ -182,6 +187,7 @@ let albums_view (st : state) : view =
   end)
 
 let artists_view (st : state) : view =
+  let (module WindowUi) = Option.get st.layout in
   (module struct
     include Library
     module Select = Table
@@ -190,7 +196,7 @@ let artists_view (st : state) : view =
     let it = st.library
     let tab = it.artists
     let focus = State.focus_library tab
-    let area = Layout.left_area
+    let area = WindowUi.Library.View.Left.area
     let deselect_other = ignore
     let refresh_deps lib = Library.refresh_albums_tracks lib
     let modify_view =
@@ -224,19 +230,23 @@ let drag (st : state) table_drag (module View : View) =
   let geo = st.geometry in
   let tab = View.table View.it in
   (* Drag over table: highlight target entry *)
-  Ui.delay geo.ui (fun () -> table_drag geo tab)
+  Ui.delay geo.ui (fun () -> table_drag tab)
 
 let drag_on_playlist (st : state) =
+  let (module WindowUi) = Option.get st.layout in
   if Geometry.playlist_shown st.geometry then
-    drag st Layout.playlist_drag (playlist_view st)
+    drag st WindowUi.Playlist.drag (playlist_view st)
 
 let library_drag (st : state) (geo : Geometry.t) =
+  let (module WindowUi) = Option.get st.layout in
   let drag, grid_drag =
-    if geo.lower_shown then Layout.(lower_drag, lower_grid_drag) else
-    if geo.right_shown then Layout.(right_drag, right_grid_drag) else
-    Layout.(left_drag, left_grid_drag)
+    WindowUi.Library.View.(
+      if geo.lower_shown then Lower.drag () else
+      if geo.right_shown then Right.drag () else
+      Left.drag ()
+    )
   in
-  if current_is_grid st then grid_drag geo geo.track_grid else drag geo
+  if current_is_grid st then grid_drag else drag
 
 let drag_on_tracks_error (st : state) =
   let lib = st.library in
@@ -254,7 +264,7 @@ let drag_on_tracks (st : state) =
   if Geometry.library_shown st.geometry then
   (
     if Library.current_is_plain_playlist st.library then
-      drag st (library_drag st) (tracks_view st)
+      drag st (library_drag st st.geometry) (tracks_view st)
     else
       drag_on_tracks_error st
   )
@@ -262,7 +272,6 @@ let drag_on_tracks (st : state) =
 let drop (st : state) tracks table_mouse (module View : View) =
   if tracks <> [||] then
   (
-    let geo = st.geometry in
     let view = View.it in
     let tab = View.table view in
     Option.iter (fun (pos_opt, _) ->
@@ -273,25 +282,29 @@ let drop (st : state) tracks table_mouse (module View : View) =
       State.defocus_all st;
       View.focus st;
       update_control st;
-    ) (table_mouse geo tab)
+    ) (table_mouse tab)
   )
 
 let drop_on_playlist (st : state) tracks =
+  let (module WindowUi) = Option.get st.layout in
   if Geometry.playlist_shown st.geometry then
-    drop st tracks (fun geo -> Layout.playlist_mouse geo [||]) (playlist_view st)
+    drop st tracks (WindowUi.Playlist.mouse [||]) (playlist_view st)
 
 let library_mouse (st : state) (geo : Geometry.t) =
+  let (module WindowUi) = Option.get st.layout in
   let mouse, grid_mouse =
-    if geo.lower_shown then Layout.(lower_mouse, lower_grid_mouse) else
-    if geo.right_shown then Layout.(right_mouse, right_grid_mouse) else
-    Layout.(left_mouse, left_grid_mouse)
+    WindowUi.Library.View.(
+      if geo.lower_shown then Lower.mouse () else
+      if geo.right_shown then Right.mouse () else
+      Left.mouse ()
+    )
   in
-  if current_is_grid st then grid_mouse geo geo.track_grid else mouse geo [||]
+  if current_is_grid st then grid_mouse else mouse [||]
 
 let drop_on_tracks (st : state) tracks =
   if Geometry.library_shown st.geometry
   && Library.current_is_plain_playlist st.library then
-    drop st tracks (library_mouse st) (tracks_view st)
+    drop st tracks (library_mouse st st.geometry) (tracks_view st)
 
 
 let expand_paths (st : state) paths =
@@ -348,6 +361,7 @@ type queue_mode = [`Jump | `Queue | `QueueAndJump | `Replace]
 let queue_on_playlist (st : state) (tracks : Data.track array) mode =
   if tracks <> [||] then
   (
+    let (module WindowUi) = Option.get st.layout in
     let entries = st.playlist.table.entries in
     let rec find i n =
       if n = Array.length tracks then i else
@@ -364,7 +378,7 @@ let queue_on_playlist (st : state) (tracks : Data.track array) mode =
       Playlist.jump st.playlist i;
       Control.switch st.control tracks.(0);
       Control.play st.control;
-      Playlist.adjust_scroll st.playlist (area_page st Layout.playlist_area);
+      Playlist.adjust_scroll st.playlist (area_page st WindowUi.Playlist.area);
     in
     (match mode with
     | `Jump ->
@@ -399,10 +413,11 @@ let set_drop_cursor (st : state) outside =
   let win = Ui.window geo.ui in
   let pl = st.playlist in
   let lib = st.library in
+  let (module WindowUi) = Option.get st.layout in
   let droppable =
     Geometry.playlist_shown geo &&
       (* over playlist *)
-      Layout.playlist_mouse geo [||] pl.table <> None
+      WindowUi.Playlist.mouse [||] pl.table <> None
     ||
     Geometry.library_shown geo && (
       (* over editable library playlist view? *)
@@ -410,7 +425,7 @@ let set_drop_cursor (st : state) outside =
         library_mouse st geo lib.tracks <> None
       ||
       (* over browser entry that is a playlist? *)
-      match Layout.browser_mouse geo [||] lib.browser with
+      match WindowUi.Library.Browser.mouse [||] lib.browser with
       | Some (Some i, _) -> Data.is_playlist lib.browser.entries.(i)
       | _ -> false
     )
@@ -492,7 +507,7 @@ let modify ops (st : state) dir on_start on_pl =
           Run_popup.command_menu st (Iarray.append
             (if not ops.show_path then [||] else
             [|
-              `Entry (c, "Show Playlist", Layout.nokey, true),
+              `Entry (c, "Show Playlist", Layout.KeyBind.na, true),
               (fun () ->
                 Table.deselect_all log.table;
                 let dir_opt = Library.find_dir lib (Log.text log i 0) in
@@ -508,7 +523,7 @@ let modify ops (st : state) dir on_start on_pl =
             (Iarray.init (Iarray.length lib.root.children + 1) (fun j ->
               let dir =
                 if j = 0 then lib.root else Iarray.get lib.root.children (j - 1) in
-              `Entry (c, "Search for Song in " ^ dir.name, Layout.nokey, true),
+              `Entry (c, "Search for Song in " ^ dir.name, Layout.KeyBind.na, true),
               fun () ->
                 Table.deselect_all log.table;
                 Option.iter (Library.select_dir lib)
@@ -1067,54 +1082,56 @@ let tag_button (st : state) view =
 
 let list_menu (st : state) view searches =
   let geo = st.geometry in
+  let (module WindowUi) = Option.get st.layout in
+  let module CopyUi = WindowUi.Library.Copy in
   let module View = (val view : View) in
 
   let c = Ui.text_color geo.ui in
   let all, quant, get_tracks = subject_tracks view in
   Run_popup.command_menu st (Iarray.concat [
     [|
-      `Entry (c, "Tag" ^ quant, Layout.key_tag, tag_avail st view),
+      `Entry (c, "Tag" ^ quant, Layout.KeyBind.tag, tag_avail st view),
         (fun () -> tag st (get_tracks ()) (not all));
-      `Entry (c, "Rescan" ^ quant, Layout.key_rescan, rescan_avail st view),
+      `Entry (c, "Rescan" ^ quant, Layout.KeyBind.rescan, rescan_avail st view),
         (fun () -> rescan st (get_tracks ()));
     |];
     (if View.(table it) == st.playlist.table then [||] else
     [|
       `Separator, ignore;
-      `Entry (c, "Reorder as Sorted", Layout.key_reorder, reorder_avail st view),
+      `Entry (c, "Reorder as Sorted", Layout.KeyBind.reorder, reorder_avail st view),
         (fun () -> reorder st view);
     |]);
     [|
       `Separator, ignore;
-      `Entry (c, "Select All", Layout.key_all, select_all_avail st view),
+      `Entry (c, "Select All", Layout.KeyBind.all, select_all_avail st view),
         (fun () -> select_all st view);
-      `Entry (c, "Select None", Layout.key_none, select_none_avail st view),
+      `Entry (c, "Select None", Layout.KeyBind.none, select_none_avail st view),
         (fun () -> select_none st view);
-      `Entry (c, "Invert Selection", Layout.key_invert, select_invert_avail st view),
+      `Entry (c, "Invert Selection", Layout.KeyBind.invert, select_invert_avail st view),
         (fun () -> select_invert st view);
       `Separator, ignore;
-      `Entry (c, "Search...", Layout.key_search, search_avail st),
+      `Entry (c, "Search...", Layout.KeyBind.search, search_avail st),
         (fun () -> search st);
     |];
     (if searches = [] || not (search_for_avail st) then [||] else
       let s = String.concat " " (List.map (fun s -> "\"" ^ s ^ "\"") searches) in
       [|
-        `Entry (c, "Search for " ^ s, Layout.nokey, search_for_avail st),
+        `Entry (c, "Search for " ^ s, Layout.KeyBind.na, search_for_avail st),
           (fun () -> search_for st searches)
       |]
     );
     [|
       `Separator, ignore;
-      `Entry (c, "Save as Playlist...", Layout.key_save, save_avail st view),
+      `Entry (c, "Save as Playlist...", Layout.KeyBind.save, save_avail st view),
         (fun () -> save st view);
-      `Entry (c, "Save Selection as Playlist...", Layout.nokey, save_sel_avail st view),
+      `Entry (c, "Save Selection as Playlist...", Layout.KeyBind.na, save_sel_avail st view),
         (fun () -> save_sel st view);
-      `Entry (c, "Save as Viewlist...", Layout.key_save2, save_view_avail st view),
+      `Entry (c, "Save as Viewlist...", Layout.KeyBind.save2, save_view_avail st view),
         (fun () -> save_view st view);
-      `Entry (c, "Queue" ^ quant ^ " to Playlist...", Layout.key_appendpl geo,
+      `Entry (c, "Queue" ^ quant ^ " to Playlist...", CopyUi.KeyBind.append_pl,
         queue_avail st view),
         (fun () -> queue st view false);
-      `Entry (c, "Copy" ^ quant ^ " to Playlist...", Layout.key_replacepl geo,
+      `Entry (c, "Copy" ^ quant ^ " to Playlist...", CopyUi.KeyBind.replace_pl,
         queue_avail st view),
         (fun () -> queue st view true);
     |];
@@ -1122,7 +1139,7 @@ let list_menu (st : state) view searches =
     (if View.modify_view = None then [||] else
       [|
         `Separator, ignore;
-        `Entry (c, "Customise Columns...", Layout.nokey, true),
+        `Entry (c, "Customise Columns...", Layout.KeyBind.na, true),
           (fun () -> header_menu st view);
       |]
     )
@@ -1131,6 +1148,8 @@ let list_menu (st : state) view searches =
 
 let edit_menu (st : state) view searches pos_opt =
   let geo = st.geometry in
+  let (module WindowUi) = Option.get st.layout in
+  let module CopyUi = WindowUi.Library.Copy in
   let module View = (val view : View) in 
 
   let pos = Option.value pos_opt ~default: View.(length it) in
@@ -1139,99 +1158,99 @@ let edit_menu (st : state) view searches pos_opt =
   let all_a, quant_a, _ = subject_absent_tracks view in
   Run_popup.command_menu st (Iarray.concat [
     [|
-      `Entry (c, "Insert Separator", Layout.key_sep, separator_avail st view),
+      `Entry (c, "Insert Separator", Layout.KeyBind.sep, separator_avail st view),
         (fun () -> separator st view pos);
       `Separator, ignore;
-      `Entry (c, "Tag" ^ quant, Layout.key_tag, tag_avail st view),
+      `Entry (c, "Tag" ^ quant, Layout.KeyBind.tag, tag_avail st view),
         (fun () -> tag st (get_tracks ()) (not all));
-      `Entry (c, "Rescan" ^ quant, Layout.key_rescan, rescan_avail st view),
+      `Entry (c, "Rescan" ^ quant, Layout.KeyBind.rescan, rescan_avail st view),
         (fun () -> rescan st (get_tracks ()));
-      `Entry (c, "Remove" ^ quant, Layout.key_del,
+      `Entry (c, "Remove" ^ quant, Layout.KeyBind.del,
         if all then clear_avail st view else remove_avail st view),
         (fun () -> (if all then clear else remove) st view);
-      `Entry (c, "Reverse" ^ quant, Layout.key_rev,
+      `Entry (c, "Reverse" ^ quant, Layout.KeyBind.rev,
         if all then reverse_all_avail st view else reverse_avail st view),
         (fun () -> (if all then reverse_all else reverse) st view);
     |];
     (if View.(table it) == st.playlist.table then [||] else
     [|
       `Separator, ignore;
-      `Entry (c, "Reorder as Sorted", Layout.key_reorder, reorder_avail st view),
+      `Entry (c, "Reorder as Sorted", Layout.KeyBind.reorder, reorder_avail st view),
         (fun () -> reorder st view);
     |]);
     [|
       `Separator, ignore;
-      `Entry (c, "Cut", Layout.key_cut, cut_avail st view),
+      `Entry (c, "Cut", Layout.KeyBind.cut, cut_avail st view),
         (fun () -> cut st view);
-      `Entry (c, "Copy", Layout.key_copy, copy_avail st view),
+      `Entry (c, "Copy", Layout.KeyBind.copy, copy_avail st view),
         (fun () -> copy st view);
-      `Entry (c, "Paste", Layout.key_paste, paste_avail st view),
+      `Entry (c, "Paste", Layout.KeyBind.paste, paste_avail st view),
         (fun () -> paste st view);
-      `Entry (c, "Crop", Layout.key_crop, crop_avail st view),
+      `Entry (c, "Crop", Layout.KeyBind.crop, crop_avail st view),
         (fun () -> crop st view);
       `Separator, ignore;
-      `Entry (c, "Select All", Layout.key_all, select_all_avail st view),
+      `Entry (c, "Select All", Layout.KeyBind.all, select_all_avail st view),
         (fun () -> select_all st view);
-      `Entry (c, "Select None", Layout.key_none, select_none_avail st view),
+      `Entry (c, "Select None", Layout.KeyBind.none, select_none_avail st view),
         (fun () -> select_none st view);
-      `Entry (c, "Invert Selection", Layout.key_invert, select_invert_avail st view),
+      `Entry (c, "Invert Selection", Layout.KeyBind.invert, select_invert_avail st view),
         (fun () -> select_invert st view);
       `Separator, ignore;
-      `Entry (c, "Wipe" ^ quant_a, Layout.key_wipe, wipe_avail all_a st view),
+      `Entry (c, "Wipe" ^ quant_a, Layout.KeyBind.wipe, wipe_avail all_a st view),
         (fun () -> wipe all_a st view);
-      `Entry (c, "Repair" ^ quant_a ^ "...", Layout.nokey, repair_avail all_a st view),
+      `Entry (c, "Repair" ^ quant_a ^ "...", Layout.KeyBind.repair_dir, repair_avail all_a st view),
         (fun () -> repair all_a st view);
-      `Entry (c, "Dedupe" ^ quant, Layout.key_dedupe, dedupe_avail all st view),
+      `Entry (c, "Dedupe" ^ quant, Layout.KeyBind.dedupe, dedupe_avail all st view),
         (fun () -> dedupe all st view);
       `Separator, ignore;
-      `Entry (c, "Undo", Layout.key_undo, undo_avail st view),
+      `Entry (c, "Undo", Layout.KeyBind.undo, undo_avail st view),
         (fun () -> undo st view);
-      `Entry (c, "Redo", Layout.key_redo, redo_avail st view),
+      `Entry (c, "Redo", Layout.KeyBind.redo, redo_avail st view),
         (fun () -> redo st view);
       `Separator, ignore;
     |];
     (if searches = [] || not (search_for_avail st) then [||] else
       let s = String.concat " " (List.map (fun s -> "\"" ^ s ^ "\"") searches) in
       [|
-        `Entry (c, "Search for " ^ s, Layout.nokey, search_for_avail st),
+        `Entry (c, "Search for " ^ s, Layout.KeyBind.na, search_for_avail st),
           (fun () -> search_for st searches);
         `Separator, ignore;
       |]
     );
     [|
-      `Entry (c, "Load...", Layout.key_load, load_avail st view),
+      `Entry (c, "Load...", Layout.KeyBind.load, load_avail st view),
         (fun () -> load st view);
-      `Entry (c, "Save...", Layout.key_save, save_avail st view),
+      `Entry (c, "Save...", Layout.KeyBind.save, save_avail st view),
         (fun () -> save st view);
-      `Entry (c, "Save Selection...", Layout.nokey, save_sel_avail st view),
+      `Entry (c, "Save Selection...", Layout.KeyBind.na, save_sel_avail st view),
         (fun () -> save_sel st view);
     |];
     (if View.(table it) == st.playlist.table then [||] else
     [|
-      `Entry (c, "Save View...", Layout.key_save2, save_view_avail st view),
+      `Entry (c, "Save View...", Layout.KeyBind.save2, save_view_avail st view),
         (fun () -> save_view st view);
-      `Entry (c, "Queue" ^ quant ^ " to Playlist...", Layout.key_appendpl geo,
+      `Entry (c, "Queue" ^ quant ^ " to Playlist...", CopyUi.KeyBind.append_pl,
         queue_avail st view),
         (fun () -> queue st view false);
-      `Entry (c, "Copy" ^ quant ^ " to Playlist...", Layout.key_replacepl geo,
+      `Entry (c, "Copy" ^ quant ^ " to Playlist...", CopyUi.KeyBind.replace_pl,
         queue_avail st view),
         (fun () -> queue st view true);
-      `Entry (c, "Copy All from Playlist...", Layout.key_replacelib geo,
+      `Entry (c, "Copy All from Playlist...", CopyUi.KeyBind.replace_lib,
         inherit_avail st view),
         (fun () -> inherit_ st view true);
     |]);
     [|
       `Separator, ignore;
-      `Entry (c, "Export" ^ quant ^ " Files...", Layout.key_export, export_avail st view),
+      `Entry (c, "Export" ^ quant ^ " Files...", Layout.KeyBind.export, export_avail st view),
         (fun () -> export false st (get_tracks ()));
-      `Entry (c, "Export" ^ quant ^ " Files with Position...", Layout.key_export, export_avail st view),
+      `Entry (c, "Export" ^ quant ^ " Files with Position...", Layout.KeyBind.export, export_avail st view),
         (fun () -> export true st (get_tracks ()));
     |];
 (*
     (if View.modify_view = None then [||] else
       [|
         `Separator, ignore;
-        `Entry (c, "Customise Columns...", Layout.nokey, true),
+        `Entry (c, "Customise Columns...", Layout.KeyBind.na, true),
           (fun () -> header_menu st view);
       |]
     )
@@ -1240,7 +1259,7 @@ let edit_menu (st : state) view searches pos_opt =
       let s = if geo.playlist_headers then "Hide" else "Show" in
       [|
         `Separator, ignore;
-        `Entry (c, s ^ " Column Headers", Layout.nokey, true),
+        `Entry (c, s ^ " Column Headers", Layout.KeyBind.na, true),
           (fun () -> geo.playlist_headers <- not geo.playlist_headers);
       |];
     )
@@ -1254,7 +1273,8 @@ let run_edit_panel (st : state) =
   let lib = st.library in
   let geo = st.geometry in
 
-  Layout.edit_pane geo;
+  let (module WindowUi) = Option.get st.layout in
+  let module EditUi = WindowUi.Playlist.Edit in
 
   let lib_shows_tracks =
     match lib.current with
@@ -1279,7 +1299,7 @@ let run_edit_panel (st : state) =
   let active_if avail = if focus && avail st view then Some false else None in
 
   (* Separator button *)
-  if Layout.sep_button geo (active_if separator_avail) then
+  if EditUi.Button.sep (active_if separator_avail) then
   (
     (* Click on Separator button: insert separator *)
     let pos = Option.value View.(first_selected it) ~default: View.(length it) in
@@ -1287,70 +1307,70 @@ let run_edit_panel (st : state) =
   );
 
   (* Edit buttons *)
-  if Layout.del_button geo (active_if remove_avail)
-  || Layout.del_button_alt geo && remove_avail st view then
+  if EditUi.Button.del (active_if remove_avail)
+  || EditUi.Key.del_alt (remove_avail st view) then
   (
     (* Click on Delete button: remove selected tracks from playlist *)
     remove st view
   );
 
-  if Layout.crop_button geo (active_if crop_avail) then
+  if EditUi.Button.crop (active_if crop_avail) then
   (
     (* Click on Crop button: remove unselected tracks from playlist *)
     crop st view
   );
 
-  if Layout.wipe_button geo (active_if (wipe_avail true)) then
+  if EditUi.Button.wipe (active_if (wipe_avail true)) then
   (
     (* Click on Wipe button: remove invalid tracks *)
     let all, _, _ = subject_absent_tracks view in
     wipe all st view
   );
 
-  if focus && Layout.dedupe_button geo then
+  if EditUi.Button.dedupe focus then
   (
     (* Dedupe key pressed or Shift-click on Wipe button: dedupe *)
     let all, _, _ = subject_absent_tracks view in
     dedupe all st view
   );
 
-  if Layout.undo_button geo (active_if undo_avail) then
+  if EditUi.Button.undo (active_if undo_avail) then
   (
     (* Click on Undo button: pop undo *)
     undo st view
   );
 
-  if focus && redo_avail st view && Layout.redo_button geo then
+  if EditUi.Button.redo (focus && redo_avail st view) then
   (
     (* Redo key pressed or Shift-click on Undo button: pop redo *)
     redo st view
   );
 
   (* Edit keys *)
-  if focus && cut_avail st view && Layout.cut_key geo then
+  if EditUi.Key.cut (focus && cut_avail st view) then
   (
     (* Press of Cut key: remove selected tracks and write them to clipboard *)
     cut st view
   );
 
-  if (focus || lib_focus) && copy_avail st view && Layout.copy_key geo then
+  if EditUi.Key.copy ((focus || lib_focus) && copy_avail st view) then
   (
     (* Press of Copy key: write selected tracks to clipboard *)
     copy st view
   );
 
-  if focus && paste_avail st view && Layout.paste_key geo then
+  if EditUi.Key.paste (focus && paste_avail st view) then
   (
     (* Press of Paste key: insert tracks from clipboard *)
     paste st view
   );
 
-  if focus && Layout.rev_key geo (reverse_avail st view) then
+  if EditUi.Key.rev (focus && reverse_avail st view) then
   (
     (* Press of Reverse key with selection: reverse selection *)
     reverse st view
   )
-  else if focus && Layout.rev_key geo (reverse_all_avail st view) then
+  else if EditUi.Key.rev (focus && reverse_all_avail st view) then
   (
     (* Press of Reverse key without selection: reverse all *)
     reverse_all st view
@@ -1358,30 +1378,30 @@ let run_edit_panel (st : state) =
 
 (*
   (* Tag button *)
-  if Layout.tag_button geo (active_if tag_avail) then
+  if EditUi.Button.tag (active_if tag_avail) then
   (
     (* Click on Tag button: execute tagging program *)
     let _, _, get_tracks = subject_tracks view in
     tag st (get_tracks ()) false;
   );
-*)
 
-  if focus && tag_avail st view && Layout.tag_add_button geo then
+  if EditUi.Button.tag_add (focus && tag_avail st view) then
   (
     (* Shift-click on Tag button: execute tagging program, additively *)
     let _, _, get_tracks = subject_tracks view in
     tag st (get_tracks ()) true;
   );
+*)
 
   (* Load button *)
-  if Layout.load_button geo (active_if load_avail) then
+  if EditUi.Button.load (active_if load_avail) then
   (
     (* Click on Load button: load playlist *)
     load st view
   );
 
   (* Save Playlist button *)
-  if Layout.save_button geo (active_if save_avail)
+  if EditUi.Button.save (active_if save_avail)
   && Api.Key.are_modifiers_down [] then
   (
     (* Click on Save button: save playlist *)
@@ -1389,34 +1409,34 @@ let run_edit_panel (st : state) =
   );
 
   (* Save Viewlist button *)
-  if lib_focus && Layout.save_view_button geo then
+  if EditUi.Button.view lib_focus then
   (
     (* Press of Save-View key or Shift-Click on Save button: save viewlist *)
     if save_view_avail st view then
       save_view st view
   );
 
-  if geo.library_shown then
+  if Geometry.library_shown geo then
   (
     (* Append Library button *)
-    if Layout.appendlib_button geo (active_if inherit_avail) then
+    if WindowUi.Library.Copy.Button.append_lib (active_if inherit_avail) then
     (
       (* (Double) Click on Inherit button: copy tracks from playlist *)
       inherit_ st view (Api.Mouse.is_double_click `Left)
     )
-    else if inherit_avail st view && Layout.replacelib_button geo then
+    else if WindowUi.Library.Copy.Button.replace_lib (inherit_avail st view) then
     (
       (* Click on secondary Inherit button: replace tracks from playlist *)
       inherit_ st view true
     );
 
     (* Append Playlist button *)
-    if Layout.appendpl_button geo (active_if queue_avail) then
+    if WindowUi.Library.Copy.Button.append_pl (active_if queue_avail) then
     (
       (* (Double) Click on Queue button: copy tracks to playlist *)
       queue st view (Api.Mouse.is_double_click `Left)
     )
-    else if queue_avail st view && Layout.replacepl_button geo then
+    else if WindowUi.Library.Copy.Button.replace_pl (queue_avail st view) then
     (
       (* Click on secondary Queue button: replace tracks in playlist *)
       queue st view true

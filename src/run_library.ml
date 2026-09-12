@@ -21,6 +21,11 @@ module Map = Map.Make(String)
 
 (* Commands *)
 
+let error_flash (st : state) =
+  let (module WindowUi) = Option.get st.layout in
+  WindowUi.Library.Browser.error_box ()
+
+
 let rescan_all_avail (st : state) =
   st.library.root.children <> [||]
 let rescan_all (st : state) mode =
@@ -41,7 +46,7 @@ let insert (st : state) =
   Run_filesel.filesel st `Dir `Read "" "" (fun path ->
     let roots = st.library.root.children in
     if not (Library.insert_roots st.library [path] (Iarray.length roots)) then
-      Layout.browser_error_box st.geometry;  (* flash *)
+      error_flash st;
     State.focus_library st.library.browser st;
   )
 
@@ -81,7 +86,7 @@ let remove_avail (st : state) =
 let remove (st : state) =
   Option.iter (fun (dir : dir) ->
     if not (Library.remove_roots st.library [dir.path]) then
-      Layout.browser_error_box st.geometry  (* flash *)
+      error_flash st
   ) st.library.current
 
 let remove_list_avail (st : state) =
@@ -94,17 +99,17 @@ let remove_list (st : state) =
     if Data.is_playlist dir && dir.tracks <> [||] then
     (
       Library.error lib "Playlist is not empty";
-      Layout.browser_error_box st.geometry  (* flash *)
+      error_flash st;
     )
     else
     (
       assert (Data.is_playlist dir || Data.is_viewlist dir);
       (try File.delete dir.path with Sys_error msg ->
         Library.error lib ("Error deleting file " ^ dir.path ^ ", " ^ msg);
-        Layout.browser_error_box st.geometry  (* flash *)
+        error_flash st;
       );
       if not (Library.remove_dir lib dir.path) then
-        Layout.browser_error_box st.geometry  (* flash *)
+        error_flash st
       else
         Library.refresh_artists_albums_tracks lib
     )
@@ -117,7 +122,7 @@ let create_list (st : state) ext s view_opt path =
   | None ->
     Library.error lib
       ("Error creating file " ^ path ^ ", path is outside library");
-    Layout.browser_error_box st.geometry;  (* flash *)
+    error_flash st;
   | Some parent ->
     let path =
       if String.lowercase_ascii (File.extension path) = ext
@@ -234,28 +239,33 @@ let repair_playlist = playlists_modify Run_view.repair_dir
 
 let drag_on_browser (st : state) =
   let geo = st.geometry in
-  let lib = st.library in
-  let browser = lib.browser in
-  if st.geometry.library_shown then
+  if geo.library_shown then
   (
+    let lib = st.library in
+    let browser = lib.browser in
+    let (module WindowUi) = Option.get st.layout in
+
     Option.iter (function
       | (Some i, _)->
         let dir = browser.entries.(i) in
         if Data.is_playlist dir then
         (
           (* Drag over playlist browser entry: highlight target entry *)
-          Ui.delay geo.ui (fun () -> Layout.browser_drag geo `Inside browser)
+          Ui.delay geo.ui
+            (fun () -> WindowUi.Library.Browser.drag `Inside browser)
         )
       | _ -> ()
-    ) (Layout.browser_mouse geo [||] browser)
+    ) (WindowUi.Library.Browser.mouse [||] browser)
   )
 
 let drop_on_browser (st : state) tracks =
   let geo = st.geometry in
-  let lib = st.library in
-  let browser = lib.browser in
-  if st.geometry.library_shown then
+  if geo.library_shown then
   (
+    let lib = st.library in
+    let browser = lib.browser in
+    let (module WindowUi) = Option.get st.layout in
+
     Option.iter (function
       | (Some i, _) ->
         let dir = browser.entries.(i) in
@@ -279,7 +289,7 @@ let drop_on_browser (st : state) tracks =
           );
         )
       | _ -> ()
-    ) (Layout.browser_mouse geo [||] browser)
+    ) (WindowUi.Library.Browser.mouse [||] browser)
   )
 
 
@@ -290,7 +300,9 @@ let run_browser (st : state) =
   let geo = st.geometry in
   let win = Ui.window geo.ui in
 
-  Layout.browser_pane geo;
+  let (module WindowUi) = Option.get st.layout in
+  let module LibraryUi = WindowUi.Library in
+  let module BrowserUi = LibraryUi.Browser in
 
   let browser = lib.browser in
   let entries = browser.entries in  (* could change concurrently *)
@@ -320,7 +332,7 @@ let run_browser (st : state) =
   in
 
   let dir = Library.selected_dir lib in
-  (match Layout.browser_table geo browser pp_entry with
+  (match BrowserUi.table browser pp_entry with
   | `None | `Scroll | `Move _ | `Abort -> ()
 
   | `Select ->
@@ -429,7 +441,7 @@ let run_browser (st : state) =
             (
               (* Drag over sibling: reorder entry *)
               Api.Mouse.set_cursor (Ui.window geo.ui) `Point;
-              Layout.browser_drag geo `Above browser;
+              BrowserUi.drag `Above browser;
             )
             else
             (
@@ -438,7 +450,7 @@ let run_browser (st : state) =
             )
           ) (Library.selected_dir lib)
         | _ -> ()
-      ) (Layout.browser_mouse geo [||] browser)
+      ) (BrowserUi.mouse [||] browser)
     )
 
   | `Drop ->
@@ -477,7 +489,7 @@ let run_browser (st : state) =
             )
           ) (Library.selected_dir lib)
         | _ -> ()
-      ) (Layout.browser_mouse geo [||] browser)
+      ) (BrowserUi.mouse [||] browser)
     )
 
   | `Menu _ ->
@@ -509,68 +521,68 @@ let run_browser (st : state) =
     in
     Run_popup.command_menu st (Iarray.concat [
       [|
-        `Entry (c, "Rescan" ^ quant ^ " Quick", Layout.key_rescan,
+        `Entry (c, "Rescan" ^ quant ^ " Quick", Layout.KeyBind.rescan,
           if all then rescan_all_avail st else rescan_one_avail st),
           (fun () -> (if all then rescan_all else rescan_one) st `Quick);
-        `Entry (c, "Rescan" ^ quant ^ " Thorough", Layout.key_rescan2,
+        `Entry (c, "Rescan" ^ quant ^ " Thorough", Layout.KeyBind.rescan2,
           if all then rescan_all_avail st else rescan_one_avail st),
           (fun () -> (if all then rescan_all else rescan_one) st `Thorough);
         `Separator, ignore;
-        `Entry (c, "Add Root...", Layout.key_adddir, insert_avail st),
+        `Entry (c, "Add Root...", Layout.KeyBind.add_dir, insert_avail st),
           (fun () -> insert st);
-        `Entry (c, "Remove Root", Layout.key_deldir, remove_avail st),
+        `Entry (c, "Remove Root", Layout.KeyBind.del_dir, remove_avail st),
           (fun () -> remove st);
         `Separator, ignore;
-        `Entry (c, "Create Playlist...", Layout.key_newdir, create_playlist_avail st),
+        `Entry (c, "Create Playlist...", Layout.KeyBind.new_dir, create_playlist_avail st),
           (fun () -> create_playlist st);
-        `Entry (c, "Create Viewlist...", Layout.key_viewdir, create_viewlist_avail st),
+        `Entry (c, "Create Viewlist...", Layout.KeyBind.view_dir, create_viewlist_avail st),
           (fun () -> create_playlist st);
-        `Entry (c, "Rename", Layout.key_namedir, rename_avail st (Library.selected_dir lib)),
+        `Entry (c, "Rename", Layout.KeyBind.name_dir, rename_avail st (Library.selected_dir lib)),
           (fun () -> rename st (Library.selected_dir lib));
         `Entry (c, "Remove " ^
           (if Library.current_is_viewlist lib then "Viewlist" else "Playlist"),
-          Layout.key_deldir, remove_list_avail st),
+          Layout.KeyBind.del_dir, remove_list_avail st),
           (fun () -> remove_list st);
-        `Entry (c, "Reverse Subfolders", Layout.key_revdir, reverse_avail st),
+        `Entry (c, "Reverse Subfolders", Layout.KeyBind.rev_dir, reverse_avail st),
           (fun () -> reverse st);
         `Separator, ignore;
-        `Entry (c, "Repair Playlist" ^ pls ^ "...", Layout.nokey, repair_playlist_avail st),
+        `Entry (c, "Repair Playlist" ^ pls ^ "...", Layout.KeyBind.repair_dir, repair_playlist_avail st),
           (fun () -> repair_playlist st st.library.current);
-        `Entry (c, "Turn Playlist" ^ pls ^ " Relative...", Layout.nokey, relative_playlist_avail st),
+        `Entry (c, "Turn Playlist" ^ pls ^ " Relative...", Layout.KeyBind.na, relative_playlist_avail st),
           (fun () -> relative_playlist st st.library.current);
       |];
       (if Sys.win32 || Sys.cygwin then
         [|
-          `Entry (c, "Turn Playlist" ^ pls ^ " Local...", Layout.nokey, local_playlist_avail st),
+          `Entry (c, "Turn Playlist" ^ pls ^ " Local...", Layout.KeyBind.na, local_playlist_avail st),
             (fun () -> local_playlist st st.library.current);
-          `Entry (c, "Turn Playlist" ^ pls ^ " Global...", Layout.nokey, resolve_playlist_avail st),
+          `Entry (c, "Turn Playlist" ^ pls ^ " Global...", Layout.KeyBind.na, resolve_playlist_avail st),
             (fun () -> resolve_playlist st st.library.current);
         |]
       else
         [|
-          `Entry (c, "Turn Playlist" ^ pls ^ " Absolute...", Layout.nokey, resolve_playlist_avail st),
+          `Entry (c, "Turn Playlist" ^ pls ^ " Absolute...", Layout.KeyBind.na, resolve_playlist_avail st),
             (fun () -> resolve_playlist st st.library.current);
         |]
       );
       [|
         `Separator, ignore;
-        `Entry (c, "Search...", Layout.key_search, lib.current <> None),
+        `Entry (c, "Search...", Layout.KeyBind.search, lib.current <> None),
           (fun () -> State.focus_edit st lib.search);
       |];
       (if lib.current = None then [||] else
         [|
           `Separator, ignore;
-          `Entry (c, "Copy View", Layout.nokey, copy_view_avail st),
+          `Entry (c, "Copy View", Layout.KeyBind.na, copy_view_avail st),
             (fun () -> copy_view st);
-          `Entry (c, "Paste View", Layout.nokey, paste_view_avail st),
+          `Entry (c, "Paste View", Layout.KeyBind.na, paste_view_avail st),
             (fun () -> paste_view st);
-          `Entry (c, "Apply View to All Subfolders", Layout.nokey, propagate_view_avail st),
+          `Entry (c, "Apply View to All Subfolders", Layout.KeyBind.na, propagate_view_avail st),
             (fun () -> propagate_view st);
         |]
 (*
         Iarray.map (fun (parent : dir) ->
           let target = if parent.parent = None then "" else " Subfolders of " ^ parent.name in
-          `Entry (c, "Apply View to All" ^ target, Layout.nokey, propagate_view_avail st parent),
+          `Entry (c, "Apply View to All" ^ target, Layout.KeyBind.na, propagate_view_avail st parent),
             (fun () -> propagate_view st parent);
         ) (Iarray.of_list (current :: Library.find_parents lib current))
 *)
@@ -586,10 +598,10 @@ let run_browser (st : state) =
     Ui.nonmodal geo.ui "lib.browser/rename";
     let dir = entries.(i) in
     let folded = if dir.children = [||] then None else Some dir.view.folded in
-    let area = Layout.rename_area geo browser i dir.nest folded in
+    let area = BrowserUi.Rename.area browser i dir.nest folded in
 
-    Layout.rename_box geo area;
-    let _ = Layout.rename_edit geo area 0 (Ui.text_color geo.ui) lib.rename in
+    BrowserUi.Rename.box area;
+    let _ = BrowserUi.Rename.edit area 0 (Ui.text_color geo.ui) lib.rename in
     if Api.Key.is_released `Escape then
     (
       Library.end_rename lib false;
@@ -609,7 +621,7 @@ let run_browser (st : state) =
   ) lib.renaming;
 
   (* Keys *)
-  if Layout.rename_key geo (browser.focus && not rename_had_focus) then
+  if BrowserUi.Key.rename (browser.focus && not rename_had_focus) then
   (
     (* Return or Enter key pressed: rename dir *)
     Library.error lib "";
@@ -617,7 +629,7 @@ let run_browser (st : state) =
       rename st (Library.selected_dir lib)
   );
 
-  if Layout.fold_key geo browser.focus then
+  if BrowserUi.Key.fold browser.focus then
   (
     (* Space key pressed: fold/unfold dir *)
     Library.error lib "";
@@ -639,14 +651,14 @@ let run_browser (st : state) =
         | _ -> Iarray.length lib.root.children
       in
       if not (Library.insert_roots lib dropped pos) then
-        Layout.browser_error_box geo;  (* flash *)
-    ) (Layout.browser_mouse geo [||] browser)
+        error_flash st;
+    ) (BrowserUi.mouse [||] browser)
   );
 
   (* Scanning indicator *)
-  Layout.scan_label geo;
-  Layout.scan_indicator geo (Library.rescan_busy lib <> None);
-  if Layout.scan_button geo then
+  LibraryUi.Scan.label ();
+  LibraryUi.Scan.indicator (Library.rescan_busy lib <> None);
+  if LibraryUi.Scan.button () then
   (
     let shift = Api.Key.is_modifier_down `Shift in
     if shift then
@@ -687,10 +699,10 @@ let run_browser (st : state) =
   in
 
   let artists = have_dir && view.artists.shown <> None in
-  Layout.artists_label geo;
-  Layout.artists_indicator geo artists;
+  LibraryUi.Toggle.Artists.label ();
+  LibraryUi.Toggle.Artists.indicator artists;
   let artists' =
-    Layout.artists_button geo (if have_dir then Some artists else None) in
+    LibraryUi.Toggle.Artists.button (if have_dir then Some artists else None) in
   if have_dir && artists' <> artists then
   (
     (* Click on Artists button: toggle artist pane *)
@@ -708,11 +720,11 @@ let run_browser (st : state) =
   );
 
   let albums = have_dir && view.albums.shown <> None in
-  Layout.albums_label geo;
-  Layout.albums_indicator1 geo (view.albums.shown = Some `Table);
-  Layout.albums_indicator2 geo (view.albums.shown = Some `Grid);
+  LibraryUi.Toggle.Albums.label ();
+  LibraryUi.Toggle.Albums.indicator1 (view.albums.shown = Some `Table);
+  LibraryUi.Toggle.Albums.indicator2 (view.albums.shown = Some `Grid);
   let albums' =
-    Layout.albums_button geo (if have_dir then Some albums else None) in
+    LibraryUi.Toggle.Albums.button (if have_dir then Some albums else None) in
   if have_dir && albums' <> albums then
   (
     (* Click on Albums button: toggle artist pane *)
@@ -730,11 +742,11 @@ let run_browser (st : state) =
   );
 
   let tracks = have_dir && view.tracks.shown <> None in
-  Layout.tracks_label geo;
-  Layout.tracks_indicator1 geo (view.tracks.shown = Some `Table);
-  Layout.tracks_indicator2 geo (view.tracks.shown = Some `Grid);
+  LibraryUi.Toggle.Tracks.label ();
+  LibraryUi.Toggle.Tracks.indicator1 (view.tracks.shown = Some `Table);
+  LibraryUi.Toggle.Tracks.indicator2 (view.tracks.shown = Some `Grid);
   let tracks' =
-    Layout.tracks_button geo (if have_dir then Some tracks else None) in
+    LibraryUi.Toggle.Tracks.button (if have_dir then Some tracks else None) in
   if have_dir && tracks' <> tracks then
   (
     (* Click on Tracks button: toggle artist pane *)
@@ -751,16 +763,16 @@ let run_browser (st : state) =
   );
 
   (* Search *)
-  Layout.search_label geo;
-  Layout.search_box geo;
+  LibraryUi.Search.label ();
+  LibraryUi.Search.box ();
 
-  if Layout.search_key geo then
+  if LibraryUi.Search.key () then
   (
     (* Search button pressed: focus search *)
     Library.error lib "";
     Library.focus_search lib;
   )
-  else if Layout.search_button geo then
+  else if LibraryUi.Search.button () then
   (
     (* Click on Search label: clear and focus search *)
     Library.error lib "";
@@ -771,7 +783,7 @@ let run_browser (st : state) =
   let search = lib.search.text in
   let erroneous = search <> "" && lib.query = Some Query.empty_query in
   let c = Ui.(if erroneous then error_color else text_color) geo.ui in
-  let _ = Layout.search_edit geo c lib.search in
+  let _ = LibraryUi.Search.edit c lib.search in
   if lib.search.focus then
   (
     (* Have or gained focus: make sure it's consistent *)
@@ -784,7 +796,7 @@ let run_browser (st : state) =
     Library.refresh_search lib;
   );
 
-  if Layout.search_context geo then
+  if LibraryUi.Search.context () then
   (
     Library.error lib "";
     let rec nub = function
@@ -795,9 +807,11 @@ let run_browser (st : state) =
     let history = Edit.history lib.search in
     let history' = nub history in
     Run_popup.command_menu st ([
-      `Entry (c, "Clear Search", Layout.key_clear_search, lib.search.text <> ""),
+      `Entry (c, "Clear Search", Layout.KeyBind.clear_search,
+        lib.search.text <> ""),
         (fun () -> Library.clear_search lib; State.focus_edit st lib.search);
-      `Entry (c, "Clear Search History", Layout.key_clear_history, history <> []),
+      `Entry (c, "Clear Search History", Layout.KeyBind.clear_history,
+        history <> []),
         (fun () ->
           Library.clear_search lib;
           Edit.clear_history lib.search;
@@ -806,7 +820,7 @@ let run_browser (st : state) =
     ] @ (
       if history = [] then [] else [`Separator, ignore]
     ) @ List.map (fun s ->
-      `Entry (c, "Search for " ^ s, Layout.nokey, true),
+      `Entry (c, "Search for " ^ s, Layout.KeyBind.na, true),
         (fun () -> Library.set_search lib s; State.focus_edit st lib.search)
     ) history' |> Iarray.of_list)
   )
@@ -824,7 +838,7 @@ let convert_sorting columns sorting =
 
 
 let run_view (st : state)
-    layout grid_w
+    layout
     (tab : _ Table.t) busy_tab dep_tab
     refresh_is_busy refresh_deps
     reorder (view : [< Data.any_attr_ex] Library.view) (views : Library.views)
@@ -836,8 +850,7 @@ let run_view (st : state)
   let geo = st.geometry in
   let win = Ui.window geo.ui in
 
-  let pane, area, table, grid, mouse, _grid_mouse, _error_box, spinner = layout in
-  pane geo;
+  let area, table, grid, mouse, _grid_mouse, spinner = layout () in
 
   let busy = refresh_is_busy lib in
   let tab = if busy then busy_tab else tab in
@@ -880,8 +893,8 @@ let run_view (st : state)
   let header = Some (headings, sorting) in
   (match
     match mode with
-    | `Table -> table geo cols header tab pp_row
-    | `Grid -> grid geo grid_w header tab pp_cell
+    | `Table -> table cols header tab pp_row
+    | `Grid -> grid header tab pp_cell
   with
   | `None | `Scroll -> ()
 
@@ -997,8 +1010,6 @@ let run_view (st : state)
 
         if editable then
         (
-          assert (layout == Layout.(if geo.lower_shown then lower_view else left_view));
-
           (* Invariant as for playlist view *)
           if motion = `Moving then
           (
@@ -1035,7 +1046,7 @@ let run_view (st : state)
   | `Drop ->
     if Api.Key.are_modifiers_down [] then
     (
-      if Ui.mouse_inside geo.ui (area geo) then
+      if Ui.mouse_inside geo.ui area then
       (
         (* Dropping inside own view: drop aux undo if no change *)
         if editable then
@@ -1059,7 +1070,7 @@ let run_view (st : state)
   | `Abort ->
     if Api.Key.are_modifiers_down [] && editable then
     (
-      if Ui.mouse_inside geo.ui (area geo) then
+      if Ui.mouse_inside geo.ui area then
       (
         (* Aborting inside own view: snap back to original state *)
         Library.undo lib;
@@ -1105,18 +1116,18 @@ let run_view (st : state)
   );
 
   if busy then
-    spinner geo (Run_view.spin st);
+    spinner (Run_view.spin st);
 
   if geo.popup_shown <> None && Api.Mouse.is_down `Left && mode = `Table then
   (
     (*
     match
       if mode = `Grid
-      then grid_mouse geo grid_w tab
-      else mouse geo cols tab
+      then grid_mouse grid_w tab
+      else mouse cols tab
     with
     *)
-    match st.popup.kind, mouse geo cols tab with
+    match st.popup.kind, mouse cols tab with
     | Some (`Zoom _), Some (Some i, _) ->
       (* Drag with active zoom popup: update cover *)
       Ui.nonmodal geo.ui "lib.view/drag-zoom";
@@ -1132,6 +1143,8 @@ let busy_tracks = Table.make 0
 let run_views (st : state) =
   let lib = st.library in
   let geo = st.geometry in
+
+  let (module WindowUi) = Option.get st.layout in
 
   let have_dir = lib.current <> None in
   let default =
@@ -1172,7 +1185,7 @@ let run_views (st : state) =
         Ui.text_color geo.ui
     in
 
-    run_view st Layout.left_view 1
+    run_view st WindowUi.Library.View.Left.view
       lib.artists busy_artists lib.albums
       Library.refresh_artists_is_busy Library.refresh_albums_tracks
       Library.reorder_artists view.artists view
@@ -1203,7 +1216,7 @@ let run_views (st : state) =
     in
 
     run_view st
-      Layout.(if geo.right_shown then right_view else left_view) geo.album_grid
+      WindowUi.Library.View.(if geo.right_shown then Right.view else Left.view)
       lib.albums busy_albums busy_tracks
       Library.refresh_albums_is_busy Library.refresh_tracks
       Library.reorder_albums view.albums view
@@ -1215,8 +1228,10 @@ let run_views (st : state) =
     (* Divider *)
     if geo.right_shown then
     (
-      let left_width', _ = Layout.right_divider geo geo.left_width
-        (Geometry.left_min_w geo) (Geometry.left_max_w geo) in
+      let left_width', _ =
+        WindowUi.Library.View.Divider.right geo.left_width
+          (Geometry.left_min_w geo) (Geometry.left_max_w geo)
+      in
       (* Possible drag of divider: update pane width *)
       if left_width' <> geo.left_width then
       (
@@ -1267,7 +1282,7 @@ let run_views (st : state) =
     in
 
     run_view st
-      Layout.(if geo.lower_shown then lower_view else left_view) geo.track_grid
+      WindowUi.Library.View.(if geo.lower_shown then Lower.view else Left.view)
       lib.tracks busy_tracks busy_tracks
       Library.refresh_tracks_is_busy ignore
       Library.reorder_tracks view.tracks view
@@ -1283,8 +1298,10 @@ let run_views (st : state) =
     (* Divider *)
     if geo.lower_shown then
     (
-      let upper_height', _ = Layout.lower_divider geo geo.upper_height
-        (Geometry.upper_min_h geo) (Geometry.upper_max_h geo) in
+      let upper_height', _ =
+        WindowUi.Library.View.Divider.lower geo.upper_height
+          (Geometry.upper_min_h geo) (Geometry.upper_max_h geo)
+      in
       (* Possible drag of divider: update pane height *)
       if upper_height' <> geo.upper_height then
       (
@@ -1305,12 +1322,13 @@ let run_log (st : state) =
   let geo = st.geometry in
   let log = Option.get lib.log in
 
-  Layout.log_pane geo;
+  let (module WindowUi) = Option.get st.layout in
+  let module LogUi = WindowUi.Library.Log in
 
   if geo.popup_shown = None then Table.deselect_all log.table;
 
   let pp_row i = log.table.entries.(i) in
-  (match Layout.log_table geo log.columns log.heading log.table pp_row with
+  (match LogUi.table log.columns log.heading log.table pp_row with
   | `None | `Scroll | `Move _ | `Drag _ | `Drop | `Abort
   | `Reorder _ | `HeadMenu _ ->
     ()
@@ -1351,12 +1369,13 @@ let run_browse_info (st : state) =
   let lib = st.library in
   let geo = st.geometry in
 
-  Layout.info_pane geo;
+  let (module WindowUi) = Option.get st.layout in
+  let module MessageUi = WindowUi.Library.Message in
 
-  Layout.msg_box geo;
+  MessageUi.box ();
   let now = Unix.gettimeofday () in
   if lib.error <> "" && now -. lib.error_time < 10.0 then
-    Layout.msg_text geo (Ui.error_color geo.ui) `Regular true lib.error
+    MessageUi.text (Ui.error_color geo.ui) `Regular true lib.error
   else
   (
     let tr = Table.length lib.tracks in
@@ -1376,13 +1395,13 @@ let run_browse_info (st : state) =
         count "track" trs tr tracks;
       ]
     in
-    Layout.msg_text geo (Ui.text_color geo.ui) `Regular true
+    MessageUi.text (Ui.text_color geo.ui) `Regular true
       (String.concat ", " (List.filter_map Fun.id counts))
 *)
     let count name m n = fmt "%s%d %s%s" (sel m) n name (plu n) in
     let counts = String.concat ", "
       [count "artist" ars ar; count "album" als al; count "track" trs tr] in
-    Layout.msg_text geo (Ui.text_color geo.ui) `Regular true counts
+    MessageUi.text (Ui.text_color geo.ui) `Regular true counts
   )
 
 
@@ -1391,16 +1410,20 @@ let run_log_info (st : state) =
   let lib = st.library in
   let log = Option.get lib.log in
 
-  Layout.info_pane geo;
-  Layout.msg_box geo;
-  Layout.msg_text geo (Ui.text_color geo.ui) `Regular true log.info
+  let (module WindowUi) = Option.get st.layout in
+  let module MessageUi = WindowUi.Library.Message in
+
+  MessageUi.box ();
+  MessageUi.text (Ui.text_color geo.ui) `Regular true log.info
 
 
 (* Buttons *)
 
 let run_browse_buttons (st : state) =
-  let geo = st.geometry in
   let lib = st.library in
+
+  let (module WindowUi) = Option.get st.layout in
+  let module EditUi = WindowUi.Library.Edit in
 
   let active_if avail = if avail st then Some false else None in
 (*
@@ -1408,17 +1431,17 @@ let run_browse_buttons (st : state) =
     if avail1 st || avail2 st then Some false else None in
 *)
 
-  if Layout.insert_button geo (active_if insert_avail) then
+  if EditUi.insert (active_if insert_avail) then
   (
     (* Click on Insert (Add) button: add directory or playlist *)
     insert st
   );
 
 (*
-  if Layout.remove_button geo (active_if2 remove_avail remove_list_avail) then
+  if EditUi.remove (active_if2 remove_avail remove_list_avail) then
 *)
   if (remove_avail st || remove_list_avail st)
-  && lib.browser.focus && Layout.del_key geo then
+  && EditUi.(del lib.browser.focus || del_alt lib.browser.focus) then
   (
     (* Click on Remove (Del) button: remove directory or playlist *)
     let dir = Option.get (lib.current) in
@@ -1428,19 +1451,19 @@ let run_browse_buttons (st : state) =
       remove_list st
   );
 
-  if Layout.create_button geo (active_if create_playlist_avail) then
+  if EditUi.create (active_if create_playlist_avail) then
   (
     (* Click on Create (New) button: create new playlist *)
     create_playlist st
   );
 
-  if Layout.view_button geo (active_if create_viewlist_avail) then
+  if EditUi.view (active_if create_viewlist_avail) then
   (
     (* Click on View button: create new viewlist *)
     create_viewlist st
   );
 
-  if Layout.rescan_button geo (active_if rescan_one_avail) then
+  if EditUi.rescan (active_if rescan_one_avail) then
   (
     (* Click on Rescan (Scan) button: rescan directory, view, or files *)
     Option.iter (fun (dir : dir) ->
@@ -1465,7 +1488,7 @@ let run_browse_buttons (st : state) =
     then Run_view.playlist_view st
     else Run_view.tracks_view st
   in
-  if Layout.tag_button geo (active_if (Fun.flip Run_view.tag_avail view)) then
+  if EditUi.tag (active_if (Fun.flip Run_view.tag_avail view)) then
   (
     (* Click on Tag button: execute tagging program *)
     Run_view.tag_button st view;
@@ -1473,13 +1496,15 @@ let run_browse_buttons (st : state) =
 
 
 let run_log_buttons (st : state) =
-  let geo = st.geometry in
   let lib = st.library in
   let log = Option.get lib.log in
 
+  let (module WindowUi) = Option.get st.layout in
+  let module LogUi = WindowUi.Library.Log in
+
   let ok = log.completed in
-  let ok' = Layout.log_ok_button geo (if ok then Some true else None) in
-  let cancel = Layout.log_cancel_button geo (Some false) in
+  let ok' = LogUi.Button.ok (if ok then Some true else None) in
+  let cancel = LogUi.Button.cancel (Some false) in
 
   if cancel then log.cancel <- true;
   if ok <> ok' || cancel then Log.complete log
@@ -1491,6 +1516,9 @@ let run (st : state) =
   let lib = st.library in
   let geo = st.geometry in
   let win = Ui.window geo.ui in
+
+  let (module WindowUi) = Option.get st.layout in
+  let module LibraryUi = WindowUi.Library in
 
   (* Update after possible window resize *)
   geo.browser_width <-
@@ -1522,7 +1550,7 @@ let run (st : state) =
   let focus = lib.tracks.entries <> [||] &&
     (lib.browser.focus || lib.artists.focus || lib.albums.focus) in
 
-  if Ui.key geo.ui Layout.key_copy focus then
+  if LibraryUi.Edit.copy focus then
   (
     (* Press of Copy key: write selected tracks to clipboard *)
     let s = Track.to_m3u lib.tracks.entries in
@@ -1533,7 +1561,7 @@ let run (st : state) =
 
   (* Possible drag of divider: update pane width *)
   let browser_width', _ =
-    Layout.browser_divider geo geo.browser_width
+    LibraryUi.Browser.divider geo.browser_width
       (Geometry.browser_min_w geo) (Geometry.browser_max_w geo)
   in
   geo.browser_width <- browser_width';

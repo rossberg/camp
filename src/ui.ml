@@ -6,10 +6,15 @@ open Audio_file
 
 (* State *)
 
+type pane = int
+type owner = string
+
 type drag = ..
 type drag += No_drag
 
 type image_load = [`Unloaded of string | `Loaded of image] ref
+
+module Map = Map.Make(String)
 
 type t =
 {
@@ -17,11 +22,13 @@ type t =
   mutable buffered : bool;
   mutable font_sdf : bool;
   mutable palette : int;
+  mutable pane : pane;
+  mutable pane_owners : pane Map.t;    (* map owners to panes *)
   mutable panes : (rect * rect) array; (* abstract and concrete rectangles *)
   mutable modal : bool;                (* whether a pop-up menu is shown *)
   mutable modal_resize : bool;         (* whether a resize happened this frame *)
   mutable modal_save : bool;           (* modal mode before the resize *)
-  mutable mouse_owner : string option; (* whether mouse was owned by a widget *)
+  mutable mouse_owner : owner option;  (* whether mouse was owned by a widget *)
   mutable drag  : drag;                (* associated data for drag operation *)
   mutable delayed : (unit -> unit) list; (* draw at end of frame *)
   img_background : image_load;
@@ -41,6 +48,8 @@ let make win =
     buffered = true;
     font_sdf = false (*Screen.is_hires (Window.screen win)*);
     palette = 0;
+    pane = 0;
+    pane_owners = Map.empty;
     panes = Array.make 10 ((0, 0, 0, 0), (0, 0, 0, 0));
     modal = false;
     modal_resize = false;
@@ -110,9 +119,6 @@ let except_modal ui label f =
 
 (* Panes *)
 
-type pane = int
-type owner = string
-
 let rel b v =
   if v >= 0 then v else
   if v = -1 then b else b + v
@@ -124,26 +130,38 @@ let rel_rect (maxw, maxh) (x, y, w, h) =
   let h' = rel (maxh - y') h in
   x', y', w', h'
 
-let pane ui i r =
+let pane ui owner r =
   let ww, wh as wsize = Window.size ui.win in
   let x, y, w, h as r' = rel_rect wsize r in
-  if not (x >= 0 && y >= 0 && x + w <= ww && y + h <= wh) then
+  if not (x >= 0 && y >= 0 && w >= 0 && h >= 0 (*&& x + w <= ww && y + h <= wh*)) then
   (
     Storage.log (Printf.sprintf
-      "invalid element geometry: x=%d y=%d w=%d h=%d winw=%d winh=%d"
-      x y w h ww wh
+      "invalid geometry for pane %s: x=%d y=%d w=%d h=%d winw=%d winh=%d"
+      owner x y w h ww wh
     );
     if !App.debug_layout then assert false;
   );
 
+  let p =
+    match Map.find_opt owner ui.pane_owners with
+    | Some p -> p
+    | None ->
+      let p = ui.pane in
+      ui.pane <- ui.pane + 1;
+      ui.pane_owners <- Map.add owner p ui.pane_owners;
+      p
+  in
+
   let n = Array.length ui.panes in
-  if i >= n then
+  if p >= n then
   (
     let z = 0, 0, 0, 0 in
     ui.panes <-
-      Array.init (2*i) (fun i -> if i < n then ui.panes.(i) else z, z);
+      Array.init (2 * p) (fun i -> if p < n then ui.panes.(p) else z, z);
   );
-  ui.panes.(i) <- r, r'
+  ui.panes.(p) <- r, r';
+
+  p
 
 let find_pane ui pos =
   match Array.find_opt (fun (_, r) -> inside pos r) ui.panes with
@@ -161,9 +179,9 @@ let find_pane ui pos =
 
 type area = pane * int * int * int * int
 
-let dim ui (i, x, y, w, h) =
+let dim ui (p, x, y, w, h) =
   let px, py, pw, ph =
-    if i >= 0 then snd ui.panes.(i) else
+    if p >= 0 then snd ui.panes.(p) else
     let ww, wh = Window.size ui.win in 0, 0, ww, wh
   in
   let x', y', w', h' = rel_rect (pw, ph) (x, y, w, h) in
@@ -555,7 +573,7 @@ let key_status ui (modifiers, key) focus =
   else
     key_status' ui key
 
-let mouse_status ui r owner (#side as side) =
+let mouse_status ui owner r (#side as side) =
   if ui.modal
   || not (has_mouse ui owner || inside (Mouse.pos ui.win) r && (side = `Right || grab_mouse ui owner)) then
     `Untouched
@@ -580,7 +598,7 @@ let string_of_drag = ref (function
   | _ -> assert false
   )
 
-let unexpected_drag ui s owner =
+let unexpected_drag ui owner s =
   Storage.log (Printf.sprintf
     "Unexpected drag status `%s` owned by %s in %s by %s\n%!"
       (!string_of_drag ui.drag)
@@ -588,7 +606,7 @@ let unexpected_drag ui s owner =
       s owner
   )
 
-let drag_status ui r owner (stepx, stepy) =
+let drag_status ui owner r (stepx, stepy) =
   if ui.modal || ui.drag = Abort
   || not (has_mouse ui owner || inside (Mouse.pos ui.win) r && grab_mouse ui owner) then
     `None
@@ -637,7 +655,7 @@ let drag_status ui r owner (stepx, stepy) =
       `None
     | _ ->
       (* Can happen after layout changes that invalidate origin *)
-      unexpected_drag ui "drag_status" owner; `None
+      unexpected_drag ui owner "drag_status"; `None
   )
 
 let wheel_status ui r =
@@ -647,8 +665,9 @@ let wheel_status ui r =
     (0.0, 0.0)
 
 let key ui modkey focus = (key_status ui modkey focus = `Released)
-let mouse ui area owner side = (mouse_status ui (dim ui area) owner side = `Released)
-let drag ui area owner eps = drag_status ui (dim ui area) owner eps
+let mouse ui owner area side =
+  (mouse_status ui owner (dim ui area) side = `Released)
+let drag ui owner area eps = drag_status ui owner (dim ui area) eps
 let wheel ui area = wheel_status ui (dim ui area)
 
 
@@ -752,8 +771,7 @@ let lcd ui area d =
 
 type adjustment = [`Crop of orientation | `Shrink]
 
-let image_size' ui area adjust img =
-  let _, _, w, h = dim ui area in
+let image_size' ui (w, h) adjust img =
   let iw, ih = Image.size img in
   let q = float w /. float h in
   let iq = float iw /. float ih in
@@ -771,7 +789,7 @@ let image_size' ui area adjust img =
 
 let image ui area adjust img =
   let x, y, w, h = dim ui area in
-  let w', h', iw', ih' = image_size' ui area adjust img in
+  let w', h', iw', ih' = image_size' ui (w, h) adjust img in
   let x', y' =
     if adjust = `Shrink then
       x + (w - w')/2, y + (h - h')/2
@@ -779,19 +797,19 @@ let image ui area adjust img =
   in
   Draw.image_part ui.win x' y' w' h' 0 0 iw' ih' 0.0 img
 
-let image_size ui area adjust img =
-  let w, h, _, _ = image_size' ui area adjust img in
+let image_size ui size adjust img =
+  let w, h, _, _ = image_size' ui size adjust img in
   w, h
 
 
 (* Passive Widgets *)
 
-let widget ui area owner_opt ?(focus = false) modkey =
+let widget ui owner_opt area ?(focus = false) modkey =
   let r = dim ui area in
   let mouse =
     match owner_opt with
     | None -> `Untouched
-    | Some owner -> mouse_status ui r owner `Left
+    | Some owner -> mouse_status ui owner r `Left
   in
   r,
   match mouse, key_status ui modkey focus with
@@ -802,11 +820,11 @@ let widget ui area owner_opt ?(focus = false) modkey =
 
 
 let box ui area c =
-  let (x, y, w, h), _ = widget ui area None no_modkey in
+  let (x, y, w, h), _ = widget ui None area no_modkey in
   Draw.fill_rect ui.win x y w h c
 
 let color_text ui area align c inv active s =
-  let (x, y, w, h), _status = widget ui area None no_modkey in
+  let (x, y, w, h), _status = widget ui None area no_modkey in
   let fg = mode c active in
   let bg = `Black in
   let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
@@ -826,7 +844,7 @@ let text ui area align =
   color_text ui area align (text_color ui)
 
 let ticker ui area s =
-  let (x, y, w, h), _status = widget ui area None no_modkey in
+  let (x, y, w, h), _status = widget ui None area no_modkey in
   Draw.fill_rect ui.win x y w h `Black;
   let tw = Draw.text_width ui.win h (font ui h) s in
   Draw.clip ui.win x y w h;
@@ -837,13 +855,13 @@ let ticker ui area s =
 
 (* Buttons *)
 
-let invisible_button ui area owner mods modkey focus =
-  let _, status = widget ui area (Some owner) no_modkey in
+let invisible_button ui owner area mods modkey focus =
+  let _, status = widget ui (Some owner) area no_modkey in
   focus && status = `Released && Key.are_modifiers_down mods ||
   key ui modkey focus
 
-let button ui area owner ?(protrude = true) modkey focus active =
-  let (x, y, w, h), status = widget ui area (Some owner) modkey ~focus in
+let button ui owner area ?(protrude = true) modkey focus active =
+  let (x, y, w, h), status = widget ui (Some owner) area modkey ~focus in
   let img = get_img ui ui.img_button in
   let sx, sy, h' = if status = `Pressed then 800, 400, h + 1 else 0, 200, h in
   Api.Draw.image_part ui.win x y w h' sx sy w h' 0.0 img;
@@ -869,9 +887,9 @@ let button ui area owner ?(protrude = true) modkey focus active =
   | None -> false
   | Some active -> if status = `Released then not active else active
 
-let labeled_button ui area owner ?(protrude = true) hsym c txt modkey focus active =
-  let (x, y, w, h), status = widget ui area (Some owner) modkey ~focus in
-  let result = button ui area owner ~protrude modkey focus active in
+let labeled_button ui owner area ?(protrude = true) hsym c txt modkey focus active =
+  let (x, y, w, h), status = widget ui (Some owner) area modkey ~focus in
+  let result = button ui owner area ~protrude modkey focus active in
   let c =
     match active with
     | None -> Color.darken semilit_alpha (inactive_color ui)
@@ -919,8 +937,8 @@ let labeled_button ui area owner ?(protrude = true) hsym c txt modkey focus acti
 
 (* Bars *)
 
-let progress_bar ui area owner l f_opt v =
-  let (x, y, w, h), status = widget ui area (Some owner) no_modkey in
+let progress_bar ui owner area l f_opt v =
+  let (x, y, w, h), status = widget ui (Some owner) area no_modkey in
   let w = quant_floor l w in
   let w' = quant_ceil l (int_of_float (v *. float w)) in
   Draw.fill_rect ui.win x y w h (fill ui false);
@@ -946,8 +964,8 @@ let progress_bar ui area owner l f_opt v =
   clamp 0.0 1.0 (float (mx - x) /. float w)
 
 
-let volume_bar ui area owner l v =
-  let (x, y, w, h), status = widget ui area (Some owner) no_modkey in
+let volume_bar ui owner area l v =
+  let (x, y, w, h), status = widget ui (Some owner) area no_modkey in
   let h = quant_floor l h in
   let h' = quant_ceil l (int_of_float ((1.0 -. v) *. float h)) in
   Draw.fill_rect ui.win (x + w - 2) y 2 h (fill ui true);
@@ -971,9 +989,9 @@ let _ =
     | Scroll_bar_drag _ -> "Scroll_bar_drag"
     | drag -> f' drag
 
-let scroll_bar ui area owner l orient v len =
+let scroll_bar ui owner area l orient v len =
   assert (v +. len < 2.0); (* at most 1 line over 1.0, but line may be a page *)
-  let (x, y, w, h), status = widget ui area (Some owner) no_modkey in
+  let (x, y, w, h), status = widget ui (Some owner) area no_modkey in
   let w, h =
     match orient with
     | `Vertical -> w, quant_floor l h
@@ -1051,8 +1069,8 @@ let _ =
     | Divide _ -> "Divide"
     | drag -> f' drag
 
-let divider2 ui area owner cursor (vx, vy) (minx, miny) (maxx, maxy) (snapx1, snapy1) (snapx2, snapy2) =
-  let (x, y, w, h), status = widget ui area (Some owner) no_modkey in
+let divider2 ui owner area cursor (vx, vy) (minx, miny) (maxx, maxy) (snapx1, snapy1) (snapx2, snapy2) =
+  let (x, y, w, h), status = widget ui (Some owner) area no_modkey in
   if not (has_mouse ui owner) then (vx, vy), false else
   let mouse = Mouse.pos ui.win in
   let vx', vy' =
@@ -1065,8 +1083,8 @@ let divider2 ui area owner cursor (vx, vy) (minx, miny) (maxx, maxy) (snapx1, sn
   if status <> `Untouched then Mouse.set_cursor ui.win (`Resize cursor);
   (*Draw.rect ui.win x y w h (border ui status);*)
   if status <> `Pressed then (vx, vy), true else
-  let i, _, _, _, _ = area in
-  let _, _, pw, ph = snd ui.panes.(i) in
+  let p, _, _, _, _ = area in
+  let _, _, pw, ph = dim ui (p, 0, 0, -1, -1) in
   let maxx = if maxx < 0 then pw else maxx in
   let maxy = if maxy < 0 then ph else maxy in
   let snapx1 = if snapx1 < 0 then min_int else snapx1 in
@@ -1077,13 +1095,13 @@ let divider2 ui area owner cursor (vx, vy) (minx, miny) (maxx, maxy) (snapx1, sn
     snap snapy1 snapy2 (clamp miny maxy vy')
   ), true
 
-let divider ui area owner orient v minv maxv =
+let divider ui owner area orient v minv maxv =
   let x, y, _, _ = dim ui area in
   let proj = match orient with `Horizontal -> fst | `Vertical -> snd in
   let inj v = match orient with `Horizontal -> v, y | `Vertical -> x, v in
   let cursor = match orient with `Horizontal -> `E_W | `Vertical -> `N_S in
   let vv, b =
-    divider2 ui area owner cursor (inj v) (inj minv) (inj maxv) (-1, -1) (-1, -1) in
+    divider2 ui owner area cursor (inj v) (inj minv) (inj maxv) (-1, -1) (-1, -1) in
   proj vv, b
 
 
@@ -1119,8 +1137,8 @@ let find_pos ui x h font s =
   in find 0
 
 
-let edit_text ui area owner ph s scroll selection c focus =
-  let (x, y, w, h), status = widget ui area (Some owner) no_modkey in
+let edit_text ui owner area ph s scroll selection c focus =
+  let (x, y, w, h), status = widget ui (Some owner) area no_modkey in
   let len = String.length s in
   let ch = max 1 (h - 2 * ph) in
   let font = font ui ch in
@@ -1314,10 +1332,10 @@ let edit_text ui area owner ph s scroll selection c focus =
       s, scroll', Some (lprim, rprim, sec), ch
 
 
-let rich_edit_text ui area owner ph highlight c (edit : Edit.t) =
+let rich_edit_text ui owner area ph highlight c (edit : Edit.t) =
   let _, _, _, h = dim ui area in
   let s', scroll', sel', ch =
-    edit_text ui area owner ph edit.text edit.scroll edit.sel_range c edit.focus
+    edit_text ui owner area ph edit.text edit.scroll edit.sel_range c edit.focus
   in
   if highlight && edit.focus then focus ui area (h / 2);
   if s' <> edit.text then
@@ -1449,8 +1467,8 @@ let find_gutter w gw cols hscroll dx =
     `Header i
   in find 0 (mw - hscroll)
 
-let table ui area owner gw ch ph cols rows hscroll =
-  let (x, y, w, _), status = widget ui area (Some owner) no_modkey in
+let table ui owner area gw ch ph cols rows hscroll =
+  let (x, y, w, _), status = widget ui (Some owner) area no_modkey in
   draw_table ui area gw ch ph cols rows hscroll;
   if status = `Pressed || status = `Released then
     let mx, my = Mouse.pos ui.win in
@@ -1475,11 +1493,11 @@ let _ =
     | Header_reorder _ -> "Header_reorder"
     | drag -> f' drag
 
-let header ui area owner ph gw cols (titles, sorting) hscroll =
-  let (x, y, w, h) as r, status = widget ui area (Some owner) no_modkey in
+let header ui owner area ph gw cols (titles, sorting) hscroll =
+  let (x, y, w, h) as r, status = widget ui (Some owner) area no_modkey in
   let texts = Iarray.map (fun s -> `Text s) titles in
   let th = h - 2 * ph in
-  ignore (table ui area owner gw th ph cols
+  ignore (table ui owner area gw th ph cols
     [|text_color ui, `Inverted, texts|] hscroll);
 
   let mw = table_pad gw in
@@ -1595,7 +1613,7 @@ let header ui area owner ph gw cols (titles, sorting) hscroll =
 
 type cached = buffer
 
-type rich_table =
+type rich_table_style =
   { gutter_w : int;
     text_h : int;
     pad_h : int;
@@ -1626,38 +1644,38 @@ type rich_table_action =
   | `HeadMenu of int option
   ]
 
-let rich_table_inner_area _ui area geo =
+let rich_table_inner_area _ui area sty =
   let p, ax, ay, aw, ah = area in
-  let ty = if not geo.has_heading then ay else ay + geo.text_h + 2 * geo.pad_h + 2 in
+  let ty = if not sty.has_heading then ay else ay + sty.text_h + 2 * sty.pad_h + 2 in
   let tw =
-    aw - (if geo.scroll_w = 0 then 0 else geo.scroll_w + 1)
+    aw - (if sty.scroll_w = 0 then 0 else sty.scroll_w + 1)
   in
   let th =
     ah -
     (if ah < 0 then 0 else ty - ay) -
-    (if geo.scroll_h = 0 then 0 else geo.scroll_h + 1)
+    (if sty.scroll_h = 0 then 0 else sty.scroll_h + 1)
   in
   (p, ax, ty, tw, th)
 
-let rich_table_mouse ui area geo cols (tab : _ Table.t) =
-  let area' = rich_table_inner_area ui area geo in
+let rich_table_mouse ui area sty cols (tab : _ Table.t) =
+  let area' = rich_table_inner_area ui area sty in
   let (x, y, w, _) as r = dim ui area' in
   let (mx, my) as m = Mouse.pos ui.win in
   if inside m r then
-    let row = (my - y) / (geo.text_h + 2 * geo.pad_h) + tab.vscroll in
+    let row = (my - y) / (sty.text_h + 2 * sty.pad_h) + tab.vscroll in
     Some (
       (if row < Table.length tab then Some row else None),
-      find_column w geo.gutter_w cols tab.hscroll (mx - x)
+      find_column w sty.gutter_w cols tab.hscroll (mx - x)
     )
   else
     None
 
-let rich_table_drag ui area geo style tab =
-  match rich_table_mouse ui area geo [||] tab with
+let rich_table_drag ui area sty style tab =
+  match rich_table_mouse ui area sty [||] tab with
   | Some (i_opt, _) ->
-    let area' = rich_table_inner_area ui area geo in
+    let area' = rich_table_inner_area ui area sty in
     let x, y, w, _ = dim ui area' in
-    let rh = geo.text_h + 2 * geo.pad_h in
+    let rh = sty.text_h + 2 * sty.pad_h in
     let i' = Option.value i_opt ~default: (Table.length tab) - tab.vscroll in
     focus' ui x (y + i' * rh) w rh (rh / 2) `White style
   | _ -> ()
@@ -1678,17 +1696,18 @@ let adjust_cache ui tab w h =
     Table.cache tab buf;
     buf
 
-let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t) pp_row =
-  assert (geo.has_heading = Option.is_some header_opt);
+let rich_table ui owner area (sty : rich_table_style) cols header_opt
+  (tab : _ Table.t) pp_row =
+  assert (sty.has_heading = Option.is_some header_opt);
   let p, ax, ay, aw, ah = area in
-  let rh = geo.text_h + 2 * geo.pad_h in
-  let _, tx, ty, tw, th = rich_table_inner_area ui area geo in
+  let rh = sty.text_h + 2 * sty.pad_h in
+  let _, tx, ty, tw, th = rich_table_inner_area ui area sty in
   let header_area = (p, ax, ay, tw, rh) in
   let table_area = (p, ax, ty, tw, th) in
   let vscroll_area =
-    (p, (if aw < 0 then tw else ax + tw) + 1, ay, geo.scroll_w, ah) in
+    (p, (if aw < 0 then tw else ax + tw) + 1, ay, sty.scroll_w, ah) in
   let hscroll_area =
-    (p, ax, (if ah < 0 then ah - geo.scroll_h else ty + th + 1), tw, geo.scroll_h) in
+    (p, ax, (if ah < 0 then ah - sty.scroll_h else ty + th + 1), tw, sty.scroll_h) in
   let (x, y, w, h) as r = dim ui table_area in
 
   let shift = is_shift_down () in
@@ -1716,7 +1735,7 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
       in
       if ui.buffered then Draw.buffered ui.win buf;
       let area' = if ui.buffered then (-1, 0, 0, w, h) else table_area in
-      draw_table ui area' geo.gutter_w geo.text_h geo.pad_h cols rows tab.hscroll;
+      draw_table ui area' sty.gutter_w sty.text_h sty.pad_h cols rows tab.hscroll;
       if ui.buffered then Draw.unbuffered ui.win;
       Table.clean tab;
     );
@@ -1724,12 +1743,12 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
 
     let mx, my = Mouse.pos ui.win in
     let i = tab.vscroll + (my - y) / rh in
-    let _, status = widget ui table_area (Some (owner ^ ":body")) no_modkey in
+    let _, status = widget ui (Some (owner ^ ":body")) table_area no_modkey in
     (* Mirrors logic in table *)
     let left_mouse_used = (status = `Pressed || status = `Released) in
 
     let find_column cols mx =
-      find_column w geo.gutter_w cols tab.hscroll (mx - x) in
+      find_column w sty.gutter_w cols tab.hscroll (mx - x) in
 
     let result =
       if not ui.modal && ui.drag = No_drag
@@ -1753,7 +1772,7 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
         `None
       else if not (shift || command) then
       (
-        match drag_status ui r (owner ^ ":body") (max_int, rh) with
+        match drag_status ui (owner ^ ":body") r (max_int, rh) with
         | `None -> `None
 
         | `Take ->
@@ -1854,7 +1873,10 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
       match header_opt with
       | None -> result
       | Some heading ->
-        match header ui header_area (owner ^ ":header") geo.pad_h geo.gutter_w cols heading tab.hscroll with
+        match
+          header ui (owner ^ ":header") header_area sty.pad_h sty.gutter_w
+            cols heading tab.hscroll
+        with
         | `Click i -> Table.dirty tab; `Sort i
         | `Resize ws -> Table.dirty tab; `Resize ws
         | `Reorder perm -> Table.dirty tab; `Reorder perm
@@ -1867,14 +1889,17 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
     let wdx, wdy = wheel_status ui (hx, hy, hw, hh + h) in
     let wdx, wdy = if Float.abs wdx > Float.abs wdy then wdx, 0.0 else 0.0, wdy in
     let result, vwheel =
-      if geo.scroll_w = 0 then result, true else
+      if sty.scroll_w = 0 then result, true else
       let vwheel = not shift && len > page || wdy = 0.0 in
       let h' = page * rh in
       let ext = if len = 0 then 1.0 else min 1.0 (float h' /. float (len * rh)) in
       let pos = if len = 0 then 0.0 else float tab.vscroll /. float len in
       let coeff = max 1.0 (float page /. 4.0) /. float (max 1 len) in
       let wheel = if vwheel then coeff *. wdy else 0.0 in
-      let pos' = scroll_bar ui vscroll_area (owner ^ ":vscroll") geo.scroll_l `Vertical pos ext -. wheel in
+      let pos' =
+        scroll_bar ui (owner ^ ":vscroll") vscroll_area sty.scroll_l
+          `Vertical pos ext -. wheel
+      in
       if result <> `None || pos = pos' then result, vwheel else
       (
         Table.set_vscroll tab
@@ -1885,13 +1910,16 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
 
     (* Horizontal scrollbar *)
     let result =
-      if geo.scroll_h = 0 then result else
-      let vw = Iarray.fold_left (fun w (cw, _) -> w + cw + geo.gutter_w) 2 cols in
+      if sty.scroll_h = 0 then result else
+      let vw = Iarray.fold_left (fun w (cw, _) -> w + cw + sty.gutter_w) 2 cols in
       let vw' = max vw (tab.hscroll + w) in
       let ext = if vw' = 0 then 1.0 else min 1.0 (float w /. float vw') in
       let pos = if vw' = 0 then 0.0 else float tab.hscroll /. float vw' in
       let wheel = if vwheel then wdx else wdy in
-      let pos' = scroll_bar ui hscroll_area (owner ^ ":hscroll") geo.scroll_l `Horizontal pos ext -. 0.05 *. wheel in
+      let pos' =
+        scroll_bar ui (owner ^ ":hscroll") hscroll_area sty.scroll_l
+          `Horizontal pos ext -. 0.05 *. wheel
+      in
       if result <> `None || pos = pos' then result else
       (
         Table.set_hscroll tab
@@ -1902,7 +1930,7 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
 
     (* Focus and mouse reflection *)
     if tab.focus then focus ui table_area (rh / 2);
-    mouse_focus ui area geo.refl_r 0x20 0;
+    mouse_focus ui area sty.refl_r 0x20 0;
 
     (* Keys *)
     let result =
@@ -2029,7 +2057,7 @@ let rich_table ui area owner (geo : rich_table) cols header_opt (tab : _ Table.t
     in
 
     let result =
-      if result <> `None || not tab.focus || geo.scroll_h = 0 then result else
+      if result <> `None || not tab.focus || sty.scroll_h = 0 then result else
       (
         let step = if shift then 10 else 50 in
         let dh =
@@ -2071,17 +2099,17 @@ let browser_pp_pre nest folded =
   in
   if nest = -1 then "" else String.make (3 * nest) ' ' ^ sym ^ " "
 
-let browser_entry_text_area ui area geo (tab : _ Table.t) i nest folded =
-  let p, x, y, w, _ = rich_table_inner_area ui area geo in
-  let mw = (geo.gutter_w + 1) / 2 in  (* inner width padding *)
+let browser_entry_text_area ui area sty (tab : _ Table.t) i nest folded =
+  let p, x, y, w, _ = rich_table_inner_area ui area sty in
+  let mw = (sty.gutter_w + 1) / 2 in  (* inner width padding *)
   let correction = if Api.is_mac then -2 else +1 in
   let dx = max 0
-    (Draw.text_width ui.win geo.text_h (font ui geo.text_h)
+    (Draw.text_width ui.win sty.text_h (font ui sty.text_h)
       (browser_pp_pre nest folded) + mw - tab.hscroll + correction)
-  and dy = (i - tab.vscroll) * (geo.text_h + 2 * geo.pad_h) in
-  (p, x + dx, y + dy + geo.pad_h, (if w < 0 then w else w - dx), geo.text_h)
+  and dy = (i - tab.vscroll) * (sty.text_h + 2 * sty.pad_h) in
+  (p, x + dx, y + dy + sty.pad_h, (if w < 0 then w else w - dx), sty.text_h)
 
-let browser ui area owner geo (tab : _ Table.t) pp_entry =
+let browser ui owner area sty (tab : _ Table.t) pp_entry =
   let cols : _ iarray = [|-1, `Left|] in
   let pp_row i : _ * _ iarray =
     let nest, folded, c, name = pp_entry i in
@@ -2089,7 +2117,7 @@ let browser ui area owner geo (tab : _ Table.t) pp_entry =
   in
 
   let selected = tab.selected in
-  (match rich_table ui area owner geo cols None tab pp_row with
+  (match rich_table ui owner area sty cols None tab pp_row with
   | `None -> `None
   | `Scroll -> `Scroll
   | `Move i -> `Move i
@@ -2114,7 +2142,7 @@ let browser ui area owner geo (tab : _ Table.t) pp_entry =
     let x, _, _, _ = dim ui area in
     let nest, folded, _, _ = pp_entry i in
     let tw =
-      Draw.text_width ui.win geo.text_h (font ui geo.text_h)
+      Draw.text_width ui.win sty.text_h (font ui sty.text_h)
         (browser_pp_pre nest folded) in
     if mx + tab.hscroll < x + tw
     && not ui.modal && Mouse.(is_down `Left || is_released `Left) then
@@ -2176,8 +2204,8 @@ let draw_grid ui area gw iw ch ph matrix =
   done
 
 
-let grid ui area owner gw iw ch ph matrix =
-  let (x, y, _, _), status = widget ui area (Some owner) no_modkey in
+let grid ui owner area gw iw ch ph matrix =
+  let (x, y, _, _), status = widget ui (Some owner) area no_modkey in
   draw_grid ui area gw iw ch ph matrix;
   if status = `Pressed || status = `Released then
     let mx, my = Mouse.pos ui.win in
@@ -2186,7 +2214,7 @@ let grid ui area owner gw iw ch ph matrix =
     None
 
 
-type grid_table =
+type grid_table_style =
   { gutter_w : int;
     img_h : int;
     text_h : int;
@@ -2199,18 +2227,18 @@ type grid_table =
 
 type grid_table_action = rich_table_action
 
-let grid_table_inner_area _ui area geo =
+let grid_table_inner_area _ui area sty =
   let p, ax, ay, aw, ah = area in
-  let ty = if not geo.has_heading then ay else ay + geo.text_h + 2 in
-  let tw = aw - (if geo.scroll_w = 0 then 0 else geo.scroll_w + 1) in
+  let ty = if not sty.has_heading then ay else ay + sty.text_h + 2 in
+  let tw = aw - (if sty.scroll_w = 0 then 0 else sty.scroll_w + 1) in
   let th = ah - (if ah < 0 then 0 else ty - ay) in
   (p, ax, ty, tw, th)
 
-let grid_table_mouse ui area geo (tab : _ Table.t) =
-  let area' = grid_table_inner_area ui area geo in
+let grid_table_mouse ui area sty (tab : _ Table.t) =
+  let area' = grid_table_inner_area ui area sty in
   let (x, y, w, _) as r = dim ui area' in
-  let iw = geo.gutter_w + geo.img_h in
-  let ih = iw + geo.text_h in
+  let iw = sty.gutter_w + sty.img_h in
+  let ih = iw + sty.text_h in
   let line = max 1 Float.(to_int (floor (float w /. float iw))) in
   let vscroll = tab.vscroll / line * line in
   let (mx, my) as m = Mouse.pos ui.win in
@@ -2220,28 +2248,29 @@ let grid_table_mouse ui area geo (tab : _ Table.t) =
   else
     None
 
-let grid_table_drag ui area geo style tab =
-  match grid_table_mouse ui area geo tab with
+let grid_table_drag ui area sty style tab =
+  match grid_table_mouse ui area sty tab with
   | Some (i_opt, _) ->
-    let area' = grid_table_inner_area ui area geo in
+    let area' = grid_table_inner_area ui area sty in
     let x, y, w, _ = dim ui area' in
-    let iw = geo.gutter_w + geo.img_h in
-    let ih = iw + geo.text_h in
+    let iw = sty.gutter_w + sty.img_h in
+    let ih = iw + sty.text_h in
     let line = max 1 Float.(to_int (floor (float w /. float iw))) in
     let vscroll = tab.vscroll / line * line in
     let i' = Option.value i_opt ~default: (Table.length tab) - vscroll in
-    focus' ui (x + i' mod line * iw) (y + i' / line * ih) iw ih (geo.text_h / 2) `White style
+    focus' ui (x + i' mod line * iw) (y + i' / line * ih) iw ih (sty.text_h / 2) `White style
   | _ -> ()
 
-let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_cell =
-  assert (geo.has_heading = Option.is_some header_opt);
+let grid_table ui owner area (sty : grid_table_style) header_opt
+  (tab : _ Table.t) pp_cell =
+  assert (sty.has_heading = Option.is_some header_opt);
   let p, ax, ay, aw, ah = area in
-  let ch = geo.text_h + 2 * geo.pad_h in
-  let _, _, ty, tw, th = grid_table_inner_area ui area geo in
+  let ch = sty.text_h + 2 * sty.pad_h in
+  let _, _, ty, tw, th = grid_table_inner_area ui area sty in
   let header_area = (p, ax, ay, tw, ch) in
   let table_area = (p, ax, ty, tw, th) in
   let vscroll_area =
-    (p, (if aw < 0 then tw else ax + aw + 1), ay, geo.scroll_w, ah) in
+    (p, (if aw < 0 then tw else ax + aw + 1), ay, sty.scroll_w, ah) in
   let (x, y, w, h) as r = dim ui table_area in
 
   let shift = is_shift_down () in
@@ -2249,7 +2278,7 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
 
   Mutex.protect tab.mutex (fun () ->
     let len = Array.length tab.entries in
-    let iw = geo.gutter_w + geo.img_h in
+    let iw = sty.gutter_w + sty.img_h in
     let ih = iw + ch in
     let line = max 1 Float.(to_int (floor (float w /. float iw))) in
     let page =
@@ -2277,7 +2306,7 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
       in
       if ui.buffered then Draw.buffered ui.win buf;
       let area' = if ui.buffered then (-1, 0, 0, w, h) else table_area in
-      draw_grid ui area' geo.gutter_w geo.img_h geo.text_h geo.pad_h matrix;
+      draw_grid ui area' sty.gutter_w sty.img_h sty.text_h sty.pad_h matrix;
       if ui.buffered then Draw.unbuffered ui.win;
       Table.clean tab;
     );
@@ -2288,7 +2317,7 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
     let k = vscroll + j * line + i in
     let on_bg = i >= line || k >= min len (vscroll + page_ceil) in
 
-    let _, status = widget ui table_area (Some (owner ^ ":body")) no_modkey in
+    let _, status = widget ui (Some (owner ^ ":body")) table_area no_modkey in
     (* Mirrors logic in grid *)
     let left_mouse_used = (status = `Pressed || status = `Released) in
 
@@ -2313,7 +2342,7 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
         `None
       else if not (shift || command) then
       (
-        match drag_status ui r (owner ^ ":body") (iw, ih) with
+        match drag_status ui (owner ^ ":body") r (iw, ih) with
         | `None -> `None
 
         | `Take ->
@@ -2399,9 +2428,12 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
       match header_opt with
       | None -> result
       | Some ((titles, _) as heading) ->
-        let cw = max 5 (w / Iarray.length titles - geo.gutter_w) in
+        let cw = max 5 (w / Iarray.length titles - sty.gutter_w) in
         let cols = Iarray.map (Fun.const (cw, `Left)) titles in
-        match header ui header_area (owner ^ ":header") geo.pad_h geo.gutter_w cols heading tab.hscroll with
+        match
+          header ui (owner ^ ":header") header_area sty.pad_h sty.gutter_w
+            cols heading tab.hscroll
+        with
         | `Click i -> `Sort i
         | `Resize ws -> `None
         | `Reorder perm -> `Reorder perm
@@ -2411,14 +2443,17 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
 
     (* Vertical scrollbar *)
     let result =
-      if geo.scroll_w = 0 then result else
+      if sty.scroll_w = 0 then result else
       let len' = (len + line - 1)/line * line in (* round to multiple of line *)
       let ext = if len = 0 then 1.0 else min 1.0 (float page /. float len') in
       let pos = if len = 0 then 0.0 else float tab.vscroll /. float len' in
       let coeff = max 1.0 (float line) /. float (len' - page) in
       let (hx, hy, hw, hh) = dim ui header_area in
       let wheel = coeff *. snd (wheel_status ui (hx, hy, hw, hh + h)) in
-      let pos' = scroll_bar ui vscroll_area (owner ^ ":scroll") geo.scroll_l `Vertical pos ext -. wheel in
+      let pos' =
+        scroll_bar ui (owner ^ ":scroll") vscroll_area sty.scroll_l
+          `Vertical pos ext -. wheel
+      in
       if result <> `None || pos = pos' then result else
       (
         Table.set_vscroll tab
@@ -2428,8 +2463,8 @@ let grid_table ui area owner (geo : grid_table) header_opt (tab : _ Table.t) pp_
     in
 
     (* Focus and mouse reflection *)
-    if tab.focus then focus ui table_area (geo.text_h / 2);
-    mouse_focus ui area geo.refl_r 0x20 0;
+    if tab.focus then focus ui table_area (sty.text_h / 2);
+    mouse_focus ui area sty.refl_r 0x20 0;
 
     (* Keys *)
     let result =
@@ -2563,7 +2598,7 @@ and setting_item =
   | `Section of setting list
   ]
 
-type settings =
+type settings_style =
   { margin : int;
     item_h : int;
     label_h : int;
@@ -2576,142 +2611,142 @@ type settings =
     scroll_l : int;
   }
 
-let rec settings_w ui geo = function
+let rec settings_w ui sty = function
   | [] -> 0, 0
   | setting :: settings ->
-    let lw1, rw1 = setting_w ui geo setting in
-    let lw', rw' = settings_w ui geo settings in
+    let lw1, rw1 = setting_w ui sty setting in
+    let lw', rw' = settings_w ui sty settings in
     max lw1 lw', max rw1 rw'
 
-and setting_w ui geo (name, item) =
-  let lw = Draw.text_width ui.win geo.item_h (font ui geo.item_h) name in
-  let lw', rw = item_w ui geo item in
-  max lw lw', max rw (lw - lw' - geo.sep_w)
+and setting_w ui sty (name, item) =
+  let lw = Draw.text_width ui.win sty.item_h (font ui sty.item_h) name in
+  let lw', rw = item_w ui sty item in
+  max lw lw', max rw (lw - lw' - sty.sep_w)
 
-and item_w ui geo = function
+and item_w ui sty = function
   | `Flag _ | `Text _ | `Number _ | `Button _ -> 0, 0  (* always flat *)
-  | `Choice choices -> 0, choices_w ui geo choices
+  | `Choice choices -> 0, choices_w ui sty choices
   | `Section settings ->
-    let lw, _ = settings_w ui geo settings in
-    lw + geo.indent_w, max_int  (* never flat *)
+    let lw, _ = settings_w ui sty settings in
+    lw + sty.indent_w, max_int  (* never flat *)
 
-and choices_w ui geo = function
+and choices_w ui sty = function
   | [] -> 0
   | (label, _, _) :: choices ->
-    let lw = Draw.text_width ui.win geo.label_h (font ui geo.label_h) label in
-    let w1 = geo.item_h + geo.pad_w + lw in
-    let w' = choices_w ui geo choices in
-    if w' = 0 then w1 else w1 + geo.sep_w + w'
+    let lw = Draw.text_width ui.win sty.label_h (font ui sty.label_h) label in
+    let w1 = sty.item_h + sty.pad_w + lw in
+    let w' = choices_w ui sty choices in
+    if w' = 0 then w1 else w1 + sty.sep_w + w'
 
 
-let rec settings_h ui geo xr xmax = function
+let rec settings_h ui sty xr xmax = function
   | [] -> 0
   | setting :: settings ->
-    setting_h ui geo xr xmax setting + geo.pad_h +
-    settings_h ui geo xr xmax settings
+    setting_h ui sty xr xmax setting + sty.pad_h +
+    settings_h ui sty xr xmax settings
 
-and setting_h ui geo xr xmax (_name, item) =
-  let _, wr = item_w ui geo item in
+and setting_h ui sty xr xmax (_name, item) =
+  let _, wr = item_w ui sty item in
   if xr + wr >= 0 && xr + wr <= xmax then
-    geo.item_h + geo.sep_h  (* flat *)
+    sty.item_h + sty.sep_h  (* flat *)
   else
-    item_h ui geo xr xmax item + geo.sep_h
+    item_h ui sty xr xmax item + sty.sep_h
 
-and item_h ui geo xr xmax = function
-  | `Flag _ | `Text _ | `Number _ | `Button _ -> geo.item_h
+and item_h ui sty xr xmax = function
+  | `Flag _ | `Text _ | `Number _ | `Button _ -> sty.item_h
   | `Choice choices ->
-    geo.item_h + (List.length choices - 1) * (geo.item_h + 2 * geo.pad_h)
+    sty.item_h + (List.length choices - 1) * (sty.item_h + 2 * sty.pad_h)
   | `Section settings ->
-    geo.item_h + 3 * geo.sep_h + settings_h ui geo xr xmax settings
+    sty.item_h + 3 * sty.sep_h + settings_h ui sty xr xmax settings
 
 
-let rec settings_focus_dy ui geo xr xmax = function
+let rec settings_focus_dy ui sty xr xmax = function
   | [] -> None
   | setting :: settings ->
-    match setting_focus_dy ui geo xr xmax setting with
+    match setting_focus_dy ui sty xr xmax setting with
     | Some _ as some -> some
     | None ->
-      Option.map ((+) (setting_h ui geo xr xmax setting + geo.pad_h))
-        (settings_focus_dy ui geo xr xmax settings)
+      Option.map ((+) (setting_h ui sty xr xmax setting + sty.pad_h))
+        (settings_focus_dy ui sty xr xmax settings)
 
-and setting_focus_dy ui geo xr xmax (_name, item) =
-  item_focus_dy ui geo xr xmax item
+and setting_focus_dy ui sty xr xmax (_name, item) =
+  item_focus_dy ui sty xr xmax item
 
-and item_focus_dy ui geo xr xmax = function
+and item_focus_dy ui sty xr xmax = function
   | `Text (ed, _, _, _) | `Number (_, ed, _, _, _, _, _) when ed.Edit.focus ->
     Some 0
   | `Flag _ | `Choice _ | `Button _ | `Text _ | `Number _ -> None
   | `Section settings ->
-    Option.map ((+) (geo.item_h + 2 * geo.sep_h))
-      (settings_focus_dy ui geo xr xmax settings)
+    Option.map ((+) (sty.item_h + 2 * sty.sep_h))
+      (settings_focus_dy ui sty xr xmax settings)
 
 
 let scrolled_area x y w h ymin ymax vscroll f =
   let y' = y - vscroll in
   if y' >= ymin && y' + h <= ymax then f (-1, x, y', w, h)
 
-let rec draw_settings ui geo owner xl xr y xmax ymin ymax vscroll = function
+let rec draw_settings ui sty owner xl xr y xmax ymin ymax vscroll = function
   | [] -> y
   | setting :: settings ->
-    let y' = draw_setting ui geo owner xl xr y xmax ymin ymax vscroll setting in
-    draw_settings ui geo owner xl xr (y' + geo.pad_h) xmax ymin ymax vscroll settings
+    let y' = draw_setting ui sty owner xl xr y xmax ymin ymax vscroll setting in
+    draw_settings ui sty owner xl xr (y' + sty.pad_h) xmax ymin ymax vscroll settings
 
-and draw_setting ui geo owner xl xr y xmax ymin ymax vscroll (name, item) =
+and draw_setting ui sty owner xl xr y xmax ymin ymax vscroll (name, item) =
   let owner' = owner ^ ":" ^ name in
-  scrolled_area xl y (xr - xl) geo.item_h ymin ymax vscroll (fun area ->
+  scrolled_area xl y (xr - xl) sty.item_h ymin ymax vscroll (fun area ->
     label ui area `Left name
   );
-  let _, wr = item_w ui geo item in
+  let _, wr = item_w ui sty item in
   if xr + wr >= 0 && xr + wr <= xmax then
-    draw_item_flat ui geo owner' xl xr y xmax ymin ymax vscroll item
-      + geo.sep_h
+    draw_item_flat ui sty owner' xl xr y xmax ymin ymax vscroll item
+      + sty.sep_h
   else
   (
     (match item with
     | `Section _ ->
-      let nw = Draw.text_width ui.win geo.item_h (font ui geo.item_h) name in
-      let x' = xl + nw + 2 * geo.pad_w in
-      let y' = y + geo.item_h * 4 / 5 in
+      let nw = Draw.text_width ui.win sty.item_h (font ui sty.item_h) name in
+      let x' = xl + nw + 2 * sty.pad_w in
+      let y' = y + sty.item_h * 4 / 5 in
       scrolled_area x' y' (xmax - x') 1 ymin ymax vscroll (fun area ->
         box ui area `White
       );
     | _ -> ()
     );
-    draw_item ui geo owner' (xl + geo.indent_w) xr y xmax ymin ymax vscroll item
-      + geo.sep_h
+    draw_item ui sty owner' (xl + sty.indent_w) xr y xmax ymin ymax vscroll item
+      + sty.sep_h
   )
 
-and draw_item_flat ui geo owner xl xr y xmax ymin ymax vscroll = function
+and draw_item_flat ui sty owner xl xr y xmax ymin ymax vscroll = function
   | `Choice choices ->
-    draw_choices_flat ui geo owner xr y xmax ymin ymax vscroll choices
+    draw_choices_flat ui sty owner xr y xmax ymin ymax vscroll choices
   | `Section _ ->
     assert false
   | item ->
-    draw_item ui geo owner xl xr y xmax ymin ymax vscroll item
+    draw_item ui sty owner xl xr y xmax ymin ymax vscroll item
 
-and draw_item ui geo owner xl xr y xmax ymin ymax vscroll = function
+and draw_item ui sty owner xl xr y xmax ymin ymax vscroll = function
   | `Flag (b, f) ->
-    let y' = y + (geo.item_h - geo.label_h) / 2 in
-    scrolled_area xr y' geo.label_h geo.label_h ymin ymax
+    let y' = y + (sty.item_h - sty.label_h) / 2 in
+    scrolled_area xr y' sty.label_h sty.label_h ymin ymax
       vscroll (fun area ->
         indicator ui `Green area b;
-        if invisible_button ui area owner [] no_modkey true then
+        if invisible_button ui owner area [] no_modkey true then
           f (not b)
     );
-    y + geo.item_h
+    y + sty.item_h
 
   | `Choice choices ->
-    draw_choices ui geo owner xr y xmax ymin ymax vscroll choices
+    draw_choices ui sty owner xr y xmax ymin ymax vscroll choices
 
   | `Text (ed, color, f, g) ->
-    scrolled_area xr y (xmax - xr) geo.item_h ymin ymax vscroll (fun area ->
+    scrolled_area xr y (xmax - xr) sty.item_h ymin ymax vscroll (fun area ->
       let s = ed.Edit.text in
       box ui area `Black;
-      ignore (rich_edit_text ui area owner 0 false color ed);
+      ignore (rich_edit_text ui owner area 0 false color ed);
       if ed.focus then f ed;
       if s <> ed.text then g ed.text;
     );
-    y + geo.item_h
+    y + sty.item_h
 
   | `Number (name, ed, n, nmin, nmax, f, g) ->
     let owner' = owner ^ ":" ^ name in
@@ -2720,24 +2755,24 @@ and draw_item ui geo owner xl xr y xmax ymin ymax vscroll = function
       n' >= nmin && n' <= nmax
     in
     let zeros = String.make (int_of_float (Float.log10 (float nmax)) + 2) '0' in
-    let w1 = Draw.text_width ui.win geo.item_h (font ui geo.item_h) zeros in
+    let w1 = Draw.text_width ui.win sty.item_h (font ui sty.item_h) zeros in
     let color = if valid () then text_color ui else error_color ui in
-    scrolled_area xr y w1 geo.item_h ymin ymax vscroll (fun area ->
+    scrolled_area xr y w1 sty.item_h ymin ymax vscroll (fun area ->
       box ui area `Black;
       let s = ed.text in
       let n = Option.value (int_of_string_opt s) ~default: (-1) in
       let prev = if n >= nmax then [] else [string_of_int (n + 1)] in
       let next = if n <= nmin then [] else [string_of_int (n - 1)] in
       Edit.set_history ed prev next;
-      ignore (rich_edit_text ui area owner' 0 false color ed);
+      ignore (rich_edit_text ui owner' area 0 false color ed);
       if ed.focus then f ed;
       if s <> ed.text && valid () then
         g (int_of_string ed.text)
     );
-    let xr' = xr + w1 + geo.pad_w in
-    let sh = geo.item_h/2 in
-    scrolled_area xr' y geo.item_h geo.item_h ymin ymax vscroll (fun area ->
-      if labeled_button ui area (owner' ^ ":dn") sh `White "\\/" no_modkey false (Some false)
+    let xr' = xr + w1 + sty.pad_w in
+    let sh = sty.item_h/2 in
+    scrolled_area xr' y sty.item_h sty.item_h ymin ymax vscroll (fun area ->
+      if labeled_button ui (owner' ^ ":dn") area sh `White "\\/" no_modkey false (Some false)
       && n > nmin then
       (
         f ed;
@@ -2745,9 +2780,9 @@ and draw_item ui geo owner xl xr y xmax ymin ymax vscroll = function
         g (n - 1)
       )
     );
-    let xr'' = xr' + geo.item_h in
-    scrolled_area xr'' y geo.item_h geo.item_h ymin ymax vscroll (fun area ->
-      if labeled_button ui area (owner' ^ ":up") sh `White "/\\" no_modkey false (Some false)
+    let xr'' = xr' + sty.item_h in
+    scrolled_area xr'' y sty.item_h sty.item_h ymin ymax vscroll (fun area ->
+      if labeled_button ui (owner' ^ ":up") area sh `White "/\\" no_modkey false (Some false)
       && n < nmax then
       (
         f ed;
@@ -2755,57 +2790,60 @@ and draw_item ui geo owner xl xr y xmax ymin ymax vscroll = function
         g (n + 1)
       )
     );
-    let xr''' = xr'' + geo.item_h + geo.pad_w in
-    let y' = y + (geo.item_h - geo.label_h) / 2 in
-    scrolled_area xr''' y' (xmax - xr''') geo.label_h ymin ymax vscroll (fun area ->
+    let xr''' = xr'' + sty.item_h + sty.pad_w in
+    let y' = y + (sty.item_h - sty.label_h) / 2 in
+    scrolled_area xr''' y' (xmax - xr''') sty.label_h ymin ymax vscroll (fun area ->
       label ui area `Left name
     );
-    y + geo.item_h
+    y + sty.item_h
 
   | `Button (name, f) ->
-    let tw = Draw.text_width ui.win geo.item_h (font ui geo.item_h) name in
-    scrolled_area xr y (tw + 2 * geo.margin) geo.item_h ymin ymax vscroll (fun area ->
-      if labeled_button ui area (owner ^ ":" ^ name) geo.label_h `White name no_modkey false
-        (Some false) then f ()
+    let tw = Draw.text_width ui.win sty.item_h (font ui sty.item_h) name in
+    scrolled_area xr y (tw + 2 * sty.margin) sty.item_h ymin ymax vscroll (fun area ->
+      if
+        labeled_button ui (owner ^ ":" ^ name) area sty.label_h `White name
+          no_modkey false (Some false)
+      then f ()
     );
-    y + geo.item_h
+    y + sty.item_h
 
   | `Section settings ->
-    let y' = y + geo.item_h + 2 * geo.sep_h in
-    draw_settings ui geo owner xl xr y' xmax ymin ymax vscroll settings + geo.sep_h
+    let y' = y + sty.item_h + 2 * sty.sep_h in
+    draw_settings ui sty owner xl xr y' xmax ymin ymax vscroll settings + sty.sep_h
 
-and draw_choices_flat ui geo owner x y xmax ymin ymax vscroll = function
-  | [] -> y + geo.item_h
+and draw_choices_flat ui sty owner x y xmax ymin ymax vscroll = function
+  | [] -> y + sty.item_h
   | choice :: choices ->
-    let x' = draw_choice ui geo owner x y xmax ymin ymax vscroll choice in
-    draw_choices_flat ui geo owner (x' + geo.sep_w) y xmax ymin ymax vscroll choices
+    let x' = draw_choice ui sty owner x y xmax ymin ymax vscroll choice in
+    draw_choices_flat ui sty owner
+      (x' + sty.sep_w) y xmax ymin ymax vscroll choices
 
-and draw_choices ui geo owner x y xmax ymin ymax vscroll = function
+and draw_choices ui sty owner x y xmax ymin ymax vscroll = function
   | [] -> y
   | choice :: choices ->
-    let _ = draw_choice ui geo owner x y xmax ymin ymax vscroll choice in
-    let y' = y + geo.item_h + if choices = [] then 0 else 2 * geo.pad_h in
-    draw_choices ui geo owner x y' xmax ymin ymax vscroll choices
+    let _ = draw_choice ui sty owner x y xmax ymin ymax vscroll choice in
+    let y' = y + sty.item_h + if choices = [] then 0 else 2 * sty.pad_h in
+    draw_choices ui sty owner x y' xmax ymin ymax vscroll choices
 
-and draw_choice ui geo owner x y xmax ymin ymax vscroll (name, b, f) =
-    let y' = y + (geo.item_h - geo.label_h) / 2 in
-    scrolled_area x y' geo.label_h geo.label_h ymin ymax vscroll (fun area ->
+and draw_choice ui sty owner x y xmax ymin ymax vscroll (name, b, f) =
+    let y' = y + (sty.item_h - sty.label_h) / 2 in
+    scrolled_area x y' sty.label_h sty.label_h ymin ymax vscroll (fun area ->
       indicator ui `Green area b
     );
-    let x' = x + geo.item_h + geo.pad_w in
-    let lw = Draw.text_width ui.win geo.label_h (font ui geo.label_h) name in
-    scrolled_area x' y' lw geo.label_h ymin ymax vscroll (fun area ->
+    let x' = x + sty.item_h + sty.pad_w in
+    let lw = Draw.text_width ui.win sty.label_h (font ui sty.label_h) name in
+    scrolled_area x' y' lw sty.label_h ymin ymax vscroll (fun area ->
       label ui area `Left name
     );
-    scrolled_area x (y - geo.pad_h/2) (x' - x + lw) (geo.item_h + geo.pad_h)
+    scrolled_area x (y - sty.pad_h/2) (x' - x + lw) (sty.item_h + sty.pad_h)
       ymin ymax vscroll (fun area ->
-      if invisible_button ui area (owner ^ ":" ^ name) [] no_modkey true then
+      if invisible_button ui (owner ^ ":" ^ name) area [] no_modkey true then
         f name
     );
     x' + lw
 
 
-let settings ui area owner geo vscroll adjust_vscroll settings =
+let settings ui owner area sty vscroll adjust_vscroll settings =
   let x, y, w, h as r = dim ui area in
   let p, ax, ay, _, _ = area in
 
@@ -2814,26 +2852,26 @@ let settings ui area owner geo vscroll adjust_vscroll settings =
   Draw.fill_rect ui.win (x + 1) (y + h - 2) (w - 1) 2 (`Gray 0x50);
   Draw.fill_rect ui.win (x + w - 1) y 1 (h - 2) (`Gray 0x70);
 
-  let wl, _ = settings_w ui geo settings in
-  let xl = x + geo.margin in
-  let xr = xl + wl + geo.sep_w in
-  let xmax = x + w - 2 * geo.margin - geo.scroll_w in
-  let ymin, ymax = y + geo.margin, y + h - geo.margin in
-  let hh = settings_h ui geo xr xmax settings in
+  let wl, _ = settings_w ui sty settings in
+  let xl = x + sty.margin in
+  let xr = xl + wl + sty.sep_w in
+  let xmax = x + w - 2 * sty.margin - sty.scroll_w in
+  let ymin, ymax = y + sty.margin, y + h - sty.margin in
+  let hh = settings_h ui sty xr xmax settings in
 
   let vscroll' =
     if not adjust_vscroll then min hh vscroll else
-    match settings_focus_dy ui geo xr xmax settings with
+    match settings_focus_dy ui sty xr xmax settings with
     | None -> min hh vscroll
     | Some dy ->
-      if dy - geo.item_h >= vscroll && dy + 2 * geo.item_h <= vscroll + h then
+      if dy - sty.item_h >= vscroll && dy + 2 * sty.item_h <= vscroll + h then
         vscroll
       else
-        dy - (h - geo.item_h - 2 * geo.margin)/2
+        dy - (h - sty.item_h - 2 * sty.margin)/2
   in
 
   let y' =
-    draw_settings ui geo owner xl xr (y + geo.margin)
+    draw_settings ui sty owner xl xr (y + sty.margin)
       xmax ymin ymax vscroll' settings
   in
 
@@ -2845,9 +2883,9 @@ let settings ui area owner geo vscroll adjust_vscroll settings =
   let ext = if set_h = 0 then 1.0 else min 1.0 (float page_h /. float set_h) in
   let pos = if set_h = 0 then 0.0 else float vscroll' /. float set_h in
 (*Printf.printf "scroll=%d pos=%.2f/ext=%.2f page_h=%d/set_h=%d\n%!" set.vscroll pos ext page_h set_h;*)
-  let scroll_area = (p, ax + w - geo.scroll_w - 1, ay + 2, geo.scroll_w, h - 3) in
+  let scroll_area = (p, ax + w - sty.scroll_w - 1, ay + 2, sty.scroll_w, h - 3) in
   let pos' =
-    scroll_bar ui scroll_area (owner ^ ":vscroll") geo.scroll_l `Vertical
+    scroll_bar ui (owner ^ ":vscroll") scroll_area sty.scroll_l `Vertical
       pos ext -. coeff *. wdy
   in
   clamp 0 (max 0 (set_h - page_h)) (int_of_float (Float.round (pos' *. float set_h)))
@@ -2855,7 +2893,7 @@ let settings ui area owner geo vscroll adjust_vscroll settings =
 
 (* Pop-ups *)
 
-let popup' ui r bw greyout =
+let popup ui owner r bw greyout =
   assert (is_modal ui);
   let x, y, w, h = r in
   let ww, wh = Window.size ui.win in
@@ -2872,20 +2910,12 @@ let popup' ui r bw greyout =
   Draw.fill_rect ui.win (x' + w') (y' + sw) sw h' `Black;
   Draw.fill_rect ui.win (x' + sw) (y' + h') w' sw `Black;
 
-  (x' + bw, y' + bw, w, h)
-
-
-let popup ui owner_opt i r bw greyout =
-  let r' = popup' ui r bw greyout in
-  pane ui i r';
-  Option.iter (fun owner ->
-    ignore (grab_mouse ui owner)  (* what if it fails? *)
-  ) owner_opt
+  pane ui owner (x' + bw, y' + bw, w, h)
 
 
 (* Menus *)
 
-type menu =
+type menu_style =
   { margin : int;
     gutter_w : int;
     text_h : int;
@@ -2901,10 +2931,10 @@ type menu_entry =
 
 let menu_separator = String.concat "" (List.init 80 (Fun.const "·"))
 
-let menu ui x y geo hscroll vscroll items =
+let menu ui x y sty hscroll vscroll items =
   assert (is_modal ui);
 
-  let font = font ui geo.text_h in
+  let font = font ui sty.text_h in
   let keys =
     Iarray.map (function
       | `Separator -> ""
@@ -2912,15 +2942,15 @@ let menu ui x y geo hscroll vscroll items =
         String.concat "+" Api.Key.(List.map modifier_name mods @ [name key])
     ) items
   in
-  let lw = 2 * geo.gutter_w +
+  let lw = 2 * sty.gutter_w +
     Iarray.fold_left (fun w -> function
       | `Separator -> w
       | `Entry (_, s, _, _) ->
-        max w (Draw.text_width ui.win geo.text_h font s + 1)
+        max w (Draw.text_width ui.win sty.text_h font s + 1)
     ) 0 items
   and rw =
     Iarray.fold_left (fun w s ->
-      max w (Draw.text_width ui.win geo.text_h font s + 1)
+      max w (Draw.text_width ui.win sty.text_h font s + 1)
     ) 0 keys
   in
 
@@ -2929,35 +2959,35 @@ let menu ui x y geo hscroll vscroll items =
 
   let ww, wh = Window.size ui.win in
 
-  let maxw, maxh = ww - 2 * geo.margin, wh - 2 * geo.margin in
-  let mw = (geo.gutter_w + 1)/2 in  (* inner width padding *)
-  let rh = geo.text_h + 2 * geo.pad_h in
-  let w = lw + geo.gutter_w + rw + 2 * mw in
+  let maxw, maxh = ww - 2 * sty.margin, wh - 2 * sty.margin in
+  let mw = (sty.gutter_w + 1)/2 in  (* inner width padding *)
+  let rh = sty.text_h + 2 * sty.pad_h in
+  let w = lw + sty.gutter_w + rw + 2 * mw in
   let h = rh * Iarray.length items in
-  let scroll_w = if h <= maxh then 0 else geo.scroll_w in
-  let scroll_h = if w <= maxw then 0 else geo.scroll_h in
+  let scroll_w = if h <= maxh then 0 else sty.scroll_w in
+  let scroll_h = if w <= maxw then 0 else sty.scroll_h in
   let w' = if scroll_w = 0 then w else w + scroll_w + 1 in
   let h' = if scroll_h = 0 then h else h + scroll_h + 1 in
   let w'' = min w' maxw in
   let h'' = min h' maxh in
-  let ax, ay, aw, ah = popup' ui (x, y, w'', h'') geo.margin true in
-  let area = (-1, ax, ay, aw, ah) in
+  let p = popup ui "(menu)" (x, y, w'', h'') sty.margin true in
+  let area = (p, 0, 0, -1, -1) in
   let page = (if scroll_h = 0 then h'' else h'' - scroll_h - 1) / rh in
 
-  let geo' : rich_table =
-    { gutter_w = geo.gutter_w;
-      text_h = geo.text_h;
-      pad_h = geo.pad_h;
+  let sty' : rich_table_style =
+    { gutter_w = sty.gutter_w;
+      text_h = sty.text_h;
+      pad_h = sty.pad_h;
       scroll_w;
       scroll_h;
-      scroll_l = geo.scroll_l;
-      refl_r = geo.refl_r;
+      scroll_l = sty.scroll_l;
+      refl_r = sty.refl_r;
       has_heading = false;
     }
   in
 
   let _, my = Mouse.pos ui.win in
-  let inner = rich_table_inner_area ui area geo' in
+  let inner = rich_table_inner_area ui area sty' in
   let _, iy, _, _ = dim ui inner in
   let i = if mouse_inside ui inner then (my - iy)/rh + vscroll else -1 in
 
@@ -2981,7 +3011,7 @@ let menu ui x y geo hscroll vscroll items =
 
   nonmodal ui "ui.menu";
   let owner = "(menu)" in
-  match rich_table ui area owner geo' cols None tab pp_row with
+  match rich_table ui owner area sty' cols None tab pp_row with
   | `Click (Some i, _) when enabled i -> `Click i
   | `Click (Some _, _) -> modal ui "ui.menu"; `None
   | `Click (None, _) -> `Close

@@ -24,8 +24,7 @@ let init (st : state) =
   Edit.set set.text_size (string_of_int geo.text);
   Edit.set set.text_padding (string_of_int geo.pad_y);
   Edit.set set.text_gutter (string_of_int geo.gutter);
-  Edit.set set.grid_tracks (string_of_int geo.track_grid);
-  Edit.set set.grid_albums (string_of_int geo.album_grid);
+  Edit.set set.grid_size (string_of_int geo.grid);
   Edit.set set.zoom_size (string_of_int geo.zoom_size);
   Edit.set set.scroll_width (string_of_int geo.scrollbar);
   Edit.set set.spec_bands (string_of_int ctl.spec_bands);
@@ -46,9 +45,10 @@ let run (st : state) focus_change =
   let cfg = st.config in
   let win = Ui.window geo.ui in
 
-  Layout.settings_pane geo;
+  let (module WindowUi) = Option.get st.layout in
+  let module SettingsUi = WindowUi.Settings () in
 
-  if Layout.done_but geo then
+  if SettingsUi.done_ () then
   (
     geo.settings_shown <- false;
     State.defocus_all st;
@@ -56,7 +56,7 @@ let run (st : state) focus_change =
 
   let focus_edit = State.focus_edit st in
   set.vscroll <-
-    Layout.settings geo set.vscroll focus_change (
+    SettingsUi.settings set.vscroll focus_change (
       [
         "DISPLAY", `Section [
           "COLOR", `Choice (List.init (Ui.num_palette geo.ui) (fun i ->
@@ -78,11 +78,8 @@ let run (st : state) focus_change =
           );
         ];
         "COVERS", `Section [
-          "TRACK VIEW", `Number ("SIZE", set.grid_tracks, geo.track_grid,
-            30, 1000, focus_edit, fun n -> geo.track_grid <- n
-          );
-          "ALBUM VIEW", `Number ("SIZE", set.grid_albums, geo.album_grid,
-            30, 1000, focus_edit, fun n -> geo.album_grid <- n
+          "GRID", `Number ("SIZE", set.grid_size, geo.grid,
+            30, 1000, focus_edit, fun n -> geo.grid <- n
           );
           "ZOOM", `Number ("MAX SIZE", set.zoom_size, geo.zoom_size,
             100, 1000, focus_edit, fun n -> geo.zoom_size <- n

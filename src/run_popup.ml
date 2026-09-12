@@ -32,7 +32,7 @@ let edit_custom (st : state) (tab : _ Table.t) (view : _ Library.view) mouse kin
       Option.iter (Library.save_dir st.library) st.library.current
     );
   st.geometry.popup_shown <- Some mouse;
-  Ui.modal st.geometry.ui "popup.menu"
+  Ui.modal st.geometry.ui "popup.custom"
 
 
 (* Menu creation *)
@@ -66,22 +66,22 @@ let header_menu (st : state) (tab : _ Table.t) (view : _ Library.view) kind
   let removes =
     current_attrs' |>
     List.map (fun a ->
-      `Entry (c, "Remove " ^ Library.attr_name a, Layout.nokey,
+      `Entry (c, "Remove " ^ Library.attr_name a, Layout.KeyBind.na,
          current_attrs <> []), a)
     |> List.sort compare
   and edits =
     current_attrs' |>
     List.map (fun a ->
-      `Entry (c, "Edit " ^ Library.attr_name a ^ "...", Layout.nokey,
+      `Entry (c, "Edit " ^ Library.attr_name a ^ "...", Layout.KeyBind.na,
         custom <> None))
     |> List.sort compare
   and adds =
     unused_attrs |>
     List.map (fun a ->
-      `Entry (c, "Add " ^ Library.attr_name a, Layout.nokey, true), a)
+      `Entry (c, "Add " ^ Library.attr_name a, Layout.KeyBind.na, true), a)
     |> List.sort compare
   and customs =
-    [ `Entry (c, "Add Custom Column...", Layout.nokey, true) ]
+    [ `Entry (c, "Add Custom Column...", Layout.KeyBind.na, true) ]
   in
   let sep = if removes = [] then [] else [`Separator] in
   let (items1 : _ iarray), f =
@@ -130,7 +130,7 @@ let header_menu (st : state) (tab : _ Table.t) (view : _ Library.view) kind
     if hide = None then [||] else
     [|
       `Separator;
-      `Entry (c, "Hide Column Headers", Layout.nokey, true)
+      `Entry (c, "Hide Column Headers", Layout.KeyBind.na, true)
     |];
   in
   menu' st (Iarray.append items1 items2) (fun k ->
@@ -148,7 +148,10 @@ let run_menu (st : state) (menu : Popup.menu) =
   let pop = st.popup in
   let x, y = Option.get geo.popup_shown in
 
-  match Layout.menu geo x y menu.hscroll menu.vscroll menu.items with
+  let (module WindowUi) = Option.get st.layout in
+  let module MenuUi = WindowUi.Menu () in
+
+  match MenuUi.menu x y menu.hscroll menu.vscroll menu.items with
   | `None -> ()
 
   | `Close ->
@@ -169,7 +172,6 @@ let run_menu (st : state) (menu : Popup.menu) =
 let run_zoom (st : state) (zoom : Popup.zoom) =
   let geo = st.geometry in
   let ctl = st.control in
-  let x, y = Option.get geo.popup_shown in
 
   let zoom_opt =
     match zoom with
@@ -199,24 +201,25 @@ let run_zoom (st : state) (zoom : Popup.zoom) =
     in
     let img_opt = Library.load_cover st.library (Ui.window geo.ui) path in
     let vis = if zoom = Current then ctl.zoom else `Cover in
-    let w, h =
+    let size w =
       match vis with
       | `Cover ->
-        Layout.zoom_popup_image_size geo
-          (Option.value img_opt ~default: (Ui.nocover geo.ui))
-      | `Turntable | `Oscilloscope ->
-        let w = Layout.zoom_popup_w geo in w, w
-      | `Spectrum | `Waveform ->
-        let w = Layout.zoom_popup_w geo in w, w/2
+        let img = Option.value img_opt ~default: (Ui.nocover geo.ui) in
+        Ui.image_size geo.ui (w, w) `Shrink img
+      | `Turntable | `Oscilloscope -> w, w
+      | `Spectrum | `Waveform -> w, w/2
     in
-    Layout.zoom_popup geo (x, y, w, h);
+
+    let (module WindowUi) = Option.get st.layout in
+    let module Zoom = WindowUi.Zoom(struct let g = geo let size = size end) in
+
     let text =
       artist ^ " - " ^ title ^
       (if year = "" then "" else " (" ^ year ^ ")") ^
       (if num = "" then "" else ", track " ^ num)
     in
-    Run_visualization.run st (Layout.zoom_popup_image_area geo) vis img_opt;
-    Layout.zoom_popup_text geo text;
+    Run_visualization.run st Zoom.image_area vis img_opt;
+    Zoom.text text;
   ) zoom_opt;
 
   if zoom_opt = None
@@ -232,15 +235,9 @@ let run_zoom (st : state) (zoom : Popup.zoom) =
 
 let run_custom (st : state) (custom : Popup.custom) =
   let geo = st.geometry in
-  let x, y = Option.get geo.popup_shown in
 
-  Layout.custom_popup geo x y;
-(*
-  Layout.custom_popup_name_label geo;
-  Layout.custom_popup_text_label geo;
-*)
-  Layout.custom_popup_name_box geo;
-  Layout.custom_popup_text_box geo;
+  let (module WindowUi) = Option.get st.layout in
+  let module CustomUi = WindowUi.Custom () in
 
   Ui.nonmodal geo.ui "run.custom";
 
@@ -248,13 +245,17 @@ let run_custom (st : state) (custom : Popup.custom) =
   let expr = custom.expr.text in
   let expr_color =
     Ui.(if custom.valid custom.expr.text then text_color else error_color) in
-  let _ = Layout.custom_popup_name_edit geo custom.name in
+
+  CustomUi.Name.box ();
+  let _ = CustomUi.Name.edit custom.name in
   if custom.name.focus then Edit.defocus custom.expr;
-  let _ = Layout.custom_popup_text_edit geo (expr_color geo.ui) custom.expr in
+
+  CustomUi.Text.box ();
+  let _ = CustomUi.Text.edit (expr_color geo.ui) custom.expr in
   if custom.expr.focus then Edit.defocus custom.name;
 
-  let ok = Layout.custom_popup_ok_button geo in
-  let cancel = Layout.custom_popup_cancel_button geo in
+  let ok = CustomUi.Key.ok () in
+  let cancel = CustomUi.Key.cancel () in
 
   if custom.name.text <> name || custom.expr.text <> expr then
     custom.ok custom.name.text custom.expr.text;  (* update live *)

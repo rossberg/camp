@@ -18,18 +18,17 @@ val nonmodal : t -> string -> unit
 val is_modal : t -> bool
 val except_modal : t -> string -> (unit -> 'a) -> 'a
 
-
 (* Snapping *)
 
 val snap : int -> int -> int -> int
 
 (* Panes *)
 
-type pane = int
+type pane
 type owner = string
 
-val pane : t -> pane -> rect -> unit
-val popup : t -> owner option -> pane -> rect -> int -> bool -> unit
+val pane : t -> owner -> rect -> pane
+val popup : t -> owner -> rect -> int -> bool -> pane
 
 (* Areas *)
 
@@ -56,7 +55,6 @@ val inactive_color : t -> color
 val unlit_color : color -> color
 val semilit_color : color -> color
 
-
 (* Fonts *)
 
 val font : t -> int -> Api.font
@@ -74,8 +72,8 @@ type motion = [`Unmoved | `Moving | `Moved]
 type trajectory = [`Inside | `Outside | `Outward | `Inward]
 
 val key : t -> modifier list * key -> bool -> bool
-val mouse : t -> area -> string -> side -> bool
-val drag : t -> area -> string -> size ->
+val mouse : t -> owner -> area -> side -> bool
+val drag : t -> owner -> area -> size ->
   [`None | `Click | `Take | `Drag of size * motion * trajectory | `Drop | `Abort]
 val wheel : t -> area -> float * float
 
@@ -108,7 +106,7 @@ val label : t -> area -> align -> string -> unit
 val indicator : t -> color -> area -> bool -> unit
 val lcd : t -> area -> char -> unit
 val image : t -> area -> adjustment -> Api.image -> unit
-val image_size : t -> area -> adjustment -> Api.image -> int * int
+val image_size : t -> size -> adjustment -> Api.image -> size
 
 val box : t -> area -> color -> unit
 val text : t -> area -> align -> inversion -> bool -> string -> unit
@@ -116,21 +114,20 @@ val color_text : t -> area -> align -> color -> inversion -> bool -> string -> u
 val ticker : t -> area -> string -> unit
 
 (*
-val edit_text : t -> area -> owner -> int -> string -> int -> (int * int * int) option -> color -> bool -> string * int * (int * int * int) option * Uchar.t
+val edit_text : t -> owner -> area -> int -> string -> int -> (int * int * int) option -> color -> bool -> string * int * (int * int * int) option * Uchar.t
 *)
-val rich_edit_text : t -> area -> owner -> int -> bool -> color -> Edit.t -> Uchar.t
+val rich_edit_text : t -> owner -> area -> int -> bool -> color -> Edit.t -> Uchar.t
 
-val button : t -> area -> owner -> ?protrude: bool -> modifier list * key -> bool -> bool option -> bool
-val labeled_button : t -> area -> owner -> ?protrude: bool -> int -> color -> string -> modifier list * key -> bool -> bool option -> bool
-val invisible_button : t -> area -> owner -> modifier list -> modifier list * key -> bool -> bool
+val button : t -> owner -> area -> ?protrude: bool -> modifier list * key -> bool -> bool option -> bool
+val labeled_button : t -> owner -> area -> ?protrude: bool -> int -> color -> string -> modifier list * key -> bool -> bool option -> bool
+val invisible_button : t -> owner -> area -> modifier list -> modifier list * key -> bool -> bool
 
-val progress_bar : t -> area -> owner -> int -> (float -> string * int * color) option -> float -> float
-val volume_bar : t -> area -> owner -> int -> float -> float
-val scroll_bar : t -> area -> owner -> int -> Api.orientation -> float -> float -> float
+val progress_bar : t -> owner -> area -> int -> (float -> string * int * color) option -> float -> float
+val volume_bar : t -> owner -> area -> int -> float -> float
+val scroll_bar : t -> owner -> area -> int -> Api.orientation -> float -> float -> float
 
-val divider : t -> area -> owner -> Api.orientation -> int -> int -> int -> int * bool
-val divider2 : t -> area -> owner -> Api.resize -> size -> size -> size -> size -> size -> size * bool
-
+val divider : t -> owner -> area -> Api.orientation -> int -> int -> int -> int * bool
+val divider2 : t -> owner -> area -> Api.resize -> size -> size -> size -> size -> size -> size * bool
 
 (* Table *)
 
@@ -150,7 +147,7 @@ val header : t -> area -> string -> int -> int -> column iarray -> heading -> in
 
 type cached
 
-type rich_table =
+type rich_table_style =
   { gutter_w : int;
     text_h : int;
     pad_h : int;
@@ -183,19 +180,19 @@ type rich_table_action =
 
 val rich_table :
   t -> 
-  area ->
   owner ->
-  rich_table ->
+  area ->
+  rich_table_style ->
   column iarray ->                 (* column layout *)
   heading option ->                (* headers (None if has_heading = false) *)
   ('a, cached) Table.t ->          (* data *)
   (int -> color * cell iarray) ->  (* row generator *)
     rich_table_action
 
-val rich_table_inner_area : t -> area -> rich_table -> area
-val rich_table_mouse : t -> area -> rich_table -> column iarray ->
+val rich_table_inner_area : t -> area -> rich_table_style -> area
+val rich_table_mouse : t -> area -> rich_table_style -> column iarray ->
   ('a, cached) Table.t -> (int option * int option) option
-val rich_table_drag : t -> area -> rich_table -> [`Above | `Inside] ->
+val rich_table_drag : t -> area -> rich_table_style -> [`Above | `Inside] ->
   ('a, cached) Table.t -> unit
 
 (* Browser *)
@@ -207,15 +204,15 @@ type browser_action =
 
 val browser :
   t ->
-  area ->
   owner ->
-  rich_table ->  (* gutter_w unused *)
+  area ->
+  rich_table_style ->  (* gutter_w unused *)
   ('a, cached) Table.t ->                         (* data *)
   (int -> int * bool option * color * string) ->  (* entry generator *)
     browser_action
 
 val browser_entry_text_area :
-  t -> area -> rich_table -> ('a, cached) Table.t -> int -> int ->
+  t -> area -> rich_table_style -> ('a, cached) Table.t -> int -> int ->
   bool option -> area
 
 (* Grid *)
@@ -227,7 +224,7 @@ val grid :
     (int * int) option
 *)
 
-type grid_table =
+type grid_table_style =
   { gutter_w : int;
     img_h : int;
     text_h : int;
@@ -242,18 +239,18 @@ type grid_table_action = rich_table_action
 
 val grid_table :
   t ->
-  area ->
   owner ->
-  grid_table ->
+  area ->
+  grid_table_style ->
   heading option ->  (* None if has_heading = false*)
   ('a, cached) Table.t ->
   (int -> Api.image * color * string) ->
     grid_table_action
 
-val grid_table_inner_area : t -> area -> grid_table -> area
-val grid_table_mouse : t -> area -> grid_table ->
+val grid_table_inner_area : t -> area -> grid_table_style -> area
+val grid_table_mouse : t -> area -> grid_table_style ->
   ('a, cached) Table.t -> (int option * int option) option
-val grid_table_drag : t -> area -> grid_table -> [`Left | `Inside] ->
+val grid_table_drag : t -> area -> grid_table_style -> [`Left | `Inside] ->
   ('a, cached) Table.t -> unit
 
 
@@ -269,7 +266,7 @@ and setting_item =
   | `Section of setting list
   ]
 
-type settings =
+type settings_style =
   { margin : int;
     item_h : int;     (* size for buttons, indicators, edit fields etc. *)
     label_h : int;    (* text size for choice labels *)
@@ -282,12 +279,13 @@ type settings =
     scroll_l : int;   (* scrollbar line width *)
   }
 
-val settings : t -> area -> owner -> settings -> int -> bool -> setting list -> int
+val settings :
+  t -> owner -> area -> settings_style -> int -> bool -> setting list -> int
 
 
 (* Menus *)
 
-type menu =
+type menu_style =
   { margin : int;
     gutter_w : int;
     text_h : int;
@@ -301,5 +299,5 @@ type menu =
 type menu_entry =
   [`Separator | `Entry of color * string * (modifier list * key) * bool]
 
-val menu : t -> int -> int -> menu -> int -> int -> menu_entry iarray ->
+val menu : t -> int -> int -> menu_style -> int -> int -> menu_entry iarray ->
   [`None | `Close | `Click of int | `Scroll of int * int]

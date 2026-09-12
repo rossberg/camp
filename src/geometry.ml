@@ -26,15 +26,14 @@ type t =
   mutable window : float * float * float * float;
   mutable repair_log_columns : int iarray;
   mutable filesel_shown : bool;
-  mutable popup_shown : (int * int) option;
+  mutable popup_shown : Api.point option;
   mutable browser_width : int;
   mutable directories_width : int;
   mutable left_width : int;
   mutable right_shown : bool;
   mutable upper_height : int;
   mutable lower_shown : bool;
-  mutable album_grid : int;
-  mutable track_grid : int;
+  mutable grid : int;
   mutable zoom_size : int;
 }
 
@@ -77,8 +76,7 @@ let make ui =
     right_shown = false;
     upper_height = 200;
     lower_shown = false;
-    album_grid = 100;
-    track_grid = 100;
+    grid = 100;
     zoom_size = 500;
   }
 
@@ -100,6 +98,7 @@ let smin g v = min (sx g v) (sy g v)
 let smax g v = max (sx g v) (sy g v)
 
 let margin g = smin g g.margin
+let sep g = smin g 4
 let zoom_margin g = margin g / 2
 let divider_w g = margin g
 
@@ -117,6 +116,10 @@ let indicator_w g = smin g 7
 let bottom_h g = line_h g + margin g
 let footer_y g = - line_h g - (bottom_h g - line_h g)/2
 
+let edit_sep g = sx g 5
+let edit_w g = sx g 27
+let edit_h g = line_h g + smin g 7
+
 let extension_shown_w g = g.library_shown || g.filesel_shown
 let extension_shown_h g = g.playlist_shown || g.settings_shown
 let extension_left g = g.extension_side = `Left
@@ -132,7 +135,7 @@ let control_h g = g.control_height
 let control_x g = if extension_shown_w g && extension_left g then -control_w g else 0
 let control_y _g = 0
 
-let extension_x g = if extension_left g then 0 else control_w g - margin g
+let extension_x g = if extension_shown_w g && extension_left g then 0 else control_w g - margin g
 let extension_y g = control_y g + control_h g
 let extension_w g = g.extension_width
 let extension_h g = g.extension_height
@@ -239,10 +242,8 @@ let ok geo =
     (geo.label >= min_text_size && geo.label <= max_text_size) @
   check "button label size in range"
     (geo.button_label >= min_text_size && geo.button_label <= max_text_size) @
-  check "album grid size in range"
-    (geo.album_grid >= min_grid_size && geo.album_grid <= max_grid_size) @
-  check "track grid size in range"
-    (geo.track_grid >= min_grid_size && geo.track_grid <= max_grid_size) @
+  check "grid size in range"
+    (geo.grid >= min_grid_size && geo.grid <= max_grid_size) @
   check "control width in range"
     (geo.control_width >= control_min_w) @
   check "control height in range"
@@ -683,8 +684,7 @@ let print_state geo =
     "upper_height", nat geo.upper_height;
     "left_width", nat geo.left_width;
     "directories_width", nat geo.directories_width;
-    "album_grid", nat geo.album_grid;
-    "track_grid", nat geo.track_grid;
+    "grid", nat geo.grid;
     "repair_cols", iarray nat geo.repair_log_columns;
     "zoom_size", nat geo.zoom_size;
   ]) geo
@@ -751,10 +751,8 @@ let parse_state geo =  (* assumes playlist and library loaded *)
       (fun h -> geo.upper_height <- h);
     apply (r $? "directories_width") (num (directories_min_w geo) (directories_max_w geo))
       (fun w -> geo.directories_width <- w);
-    apply (r $? "album_grid") (num min_grid_size max_grid_size)
-      (fun w -> geo.album_grid <- w);
-    apply (r $? "track_grid") (num min_grid_size max_grid_size)
-      (fun w -> geo.track_grid <- w);
+    apply (r $? "grid") (num min_grid_size max_grid_size)
+      (fun w -> geo.grid <- w);
     apply (r $? "repair_cols") (iarray (num 10 1000))
       (fun ws -> if Iarray.length ws = 3 then geo.repair_log_columns <- ws);
     apply (r $? "zoom_size") (num min_zoom_size max_zoom_size)

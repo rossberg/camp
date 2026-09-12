@@ -49,10 +49,11 @@ let run (st : state) =
   let len = Table.length tab in
   let now = Unix.time () in
 
-  Layout.playlist_pane geo;
+  let (module WindowUi) = Option.get st.layout in
+  let module PlaylistUi = WindowUi.Playlist in
 
   (* Playlist table *)
-  let _, _, _, h = Ui.dim geo.ui (Layout.playlist_area geo) in
+  let _, _, _, h = Ui.dim geo.ui PlaylistUi.area in
   let text_h = Geometry.text_h geo in
   let page = max 1 (int_of_float (Float.floor (float h /. float text_h))) in
   let digits_pos = log10 (len + 1) + 1 in
@@ -132,7 +133,7 @@ let run (st : state) =
 
   let sorting = convert_sorting pl.view.columns pl.view.sorting in
   let header = if geo.playlist_headers then Some (headings, sorting) else None in
-  (match Layout.playlist_table geo cols header tab pp_row with
+  (match PlaylistUi.table cols header tab pp_row with
   | `None | `Scroll | `Sort _ -> ()
 
   | `Resize ws ->
@@ -235,7 +236,7 @@ let run (st : state) =
   | `Drop ->
     if Api.Key.are_modifiers_down [] then
     (
-      if Ui.mouse_inside geo.ui (Layout.playlist_area geo) then
+      if Ui.mouse_inside geo.ui PlaylistUi.area then
       (
         (* Dropping inside playlist: drop aux undo if no change *)
         Table.clean_undo pl.table
@@ -254,7 +255,7 @@ let run (st : state) =
   | `Abort ->
     if Api.Key.are_modifiers_down [] then
     (
-      if Ui.mouse_inside geo.ui (Layout.playlist_area geo) then
+      if Ui.mouse_inside geo.ui PlaylistUi.area then
       (
         (* Aborting inside playlist: snap back to original state *)
         Playlist.undo pl;
@@ -300,7 +301,7 @@ let run (st : state) =
 
   if geo.popup_shown <> None && Api.Mouse.is_down `Left then
   (
-    match st.popup.kind, Layout.playlist_mouse geo cols tab with
+    match st.popup.kind, PlaylistUi.mouse cols tab with
     | Some (`Zoom _), Some (Some i, _) ->
       (* Drag with active cover popup: update cover *)
       Ui.nonmodal geo.ui "pl.run/drag-cover";
@@ -319,5 +320,5 @@ let run (st : state) =
     fmt_total pl.total_selected ^ "/"
   in
   let s2 = fmt_total pl.total in
-  Layout.playlist_total_box geo;
-  Layout.playlist_total_text geo `Regular true (s1 ^ s2)
+  PlaylistUi.Total.box ();
+  PlaylistUi.Total.text (s1 ^ s2)
