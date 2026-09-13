@@ -1,3 +1,30 @@
+open Raylib
+
+let x = ref 0
+let y = ref 0
+let m = ref 0
+
+let report s =
+  let v = get_window_position () in
+  let x' = int_of_float (Vector2.x v) in
+  let y' = int_of_float (Vector2.y v) in
+  let m' = get_current_monitor () in
+  if x' <> !x || y' <> !y || m' <> !m then
+  (
+    Printf.printf "[%s] x=%d y=%d mon=%d\n%!" s x' y' m';
+    x := x'; y := y'; m := m';
+  )
+
+let main =
+  init_window 400 400 "TEST";
+  while not (window_should_close ()) do
+    begin_drawing ();
+    report "after begin";
+    end_drawing ();
+    report "after end";
+    Unix.sleepf 0.01
+  done;
+  exit 0
 (* Main Program *)
 
 open Audio_file
