@@ -946,7 +946,7 @@ let progress_bar ui owner area l f_opt v =
   for i = 0 to w / l / 2 - 1 do
     Draw.fill_rect ui.win (x + (2*i + 1)*l) y l h `Black
   done;
-  Draw.rect ui.win x y w h (border ui status);
+  (*Draw.rect ui.win x y w h (border ui status);*)
   if status <> `Untouched then
   (
     Option.iter (fun f ->
@@ -1022,7 +1022,7 @@ let scroll_bar ui owner area l orient v len =
       Draw.fill_rect ui.win (x + (2*i + 1)*l) y l h `Black
     done
   );
-  Draw.rect ui.win x y w h (border ui status);
+  (*Draw.rect ui.win x y w h (border ui status);*)
   if status <> `Pressed then v else
   let (mx, my) as m = Mouse.pos ui.win in
   let v0, mx0, my0, last_repeat, dragging =
@@ -1885,8 +1885,7 @@ let rich_table ui owner area (sty : rich_table_style) cols header_opt
     in
 
     (* Vertical scrollbar *)
-    let (hx, hy, hw, hh) = dim ui header_area in
-    let wdx, wdy = wheel_status ui (hx, hy, hw, hh + h) in
+    let wdx, wdy = wheel_status ui (dim ui area) in
     let wdx, wdy = if Float.abs wdx > Float.abs wdy then wdx, 0.0 else 0.0, wdy in
     let result, vwheel =
       if sty.scroll_w = 0 then result, true else
