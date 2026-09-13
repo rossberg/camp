@@ -149,7 +149,7 @@ check-release: check
 
 # Clean-up
 
-clean:
+clean: deps
 	opam exec -- dune clean
 	rm -rf $(NAME) $(NAME).opam
 	rm -rf Info.plist.*
