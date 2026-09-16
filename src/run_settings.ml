@@ -111,12 +111,14 @@ let run (st : state) focus_change =
               (fun _ -> Control.set_visual ctl `Oscilloscope);
           ];
           "TURNTABLE", `Choice [
-            "33 RPM", ctl.turn_rpm = 33,
-              (fun _ -> ctl.turn_rpm <- 33);
-            "45 RPM", ctl.turn_rpm = 45,
-              (fun _ -> ctl.turn_rpm <- 45);
-            "78 RPM", ctl.turn_rpm = 78,
-              (fun _ -> ctl.turn_rpm <- 78);
+            "16 RPM", ctl.turn_rpm = 100.0/.6.0,
+              (fun _ -> ctl.turn_rpm <- 100.0/.6.0);
+            "33 RPM", ctl.turn_rpm = 100.0/.3.0,
+              (fun _ -> ctl.turn_rpm <- 100.0/.3.0);
+            "45 RPM", ctl.turn_rpm = 45.0,
+              (fun _ -> ctl.turn_rpm <- 45.0);
+            "78 RPM", ctl.turn_rpm = 78.0,
+              (fun _ -> ctl.turn_rpm <- 78.0);
           ];
           "SPECTRUM", `Number ("BANDS", set.spec_bands, ctl.spec_bands,
             Control.min_spec_bands, Control.max_spec_bands,
@@ -127,7 +129,7 @@ let run (st : state) focus_change =
             focus_edit, fun n -> cfg.fps <- n; Api.Window.set_fps win n
           );
           "", `Choice [
-            "SHOW LIVE VALUE", ctl.fps, fun _ -> ctl.fps <- not ctl.fps
+            "DISPLAY LIVE VALUE", ctl.fps, fun _ -> ctl.fps <- not ctl.fps
           ];
         ];
         "PLAYLIST", `Section [

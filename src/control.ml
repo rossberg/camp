@@ -19,7 +19,7 @@ type t =
   mutable visual : visual;
   mutable zoom : visual;
   mutable fps : bool;
-  mutable turn_rpm : int;
+  mutable turn_rpm : float;
   mutable spec_bands : int;
   mutable osc_x : float;
   mutable osc_y : float;
@@ -127,7 +127,7 @@ let make audio =
     visual = `Spectrum;
     zoom = `Cover;
     fps = false;
-    turn_rpm = 45;
+    turn_rpm = 100.0/.3.0;
     spec_bands;
     osc_x; osc_y;
     raw = [||];
@@ -308,7 +308,7 @@ let print_state ctl =
     "timemode", enum timemode_enum ctl.timemode;
     "visual", enum visual_enum ctl.visual;
     "zoom", enum visual_enum ctl.zoom;
-    "turn_rpm", int ctl.turn_rpm;
+    "turn_rpm", float ctl.turn_rpm;
     "spec_bands", int ctl.spec_bands;
     "osc_x", float ctl.osc_x;
     "osc_y", float ctl.osc_y;
@@ -342,8 +342,8 @@ let parse_state ctl =
       (fun v -> set_visual ctl v);
     apply (r $? "zoom") (enum visual_enum)
       (fun v -> set_zoom ctl v);
-    apply (r $? "turn_rpm") (num 1 120)
-      (fun n -> ctl.turn_rpm <- n);
+    apply (r $? "turn_rpm") (interval 1.0 130.0)
+      (fun v -> ctl.turn_rpm <- v);
     apply (r $? "spec_bands") (num 4 64)
       (fun n -> ctl.spec_bands <- n);
     apply (r $? "osc_x") (interval 0.01 100.0)

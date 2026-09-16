@@ -19,7 +19,7 @@ type t =
   mutable visual : visual;
   mutable zoom : visual;
   mutable fps : bool;
-  mutable turn_rpm : int;
+  mutable turn_rpm : float;
   mutable spec_bands : int;
   mutable osc_x : float;
   mutable osc_y : float;
