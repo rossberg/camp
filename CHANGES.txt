@@ -6,16 +6,17 @@ Control:
 
 Playlist:
 - [new] Custom computed columns
-- [chg] Playlist dedupe now ignores separators
 
 Library:
 - [new] Custom computed columns in views
 - [fix] Fix crash on browser folder renaming
 - [fix] Guard drag & drop on filtered or unordered playlist view better
 
+Settings:
+- [new] Setting to change turntable visualisation RPMs
+
 UI:
 - [new] Make context menus scrollable when they don't fit the window
-- [new] Make visualisation zoom pop-up resizable and movable
 - [new] Make target FPS configurable
 - [fix] Fix scrolling with mouse wheel when hovering table header
 

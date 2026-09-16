@@ -110,6 +110,14 @@ let run (st : state) focus_change =
             "OSCILLOSCOPE", ctl.visual = `Oscilloscope,
               (fun _ -> Control.set_visual ctl `Oscilloscope);
           ];
+          "TURNTABLE", `Choice [
+            "33 RPM", ctl.turn_rpm = 33,
+              (fun _ -> ctl.turn_rpm <- 33);
+            "45 RPM", ctl.turn_rpm = 45,
+              (fun _ -> ctl.turn_rpm <- 45);
+            "78 RPM", ctl.turn_rpm = 78,
+              (fun _ -> ctl.turn_rpm <- 78);
+          ];
           "SPECTRUM", `Number ("BANDS", set.spec_bands, ctl.spec_bands,
             Control.min_spec_bands, Control.max_spec_bands,
             focus_edit, fun n -> ctl.spec_bands <- n
