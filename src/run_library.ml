@@ -971,11 +971,11 @@ let run_view (st : state)
         when mode = `Table
         && (fst view.columns.$(j) :> Data.any_attr_ex) = `Cover ->
         (* Click on cover cell: open zoom popup *)
-        Run_popup.zoom st (zoom entries.(i));
+        Option.iter (Run_popup.zoom st) (zoom entries.(i));
       (* Don't do zoom pop-up on grid, since that interferes with drag & drop
       | Some i, None when mode = `Grid ->
         (* Click on grid cell: open zoom popup *)
-        Run_popup.zoom st (zoom entries.(i));
+        Option.iter (Run_popup.zoom st) (zoom entries.(i));
       *)
       | _ -> ()
     );
@@ -1128,10 +1128,12 @@ let run_view (st : state)
     with
     *)
     match st.popup.kind, mouse cols tab with
-    | Some (`Zoom _), Some (Some i, _) ->
+    | Some (`Zoom z), Some (Some i, _) when z <> Current ->
       (* Drag with active zoom popup: update cover *)
-      Ui.nonmodal geo.ui "lib.view/drag-zoom";
-      Run_popup.zoom st (zoom entries.(i));
+      Option.iter (fun z' ->
+        Ui.nonmodal geo.ui "lib.view/drag-zoom";
+        Run_popup.zoom st z';
+      ) (zoom entries.(i));
     | _, _ -> ()
   )
 
@@ -1192,7 +1194,7 @@ let run_views (st : state) =
       Artist Query.artist_attr_ex_string (Some `Artist) Data.artist_attrs
       (fun _ -> "") (fun _ -> "") color_of
       (fun lib -> lib.tracks.entries) (fun lib _ -> lib.tracks.entries)
-      true false (fun _ -> assert false) Run_view.artists_view;
+      true false (fun _ -> None) Run_view.artists_view;
   );
 
   (* Albums view *)
@@ -1223,7 +1225,7 @@ let run_views (st : state) =
       Album Query.album_attr_ex_string None Data.album_attrs
       (fun (album : Data.album) -> album.path) text_of color_of
       (fun lib -> lib.tracks.entries) (fun lib _ -> lib.tracks.entries)
-      true false (fun album -> Popup.Album album) Run_view.albums_view;
+      true false (fun album -> Some (Popup.Album album)) Run_view.albums_view;
 
     (* Divider *)
     if geo.right_shown then
@@ -1290,7 +1292,7 @@ let run_views (st : state) =
       (fun (track : Data.track) -> track.path) text_of color_of
       Library.selected (fun lib i -> [|lib.tracks.entries.(i)|])
       false (Library.current_is_plain_playlist lib)
-      (fun track -> Popup.Track track) Run_view.tracks_view;
+      (fun track -> Some (Popup.Track track)) Run_view.tracks_view;
 
     (* Playlist file drag & drop *)
     Run_view.external_drop_on_tracks st;

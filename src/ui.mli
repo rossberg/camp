@@ -28,7 +28,9 @@ type pane
 type owner = string
 
 val pane : t -> owner -> rect -> pane
-val popup : t -> owner -> rect -> int -> bool -> pane
+val popup :
+  t -> owner -> rect -> int -> bool * bool * bool -> bool ->
+  pane * (rect * (bool * bool * bool * bool)) option
 
 (* Areas *)
 

@@ -234,8 +234,8 @@ struct
       let total_h = h + sy 3 + lh
 
       let key = key KeyBind.quit
-      let button () =
-        Ui.button g.ui "power_but" (p, x, y, w, h) KeyBind.quit true (Some false)
+      let button b =
+        Ui.button g.ui "power_but" (p, x, y, w, h) KeyBind.quit b (Some false)
       let label () =
         Ui.label g.ui (p, x, y + h + sy 3, w, lh) `Center "POWER"
       let shadow () = Ui.box g.ui (p, x, y, w + sx 1, h + sy 2) `Black
@@ -807,7 +807,7 @@ struct
 
     module View =
     struct
-      let libw = library_w g
+      let libw = extension_w g  (* never is 0 *)
 
       let style = rich_table_style 1 true
       let grid_style = grid_table_style true
@@ -894,7 +894,7 @@ struct
     struct
       let p' = p
       let x = library_x g + g.browser_width
-      let w = library_w g - g.browser_width
+      let w = extension_w g - g.browser_width
       let p = Ui.pane g.ui "log" (x, library_y g, w, -bottom)
 
       let area = (p, 0, margin, -1, -1)
@@ -923,7 +923,7 @@ struct
     struct
       let x = library_x g + g.browser_width
       let y = -bottom
-      let w = library_w g - g.browser_width
+      let w = extension_w g - g.browser_width
       let h = bottom
       let p = Ui.pane g.ui "msg" (x, y, w, h)
 
@@ -1062,15 +1062,26 @@ struct
 
   (* Zoom Pop-up *)
 
-  module Zoom (Z : sig val size : int -> int * int end) =
+  module Zoom (Z : sig val size : int -> int * int val var : bool end) =
   struct
-    let w0 = g.zoom_size |>
-      min (control_w g + library_w g - 2 * zoom_margin g) |>
-      min (control_h g + playlist_h g - line - 2 * zoom_margin g)
-    let w, h0 = Z.size w0
-    let h = h0 + line
+    let w0, h0 = Z.size g.zoom_size
+    let ratio = float w0 /. float h0
+    let w1, h1 =
+      let wmax = control_w g + library_w g - 2 * zoom_margin g in
+      if w0 <= wmax then w0, h0 else wmax, int_of_float (float wmax /. ratio)
+    let w2, h2 =
+      let hmax = control_h g + playlist_h g - line - 2 * zoom_margin g in
+      if h1 <= hmax then w1, h1 else int_of_float (float hmax *. ratio), hmax
+    let w, h = w2, h2 + line
     let x, y = Option.get g.popup_shown
-    let p = Ui.popup g.ui "zoom" (x, y, w, h) (zoom_margin g) false
+    let p, r'' =
+      Ui.popup g.ui "zoom" (x, y, w, h) (zoom_margin g)
+        (Z.var, Z.var, Z.var) false
+
+    let resize =
+      Option.map (fun ((x', y', w', h'), edge) ->
+        (x', y', w', h' - line), edge
+      ) r''
 
     let image_area = (p, 0, 0, -1, -line)
     let text = Ui.ticker g.ui (p, 0, -text, -1, -1)
@@ -1084,7 +1095,9 @@ struct
     let w = smin 200
     let h = 2 * line + 2  (* cf Ui.rich_table *)
     let x, y = Option.get (g.popup_shown)
-    let p = Ui.popup g.ui "custom" (x, y, w, h) (zoom_margin g) true
+    let p, _ =
+      Ui.popup g.ui "custom" (x, y, w, h) (zoom_margin g)
+        (false, false, false) true
 
     module Name =
     struct

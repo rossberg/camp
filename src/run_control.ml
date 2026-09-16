@@ -140,13 +140,15 @@ let resize_grid (st : state) delta =
     geo.grid <- clamp_grid (inc geo.grid);
   ) st.library.current
 
-let clamp_zoom = Geometry.(clamp min_zoom_size max_zoom_size)
+let clamp_zoom (st : state) =
+  let sw, sh = Api.Window.max_size (Ui.window st.geometry.ui) in
+  Geometry.(clamp min_zoom_size (min sw sh))
 
 let resize_zoom_avail (st : state) delta =
-  clamp_zoom (st.geometry.zoom_size + 100 * delta) <> st.geometry.zoom_size
+  clamp_zoom st (st.geometry.zoom_size + 100 * delta) <> st.geometry.zoom_size
 
 let resize_zoom (st : state) delta =
-  st.geometry.zoom_size <- st.geometry.zoom_size + 100 * delta
+  st.geometry.zoom_size <- clamp_zoom st (st.geometry.zoom_size + 100 * delta)
 
 
 (* Runner *)
@@ -165,7 +167,7 @@ let run (st : state) =
   let modal = Ui.is_modal geo.ui in
   Ui.except_modal geo.ui "ctl.run/power" (fun () ->  (* always allow Quit key *)
     ControlUi.Power.shadow ();
-    if not modal && ControlUi.Power.button () || ControlUi.Power.key () then
+    if ControlUi.Power.button (not modal) || ControlUi.Power.key () then
     (
       (* Power button clicked: quit *)
       quit st

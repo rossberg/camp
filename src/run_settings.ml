@@ -81,11 +81,13 @@ let run (st : state) focus_change =
           "GRID", `Number ("SIZE", set.grid_size, geo.grid,
             30, 1000, focus_edit, fun n -> geo.grid <- n
           );
+(*
           "ZOOM", `Number ("MAX SIZE", set.zoom_size, geo.zoom_size,
             100, 1000, focus_edit, fun n -> geo.zoom_size <- n
           );
+*)
           "", `Choice [
-            "DISABLE IN LIBRARY", not lib.covers_shown,
+            "DISABLE", not lib.covers_shown,
               (fun _ -> Library.activate_covers lib (not lib.covers_shown))
           ];
         ];

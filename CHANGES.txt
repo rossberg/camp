@@ -15,6 +15,7 @@ Library:
 
 UI:
 - [new] Make context menus scrollable when they don't fit the window
+- [new] Make visualisation zoom pop-up resizable and movable
 - [new] Make target FPS configurable
 - [fix] Fix scrolling with mouse wheel when hovering table header
 

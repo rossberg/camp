@@ -424,6 +424,18 @@ let start ui (wx', wy', ww', wh' as wr') =
   background ui 0 0 ww wh
 
 
+let cursor varw varh lft top rgt bot =
+  match varw && lft, varw && rgt, varh && top, varh && bot with
+  | true, false, false, false
+  | false, true, false, false -> `Resize `E_W
+  | false, false, true, false
+  | false, false, false, true -> `Resize `N_S
+  | true, false, true, false
+  | false, true, false, true -> `Resize `NW_SE
+  | true, false, false, true
+  | false, true, true, false -> `Resize `NE_SW
+  | _ -> `Point
+
 let finish ui margin (varw, varh) =
   List.iter (fun f -> f ()) (List.rev ui.delayed);
   ui.delayed <- [];
@@ -434,19 +446,6 @@ let finish ui margin (varw, varh) =
   let (wx, wy) as pos = Window.pos ui.win in
   let (ww, wh) as size = Window.size ui.win in
   let wr = (wx, wy, ww, wh) in
-
-  let cursor lft top rgt bot =
-    match varw && lft, varw && rgt, varh && top, varh && bot with
-    | true, false, false, false
-    | false, true, false, false -> `Resize `E_W
-    | false, false, true, false
-    | false, false, false, true -> `Resize `N_S
-    | true, false, true, false
-    | false, true, false, true -> `Resize `NW_SE
-    | true, false, false, true
-    | false, true, true, false -> `Resize `NE_SW
-    | _ -> `Point
-  in
 
   let origin = Mouse.pos ui.win in
   let lft = inside origin (0, 0, margin, wh) in
@@ -479,7 +478,7 @@ let finish ui margin (varw, varh) =
   )
   else if not (Mouse.is_down `Left) then
   (
-    let cursor = cursor lft top rgt bot in
+    let cursor = cursor varw varh lft top rgt bot in
     if cursor <> `Point then Mouse.set_cursor ui.win cursor;
     wr, no_edge, screen_change
   )
@@ -487,7 +486,7 @@ let finish ui margin (varw, varh) =
   (
     match ui.drag with
     | No_drag ->
-      let cursor = cursor lft top rgt bot in
+      let cursor = cursor varw varh lft top rgt bot in
       Mouse.set_cursor ui.win cursor;
       ui.drag <-
         if cursor = `Point then
@@ -515,7 +514,7 @@ let finish ui margin (varw, varh) =
       (wx'', wy'', ww, wh), no_edge, screen_change
 
     | Resize {offset; edge = lft, top, rgt, bot as edge} ->
-      Mouse.set_cursor ui.win (cursor lft top rgt bot);
+      Mouse.set_cursor ui.win (cursor varw varh lft top rgt bot);
       let scr = Window.screen ui.win in  (* snap relative to window's screen *)
       let sx, sy = Screen.min_pos scr in
       let sw, sh = Screen.max_size scr in
@@ -2892,14 +2891,14 @@ let settings ui owner area sty vscroll adjust_vscroll settings =
 
 (* Pop-ups *)
 
-let popup ui owner r bw greyout =
+let popup ui owner r bw (varw, varh, mov) greyout =
   assert (is_modal ui);
   let x, y, w, h = r in
   let ww, wh = Window.size ui.win in
   let w' = w + 2 * bw in
   let h' = h + 2 * bw in
-  let x' = max 0 (min x (ww - w')) in
-  let y' = max 0 (min y (wh - h')) in
+  let x' = clamp 0 (ww - w') x in
+  let y' = clamp 0 (wh - h') y in
 
   if greyout then
     Draw.fill_rect ui.win 0 0 ww wh (`Trans (`Black, 0x40));
@@ -2909,7 +2908,77 @@ let popup ui owner r bw greyout =
   Draw.fill_rect ui.win (x' + w') (y' + sw) sw h' `Black;
   Draw.fill_rect ui.win (x' + sw) (y' + h') w' sw `Black;
 
-  pane ui owner (x' + bw, y' + bw, w, h)
+  let origin = Mouse.pos ui.win in
+  let lft = inside origin (x', y', bw, h') in
+  let rgt = inside origin (x' + w' - bw, y', bw, h') in
+  let top = inside origin (x', y', w', bw) in
+  let bot = inside origin (x', y' + h' - bw, w', bw) in
+  let on = inside origin (x', y', w', h') in
+
+  let cursor' = cursor varw varh lft top rgt bot in
+  let r' =
+    except_modal ui owner (fun () ->
+      if Mouse.is_down `Right || ui.drag = Abort then
+      (
+        if has_mouse ui owner then
+        (
+          Mouse.set_cursor ui.win `Default;
+          ui.drag <- Abort;
+        );
+        None
+      )
+      else if not (Mouse.is_down `Left) then
+      (
+        if on && grab_mouse ui owner && cursor' <> `Point then
+          Mouse.set_cursor ui.win cursor';
+        match ui.drag with
+        | Move _ | Resize _ when Mouse.is_released `Left && grab_mouse ui owner ->
+          Some (r, (lft, top, rgt, bot))
+        | _ -> None
+      )
+      else
+      (
+        match ui.drag with
+        | No_drag when on && (mov || cursor' <> `Point) && grab_mouse ui owner ->
+          Mouse.set_cursor ui.win cursor';
+          ui.drag <-
+            if cursor' = `Point then
+              Move {overshoot = 0, 0}
+            else
+            (
+              let mx, my = Mouse.abs_pos ui.win in
+              let dx = if lft then mx - x' else mx - (x' + w') in
+              let dy = if top then my - y' else my - (y' + h') in
+              Resize {offset = dx, dy; edge = lft, top, rgt, bot}
+            );
+          Some (r, (lft, top, rgt, bot))
+
+        | Move {overshoot} when grab_mouse ui owner ->
+          Mouse.set_cursor ui.win `Point;
+          let delta = Api.add (Mouse.delta ui.win) overshoot in
+          let x'', y'' = add (x', y') delta in
+          let x''', y''' = clamp 0 (ww - w') x'', clamp 0 (wh - h') y'' in
+          ui.drag <- Move {overshoot = x'' - x''', y'' - y'''};
+          Some ((x''', y''', w, h), (false, false, false, false))
+
+        | Resize {offset; edge = lft, top, rgt, bot} when grab_mouse ui owner ->
+          Mouse.set_cursor ui.win (cursor varw varh lft top rgt bot);
+          let mx, my = sub (Mouse.abs_pos ui.win) offset in
+          let mx', my' = clamp 0 ww mx, clamp 0 wh my in
+          let x'' = if lft then mx' else x' in
+          let y'' = if top then my' else y' in
+          let w'' = if rgt then mx' - x' else w' - (x'' - x') in
+          let h'' = if bot then my' - y' else h' - (y'' - y') in
+          let r' = x'', y'', w + w'' - w', h + h'' - h' in
+          Some (r', (lft, top, rgt, bot))
+
+        | _ ->
+          None
+      )
+    )
+  in
+
+  pane ui owner (x' + bw, y' + bw, w, h), r'
 
 
 (* Menus *)
@@ -2969,7 +3038,8 @@ let menu ui x y sty hscroll vscroll items =
   let h' = if scroll_h = 0 then h else h + scroll_h + 1 in
   let w'' = min w' maxw in
   let h'' = min h' maxh in
-  let p = popup ui "(menu)" (x, y, w'', h'') sty.margin true in
+  let p, _ =
+    popup ui "(menu)" (x, y, w'', h'') sty.margin (false, false, false) true in
   let area = (p, 0, 0, -1, -1) in
   let page = (if scroll_h = 0 then h'' else h'' - scroll_h - 1) / rh in
 

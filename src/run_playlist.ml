@@ -302,7 +302,7 @@ let run (st : state) =
   if geo.popup_shown <> None && Api.Mouse.is_down `Left then
   (
     match st.popup.kind, PlaylistUi.mouse cols tab with
-    | Some (`Zoom _), Some (Some i, _) ->
+    | Some (`Zoom z), Some (Some i, _) when z <> Current ->
       (* Drag with active cover popup: update cover *)
       Ui.nonmodal geo.ui "pl.run/drag-cover";
       Run_popup.zoom st (Popup.Track tab.entries.(i));

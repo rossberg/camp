@@ -173,6 +173,7 @@ let run_zoom (st : state) (zoom : Popup.zoom) =
   let geo = st.geometry in
   let ctl = st.control in
 
+  let resizing = ref false in
   let zoom_opt =
     match zoom with
     | Track _ | Album _ as zoom -> Some zoom
@@ -200,6 +201,7 @@ let run_zoom (st : state) (zoom : Popup.zoom) =
       | Popup.Current -> assert false
     in
     let img_opt = Library.load_cover st.library (Ui.window geo.ui) path in
+    let var = (zoom = Current) in
     let vis = if zoom = Current then ctl.zoom else `Cover in
     let size w =
       match vis with
@@ -209,9 +211,18 @@ let run_zoom (st : state) (zoom : Popup.zoom) =
       | `Turntable | `Oscilloscope -> w, w
       | `Spectrum | `Waveform -> w, w/2
     in
+    let inv_size (w, h) =
+      match vis with
+      | `Cover ->
+        let img = Option.value img_opt ~default: (Ui.nocover geo.ui) in
+        let w', h' = Ui.image_size geo.ui (w, w) `Shrink img in
+        if w' = w then w else h
+      | `Turntable | `Oscilloscope -> w
+      | `Spectrum | `Waveform -> w
+    in
 
     let (module WindowUi) = Option.get st.layout in
-    let module Zoom = WindowUi.Zoom(struct let g = geo let size = size end) in
+    let module Zoom = WindowUi.Zoom(struct let size = size let var = var end) in
 
     let text =
       artist ^ " - " ^ title ^
@@ -220,12 +231,48 @@ let run_zoom (st : state) (zoom : Popup.zoom) =
     in
     Run_visualization.run st Zoom.image_area vis img_opt;
     Zoom.text text;
+
+    (* Resize *)
+    if zoom = Current then
+    (
+      Option.iter (fun ((x', y', w', h'), (lft, top, rgt, bot)) ->
+        resizing := true;
+
+        let ww, wh = Api.Window.size (Ui.window geo.ui) in
+        let w, h = size geo.zoom_size in
+
+        (* Correct ratio *)
+        let ratio = float w /. float h in
+        let ratio' = float w' /. float h' in
+        let w'', h'' =
+          let adapt_w () = int_of_float (float h' *. ratio), h' in
+          let adapt_h () = w', int_of_float (float w' /. ratio) in
+          if (lft || rgt) && not (top || bot) then
+            adapt_h ()
+          else if (top || bot) && not (lft || rgt) then
+            adapt_w ()
+          else if ratio' >= ratio then
+            adapt_h ()
+          else
+            adapt_w ()
+        in
+
+        (* Adjust position *)
+        let to_top = top || not bot && y' >= wh - h'' in
+        let to_lft = lft || not rgt && x' >= ww - w'' in
+        let x'' = max 0 (x' - if to_lft then w'' - w' else 0) in
+        let y'' = max 0 (y' - if to_top then h'' - h' else 0) in
+
+        geo.popup_shown <- Some (x'', y'');
+        geo.zoom_size <- inv_size (w'', h'');
+      ) Zoom.resize
+    )
   ) zoom_opt;
 
   if zoom_opt = None
-  || zoom = Popup.Current && Control.silent ctl &&
+  || zoom = Current && Control.silent ctl &&
       List.mem (Control.status ctl) [`Stopped; `Ejected]
-  || Api.Mouse.(is_released `Left || is_pressed `Right) then
+  || not !resizing && Api.Mouse.(is_released `Left || is_pressed `Right) then
   (
     Ui.nonmodal geo.ui "run.zoom";
     geo.popup_shown <- None;

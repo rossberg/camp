@@ -90,7 +90,7 @@ let max_pad_size = 8
 let min_grid_size = 32
 let max_grid_size = 1024
 let min_zoom_size = 100
-let max_zoom_size = 1000
+let max_zoom_size = 9999
 
 let sx g x = x * g.control_width / control_min_w
 let sy g y = y * g.control_height / control_min_h
