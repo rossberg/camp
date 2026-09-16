@@ -927,7 +927,7 @@ struct
       let h = bottom
       let p = Ui.pane g.ui "msg" (x, y, w, h)
 
-      let mw = -2 * w (* = Copy.x 0 0 *) - sx 4
+      let mw = -2 * edit_w g (* = Copy.x 0 0 *) - sx 4
       let box () = Ui.box g.ui (p, 0, footer, mw, line) `Black
       let text =
         Ui.color_text g.ui (p, sx 2, footer + padh, mw - sx 4, text) `Left
