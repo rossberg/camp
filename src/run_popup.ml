@@ -231,6 +231,7 @@ let run_zoom (st : state) (zoom : Popup.zoom) =
     in
     Run_visualization.run st Zoom.image_area vis img_opt;
     Zoom.text text;
+    Zoom.refl ();
 
     (* Resize *)
     if zoom = Current then
