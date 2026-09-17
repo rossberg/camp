@@ -2929,7 +2929,7 @@ let popup ui owner r bw (varw, varh, mov) greyout =
       )
       else if not (Mouse.is_down `Left) then
       (
-        if on && grab_mouse ui owner && cursor' <> `Point then
+        if on && cursor' <> `Point && grab_mouse ui owner then
           Mouse.set_cursor ui.win cursor';
         match ui.drag with
         | Move _ | Resize _ when Mouse.is_released `Left && grab_mouse ui owner ->
