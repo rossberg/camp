@@ -127,7 +127,7 @@ let make audio =
     visual = `Spectrum;
     zoom = `Cover;
     fps = false;
-    turn_rpm = 100.0/.3.0;
+    turn_rpm = 33.333;
     spec_bands;
     osc_x; osc_y;
     raw = [||];

@@ -111,10 +111,11 @@ let run (st : state) focus_change =
               (fun _ -> Control.set_visual ctl `Oscilloscope);
           ];
           "TURNTABLE", `Choice [
-            "16 RPM", ctl.turn_rpm = 100.0/.6.0,
-              (fun _ -> ctl.turn_rpm <- 100.0/.6.0);
-            "33 RPM", ctl.turn_rpm = 100.0/.3.0,
-              (fun _ -> ctl.turn_rpm <- 100.0/.3.0);
+            (* Don't use more precision than the state save file! *)
+            "16 RPM", ctl.turn_rpm = 16.666,
+              (fun _ -> ctl.turn_rpm <- 16.666);
+            "33 RPM", ctl.turn_rpm = 33.333,
+              (fun _ -> ctl.turn_rpm <- 33.333);
             "45 RPM", ctl.turn_rpm = 45.0,
               (fun _ -> ctl.turn_rpm <- 45.0);
             "78 RPM", ctl.turn_rpm = 78.0,
