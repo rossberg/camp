@@ -121,19 +121,20 @@ let except_modal ui label f =
 
 let rel b v =
   if v >= 0 then v else
-  if v = -1 then b else b + v
+  if v = -1 then b else max 0 (b + v)
 
 let rel_rect (maxw, maxh) (x, y, w, h) =
   let x' = rel maxw x in
   let y' = rel maxh y in
-  let w' = max 0 (rel (maxw - x') w) in
-  let h' = max 0 (rel (maxh - y') h) in
+  let w' = rel (maxw - x') w in
+  let h' = rel (maxh - y') h in
   x', y', w', h'
 
 let pane ui owner r =
   let ww, wh as wsize = Window.size ui.win in
   let x, y, w, h as r' = rel_rect wsize r in
-  if not (x >= 0 && y >= 0 (*&& x + w <= ww && y + h <= wh*)) then
+(*
+  if not (x >= 0 && y >= 0 && x + w <= ww && y + h <= wh) then
   (
     Storage.log (Printf.sprintf
       "invalid geometry for pane %s: x=%d y=%d w=%d h=%d winw=%d winh=%d"
@@ -141,6 +142,7 @@ let pane ui owner r =
     );
     if !App.debug_layout then assert false;
   );
+*)
 
   let p =
     match Map.find_opt owner ui.pane_owners with
