@@ -1748,7 +1748,7 @@ let renumber_all lib =
   renumber lib 0 (length lib)
 
 
-let insert lib pos tracks =
+let insert lib pos tracks =  (* takes ownership of tracks *)
   assert (current_is_playlist lib);
   if tracks <> [||] then
   (
@@ -1761,20 +1761,19 @@ let insert lib pos tracks =
     let len = Table.length lib.tracks in
     let len' = Array.length tracks in
     let pos'' = min (if order = `Desc then pos' + 1 else pos') len in
-    let tracks' = Array.mapi
+    Array.iteri
       (fun i (track : track) ->
         let pos = pos'' + (if order = `Desc then len' - i - 1 else i) in
         match find_track lib track.path with
-        | Some track' -> {track' with pos}  (* clone to prevent aliasing! *)
+        | Some track' -> tracks.(i) <- {track' with pos}  (* prevent aliasing! *)
         | None ->
+          track.pos <- pos;
           (* Abuse `Predet as an indication that the track isn't in lib *)
-          let status =
+          track.status <-
             if track.status <> `Det || Data.is_separator track
             then track.status else `Predet
-          in {track with pos; status}
-      ) tracks
-    in
-    Table.insert lib.tracks pos'' tracks';
+      ) tracks;
+    Table.insert lib.tracks pos'' tracks;
     renumber lib (pos'' + len') (len + len');
     Option.iter (fun (dir : dir) ->
       dir.tracks <- Iarray.of_array lib.tracks.entries;

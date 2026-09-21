@@ -310,7 +310,7 @@ let renumber pl i j =
 let renumber_all pl =
   renumber pl 0 (length pl)
 
-let insert pl pos tracks =
+let insert pl pos tracks =  (* takes ownership of tracks *)
   if tracks <> [||] then
   (
     let len = Table.length pl.table in

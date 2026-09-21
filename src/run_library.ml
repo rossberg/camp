@@ -386,10 +386,10 @@ let run_browser (st : state) =
       let run () =
         (* May be asynchronous; pre-compute all but selected_tracks *)
         if not cmd then
-          Run_view.queue_on_playlist st (Track.copy_array lib.tracks.entries)
+          Run_view.queue_on_playlist st lib.tracks.entries
             (if triple then `Replace else `Jump)
         else if is_sel && not triple then
-          Run_view.queue_on_playlist st (Track.copy_array lib.tracks.entries)
+          Run_view.queue_on_playlist st lib.tracks.entries
             `Queue
       in
       let n_artists = Table.num_selected lib.artists in
@@ -947,11 +947,11 @@ let run_view (st : state)
       let run () =
         (* May be asynchronous; pre-compute all but selected_tracks *)
         if not cmd then
-          Run_view.queue_on_playlist st (Track.copy_array (selected_tracks lib))
+          Run_view.queue_on_playlist st (selected_tracks lib)
             (if triple then `Replace else `Jump)
         else if not triple then
           let tracks = if is_sel then selected_tracks lib else clicked_tracks in
-          Run_view.queue_on_playlist st (Track.copy_array tracks) `Queue
+          Run_view.queue_on_playlist st tracks `Queue
       in
       let n = Table.num_selected dep_tab in
       let part_sel = n <> 0 && n <> Table.length dep_tab in
@@ -1471,19 +1471,16 @@ let run_browse_buttons (st : state) =
   (
     (* Click on Rescan (Scan) button: rescan directory, view, or files *)
     Option.iter (fun (dir : dir) ->
-      let mode =
-        if Api.Key.is_modifier_down `Shift then `Thorough else `Quick in
       if dir.view.tracks.shown <> None && Table.has_selection lib.tracks then
         Library.rescan_tracks lib `Thorough (Library.selected lib)
       else if
         dir.view.albums.shown <> None && Table.has_selection lib.artists ||
-        dir.view.artists.shown <> None && Table.has_selection lib.albums
+        dir.view.artists.shown <> None && Table.has_selection lib.albums ||
+        lib.search.text <> ""
       then
         Library.rescan_tracks lib `Thorough lib.tracks.entries
-      else if lib.search.text <> "" then
-        Library.rescan_tracks lib mode lib.tracks.entries
       else
-        Library.rescan_dirs lib mode [|dir|]
+        Library.rescan_dirs lib `Thorough [|dir|]
     ) lib.current
   );
 

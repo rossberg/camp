@@ -357,7 +357,7 @@ let external_drop_on_tracks st = external_drop drop_on_tracks st (tracks_view st
 
 type queue_mode = [`Jump | `Queue | `QueueAndJump | `Replace]
 
-let queue_on_playlist (st : state) (tracks : Data.track array) mode =
+let queue_on_playlist' (st : state) (tracks : Data.track array) mode =
   if tracks <> [||] then
   (
     let (module WindowUi) = Option.get st.layout in
@@ -395,7 +395,7 @@ let queue_on_playlist (st : state) (tracks : Data.track array) mode =
     | `Replace ->
       (* Triple-click: replace playlist *)
       Mutex.protect st.playlist.table.mutex (fun () ->
-        Playlist.replace_all st.playlist (Track.copy_array tracks)
+        Playlist.replace_all st.playlist tracks
       );
       jump 0;
     );
@@ -403,8 +403,11 @@ let queue_on_playlist (st : state) (tracks : Data.track array) mode =
     Table.dirty st.library.browser;
   )
 
+let queue_on_playlist st tracks mode =
+  queue_on_playlist' st (Track.copy_array tracks) mode
+
 let external_queue_on_playlist st paths mode =
-  queue_on_playlist st (expand_paths st paths) mode
+  queue_on_playlist' st (expand_paths st paths) mode
 
 
 let set_drop_cursor (st : state) outside =

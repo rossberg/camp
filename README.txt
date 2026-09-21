@@ -373,10 +373,8 @@ Browser entries can be manipulated with a few buttons at the bottom:
   | C:\\Program Files\\Mp3tag\\Mp3tag.exe
   +------------------------------------------------------
 
-* SCAN: Rescan the selected folder (if the browser has focus), or the current
-  selection in the View that currently has the focus.
-  With Shift: Do a "thorough" rescan. A quick scan only looks for new or
-  deleted files, while a throrough scan rereads all meta data.
+* SCAN: Do a "thorough" rescan of the tracks selected in the current View,
+  or all the shwon tracks if non selected.
 
 Other things to do in the Browser:
 
