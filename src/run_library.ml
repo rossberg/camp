@@ -135,6 +135,7 @@ let create_list (st : state) ext s view_opt path =
     | Some dir ->
       Library.fold_dir lib parent false;
       Option.iter (fun view -> dir.view <- view) view_opt;
+      if view_opt = None then Library.clear_search lib;
       Option.iter (Library.select_dir lib)
         (Array.find_index ((==) dir) lib.browser.entries)
   );
@@ -385,10 +386,11 @@ let run_browser (st : state) =
       let run () =
         (* May be asynchronous; pre-compute all but selected_tracks *)
         if not cmd then
-          Run_view.queue_on_playlist st (Array.copy lib.tracks.entries)
+          Run_view.queue_on_playlist st (Track.copy_array lib.tracks.entries)
             (if triple then `Replace else `Jump)
         else if is_sel && not triple then
-          Run_view.queue_on_playlist st (Array.copy lib.tracks.entries) `Queue
+          Run_view.queue_on_playlist st (Track.copy_array lib.tracks.entries)
+            `Queue
       in
       let n_artists = Table.num_selected lib.artists in
       let n_albums = Table.num_selected lib.albums in
@@ -945,11 +947,11 @@ let run_view (st : state)
       let run () =
         (* May be asynchronous; pre-compute all but selected_tracks *)
         if not cmd then
-          Run_view.queue_on_playlist st (Array.copy (selected_tracks lib))
+          Run_view.queue_on_playlist st (Track.copy_array (selected_tracks lib))
             (if triple then `Replace else `Jump)
         else if not triple then
           let tracks = if is_sel then selected_tracks lib else clicked_tracks in
-          Run_view.queue_on_playlist st (Array.copy tracks) `Queue
+          Run_view.queue_on_playlist st (Track.copy_array tracks) `Queue
       in
       let n = Table.num_selected dep_tab in
       let part_sel = n <> 0 && n <> Table.length dep_tab in

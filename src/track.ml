@@ -4,6 +4,12 @@ open Audio_file
 open Data
 
 
+(* Cloning *)
+
+let copy track = {track with pos = -1}
+let copy_array tracks = Array.map copy tracks
+
+
 (* Names *)
 
 let name_of_path path =

@@ -633,7 +633,7 @@ let run (st : state) =
         (fun () -> shift_volume st (-1.0));
     |]))
   )
-  else if ctl.visual <> `Oscilloscope && old_visual = ctl.visual && not (Control.silent ctl)
+  else if ctl.visual <> `Oscilloscope && old_visual = ctl.visual && ctl.current <> None
     && ControlUi.Info.Button.zoom () then
   (
     Run_popup.zoom st Popup.Current

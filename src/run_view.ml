@@ -277,8 +277,7 @@ let drop (st : state) tracks table_mouse (module View : View) =
     Option.iter (fun (pos_opt, _) ->
       (* Drop onto table: send tracks there *)
       let pos = Option.value pos_opt ~default: (Table.length tab) in
-      View.insert view pos
-        (Array.map (fun (t : Data.track) -> {t with pos = -1}) tracks);
+      View.insert view pos (Track.copy_array tracks);
       State.defocus_all st;
       View.focus st;
       update_control st;
@@ -396,7 +395,7 @@ let queue_on_playlist (st : state) (tracks : Data.track array) mode =
     | `Replace ->
       (* Triple-click: replace playlist *)
       Mutex.protect st.playlist.table.mutex (fun () ->
-        Playlist.replace_all st.playlist (Array.copy tracks)
+        Playlist.replace_all st.playlist (Track.copy_array tracks)
       );
       jump 0;
     );
@@ -941,7 +940,8 @@ let queue_avail (st : state) _view =
 let queue (st : state) (module View : View) replace =
   let lib = st.library in
   let tracks = Library.(if has_selection lib then selected else tracks) lib in
-  Playlist.(if replace then replace_all else append) st.playlist tracks;
+  Playlist.(if replace then replace_all else append) st.playlist
+    (Track.copy_array tracks);
   if not st.playlist.table.focus then Playlist.deselect_all st.playlist;
   ignore (Control.switch_if_empty st.control (Some tracks.(0)))
 
@@ -954,8 +954,10 @@ let inherit_ (st : state) (module View : View) replace =
   (
     let pl = st.playlist in
     let tracks = Playlist.(if has_selection pl then selected else tracks) pl in
-    Library.(if replace then replace_all else append) st.library tracks;
+    Library.(if replace then replace_all else append) st.library
+      (Track.copy_array tracks);
     if not st.library.tracks.focus then Library.deselect_all st.library;
+    Library.clear_search st.library;
   )
 
 let export_avail st (module View : View) =
@@ -1283,7 +1285,8 @@ let run_edit_panel (st : state) =
   in
   let pl_focus = pl.table.focus in
   let lib_focus =
-    (lib.tracks.focus || lib.albums.focus || lib.artists.focus || lib.browser.focus)
+    lib.tracks.focus || lib.albums.focus || lib.artists.focus ||
+    lib.browser.focus || lib.search.focus
   in
   let focus = pl_focus || lib_focus && lib_shows_tracks in
 

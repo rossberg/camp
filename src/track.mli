@@ -4,6 +4,12 @@ open Audio_file
 open Data
 
 
+(* Cloning *)
+
+val copy : track -> track
+val copy_array : track array -> track array
+
+
 (* Names *)
 
 val name_of_artist_title : string -> string -> string

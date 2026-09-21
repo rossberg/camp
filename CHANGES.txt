@@ -11,6 +11,7 @@ Library:
 - [new] Custom computed columns in views
 - [fix] Fix crash on browser folder renaming
 - [fix] Guard drag & drop on filtered or unordered playlist view better
+- [fix] Fix track position corruption when copying tracks between playlists
 
 Settings:
 - [new] Setting to change turntable visualisation RPMs

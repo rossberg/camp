@@ -271,8 +271,7 @@ let run_zoom (st : state) (zoom : Popup.zoom) =
   ) zoom_opt;
 
   if zoom_opt = None
-  || zoom = Current && Control.silent ctl &&
-      List.mem (Control.status ctl) [`Stopped; `Ejected]
+  || zoom = Current && ctl.current = None
   || not !resizing && Api.Mouse.(is_released `Left || is_pressed `Right) then
   (
     Ui.nonmodal geo.ui "run.zoom";
