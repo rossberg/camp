@@ -1771,7 +1771,7 @@ let insert lib pos tracks =
           let status =
             if track.status <> `Det || Data.is_separator track
             then track.status else `Predet
-          in {track with status}
+          in {track with pos; status}
       ) tracks
     in
     Table.insert lib.tracks pos'' tracks';
