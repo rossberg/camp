@@ -1067,10 +1067,10 @@ struct
     let w0, h0 = Z.size g.zoom_size
     let ratio = float w0 /. float h0
     let w1, h1 =
-      let wmax = control_w g + extension_w g - 2 * zoom_margin g in
+      let wmax = win_w g - 2 * zoom_margin g in
       if w0 <= wmax then w0, h0 else wmax, int_of_float (float wmax /. ratio)
     let w2, h2 =
-      let hmax = control_h g + extension_h g - line - 2 * zoom_margin g in
+      let hmax = win_h g - line - 2 * zoom_margin g in
       if h1 <= hmax then w1, h1 else int_of_float (float hmax *. ratio), hmax
     let w, h = w2, h2 + line
     let x, y = Option.get g.popup_shown
