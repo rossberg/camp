@@ -117,7 +117,7 @@ let run (st : State.t) area vis img_opt =
     for i = 0 to n - 1 do
       let x' = x + 2 + i * wbar in
       Api.Draw.fill_rect win x' y w' h (Ui.unlit_color red);
-      let hy = (10 * h / 12) /l * l in
+      let hy = (10 * h / 12) / l * l in
       Api.Draw.fill_rect win x' (y + h - hy) w' hy (Ui.unlit_color yellow);
       let hg = (8 * h / 12) / l * l in
       Api.Draw.fill_rect win x' (y + h - hg) w' hg (Ui.unlit_color green);

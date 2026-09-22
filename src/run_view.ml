@@ -360,7 +360,6 @@ type queue_mode = [`Jump | `Queue | `QueueAndJump | `Replace]
 let queue_on_playlist' (st : state) (tracks : Data.track array) mode =
   if tracks <> [||] then
   (
-    let (module WindowUi) = Option.get st.layout in
     let entries = st.playlist.table.entries in
     let rec find i n =
       if n = Array.length tracks then i else
@@ -377,7 +376,11 @@ let queue_on_playlist' (st : state) (tracks : Data.track array) mode =
       Playlist.jump st.playlist i;
       Control.switch st.control tracks.(0);
       Control.play st.control;
-      Playlist.adjust_scroll st.playlist (area_page st WindowUi.Playlist.area);
+      if st.layout <> None then  (* can't use Option.iter for typing reasons *)
+      (
+        let (module WindowUi) = Option.get st.layout in
+        Playlist.adjust_scroll st.playlist (area_page st WindowUi.Playlist.area)
+      )
     in
     (match mode with
     | `Jump ->
