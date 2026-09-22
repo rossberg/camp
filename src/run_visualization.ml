@@ -52,6 +52,10 @@ let run (st : State.t) area vis img_opt =
   let win = Ui.window geo.ui in
   let x, y, w, h = Ui.dim geo.ui area in
 
+  let sx x = max 1 (x * w / 130) in
+  let sy y = max 1 (y * h / 60) in
+  let smin v = min (sx v) (sy v) in
+
 (*
   run_sine_wave ();
 *)
@@ -97,11 +101,12 @@ let run (st : State.t) area vis img_opt =
     (* Buffer may be off right after switching visuals *)
     let bands = if n' = n then bands else Array.make n 0.0 in
 
-    let l = Geometry.smin geo 1 in
-    let y, h = y + 2, (h - 4) / l * l in
-    let wbar = (w - 3) / n in
-    let wsep =
-      Geometry.sx geo (if wbar <= 4 then 1 else if n <= 10 then 2 else 3) in
+    Api.Draw.fill_rect win x y w h `Black;
+
+    let l = smin 1 in
+    let y, h = y + sy 2, (h - sy 4) / l * l in
+    let wbar = (w - sx 3) / n in
+    let wsep = sx (if wbar <= 4 then 1 else if n <= 10 then 2 else 3) in
     let w' = wbar - wsep in
     let x, w = x + (w - 3 - n*wbar + wsep)/2, n*wbar - wsep + 4 in
     let win = Ui.window geo.ui in
@@ -109,7 +114,6 @@ let run (st : State.t) area vis img_opt =
     let yellow = Ui.warn_color geo.ui in
     let red = Ui.error_color geo.ui in
 
-    Api.Draw.fill_rect win x y w h `Black;
     for i = 0 to n - 1 do
       let x' = x + 2 + i * wbar in
       Api.Draw.fill_rect win x' y w' h (Ui.unlit_color red);
@@ -134,7 +138,7 @@ let run (st : State.t) area vis img_opt =
     ctl.data <- data;
 
     Api.Draw.fill_rect win x y w h `Black;
-    let l = Geometry.(smin geo 1) in
+    let l = max 1 (smin 1 / 2) in
     for i = 0 to w / l / 2 - 1 do
       let i = 2 * i in
       let v = if i < Array.length data then data.(i) else 0.0 in
