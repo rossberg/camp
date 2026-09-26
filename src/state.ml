@@ -50,8 +50,12 @@ let delay st f = st.delayed <- f :: st.delayed
 
 (* Focus *)
 
+let popup_has_focus st =
+  let geo = st.geometry in
+  Geometry.popup_shown geo && not (Ui.has_modal_rect geo.ui)
+
 let defocus_all st =
-  if st.geometry.popup_shown <> None then
+  if popup_has_focus st then
     Popup.defocus st.popup
   else
   (
@@ -119,7 +123,7 @@ let foci_popup (pop : Popup.t) =
 
 let foci st =
   let geo = st.geometry in
-  if Geometry.popup_shown geo then foci_popup st.popup else
+  if popup_has_focus st then foci_popup st.popup else
   (if Geometry.settings_shown geo then foci_settings st.settings else
    if Geometry.playlist_shown geo then foci_playlist st.playlist else []) @
   (if Geometry.filesel_shown geo then foci_filesel st.filesel else
@@ -219,7 +223,8 @@ let ok' st =
   check "file selection with op"
     (st.geometry.filesel_shown = (st.filesel.op <> None)) @
   check "popup modal"
-    (st.geometry.popup_shown = None || Ui.is_modal st.geometry.ui) @
+    (st.geometry.popup_shown = None ||
+      Ui.is_modal st.geometry.ui || Ui.has_modal_rect st.geometry.ui) @
   check "popup kind"
     ((st.geometry.popup_shown = None) = (st.popup.kind = None)) @
   check "rename modal"

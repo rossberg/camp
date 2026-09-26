@@ -6,14 +6,22 @@ type state = State.t
 (* Cover creation *)
 
 let zoom (st : state) zoom =
+  let geo = st.geometry in
   Popup.set_zoom st.popup zoom;
-  st.geometry.popup_shown <- Some (Api.Mouse.pos (Ui.window st.geometry.ui));
-  Ui.modal st.geometry.ui "popup.zoom"
+  geo.popup_shown <-
+    if zoom = Current && geo.zoom_pos <> None then geo.zoom_pos else
+    Some (Api.Mouse.pos (Ui.window geo.ui));
+  if zoom = Current then
+    Ui.modal_rect geo.ui "run.zoom" (Some (0, 0, 0, 0))  (* one-frame dummy *)
+  else
+    Ui.modal geo.ui "popup.zoom"
 
 
 (* Custom Column edit creation *)
 
 let edit_custom (st : state) (tab : _ Table.t) (view : _ Library.view) mouse kind attrs pos name s =
+  if Ui.has_modal_rect st.geometry.ui then
+    Ui.modal_rect st.geometry.ui "popup.custom" None;
   Popup.set_custom st.popup name s
     (fun s ->
       match Query.parse_custom kind s with
@@ -38,9 +46,15 @@ let edit_custom (st : state) (tab : _ Table.t) (view : _ Library.view) mouse kin
 (* Menu creation *)
 
 let menu' (st : state) items op =
-  Popup.set_menu st.popup items op;
-  st.geometry.popup_shown <- Some (Api.Mouse.pos (Ui.window st.geometry.ui));
-  Ui.modal st.geometry.ui "popup.menu"
+  let f =
+    if Ui.has_modal_rect st.geometry.ui then
+      (Ui.modal_rect st.geometry.ui "popup.menu" None; State.delay st)
+    else ((|>) ())
+  in f (fun () ->
+    Popup.set_menu st.popup items op;
+    st.geometry.popup_shown <- Some (Api.Mouse.pos (Ui.window st.geometry.ui));
+    Ui.modal st.geometry.ui "popup.menu";
+  )
 
 
 let command_menu st cmds =
@@ -174,6 +188,7 @@ let run_zoom (st : state) (zoom : Popup.zoom) =
   let ctl = st.control in
 
   let resizing = ref false in
+  let closing = ref false in
   let zoom_opt =
     match zoom with
     | Track _ | Album _ as zoom -> Some zoom
@@ -236,6 +251,13 @@ let run_zoom (st : state) (zoom : Popup.zoom) =
     (* Resize *)
     if zoom = Current then
     (
+      Ui.except_modal geo.ui "zoom.close" (fun () ->
+        (* Avoid interfering with popup movement,
+         * hence only grab mouse after release. *)
+        closing := (Api.Mouse.is_released `Left && Zoom.drag () = `Click);
+        if Zoom.cycle () then Control.cycle_zoom st.control;
+      );
+
       Option.iter (fun ((x', y', w', h'), (lft, top, rgt, bot)) ->
         resizing := true;
 
@@ -264,17 +286,22 @@ let run_zoom (st : state) (zoom : Popup.zoom) =
         let x'' = max 0 (x' - if to_lft then w'' - w' else 0) in
         let y'' = max 0 (y' - if to_top then h'' - h' else 0) in
 
-        geo.popup_shown <- Some (x'', y'');
+        geo.zoom_pos <- Some (x'', y'');
         geo.zoom_size <- inv_size (w'', h'');
+        geo.popup_shown <- geo.zoom_pos;
       ) Zoom.resize
     )
   ) zoom_opt;
 
   if zoom_opt = None
-  || zoom = Current && ctl.current = None
-  || not !resizing && Api.Mouse.(is_released `Left || is_pressed `Right) then
+  || zoom = Current && ctl.current = None || !closing
+  || zoom <> Current && Api.Mouse.is_released `Left
+  then
   (
-    Ui.nonmodal geo.ui "run.zoom";
+    if zoom = Current then
+      Ui.modal_rect geo.ui "run.zoom" None
+    else
+      Ui.nonmodal geo.ui "run.zoom";
     geo.popup_shown <- None;
     Popup.clear st.popup;
   )

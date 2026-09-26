@@ -28,6 +28,7 @@ type t =
   mutable modal : bool;                (* whether a pop-up menu is shown *)
   mutable modal_resize : bool;         (* whether a resize happened this frame *)
   mutable modal_save : bool;           (* modal mode before the resize *)
+  mutable modal_rect : rect option;    (* popup masking non-modal part *)
   mutable mouse_owner : owner option;  (* whether mouse was owned by a widget *)
   mutable drag  : drag;                (* associated data for drag operation *)
   mutable delayed : (unit -> unit) list; (* draw at end of frame *)
@@ -54,6 +55,7 @@ let make win =
     modal = false;
     modal_resize = false;
     modal_save = false;
+    modal_rect = None;
     mouse_owner = None;
     drag = No_drag;
     delayed = [];
@@ -111,10 +113,28 @@ let is_modal ui =
 
 let except_modal ui label f =
   let save = is_modal ui in
+  let save_rect = ui.modal_rect in
   if save then nonmodal ui label;
+  ui.modal_rect <- None;
   let x = f () in
+  assert (ui.modal_rect = None);
+  ui.modal_rect <- save_rect;
   if save then modal ui label;
   x
+
+let modal_rect ui label r =
+  if !App.debug_modality then
+    Printf.eprintf "[modal_rect %s] frame=%d r=%s\n%!" label
+      (Api.Draw.frame ui.win)
+      (match r with
+      | None -> "-"
+      | Some (x, y, w, h) -> Printf.sprintf "%d,%d,%d,%d" x y w h
+      );
+  assert (not (r = None && ui.modal_rect = None));
+  ui.modal_rect <- r
+
+let has_modal_rect ui =
+  ui.modal_rect <> None
 
 
 (* Panes *)
@@ -468,7 +488,8 @@ let finish ui margin (varw, varh) =
     ui.mouse_owner <- None;
   );
 
-  if owner <> None || ui.modal_save then
+  if owner <> None || ui.modal_save
+  || Option.exists (inside (Mouse.pos ui.win)) ui.modal_rect then
   (
     wr, no_edge, screen_change
   )
@@ -575,7 +596,7 @@ let key_status ui (modifiers, key) focus =
     key_status' ui key
 
 let mouse_status ui owner r (#side as side) =
-  if ui.modal
+  if ui.modal || Option.exists (inside (Mouse.pos ui.win)) ui.modal_rect
   || not (has_mouse ui owner || inside (Mouse.pos ui.win) r && (side = `Right || grab_mouse ui owner)) then
     `Untouched
   else if Mouse.is_down side && (side = `Left || not (Mouse.is_down `Middle)) then
@@ -1545,7 +1566,8 @@ let header ui owner area ph gw cols (titles, sorting) hscroll =
       | Some i -> `Click i
       )
     | `None ->
-      if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
+      if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle)
+      && not (Option.exists (inside (Mouse.pos ui.win)) ui.modal_rect) then
         `Menu None
       else
         `None
@@ -1555,7 +1577,8 @@ let header ui owner area ph gw cols (titles, sorting) hscroll =
         ui.drag <- Header_resize {mouse_x = mx; col};
       `None
     | `Header col ->
-      if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
+      if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle)
+      && not (Option.exists (inside (Mouse.pos ui.win)) ui.modal_rect) then
         `Menu (Some col)
       else if status = `Pressed then
       (
@@ -1753,7 +1776,8 @@ let rich_table ui owner area (sty : rich_table_style) cols header_opt
 
     let result =
       if not ui.modal && ui.drag = No_drag
-      && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
+      && Mouse.is_pressed `Right && not (Mouse.is_down `Middle)
+      && not (Option.exists (inside (Mouse.pos ui.win)) ui.modal_rect) then
       (
         if inside (mx, my) r then
         (
@@ -2322,7 +2346,8 @@ let grid_table ui owner area (sty : grid_table_style) header_opt
     let left_mouse_used = (status = `Pressed || status = `Released) in
 
     let result =
-      if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
+      if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle)
+      && not (Option.exists (inside (Mouse.pos ui.win)) ui.modal_rect) then
       (
         if inside (mx, my) r then
         (
@@ -2893,8 +2918,11 @@ let settings ui owner area sty vscroll adjust_vscroll settings =
 
 (* Pop-ups *)
 
+let popup_rect ui (x, y, w, h) bw =
+  x - bw, y - bw, w + 2*bw, h + 2* bw
+
 let popup ui owner r bw (varw, varh, mov) greyout =
-  assert (is_modal ui);
+  assert (is_modal ui || mov);
   let x, y, w, h = r in
   let ww, wh = Window.size ui.win in
   let w' = w + 2 * bw in
@@ -2904,6 +2932,9 @@ let popup ui owner r bw (varw, varh, mov) greyout =
 
   if greyout then
     Draw.fill_rect ui.win 0 0 ww wh (`Trans (`Black, 0x40));
+
+  if mov then
+    modal_rect ui "ui.popup" (Some (x', y', w', h'));
 
   background ui x' y' w' h';
   let sw = bw / 3 in

@@ -1083,9 +1083,12 @@ struct
         (x', y', w', h' - line), edge
       ) r''
 
+    let area = (p, 0, 0, -1, -1)
     let image_area = (p, 0, 0, -1, -line)
     let text = Ui.ticker g.ui (p, 0, -text, -1, -1)
-    let refl () = Ui.mouse_focus g.ui (p, 0, 0, -1, -1) (control_h g) 0x30 0
+    let cycle () = Ui.mouse g.ui "zoom" image_area `Right
+    let drag () = Ui.drag g.ui "zoom" area (1, 1)
+    let refl () = Ui.mouse_focus g.ui area (control_h g) 0x30 0
   end
 
 

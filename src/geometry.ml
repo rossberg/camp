@@ -35,6 +35,7 @@ type t =
   mutable lower_shown : bool;
   mutable grid : int;
   mutable zoom_size : int;
+  mutable zoom_pos : Api.point option;
 }
 
 
@@ -78,6 +79,7 @@ let make ui =
     lower_shown = false;
     grid = 100;
     zoom_size = 500;
+    zoom_pos = None;
   }
 
 
@@ -687,6 +689,7 @@ let print_state geo =
     "grid", nat geo.grid;
     "repair_cols", iarray nat geo.repair_log_columns;
     "zoom_size", nat geo.zoom_size;
+    "zoom_pos", option (pair nat nat) geo.zoom_pos;
   ]) geo
 
 let print_intern geo =
@@ -757,6 +760,8 @@ let parse_state geo =  (* assumes playlist and library loaded *)
       (fun ws -> if Iarray.length ws = 3 then geo.repair_log_columns <- ws);
     apply (r $? "zoom_size") (num min_zoom_size max_zoom_size)
       (fun w -> geo.zoom_size <- w);
+    apply (r $? "zoom_pos") (option (pair nat nat))
+      (fun po -> geo.zoom_pos <- po);
 
     geo.window <- (!rax, !ray, !raw, !rah);
     Ui.rescale geo.ui geo.scaling;

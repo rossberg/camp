@@ -195,9 +195,9 @@ Most controls around the Playlist should be intuitive. A few extra tips:
   playing. Either Cover Art (default), Turntable, Spectrum Analyzer, Wave Form,
   or Oscilloscope.
 
-* Zoom: Clicking on a visualisation will zoom it into a pop-up. Click again to
-  close. While the pop-up show, you can cycle through its visualization mode
-  with Ctrl/Command-Y.
+* Zoom: Clicking on a visualisation will zoom it into a pop-up. Click into the
+  zoom window to close it. You can also move it around. You can cycle through
+  its visualisation mode with a right click or Ctrl/Command-Y.
 
 * Oscilloscope: Dragging the mouse horizontally or vertically on it adjusts
   its scaling in the respective direction.

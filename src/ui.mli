@@ -16,6 +16,8 @@ val is_buffered : t -> bool
 val modal : t -> string -> unit
 val nonmodal : t -> string -> unit
 val is_modal : t -> bool
+val modal_rect : t -> string -> rect option -> unit
+val has_modal_rect : t -> bool
 val except_modal : t -> string -> (unit -> 'a) -> 'a
 
 (* Snapping *)
@@ -31,6 +33,9 @@ val pane : t -> owner -> rect -> pane
 val popup :
   t -> owner -> rect -> int -> bool * bool * bool -> bool ->
   pane * (rect * (bool * bool * bool * bool)) option
+
+val popup_rect : t -> rect -> int -> rect
+
 
 (* Areas *)
 
