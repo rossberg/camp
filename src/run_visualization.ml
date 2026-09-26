@@ -178,16 +178,23 @@ let run (st : State.t) area vis img_opt =
         Control.set_osc ctl (ctl.osc_x *. sx) (ctl.osc_y *. sy)
       );
 
-      let sx = max (float w /. float len *. 0.8) ctl.osc_x in
-      let n = min len (int_of_float (Float.ceil (float w /. sx))) in
+      let m = if w = h then geo.margin else 0 in
+      let x' = x + m in
+      let w' = max 1 (w - 2 * m) in
+
+      let sx = max (float w' /. float len) ctl.osc_x in
+      let n = min len (int_of_float (Float.ceil (float w' /. sx))) in
       let ps = Array.make (2 * n) 0.0 in
       for i = 0 to n - 1 do
         let v = if i < len then data.(i) else 0.0 in
-        ps.(2 * i) <- float x +. sx *. float i;
+        ps.(2 * i) <- float x' +. sx *. float i;
         ps.(2 * i + 1) <- float y +. (ctl.osc_y *. v +. 1.0) *. float h /. 2.0;
       done;
       if ctl.osc_x < 1.0 || ctl.osc_y > 1.0 then Api.Draw.clip win x y w h;
       Api.Draw.spline win ps 0.5 `White;
+      if w = h then
+        Api.Draw.gradient_circ win x y (w*2/3) (w*2/3)
+          (`Trans (`White, 0x20)) (`Trans (`White, 0x00));
       if ctl.osc_x < 1.0 || ctl.osc_y > 1.0 then Api.Draw.unclip win;
 (*
       let array = Ctypes.CArray.make Raylib.Vector2.t w in
