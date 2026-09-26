@@ -110,6 +110,18 @@ let run (st : state) focus_change =
             "OSCILLOSCOPE", ctl.visual = `Oscilloscope,
               (fun _ -> Control.set_visual ctl `Oscilloscope);
           ];
+          "ZOOM", `Choice [
+            "COVER", ctl.zoom = `Cover,
+              (fun _ -> Control.set_zoom ctl `Cover);
+            "TURNTABLE", ctl.zoom = `Turntable,
+              (fun _ -> Control.set_zoom ctl `Turntable);
+            "SPECTRUM", ctl.zoom = `Spectrum,
+              (fun _ -> Control.set_zoom ctl `Spectrum);
+            "WAVEFORM", ctl.zoom = `Waveform,
+              (fun _ -> Control.set_zoom ctl `Waveform);
+            "OSCILLOSCOPE", ctl.zoom = `Oscilloscope,
+              (fun _ -> Control.set_zoom ctl `Oscilloscope);
+          ];
           "TURNTABLE", `Choice [
             (* Don't use more precision than the state save file! *)
             "16 RPM", ctl.turn_rpm = 16.666,
