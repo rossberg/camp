@@ -398,7 +398,8 @@ let queue_on_playlist' (st : state) (tracks : Data.track array) mode =
     | `Replace ->
       (* Triple-click: replace playlist *)
       Mutex.protect st.playlist.table.mutex (fun () ->
-        Playlist.replace_all st.playlist tracks
+        Playlist.replace_all st.playlist tracks;
+        Playlist.deselect_all st.playlist;  (* avoid double selection *)
       );
       jump 0;
     );
