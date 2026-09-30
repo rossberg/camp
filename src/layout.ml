@@ -601,11 +601,11 @@ struct
         let del = button 1 1 "DEL" KeyBind.del
         let crop = button 1 2 "CROP" KeyBind.crop
         let wipe = button 1 3 "WIPE" KeyBind.wipe
-        let dedupe = shift_button 2 4 KeyBind.dedupe
+        let dedupe = shift_button 1 3 KeyBind.dedupe
         let undo = button 2 4 "UNDO" KeyBind.undo
-        let redo = shift_button 3 5 KeyBind.redo
+        let redo = shift_button 2 4 KeyBind.redo
         let save = button 3 5 "SAVE" KeyBind.save
-        let view = shift_button 4 6 KeyBind.save2
+        let view = shift_button 3 5 KeyBind.save2
         let load = button 3 6 "LOAD" KeyBind.load
       end
 
