@@ -175,7 +175,13 @@ let run (st : State.t) area vis img_opt =
         let ox', oy' = max (x + 1) ox, min (y + h - 1) oy in
         let sx = float (mx' - x) /. float (ox' - x) in
         let sy = float (y + h - my') /. float (y + h - oy') in
-        Control.set_osc ctl (ctl.osc_x *. sx) (ctl.osc_y *. sy)
+        Control.set_osc ctl (ctl.osc_x *. sx) (ctl.osc_y *. sy);
+        let th = Geometry.(min max_text_size (smin geo (geo.text*2/3))) in
+        let font = Ui.font geo.ui th in
+        Api.Draw.text win x (y + h - 2*th) th `White font
+          (Printf.sprintf "%.3f*X" ctl.osc_x);
+        Api.Draw.text win x (y + h - 1*th) th `White font
+          (Printf.sprintf "%.3f*Y" ctl.osc_y);
       );
 
       let m = if w = h then geo.margin else 0 in
