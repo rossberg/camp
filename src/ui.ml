@@ -94,7 +94,7 @@ let modal ui label =
    * Note that it cannot happen that modal_resize is true but modal isn't.
    *)
   if !App.debug_modality then
-    Printf.eprintf "[modal %s] frame=%d\n%!" label (Api.Draw.frame ui.win);
+    Printf.eprintf "[ui.modal %s] frame=%d\n%!" label (Api.Draw.frame ui.win);
   assert (ui.modal = ui.modal_resize);
   assert (not (ui.modal_resize && not ui.modal_save));
   if not ui.modal_resize then ui.modal <- true;
@@ -102,7 +102,7 @@ let modal ui label =
 
 let nonmodal ui label =
   if !App.debug_modality then
-    Printf.eprintf "[nonmodal %s] frame=%d\n%!" label (Api.Draw.frame ui.win);
+    Printf.eprintf "[ui.nonmodal %s] frame=%d\n%!" label (Api.Draw.frame ui.win);
   assert ui.modal;
   assert (not (ui.modal_resize && not ui.modal_save));
   if not ui.modal_resize then ui.modal <- false;
@@ -124,7 +124,7 @@ let except_modal ui label f =
 
 let modal_rect ui label r =
   if !App.debug_modality then
-    Printf.eprintf "[modal_rect %s] frame=%d r=%s\n%!" label
+    Printf.eprintf "[ui.modal_rect %s] frame=%d r=%s\n%!" label
       (Api.Draw.frame ui.win)
       (match r with
       | None -> "-"
@@ -432,7 +432,7 @@ let start ui (wx', wy', ww', wh' as wr') =
   (
     if !App.debug_layout then
     (
-      Printf.eprintf "[win resize] %d,%d,%d,%d -> %d,%d,%d,%d\n%!"
+      Printf.eprintf "[ui.win resize] %d,%d,%d,%d -> %d,%d,%d,%d\n%!"
         wx wy ww wh wx' wy' ww' wh'
     );
     (* Suppress input when window was just resized, mouse pos may be off *)

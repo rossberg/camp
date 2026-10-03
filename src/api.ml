@@ -243,6 +243,9 @@ let floats_of_vec2 v =
 
 (* OS-specific Nonsense *)
 
+let is_win =
+  Sys.win32
+
 let is_mac =
   Sys.unix &&
   let ic = Unix.open_process_in "uname" in
@@ -361,7 +364,7 @@ struct
       (
         let {inner = min_x, min_y, max_w, max_h; hires; _} = mon in
         Printf.eprintf
-          "[screen %d] pos=%d,%d,%d,%d limit=%d,%d,%d,%d hires=%b%s\n%!"
+          "[api.screen %d] pos=%d,%d,%d,%d limit=%d,%d,%d,%d hires=%b%s\n%!"
           i x y w h min_x min_y max_w max_h hires (if i = current then " current" else "");
         if i = current then
           Printf.eprintf "  win=%d,%d,%d,%d\n%!" save_x save_y save_w save_h;
@@ -399,13 +402,13 @@ struct
         let x, y, w, h = outer in
         let x', y', w', h' = outer' in
         Printf.eprintf
-          "[screen change outer] %d,%d,%d,%d @ %d -> %d,%d,%d,%d @ %d\n%!"
+          "[api.screen change outer] %d,%d,%d,%d @ %d -> %d,%d,%d,%d @ %d\n%!"
           x y w h current x' y' w' h' current';
         if inner <> inner' then
         (
           let min_x, min_y, max_w, max_h = outer in
           let min_x', min_y', max_w', max_h' = outer' in
-          Printf.eprintf "[screen change inner] %d,%d,%d,%d -> %d,%d,%d,%d\n%!"
+          Printf.eprintf "[api.screen change inner] %d,%d,%d,%d -> %d,%d,%d,%d\n%!"
             min_x min_y max_w max_h min_x' min_y' max_w' max_h'
         );
       );
@@ -1050,9 +1053,9 @@ struct
       current_pos := add mouse_pos win_pos;
       let mouse_delta = point_of_vec2 (Raylib.get_mouse_delta ()) in
       let win_delta = sub win_pos !last_win_pos in
-      if not is_mac || mouse_delta <> (0, 0) then
+      if is_win || mouse_delta <> (0, 0) then
         last_win_pos := win_pos  (* true mouse location caught up *)
-      else if is_mac && win_delta <> (0, 0) then
+      else if not is_win && win_delta <> (0, 0) then
         current_pos := sub !current_pos win_delta;
 
       (* Detect multi clicks *)

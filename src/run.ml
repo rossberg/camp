@@ -337,7 +337,7 @@ and run' (st : state) (x, y, w, h as r) =
       let sx', sy' = Api.Screen.pos scr' in
       let sw', sh' = Api.Screen.size scr' in
       Printf.eprintf
-        "[win screen] %d,%d,%d,%d @ %d,%d,%d,%d -> %d,%d,%d,%d @ %d,%d,%d,%d\n%!"
+        "[run.win screen] %d,%d,%d,%d @ %d,%d,%d,%d -> %d,%d,%d,%d @ %d,%d,%d,%d\n%!"
         x y w h sx sy sw sh x'' y'' w'' h'' sx' sy' sw' sh';
     );
 
@@ -394,7 +394,7 @@ and run' (st : state) (x, y, w, h as r) =
         (* Window was resized or a divider used *)
         if !App.debug_layout then
         (
-          Printf.eprintf "[win change]\n%!";
+          Printf.eprintf "[run.win change]\n%!";
           Printf.eprintf
             "    win=%d%+d,%d%+d,%d%+d,%d%+d ctl=%d,%d ext=%d,%d\n%!"
             x dx y dy w dw h dh
@@ -412,13 +412,13 @@ and run' (st : state) (x, y, w, h as r) =
         if !App.debug_layout then
         (
           Printf.eprintf
-            "  [geo set] win=%d,%d ctl=%d,%d ext=%d,%d bw=%d vw=%d\n%!"
+            "  [run.geo set] win=%d,%d ctl=%d,%d ext=%d,%d bw=%d vw=%d\n%!"
             (w + dw') (h + dh')
             geo.control_width geo.control_height
             geo.extension_width geo.extension_height
             geo.browser_width geo.left_width;
           Printf.eprintf
-            "  [geo min] win=%d,%d ctl=%d,%d ext=%d,%d bw=%d vw=%d\n%!"
+            "  [run.geo min] win=%d,%d ctl=%d,%d ext=%d,%d bw=%d vw=%d\n%!"
             (Geometry.win_min_w geo flex_ctl_w flex_ctl_h)
             (Geometry.win_min_h geo flex_ctl_w flex_ctl_h)
             Geometry.control_min_w Geometry.control_min_h

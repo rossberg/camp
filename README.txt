@@ -54,8 +54,8 @@ On Windows, no way around Cygwin and make. And you'll probably need to manually
 install the mingw64-x86_64-winpthreads package to have libwinpthread.dll in the
 path, although to be honest, I never quite understand why that is so.
 
-Camp is tested on Windows and Mac. It should work on Linux, too, but I haven't
-had a chance to try.
+Camp is tested on Windows, Mac, and Linux with Wayland. It should work on Linux
+with X11, too, but I haven't had a chance to try.
 
 
 2.2 Building

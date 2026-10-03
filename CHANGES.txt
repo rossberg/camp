@@ -20,7 +20,8 @@ UI:
 - [new] Make context menus scrollable when they don't fit the window
 - [new] Make target FPS configurable
 - [fix] Place window properly when starting up for the very first time
-- [fix] Scrolling with mouse wheel when hovering table header
+- [fix] Window kept moving after dragging it on Linux Wayland
+- [fix] Enable scrolling with mouse wheel when hovering table header
 
 
 === 0.9.6 (2026-08-17) ===

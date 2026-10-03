@@ -307,7 +307,7 @@ let check_geo geo (ww, wh) =
   if (ww, wh) <> (ww', wh') then
   (
     Printf.eprintf
-      "[geo failure] win=%d,%d<>%d,%d ctl=%d,%d ext=%d,%d shown=%b,%b\n%!"
+      "[geo.check failure] win=%d,%d<>%d,%d ctl=%d,%d ext=%d,%d shown=%b,%b\n%!"
       ww wh ww' wh' cw ch ew eh (extension_shown_w geo) (extension_shown_h geo);
     if !App.debug_strict then failwith "geometry invariant violation"
   )
@@ -324,7 +324,7 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
   if !App.debug_layout then
   (
     Printf.eprintf
-      "  [change geo] focus=%s%s flex_ctl=%b,%b\n%!"
+      "  [geo.change] focus=%s%s flex_ctl=%b,%b\n%!"
       (match focush with `Top -> "T" | `Bot -> "B" | `Hor -> "H" | `None -> "")
       (match focusw with `Lft -> "L" | `Rgt -> "R" | `Ver -> "V" | `None -> "")
       flexcw flexch;
@@ -488,7 +488,7 @@ let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
 
   if !App.debug_layout then
   (
-    Printf.eprintf "  [changed geo] focus=%s%s flex_ctl=%b,%b\n%!"
+    Printf.eprintf "  [geo.changed] focus=%s%s flex_ctl=%b,%b\n%!"
       (match focush with `Top -> "T" | `Bot -> "R" | `Hor -> "H" | `None -> "")
       (match focusw with `Lft -> "L" | `Rgt -> "R" | `Ver -> "V" | `None -> "")
       flexcw flexch;
@@ -525,7 +525,7 @@ let clamp_geo geo =
     if !App.debug_layout
     && (ch, eh) <> (geo.control_height, geo.extension_height) then
     (
-      Printf.eprintf "[geo clamp h] win=%d ctl=%d->%d ext=%d->%d\n%!"
+      Printf.eprintf "[geo.clamp h] win=%d ctl=%d->%d ext=%d->%d\n%!"
         (ch + eh) ch geo.control_height eh geo.extension_height
     )
   );
@@ -542,7 +542,7 @@ let clamp_geo geo =
     if !App.debug_layout
     && (cw, ew) <> (geo.control_width, geo.extension_width) then
     (
-      Printf.eprintf "[geo clamp w] win=%d ctl=%d->%d ext=%d->%d\n%!"
+      Printf.eprintf "[geo.clamp w] win=%d ctl=%d->%d ext=%d->%d\n%!"
         (cw + ew) cw geo.control_width ew geo.extension_width
     );
 
@@ -622,7 +622,7 @@ let apply_geo geo scr (ax, ay, aw, ah) : int * int * int * int =
   if !App.debug_layout then
   (
     Printf.eprintf
-      "[geo apply] abs=%.2f,%.2f,%.2f,%.2f concr=%d,%d,%d+%d,%d+%d\n%!"
+      "[geo.apply] abs=%.2f,%.2f,%.2f,%.2f concr=%d,%d,%d+%d,%d+%d\n%!"
       ax ay aw ah x y (control_w geo) ew (control_h geo) eh;
     Printf.eprintf "  scr=%d,%d,%d,%d @ %d\n%!" sx sy sw sh (scr :> int);
     Printf.eprintf "  ctl=%d~%d,%d~%d,%d,%d\n%!"
@@ -777,6 +777,6 @@ let init geo =
   if !App.debug_layout then
   (
     let x, y, w, h = r in
-    Printf.eprintf "[geo load] win=%d,%d,%d,%d\n%!" x y w h;
+    Printf.eprintf "[geo.init] win=%d,%d,%d,%d\n%!" x y w h;
   );
   Ui.reset geo.ui r
