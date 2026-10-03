@@ -106,6 +106,12 @@ it up in the playlist.
 Camp (usually) detects if it is already running. Any files passed to it will
 then be added to the current playlist.
 
+Especially on Mac or Linux you may want to properly install Camp by running:
+
+  +---------------
+  | make install
+  +---------------
+
 
 (*) If you are on MacOS 26+ and witness Camp being unable to open some music
     files, e.g., from the desktop, even though you allowed it before, then this

@@ -28,6 +28,7 @@ endif
 ASSETS = $(wildcard assets/*)
 SYSASSETS = $(wildcard platform/$(SYSTEM)/* platform/$(SYSTEM)/*/* platform/$(SYSTEM)/*/*/*)
 WIN_DLLS = libwinpthread-1 libffi-6
+LINUX_INSTALLDIR = /usr/local
 
 
 # Main Targets
@@ -79,10 +80,12 @@ dir: prerequisites
 	cp -f $(NAME).exe $(APPNAME)/$(APPNAME).exe
 	cp -rf assets $(APPNAME)
 
+
 win: dir
 	@if [ "$(WIN_DLLS)" != '' ]; then cp $(WIN_DLLS:%=`opam exec -- which %.dll`) $(APPNAME); fi
 
 linux: dir
+	cp -f platform/linux/* $(APPNAME)
 
 mac: prerequisites
 	osacompile -o _build/run.app platform/mac/run.scpt
@@ -103,11 +106,32 @@ mac: prerequisites
 mac-debug: mac
 	codesign -s - -v -f --entitlements platform/mac-debug/debug.plist $(NAME).exe
 
-mac-install: mac
+
+# Installation
+
+install:
+	make install-$(SYSTEM)
+
+install-win: win
+	sudo cp -rf $(APPNAME) `cygpath -u "$(PROGRAMFILES)"`
+
+install-linux: linux
+	sed "s|[$$]INSTALLDIR|$(LINUX_INSTALLDIR)|g" $(APPNAME)/$(NAME).desktop >$(APPNAME)/$(NAME).desktop.1
+	mv -f $(APPNAME)/$(NAME).desktop.1 $(APPNAME)/$(NAME).desktop
+	sudo cp -rf $(APPNAME) $(LINUX_INSTALLDIR)/$(NAME)
+	sudo ln -sf $(LINUX_INSTALLDIR)/$(NAME)/$(APPNAME).exe /usr/local/bin/$(NAME)
+	if [ $(XDG_CURRENT_DESKTOP) == "KDE" ]; then \
+	  sudo cp -f $(APPNAME)/$(NAME).desktop ~/.local/share/applications/$(NAME).desktop; \
+	fi
+
+install-mac: mac
 	cp -rf $(APPNAME).app /Applications
 
 
-# Zips
+# Zipping
+
+zip:
+	make zip-$(SYSTEM)
 
 zip-mac: mac
 	zip -r $(APPNAME)-$(VERSION)-mac.zip $(APPNAME).app
@@ -119,9 +143,6 @@ zip-win: win
 zip-linux: linux
 	zip -r $(APPNAME)-$(VERSION)-linux.zip $(APPNAME)
 	rm -rf $(NAME)
-
-zip:
-	make zip-$(SYSTEM)
 
 
 # Checks
