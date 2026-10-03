@@ -9,9 +9,9 @@ Playlist:
 
 Library:
 - [new] Custom computed columns in views
-- [fix] Fix crash on browser folder renaming
+- [fix] Crash on browser folder renaming
 - [fix] Guard drag & drop on filtered or unordered playlist view better
-- [fix] Fix track position corruption when copying tracks between playlists
+- [fix] Avoid track position corruption when copying tracks between playlists
 
 Settings:
 - [new] Setting to change turntable visualisation RPMs
@@ -19,7 +19,8 @@ Settings:
 UI:
 - [new] Make context menus scrollable when they don't fit the window
 - [new] Make target FPS configurable
-- [fix] Fix scrolling with mouse wheel when hovering table header
+- [fix] Place window properly when starting up for the very first time
+- [fix] Scrolling with mouse wheel when hovering table header
 
 
 === 0.9.6 (2026-08-17) ===

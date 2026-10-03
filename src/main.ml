@@ -5,6 +5,7 @@ open Audio_file
 let args = Arg.align
 [
   "-help", Arg.Unit ignore, "";
+  "--debug-storage", Arg.Set App.debug_storage, "\tLog access to storage files";
   "--debug-strict", Arg.Set App.debug_strict, "\tAbort on invariant violation";
   "--debug-perf", Arg.Set App.debug_perf, "\tLog execution times";
   "--debug-layout", Arg.Set App.debug_layout, "\tLog window layout";

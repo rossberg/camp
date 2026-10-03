@@ -274,6 +274,9 @@ let load st =
   Library.load_browser st.library;
   Library.rescan_root st.library `Quick;
   Playlist.load_playlist st.playlist;
+
+  Geometry.pre_init st.geometry;
+
   Storage.load_string_opt state_file (fun s ->
     try parse_state st (Text.parse s)
     with Text.Syntax_error _ | Text.Type_error as exn ->
@@ -281,7 +284,8 @@ let load st =
   );
   st.saved <- Unix.gettimeofday ();
 
-  
+  Geometry.init st.geometry;
+
   if st.geometry.playlist_shown then focus_playlist st;
   if st.control.current = None && Playlist.length st.playlist > 0 then
   (

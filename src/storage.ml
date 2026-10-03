@@ -73,25 +73,37 @@ let log_time op f =
 
 let temp_dir = File.(data_dir // "temp")
 
+let create_dir path =
+  if not (File.exists path) then(
+    if !App.debug_storage then
+      Printf.eprintf "[storage] create %s\n%!" File.(path // "");
+    File.create_dir path;
+  )
+
 let create_temp () =
-  if not (File.exists temp_dir) then File.create_dir temp_dir;
+  create_dir temp_dir;
   File.temp (Some temp_dir) "temp" ""
 
 let copy_to_temp path =
-  if not (File.exists temp_dir) then File.create_dir temp_dir;
+  create_dir temp_dir;
   let ext = File.extension path in
   let path' = File.temp (Some temp_dir) "temp" ext in
+  if !App.debug_storage then
+    Printf.eprintf "[storage] copy %s -> %s\n%!" path path';
   File.copy path path';
   path'
 
 let delete_temp path =
+  if !App.debug_storage then Printf.eprintf "[storage] delete %s\n%!" path;
   try File.delete path with Sys_error _ -> ()
 
 let clear_temp () =
   if File.exists_dir temp_dir then
   (
     Array.iter (fun file ->
-      try File.delete File.(temp_dir // file) with exn -> log_exn "clearing temp files" exn ""
+      let path = File.(temp_dir // file) in
+      if !App.debug_storage then Printf.eprintf "[storage] delete %s\n%!" path;
+      try File.delete path with exn -> log_exn "clearing temp files" exn ""
     ) (File.read_dir temp_dir)
   )
 
@@ -103,7 +115,9 @@ let log_io_error op filename exn =
 
 let load filename f =
   try
-    File.with_open_in `Bin (path filename) f
+    let path = path filename in
+    if !App.debug_storage then Printf.eprintf "[storage] load %s\n%!" path;
+    File.with_open_in `Bin path f
   with Sys_error _ | End_of_file | Scanf.Scan_failure _ | Failure _ as exn ->
     log_io_error "loading" filename exn
 
@@ -115,8 +129,9 @@ let load_opt filename f =
 
 let save filename f =
   try
-    if not (File.exists data_dir) then File.create_dir data_dir;
+    create_dir data_dir;
     let path = path filename in
+    if !App.debug_storage then Printf.eprintf "[storage] save %s\n%!" path;
     let old_path = path ^ ".old" in
     let new_path = path ^ ".new" in
     if File.exists new_path then File.delete new_path;
@@ -129,8 +144,10 @@ let save filename f =
 
 let save_append filename f =
   try
-    if not (File.exists data_dir) then File.create_dir data_dir;
-    File.with_open_append `Bin (path filename) f
+    create_dir data_dir;
+    let path = path filename in
+    if !App.debug_storage then Printf.eprintf "[storage] append %s\n%!" path;
+    File.with_open_append `Bin path f
   with Sys_error _ as exn ->
     log_io_error "appending to" filename exn
 
@@ -165,6 +182,10 @@ let exists filename =
 let delete filename =
   let path = path filename in
   try
-    if File.exists path then File.delete path
+    if File.exists path then
+    (
+      if !App.debug_storage then Printf.eprintf "[storage] delete %s\n%!" path;
+      File.delete path;
+    )
   with Sys_error _ | Failure _ as exn ->
     log_io_error "deleting" filename exn

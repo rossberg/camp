@@ -709,9 +709,7 @@ let parse_state geo =  (* assumes playlist and library loaded *)
   let open Text.Parse in
   let scr = Api.Window.screen (Ui.window geo.ui) in
   let sw, sh = Api.Screen.max_size scr in
-  let ww, wh = control_w geo, control_h geo in
-  let wx, wy = (sw - ww)/2, (sh - wh)/2 in  (* default to mid-screen *)
-  let ax, ay, aw, ah = abstract_geo geo scr (wx, wy, ww, wh) in
+  let ax, ay, aw, ah = geo.window in
   let rax, ray, raw, rah = ref ax, ref ay, ref aw, ref ah in
   record (fun r ->
     apply (r $? "scaling") (pair (num (-1) 8) (num (-1) 8))
@@ -762,14 +760,23 @@ let parse_state geo =  (* assumes playlist and library loaded *)
       (fun w -> geo.zoom_size <- w);
     apply (r $? "zoom_pos") (option (pair nat nat))
       (fun po -> geo.zoom_pos <- po);
-
     geo.window <- (!rax, !ray, !raw, !rah);
-    Ui.rescale geo.ui geo.scaling;
-    let r = apply_geo geo scr geo.window in
-    if !App.debug_layout then
-    (
-      let x, y, w, h = r in
-      Printf.eprintf "[geo load] win=%d,%d,%d,%d\n%!" x y w h;
-    );
-    Ui.reset geo.ui r;
   )
+
+let pre_init geo =
+  let scr = Api.Window.screen (Ui.window geo.ui) in
+  let sw, sh = Api.Screen.max_size scr in
+  let ww, wh = control_w geo, control_h geo in
+  let wx, wy = (sw - ww)/2, (sh - wh)/2 in  (* default to mid-screen *)
+  geo.window <- abstract_geo geo scr (wx, wy, ww, wh)
+
+let init geo =
+  Ui.rescale geo.ui geo.scaling;
+  let scr = Api.Window.screen (Ui.window geo.ui) in
+  let r = apply_geo geo scr geo.window in
+  if !App.debug_layout then
+  (
+    let x, y, w, h = r in
+    Printf.eprintf "[geo load] win=%d,%d,%d,%d\n%!" x y w h;
+  );
+  Ui.reset geo.ui r
