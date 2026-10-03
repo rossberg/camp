@@ -8,7 +8,7 @@ struct
   let _log1 fmt = Printf.ksprintf (Printf.eprintf "[Raylib.%s] => %!") fmt
   let _log2 fmt = Printf.ksprintf (Printf.eprintf "%s\n%!") fmt
 
-(* Log window functions *)
+(* Log window functions
   let init_window w h s =
     _log "init_window %d %d \"%s\"" w h s;
     init_window w h s
@@ -43,7 +43,7 @@ struct
   let close_window () =
     _log "close_window ()";
     close_window ()
-(* *)
+*)
 
 (* Log Image and Texture functions
   let pixelformat image =
