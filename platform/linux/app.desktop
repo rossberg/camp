@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=$APPNAME
+GenericName=Audio Player
+Comment=An audio player with media library
+Exec=$INSTALLDIR/$NAME/$APPNAME.exe
+Icon=$INSTALLDIR/$NAME/assets/icon.png
+MimeType=audio/x-xm;audio/x-opus+ogg;audio/x-mod;audio/vnd.wave;audio/ogg;audio/mpeg;audio/flac
+Terminal=false
