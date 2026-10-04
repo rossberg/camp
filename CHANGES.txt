@@ -6,6 +6,7 @@ Control:
 
 Playlist:
 - [new] Custom computed columns
+- [fix] Load meta data of all tracks before saving a playlist
 
 Library:
 - [new] Custom computed columns in views

@@ -913,20 +913,27 @@ let load (st : state) (module View : View) =
     )
   )
 
+let save_tracks st tracks =
+  let undet = Array.exists Track.update_if_undet tracks in
+  Run_filesel.filesel st `File `Write "" ".m3u" (fun path ->
+    let f () = File.save `Bin path (Track.to_m3u tracks) in
+    if not undet then
+      f ()
+    else
+      ignore (
+        Domain.spawn (fun () -> Array.iter (Track.await 0.001) tracks; f ())
+      )
+  )
+
 let save_avail (st : state) (module View : View) =
   accessible st (module View)
 let save (st : state) (module View : View) =
-  Run_filesel.filesel st `File `Write "" ".m3u" (fun path ->
-    File.save `Bin path (Track.to_m3u View.(tracks it))
-  )
+  save_tracks st View.(tracks it)
 
 let save_sel_avail (st : state) (module View : View) =
   save_avail st (module View : View) && View.(num_selected it > 0)
 let save_sel (st : state) (module View : View) =
-  let m3u = Track.to_m3u View.(selected it) in
-  Run_filesel.filesel st `File `Write "" ".m3u" (fun path ->
-    File.save `Bin path m3u
-  )
+  save_tracks st View.(selected it)
 
 let save_view_avail (st : state) view =
   save_avail st view && not st.playlist.table.focus &&

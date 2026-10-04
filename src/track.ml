@@ -62,7 +62,7 @@ let time track =
 
 (* Conversion *)
 
-let to_m3u_item (track : Data.track) =
+let to_m3u_item (track : track) =
   let info =
     Option.map (fun (meta : Meta.t) ->
       let title = name_of_meta track.path meta in
@@ -109,6 +109,17 @@ let update (track : track) =
     track.file.age <- -1.0;
     Safe_queue.add track queue;
   )
+
+let update_if_undet (track : track) =
+  if track.status = `Undet then update track;
+  track.status = `Undet
+
+let rec await t (track : track) =
+  match track.status with
+  | `Undet -> update track; await t track
+  | `Predet -> Unix.sleepf t; await t track
+  | `Det | `Invalid | `Absent -> ()
+
 
 let rec updater () =
   let track = Safe_queue.take queue in
