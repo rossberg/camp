@@ -260,7 +260,7 @@ let switch ctl (track : track) =
     if ctl.sound == Api.Audio.silence ctl.audio then 0.0
     else Api.Audio.length ctl.audio ctl.sound;
 *)
-  Track.update track
+  Track.queue_update track
 
 let seek ctl percent =
   if silent ctl && ctl.current <> None then

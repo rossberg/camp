@@ -33,6 +33,11 @@ val of_m3u : string -> track array
 
 (* Updating queue *)
 
+val is_updated : track -> bool
+
 val update : track -> unit
-val update_if_undet : track -> bool
-val await : time -> track -> unit
+val update_if_undet : track -> unit
+
+val queue_update : track -> unit
+val queue_update_if_undet : track -> unit
+val await_update : time -> track -> unit

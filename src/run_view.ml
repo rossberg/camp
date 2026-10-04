@@ -804,6 +804,8 @@ let wipe_avail all st (module View : View) =
     (all || View.(is_selected it i)) && track.status = `Absent
   ) View.(tracks it)
 let wipe all _st (module View : View) =
+  let tracks = View.(if all then tracks it else selected it) in
+  Array.iter Track.update_if_undet tracks;
   View.(remove_invalid it all)
 
 let dedupe_avail all st (module View : View) =
@@ -914,15 +916,16 @@ let load (st : state) (module View : View) =
   )
 
 let save_tracks st tracks =
-  let undet = Array.exists Track.update_if_undet tracks in
+  Array.iter Track.queue_update_if_undet tracks;
   Run_filesel.filesel st `File `Write "" ".m3u" (fun path ->
     let f () = File.save `Bin path (Track.to_m3u tracks) in
-    if not undet then
+    if Array.for_all Track.is_updated tracks then
       f ()
     else
-      ignore (
-        Domain.spawn (fun () -> Array.iter (Track.await 0.001) tracks; f ())
-      )
+      ignore (Domain.spawn (fun () ->
+        Array.iter (Track.await_update 0.001) tracks;
+        f ();
+      ))
   )
 
 let save_avail (st : state) (module View : View) =

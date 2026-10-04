@@ -1264,7 +1264,7 @@ let run_views (st : state) =
     let color_of (track : Data.track) =
       if (track.status = `Undet || track.status = `Predet)
       && Library.rescan_busy lib = None then
-        Track.update track;
+        Track.queue_update track;
       let c1, normal =
         match track.status with
         | `Det | `Predet ->

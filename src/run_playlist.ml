@@ -92,7 +92,7 @@ let run (st : state) =
   let pp_row i : _ * _ iarray =
     let track = tab.entries.(i) in
     if now -. track.file.age > st.config.delay_track_update then
-      Track.update track;
+      Track.queue_update track;
     let c1, normal =
       match track.status with
       | `Det | `Predet -> Ui.text_color geo.ui, true
