@@ -9,6 +9,7 @@ type visual_buffer =
 {
   mutable stream : float array list;  (* newest fragment first *)
   mutable data : float array;
+  mutable processed : float array;
 }
 
 type t =

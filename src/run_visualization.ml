@@ -106,7 +106,9 @@ let run (st : State.t) area vis buf img_opt =
     ) img_opt
 
   | `Spectrum ->
-    let bands = Spectrum.bands buf.data ctl.spec_bands in
+    if Api.Draw.frame win mod 2 = 0 then  (* recompute only every second frame *)
+      buf.processed <- Spectrum.bands buf.data ctl.spec_bands;
+    let bands = buf.processed in
     let n = ctl.spec_bands in
     let n' = Array.length bands in
     (* Buffer may be off right after switching visuals *)

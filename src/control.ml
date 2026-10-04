@@ -9,6 +9,7 @@ type visual_buffer =
 {
   mutable stream : float array list;
   mutable data : float array;
+  mutable processed : float array;
 }
 
 type t =
@@ -72,7 +73,8 @@ let reinit_visual_buffer vis buf =
     | `Spectrum -> Spectrum.fft_samples
     | `Waveform | `Oscilloscope -> 960
   in
-  buf.data <- Array.make (2 * n) 0.0
+  buf.data <- Array.make (2 * n) 0.0;
+  buf.processed <- [||]
 
 let reinit_visual f buf ctl vis =
   let old_need = needs_processor ctl in
@@ -125,6 +127,7 @@ let make_visual_buffer () =
   {
     stream = [];
     data = [||];
+    processed = [||];
   }
 
 let make audio =
