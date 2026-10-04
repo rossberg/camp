@@ -5,6 +5,12 @@ type track = Data.track
 
 type visual = [`Cover | `Turntable | `Spectrum | `Waveform | `Oscilloscope]
 
+type visual_buffer =
+{
+  mutable stream : float array list;
+  mutable data : float array;
+}
+
 type t =
 {
   audio : Api.audio;
@@ -18,13 +24,13 @@ type t =
   mutable loop : [`None | `A of time | `AB of time * time];
   mutable visual : visual;
   mutable zoom : visual;
+  visual_buffer : visual_buffer;
+  zoom_buffer : visual_buffer;
   mutable fps : bool;
   mutable turn_rpm : float;
   mutable spec_bands : int;
   mutable osc_x : float;
   mutable osc_y : float;
-  mutable raw : float array;
-  mutable data : float array;
 }
 
 
@@ -36,10 +42,14 @@ let osc_y = 1.4
 
 let clamp lo hi x = max lo (min hi x)
 
+let process fs vis buf =
+  match vis with
+  | `Cover | `Turntable -> ()
+  | `Spectrum | `Waveform | `Oscilloscope -> buf.stream <- fs :: buf.stream
+
 let audio_processor ctl fs =
-  let len = Array.length ctl.raw in
-  let lim = 2 * Spectrum.fft_samples in
-  ctl.raw <- if len = 0 || len > lim then fs else Array.append ctl.raw fs
+  process fs ctl.visual ctl.visual_buffer;
+  process fs ctl.zoom ctl.zoom_buffer
 
 let needs_processor' = function
   | `Cover | `Turntable -> false
@@ -54,19 +64,25 @@ let init_visual ctl  =
   else
     Api.Audio.remove_all_processors ctl.audio
 
-let reinit_visual ctl f =
-  let old_need = needs_processor ctl in
-  f ();
-  let new_need = needs_processor ctl in
-  if old_need <> new_need then
-  (
-    ctl.raw <- [||];
-    ctl.data <- [||];
-    init_visual ctl;
-  )
+let reinit_visual_buffer vis buf =
+  buf.stream <- [];
+  let n =
+    match vis with
+    | `Cover | `Turntable -> 0
+    | `Spectrum -> Spectrum.fft_samples
+    | `Waveform | `Oscilloscope -> 960
+  in
+  buf.data <- Array.make (2 * n) 0.0
 
-let set_visual ctl vis = reinit_visual ctl (fun () -> ctl.visual <- vis)
-let set_zoom ctl vis = reinit_visual ctl (fun () -> ctl.zoom <- vis)
+let reinit_visual f buf ctl vis =
+  let old_need = needs_processor ctl in
+  f vis;
+  let new_need = needs_processor ctl in
+  if old_need <> new_need then init_visual ctl;
+  reinit_visual_buffer vis buf
+
+let set_visual ctl = reinit_visual (fun v -> ctl.visual <- v) ctl.visual_buffer ctl
+let set_zoom ctl = reinit_visual (fun v -> ctl.zoom <- v) ctl.zoom_buffer ctl
 
 (*
 let idx_visual (st : state) =
@@ -86,15 +102,8 @@ let next_visual = function
   | `Waveform -> `Oscilloscope
   | `Oscilloscope -> `Cover
 
-let cycle_visual ctl =
-  ctl.raw <- [||];
-  ctl.data <- [||];
-  set_visual ctl (next_visual ctl.visual)
-
-let cycle_zoom ctl =
-  ctl.raw <- [||];
-  ctl.data <- [||];
-  set_zoom ctl (next_visual ctl.zoom)
+let cycle_visual ctl = set_visual ctl (next_visual ctl.visual)
+let cycle_zoom ctl = set_zoom ctl (next_visual ctl.zoom)
 
 
 let set_osc ctl x y =
@@ -111,6 +120,12 @@ let max_spec_bands = 18
 
 
 (* Constructor *)
+
+let make_visual_buffer () =
+  {
+    stream = [];
+    data = [||];
+  }
 
 let make audio =
   let ctl =
@@ -130,8 +145,8 @@ let make audio =
     turn_rpm = 33.333;
     spec_bands;
     osc_x; osc_y;
-    raw = [||];
-    data = [||];
+    visual_buffer = make_visual_buffer ();
+    zoom_buffer = make_visual_buffer ();
   }
   in
   init_visual ctl;

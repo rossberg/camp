@@ -46,7 +46,27 @@ let run_sine_wave () =
 
 (* Runner *)
 
-let run (st : State.t) area vis img_opt =
+let propagate_buf (buf : Control.visual_buffer) =
+  let avail = List.fold_left (fun n a -> n + Array.length a) 0 buf.stream in
+  let needed = Array.length buf.data in
+  (* If there isn't enough new data, reuse most recent old data *)
+  let keep = max 0 (needed - avail) in
+  if keep > 0 && keep < needed then
+    Array.blit buf.data avail buf.data 0 keep;
+  (* Fill from back, since buf.stream is reversed *)
+  let n = ref (needed - keep) in
+  while !n > 0 do
+    let back = List.hd buf.stream in
+    let len = Array.length back in
+    let n' = min len !n in
+    n := !n - n';
+    Array.blit back (len - n') buf.data (keep + !n) n' ;
+    buf.stream <- List.tl buf.stream;
+  done;
+  buf.stream <- []
+
+
+let run (st : State.t) area vis buf img_opt =
   let geo = st.geometry in
   let ctl = st.control in
   let win = Ui.window geo.ui in
@@ -59,6 +79,8 @@ let run (st : State.t) area vis img_opt =
 (*
   run_sine_wave ();
 *)
+
+  propagate_buf buf;
 
   (match vis with
   | `Cover ->
@@ -84,18 +106,7 @@ let run (st : State.t) area vis img_opt =
     ) img_opt
 
   | `Spectrum ->
-    let raw = ctl.raw in
-    let len = Array.length raw in
-    let lim = Spectrum.fft_samples in
-    if len >= lim then
-    (
-      (* This could race, but that's okay *)
-      let wave = Array.sub raw 0 lim in
-      let rest = Array.sub raw lim (len - lim) in
-      ctl.raw <- rest;
-      ctl.data <- Spectrum.bands wave ctl.spec_bands;
-    );
-    let bands = ctl.data in
+    let bands = Spectrum.bands buf.data ctl.spec_bands in
     let n = ctl.spec_bands in
     let n' = Array.length bands in
     (* Buffer may be off right after switching visuals *)
@@ -133,25 +144,22 @@ let run (st : State.t) area vis img_opt =
     done
 
   | `Waveform ->
-    let data = if ctl.raw = [||] then ctl.data else ctl.raw in
-    ctl.raw <- [||];
-    ctl.data <- data;
+    let data = buf.data in
+    let len = Array.length data in
 
     Api.Draw.fill_rect win x y w h `Black;
     let l = max 1 (smin 1 / 2) in
     for i = 0 to w / l / 2 - 1 do
       let i = 2 * i in
-      let v = if i < Array.length data then data.(i) else 0.0 in
+      let v = if i < len then data.(i) else 0.0 in
       let v' = v *. float h /. float l /. 1.5 in
       let x, y = x + l * i, y + h/2 - l * int_of_float v' in
       Api.Draw.fill_rect win x y l l `White;
     done;
 
   | `Oscilloscope ->
-    let data = if ctl.raw = [||] then ctl.data else ctl.raw in
+    let data = buf.data in
     let len = Array.length data in
-    ctl.raw <- [||];
-    ctl.data <- data;
 
     if w = h then
       Api.Draw.fill_circ win x y w h `Black

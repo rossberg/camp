@@ -246,7 +246,7 @@ let run (st : state) =
     ) ctl.current |> Option.join
   in
 
-  Run_visualization.run st vis_area ctl.visual img_opt;
+  Run_visualization.run st vis_area ctl.visual ctl.visual_buffer img_opt;
 
   (* FPS *)
   if ctl.fps then

@@ -244,7 +244,7 @@ let run_zoom (st : state) (zoom : Popup.zoom) =
       (if year = "" then "" else " (" ^ year ^ ")") ^
       (if num = "" then "" else ", track " ^ num)
     in
-    Run_visualization.run st Zoom.image_area vis img_opt;
+    Run_visualization.run st Zoom.image_area vis ctl.zoom_buffer img_opt;
     Zoom.text text;
     Zoom.refl ();
 

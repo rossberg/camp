@@ -5,6 +5,12 @@ type track = Data.track
 
 type visual = [`Cover | `Turntable | `Spectrum | `Waveform | `Oscilloscope]
 
+type visual_buffer =
+{
+  mutable stream : float array list;  (* newest fragment first *)
+  mutable data : float array;
+}
+
 type t =
 {
   audio : Api.audio;
@@ -18,13 +24,13 @@ type t =
   mutable loop : [`None | `A of time | `AB of time * time];
   mutable visual : visual;
   mutable zoom : visual;
+  visual_buffer : visual_buffer;
+  zoom_buffer : visual_buffer;
   mutable fps : bool;
   mutable turn_rpm : float;
   mutable spec_bands : int;
   mutable osc_x : float;
   mutable osc_y : float;
-  mutable raw : float array;
-  mutable data : float array;
 }
 
 (* Constructor *)
