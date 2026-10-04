@@ -230,13 +230,11 @@ let run (st : state) =
 
   (* Visual *)
   let old_visual = ctl.visual in
-  let visual_button = ControlUi.Info.Visual.button () in
-  Ui.except_modal geo.ui "zoom" (fun () ->
-    if visual_button || ControlUi.Info.Visual.key () then
-      Control.(if Geometry.popup_shown geo then cycle_zoom else cycle_visual)
-        ctl;
-    (*Option.iter (Layout.visual_indicator geo) (idx_visual st);*)
-  );
+  if ControlUi.Info.Visual.button () then
+    Control.cycle_visual ctl;
+  if ControlUi.Info.Visual.key () then
+    Control.(if Geometry.popup_shown geo then cycle_zoom else cycle_visual) ctl;
+  (*Option.iter (Layout.visual_indicator geo) (idx_visual st);*)
 
   let vis_area =
     ControlUi.Info.Visual.(if ctl.visual = `Cover then cover_area else area) in
