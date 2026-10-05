@@ -743,8 +743,8 @@ Some things can also be controlled directly:
 * Text Size: Use the + and - keys with Ctrl/Command to adjust the size of all
   text in table, list, and edit widgets.
 
-* Grid Size: Use the + and - keys with Shift+Ctrl/Command (or the context
-  menu from the Control pane) to adjust the size of covers in grid views.
+* Grid Size: Use the mouse or the + and - keys with Shift+Ctrl/Command to
+  adjust the size of covers in grid views.
 
 * Zoom Size: Use the [ and ] keys with Ctrl/Command (or the context menu from
   the Control pane) to adjust the size of zoom pop-ups. But note that pop-ups
@@ -805,8 +805,8 @@ the underlying graphics and audio library (Raylib, Section 4.3).
   be vertically resized when the Playlist isn't open. Likewise, pop-ups cannot
   protrude from the parent window. Bummer.
 
-  Window resizing or opening/closing Playlist or Library panes may create ugly
-  animation artefacts for a moment, depending on operating system.
+  Window resizing or opening/closing Playlist or Library panes may create janky
+  animation artefacts, depending on operating system on frame rate.
 
 * There may be bugs. Correction: there almost certainly are. And other
   occasional signs of immature software.

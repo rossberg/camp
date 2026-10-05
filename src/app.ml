@@ -1,5 +1,5 @@
 let name = "Camp"
-let version = "0.9.7--"
+let version = "0.9.7"
 
 let debug_storage = ref false
 let debug_perf = ref false

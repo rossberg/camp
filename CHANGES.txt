@@ -1,4 +1,8 @@
-=== 0.9.7 (WIP) ===
+=== 0.9.7 (2026-10-05) ===
+
+This update makes pop-up menus scrollable and adds resizable zoom for all
+visualisations. It also adds the ability to define custom view columns with
+synthesised values.
 
 Control:
 - [new] All visualisations can be zoomed into a pop-up
