@@ -140,6 +140,7 @@ struct
   let grid_table_style has_heading : Ui.grid_table_style =
     { gutter_w = gutter_w g;
       img_h = g.grid;
+      img_limits = min_grid_size, max_grid_size;
       text_h = text_h g;
       pad_h = pad_h g;
       scroll_w = scrollbar_w g;

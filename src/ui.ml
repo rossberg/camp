@@ -2241,6 +2241,7 @@ let grid ui owner area gw iw ch ph matrix =
 type grid_table_style =
   { gutter_w : int;
     img_h : int;
+    img_limits : int * int;
     text_h : int;
     pad_h : int;
     scroll_w : int;
@@ -2305,13 +2306,33 @@ let grid_table ui owner area (sty : grid_table_style) header_opt
     (p, (if aw < 0 then tw else ax + aw + 1), ay, sty.scroll_w, ah) in
   let (x, y, w, h) as r = dim ui table_area in
 
+  (* Grid resize; compute first to minimise lag *)
+  let owner' = owner ^ ":body" in
+  let mx, my as mouse = Mouse.pos ui.win in
+  let img_h, resized =
+    match ui.drag with
+    | Grid_resize {mouse_x; col} when has_mouse ui owner' ->
+      Mouse.set_cursor ui.win (`Resize `E_W);
+      let dx = mx - mouse_x in
+      let dh = dx / col in
+      let imin, imax = sty.img_limits in
+      let imax' = min imax (w - 2 * sty.gutter_w) in
+      let img_h = clamp imin imax' (sty.img_h + dh) in
+      let dh' = img_h - sty.img_h in
+      ui.drag <- Grid_resize {mouse_x = mouse_x + dh' * col; col};
+      img_h, true
+
+    | _ -> sty.img_h, false
+  in
+
   let shift = is_shift_down () in
   let command = is_command_down () in
 
   Mutex.protect tab.mutex (fun () ->
     let len = Array.length tab.entries in
-    let iw = sty.gutter_w + sty.img_h in
+    let iw = sty.gutter_w + img_h in
     let ih = iw + ch in
+
     let line = max 1 Float.(to_int (floor (float w /. float iw))) in
     let page =
       max line Float.(to_int (floor (float h /. float ih)) * line) in
@@ -2338,7 +2359,7 @@ let grid_table ui owner area (sty : grid_table_style) header_opt
       in
       if ui.buffered then Draw.buffered ui.win buf;
       let area' = if ui.buffered then (-1, 0, 0, w, h) else table_area in
-      draw_grid ui area' sty.gutter_w sty.img_h sty.text_h sty.pad_h matrix;
+      draw_grid ui area' sty.gutter_w img_h sty.text_h sty.pad_h matrix;
       if ui.buffered then Draw.unbuffered ui.win;
       Table.clean tab;
     );
@@ -2346,34 +2367,24 @@ let grid_table ui owner area (sty : grid_table_style) header_opt
 
     let find_gutter mx =
       let dx = mx - x - (sty.gutter_w + 1)/2 in
-      if dx < 0 || dx mod iw < sty.img_h || dx / iw >= line then
+      if dx < 0 || dx mod iw < img_h || dx / iw >= line then
         None
       else
         Some (dx / iw + 1)
     in
 
-    let mx, my as mouse = Mouse.pos ui.win in
     let i, j = (mx - x) / iw, (my - y) / ih in
     let k = vscroll + j * line + i in
     let on_bg = i >= line || k >= min len (vscroll + page_ceil) in
 
-    let owner' = owner ^ ":body" in
     let _, status = widget ui (Some owner') table_area no_modkey in
     (* Mirrors logic in grid *)
     let left_mouse_used = (status = `Pressed || status = `Released) in
 
     let result =
-      match ui.drag with
-      | Grid_resize {mouse_x; col} when has_mouse ui owner' ->
-        Mouse.set_cursor ui.win (`Resize `E_W);
-        let dx = mx - mouse_x in
-        if dx = 0 then `None else
-        let dh = (dx + col/2) / col in
-        ui.drag <- Grid_resize {mouse_x = mouse_x + dh * col; col};
-        `Resize ([|sty.img_h + dh|] : _ iarray)
-
-      | _ ->
-      if ui.modal || Option.exists (inside mouse) ui.modal_rect then
+      if resized then
+        `Resize ([|img_h|] : _ iarray)
+      else if ui.modal || Option.exists (inside mouse) ui.modal_rect then
         `None
       else if Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
       (

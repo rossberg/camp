@@ -234,6 +234,7 @@ val grid :
 type grid_table_style =
   { gutter_w : int;
     img_h : int;
+    img_limits : int * int;
     text_h : int;
     pad_h : int;
     scroll_w : int;
