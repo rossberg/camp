@@ -2251,6 +2251,14 @@ type grid_table_style =
 
 type grid_table_action = rich_table_action
 
+type drag += Grid_resize of {mouse_x : int; col : int}
+
+let _ =
+  let f' = !string_of_drag in
+  string_of_drag := function
+    | Grid_resize _ -> "Grid_resize"
+    | drag -> f' drag
+
 let grid_table_inner_area _ui area sty =
   let p, ax, ay, aw, ah = area in
   let ty = if not sty.has_heading then ay else ay + sty.text_h + 2 in
@@ -2336,18 +2344,38 @@ let grid_table ui owner area (sty : grid_table_style) header_opt
     );
     if ui.buffered then Draw.buffer ui.win x y buf;
 
-    let mx, my = Mouse.pos ui.win in
+    let find_gutter mx =
+      let dx = mx - x - (sty.gutter_w + 1)/2 in
+      if dx < 0 || dx mod iw < sty.img_h || dx / iw >= line then
+        None
+      else
+        Some (dx / iw + 1)
+    in
+
+    let mx, my as mouse = Mouse.pos ui.win in
     let i, j = (mx - x) / iw, (my - y) / ih in
     let k = vscroll + j * line + i in
     let on_bg = i >= line || k >= min len (vscroll + page_ceil) in
 
-    let _, status = widget ui (Some (owner ^ ":body")) table_area no_modkey in
+    let owner' = owner ^ ":body" in
+    let _, status = widget ui (Some owner') table_area no_modkey in
     (* Mirrors logic in grid *)
     let left_mouse_used = (status = `Pressed || status = `Released) in
 
     let result =
-      if not ui.modal
-      && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
+      match ui.drag with
+      | Grid_resize {mouse_x; col} when has_mouse ui owner' ->
+        Mouse.set_cursor ui.win (`Resize `E_W);
+        let dx = mx - mouse_x in
+        if dx = 0 then `None else
+        let dh = (dx + col/2) / col in
+        ui.drag <- Grid_resize {mouse_x = mouse_x + dh * col; col};
+        `Resize ([|sty.img_h + dh|] : _ iarray)
+
+      | _ ->
+      if ui.modal || Option.exists (inside mouse) ui.modal_rect then
+        `None
+      else if Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
       (
         if mouse_inside ui r then
         (
@@ -2364,28 +2392,43 @@ let grid_table ui owner area (sty : grid_table_style) header_opt
           `None
       )
       else if not left_mouse_used then
+      (
+        if ui.drag = No_drag && find_gutter mx <> None then
+          Mouse.set_cursor ui.win (`Resize `E_W);
         `None
+      )
       else if not (shift || command) then
       (
         match drag_status ui (owner ^ ":body") r (iw, ih) with
-        | `None -> `None
+        | `None ->
+          if find_gutter mx <> None then
+            Mouse.set_cursor ui.win (`Resize `E_W);
+          `None
 
         | `Take ->
           (* Click *)
-          if on_bg then
-          (
-            (* Click on empty space *)
-            Table.deselect_all tab;
-            `Click (None, None)
-          )
-          else
-          (
-            (* Click on entry *)
-            if not (Table.is_selected tab k) then
+          (match find_gutter mx with
+          | Some col ->
+            (* Click on gutter: start resizing *)
+            Mouse.set_cursor ui.win (`Resize `E_W);
+            ui.drag <- Grid_resize {mouse_x = mx; col};
+            `None
+          | None ->
+            if on_bg then
+            (
+              (* Click on empty space *)
               Table.deselect_all tab;
-            if not (Mouse.is_double_click `Left) then
-              Table.select tab k k;
-            `Click (Some k, None)
+              `Click (None, None)
+            )
+            else
+            (
+              (* Click on entry *)
+              if not (Table.is_selected tab k) then
+                Table.deselect_all tab;
+              if not (Mouse.is_double_click `Left) then
+                Table.select tab k k;
+              `Click (Some k, None)
+            )
           )
 
         | `Click ->

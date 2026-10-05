@@ -10,6 +10,7 @@ Playlist:
 
 Library:
 - [new] Custom computed columns in views
+- [new] Grid covers can be resized by mouse drag
 - [fix] Crash on browser folder renaming
 - [fix] Guard drag & drop on filtered or unordered playlist view better
 - [fix] Avoid track position corruption when copying tracks between playlists

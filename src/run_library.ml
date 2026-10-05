@@ -920,6 +920,11 @@ let run_view (st : state)
     Option.iter (Library.save_dir lib) lib.current;
     reorder lib;
 
+  | `Resize ([|h|] : _ iarray) when mode = `Grid ->
+    (* Grid resizing: update grid size *)
+    Library.error lib "";
+    geo.grid <- h;
+
   | `Resize ws ->
     (* Column resizing: update column widths *)
     Library.error lib "";
