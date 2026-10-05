@@ -611,7 +611,7 @@ let run_browser (st : state) =
       State.focus_table st browser;
     )
     else if Api.Key.(is_released `Return || is_released `Enter)
-    || Api.Mouse.is_released `Left && not (Ui.mouse_inside geo.ui area) then
+    || Api.Mouse.is_released `Left && not (Ui.mouse_over geo.ui area) then
     (
       Library.end_rename lib (dir.name <> lib.rename.text);
       dir.name <- lib.rename.text;
@@ -1048,7 +1048,7 @@ let run_view (st : state)
   | `Drop ->
     if Api.Key.are_modifiers_down [] then
     (
-      if Ui.mouse_inside geo.ui area then
+      if Ui.mouse_over geo.ui area then
       (
         (* Dropping inside own view: drop aux undo if no change *)
         if editable then
@@ -1072,7 +1072,7 @@ let run_view (st : state)
   | `Abort ->
     if Api.Key.are_modifiers_down [] && editable then
     (
-      if Ui.mouse_inside geo.ui area then
+      if Ui.mouse_over geo.ui area then
       (
         (* Aborting inside own view: snap back to original state *)
         Library.undo lib;

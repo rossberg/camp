@@ -209,8 +209,12 @@ let dim ui (p, x, y, w, h) =
   let x', y', w', h' = rel_rect (pw, ph) (x, y, w, h) in
   px + x', py + y', w', h'
 
-let mouse_inside ui area =
-  inside (Mouse.pos ui.win) (dim ui area)
+let mouse_inside ui r =
+  let pos = Mouse.pos ui.win in
+  inside pos r && not (Option.exists (inside pos) ui.modal_rect)
+
+let mouse_over ui area =
+  mouse_inside ui (dim ui area)
 
 
 (* Geometry helpers *)
@@ -330,8 +334,7 @@ let mouse_focus' ui r v offset =
 let mouse_focus ui area r v offset =
   let x, y, w, h = dim ui area in
   let rr = (x - r - offset, y - r - offset, w + 2*r, h + 2*r) in
-  (* Don't use mouse_inside here, since values can get negative. *)
-  if inside (Mouse.pos ui.win) rr then
+  if mouse_inside ui rr then
   (
     Draw.clip ui.win x y w h;
     mouse_focus' ui r v offset;
@@ -489,7 +492,7 @@ let finish ui margin (varw, varh) =
   );
 
   if owner <> None || ui.modal_save
-  || Option.exists (inside (Mouse.pos ui.win)) ui.modal_rect then
+  || Option.exists (inside origin) ui.modal_rect then
   (
     wr, no_edge, screen_change
   )
@@ -596,8 +599,8 @@ let key_status ui (modifiers, key) focus =
     key_status' ui key
 
 let mouse_status ui owner r (#side as side) =
-  if ui.modal || Option.exists (inside (Mouse.pos ui.win)) ui.modal_rect
-  || not (has_mouse ui owner || inside (Mouse.pos ui.win) r && (side = `Right || grab_mouse ui owner)) then
+  if ui.modal
+  || not (has_mouse ui owner || mouse_inside ui r && (side = `Right || grab_mouse ui owner)) then
     `Untouched
   else if Mouse.is_down side && (side = `Left || not (Mouse.is_down `Middle)) then
     `Pressed
@@ -630,7 +633,7 @@ let unexpected_drag ui owner s =
 
 let drag_status ui owner r (stepx, stepy) =
   if ui.modal || ui.drag = Abort
-  || not (has_mouse ui owner || inside (Mouse.pos ui.win) r && grab_mouse ui owner) then
+  || not (has_mouse ui owner || mouse_inside ui r && grab_mouse ui owner) then
     `None
   else if Mouse.is_released `Left then
   (
@@ -657,7 +660,7 @@ let drag_status ui owner r (stepx, stepy) =
       let dy' = if stepy = 0 then dy else dy / stepy in
       let pos = mx - dx mod max 1 stepx, my - dy mod max 1 stepy in
       let moved' = Mouse.is_drag `Left in
-      let inside' = Api.inside m r in
+      let inside' = mouse_inside ui r in
       ui.drag <- Drag {pos; moved = moved'; inside = inside'};
       let motion =
         match moved, moved' with
@@ -681,7 +684,7 @@ let drag_status ui owner r (stepx, stepy) =
   )
 
 let wheel_status ui r =
-  if not ui.modal && inside (Mouse.pos ui.win) r then
+  if not ui.modal && mouse_inside ui r then
     Mouse.wheel ui.win
   else
     (0.0, 0.0)
@@ -1057,7 +1060,7 @@ let scroll_bar ui owner area l orient v len =
   if not (has_mouse ui owner) then v else
   let now = Unix.gettimeofday () in
   let v' =
-    if dragging || inside m r then
+    if dragging || mouse_inside ui r then
     (
       ui.drag <- Scroll_bar_drag {value = v0; mx = mx0; my = my0};
       match orient with
@@ -1553,12 +1556,12 @@ let header ui owner area ph gw cols (titles, sorting) hscroll =
   let find_gutter cols mx = find_gutter w gw cols hscroll (mx - x) in
   let find_column cols mx = find_column w gw cols hscroll (mx - x) in
 
-  let mx, my = Mouse.pos ui.win in
-  if not (has_mouse ui owner || inside (mx, my) r && grab_mouse ui owner) then
+  let mx, my as mouse = Mouse.pos ui.win in
+  if not (has_mouse ui owner || mouse_inside ui r && grab_mouse ui owner) then
     `None
   else
   match ui.drag with
-  | No_drag ->
+  | No_drag when not (ui.modal || Option.exists (inside mouse) ui.modal_rect) ->
     (match find_gutter cols mx with
     | `None when status = `Released ->
       (match find_column cols mx with
@@ -1566,8 +1569,7 @@ let header ui owner area ph gw cols (titles, sorting) hscroll =
       | Some i -> `Click i
       )
     | `None ->
-      if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle)
-      && not (Option.exists (inside (Mouse.pos ui.win)) ui.modal_rect) then
+      if Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
         `Menu None
       else
         `None
@@ -1577,8 +1579,7 @@ let header ui owner area ph gw cols (titles, sorting) hscroll =
         ui.drag <- Header_resize {mouse_x = mx; col};
       `None
     | `Header col ->
-      if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle)
-      && not (Option.exists (inside (Mouse.pos ui.win)) ui.modal_rect) then
+      if Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
         `Menu (Some col)
       else if status = `Pressed then
       (
@@ -1684,8 +1685,8 @@ let rich_table_inner_area _ui area sty =
 let rich_table_mouse ui area sty cols (tab : _ Table.t) =
   let area' = rich_table_inner_area ui area sty in
   let (x, y, w, _) as r = dim ui area' in
-  let (mx, my) as m = Mouse.pos ui.win in
-  if inside m r then
+  if mouse_inside ui r then
+    let mx, my = Mouse.pos ui.win in
     let row = (my - y) / (sty.text_h + 2 * sty.pad_h) + tab.vscroll in
     Some (
       (if row < Table.length tab then Some row else None),
@@ -1765,7 +1766,7 @@ let rich_table ui owner area (sty : rich_table_style) cols header_opt
     );
     if ui.buffered then Draw.buffer ui.win x y buf;
 
-    let mx, my = Mouse.pos ui.win in
+    let mx, my as mouse = Mouse.pos ui.win in
     let i = tab.vscroll + (my - y) / rh in
     let _, status = widget ui (Some (owner ^ ":body")) table_area no_modkey in
     (* Mirrors logic in table *)
@@ -1776,10 +1777,9 @@ let rich_table ui owner area (sty : rich_table_style) cols header_opt
 
     let result =
       if not ui.modal && ui.drag = No_drag
-      && Mouse.is_pressed `Right && not (Mouse.is_down `Middle)
-      && not (Option.exists (inside (Mouse.pos ui.win)) ui.modal_rect) then
+      && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
       (
-        if inside (mx, my) r then
+        if mouse_inside ui r then
         (
           let row = if i >= limit then None else Some i in
           if Table.has_selection tab
@@ -2265,8 +2265,8 @@ let grid_table_mouse ui area sty (tab : _ Table.t) =
   let ih = iw + sty.text_h in
   let line = max 1 Float.(to_int (floor (float w /. float iw))) in
   let vscroll = tab.vscroll / line * line in
-  let (mx, my) as m = Mouse.pos ui.win in
-  if inside m r then
+  if mouse_inside ui r then
+    let mx, my = Mouse.pos ui.win in
     let row = (my - y) / ih * line + (mx - x) / iw + vscroll in
     Some ((if row < Table.length tab then Some row else None), None)
   else
@@ -2346,10 +2346,10 @@ let grid_table ui owner area (sty : grid_table_style) header_opt
     let left_mouse_used = (status = `Pressed || status = `Released) in
 
     let result =
-      if not ui.modal && Mouse.is_pressed `Right && not (Mouse.is_down `Middle)
-      && not (Option.exists (inside (Mouse.pos ui.win)) ui.modal_rect) then
+      if not ui.modal
+      && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
       (
-        if inside (mx, my) r then
+        if mouse_inside ui r then
         (
           let row = if on_bg then None else Some k in
           if Table.has_selection tab
@@ -3088,10 +3088,10 @@ let menu ui x y sty hscroll vscroll items =
     }
   in
 
-  let _, my = Mouse.pos ui.win in
+  let _, my as m = Mouse.pos ui.win in
   let inner = rich_table_inner_area ui area sty' in
-  let _, iy, _, _ = dim ui inner in
-  let i = if mouse_inside ui inner then (my - iy)/rh + vscroll else -1 in
+  let _, iy, _, _ as ir = dim ui inner in
+  let i = if inside m ir then (my - iy)/rh + vscroll else -1 in
 
   let cols : _ iarray = [|lw, `Left; rw, `Right|] in
   let c_sep = semilit_color (text_color ui) in

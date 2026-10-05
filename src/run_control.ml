@@ -303,7 +303,7 @@ let run (st : state) =
   in
   let vol_mouse = ControlUi.Info.Volume.bar ctl.volume in
   (* Hack to overlap volume bar with mute button. *)
-  let mute_mouse = Ui.mouse_inside geo.ui ControlUi.Info.Mute.area in
+  let mute_mouse = Ui.mouse_over geo.ui ControlUi.Info.Mute.area in
   if not mute_mouse && ControlUi.Info.Mute.drag () = `None
   && vol_mouse <> ctl.volume then
   (

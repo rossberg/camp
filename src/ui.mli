@@ -42,7 +42,7 @@ val popup_rect : t -> rect -> int -> rect
 type area = pane * int * int * int * int
 
 val dim : t -> area -> rect
-val mouse_inside : t -> area -> bool
+val mouse_over : t -> area -> bool
 
 (* Colors *)
 

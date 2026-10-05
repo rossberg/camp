@@ -236,7 +236,7 @@ let run (st : state) =
   | `Drop ->
     if Api.Key.are_modifiers_down [] then
     (
-      if Ui.mouse_inside geo.ui PlaylistUi.area then
+      if Ui.mouse_over geo.ui PlaylistUi.area then
       (
         (* Dropping inside playlist: drop aux undo if no change *)
         Table.clean_undo pl.table
@@ -255,7 +255,7 @@ let run (st : state) =
   | `Abort ->
     if Api.Key.are_modifiers_down [] then
     (
-      if Ui.mouse_inside geo.ui PlaylistUi.area then
+      if Ui.mouse_over geo.ui PlaylistUi.area then
       (
         (* Aborting inside playlist: snap back to original state *)
         Playlist.undo pl;
