@@ -78,7 +78,10 @@ let run (st : state) focus_change =
           );
         ];
         "COVERS", `Section [
-          "GRID", `Number ("SIZE", set.grid_size, geo.grid,
+          "GRID", `Number (
+            let s = string_of_int geo.grid in
+            if set.grid_size.text <> s then Edit.set set.grid_size s;
+            "SIZE", set.grid_size, geo.grid,
             30, 1000, focus_edit, fun n -> geo.grid <- n
           );
 (*
