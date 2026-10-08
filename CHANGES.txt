@@ -1,3 +1,9 @@
+=== 0.9.8 (WIP) ===
+
+Library:
+- [chg] Allow drag & drop onto Library playlist even when it is not ordered
+
+
 === 0.9.7 (2026-10-05) ===
 
 This update makes pop-up menus scrollable and adds resizable zoom for all
