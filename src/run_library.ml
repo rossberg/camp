@@ -47,7 +47,7 @@ let insert (st : state) =
     let roots = st.library.root.children in
     if not (Library.insert_roots st.library [path] (Iarray.length roots)) then
       error_flash st;
-    State.focus_library st.library.browser st;
+    State.focus_library st st.library.browser;
   )
 
 let rename_avail (st : state) i_opt =
@@ -111,7 +111,7 @@ let remove_list (st : state) =
       if not (Library.remove_dir lib dir.path) then
         error_flash st
       else
-        Library.refresh_artists_albums_tracks lib
+        Library.refresh_artists_albums_tracks "remove_list" lib
     )
   ) lib.current
 
@@ -136,6 +136,7 @@ let create_list (st : state) ext s view_opt path =
       Library.fold_dir lib parent false;
       Option.iter (fun view -> dir.view <- view) view_opt;
       if view_opt = None then Library.clear_search lib;
+      State.focus_library st lib.browser;
       Option.iter (Library.select_dir lib)
         (Array.find_index ((==) dir) lib.browser.entries)
   );
@@ -286,7 +287,8 @@ let drop_on_browser (st : state) tracks =
           (
             Library.deselect_dir lib;  (* force reload *)
             Library.select_dir lib i;
-            Library.refresh_artists_albums_tracks lib;
+            if st.playlist.table.focus then Library.deselect_all lib;
+            Library.refresh_artists_albums_tracks "drop_on_browser" lib;
           );
         )
       | _ -> ()
@@ -339,15 +341,15 @@ let run_browser (st : state) =
   | `Select ->
     (* TODO: allow multiple selections *)
     Library.error lib "";
-    State.focus_library browser st;
+    State.focus_library st browser;
     if Library.selected_dir lib <> dir then
     (
       (match Library.selected_dir lib with
       | None -> Library.deselect_dir lib
       | Some i -> Library.select_dir lib i  (* do bureaucracy *)
       );
-      Library.deselect_all lib;
-      Library.refresh_artists_albums_tracks lib;
+      (*Library.deselect_all lib;*)
+      Library.refresh_artists_albums_tracks "run_browser/Select" lib;
     );
 
   | `Fold i ->
@@ -358,7 +360,7 @@ let run_browser (st : state) =
 
   | `Click (Some i, _) ->
     Library.error lib "";
-    if Api.Mouse.is_pressed `Left then State.focus_library browser st;
+    if Api.Mouse.is_pressed `Left then State.focus_library st browser;
     if Library.selected_dir lib <> dir then
     (
       (* Click on different dir name: switch view *)
@@ -366,8 +368,8 @@ let run_browser (st : state) =
       | None -> Library.deselect_dir lib
       | Some i -> Library.select_dir lib i  (* do bureaucracy *)
       );
-      Library.deselect_all lib;
-      Library.refresh_artists_albums_tracks lib;
+      if st.playlist.table.focus then Library.deselect_all lib;  (* can this happen? *)
+      Library.refresh_artists_albums_tracks "run_browser/Click-Some" lib;
     );
     if Api.Mouse.is_pressed `Left && Api.Key.are_modifiers_down [`Shift] then
     (
@@ -412,8 +414,8 @@ let run_browser (st : state) =
     Library.error lib "";
     Library.deselect_dir lib;
     Library.deselect_all lib;
-    Library.refresh_artists_albums_tracks lib;
-    if Api.Mouse.is_pressed `Left then State.focus_library browser st;
+    Library.refresh_artists_albums_tracks "run_browser/Click-None" lib;
+    if Api.Mouse.is_pressed `Left then State.focus_library st browser;
 
   | `Drag (_, motion, traj) ->
     (* Drag: adjust cursor *)
@@ -497,7 +499,7 @@ let run_browser (st : state) =
   | `Menu _ ->
     (* Right-click on browser: context menu *)
     Library.error lib "";
-    State.focus_library browser st;
+    State.focus_library st browser;
     if Library.selected_dir lib <> dir then
     (
       (* Click on different dir name: switch view *)
@@ -505,8 +507,8 @@ let run_browser (st : state) =
       | None -> Library.deselect_dir lib
       | Some i -> Library.select_dir lib i  (* do bureaucracy *)
       );
-      Library.deselect_all lib;
-      Library.refresh_artists_albums_tracks lib;
+      (*Library.deselect_all lib;*)
+      Library.refresh_artists_albums_tracks "run_browser/Menu" lib;
     );
     let c = Ui.text_color geo.ui in
     let all, quant =
@@ -843,7 +845,7 @@ let run_view (st : state)
     layout
     (tab : _ Table.t) busy_tab dep_tab
     refresh_is_busy refresh_deps
-    reorder (view : [< Data.any_attr_ex] Library.view) (views : Library.views)
+    reorder (view : (_, [< Data.any_attr_ex]) Library.view) (views : Library.views)
     kind attr_string prim_attr all_attrs
     path_of text_of color_of
     selected_tracks clicked_tracks
@@ -903,7 +905,7 @@ let run_view (st : state)
   | `Select ->
     (* New selection: grab focus, update filter *)
     Library.error lib "";
-    State.focus_library tab st;
+    State.focus_library st tab;
     refresh_deps lib;
 
   | `Sort i ->
@@ -972,7 +974,7 @@ let run_view (st : state)
     Library.error lib "";
     if Api.Mouse.is_pressed `Left then
     (
-      State.focus_library tab st;
+      State.focus_library st tab;
       match loc with
       | Some i, Some j
         when mode = `Table
@@ -1093,7 +1095,7 @@ let run_view (st : state)
   | `Menu (i_opt, j_opt) ->
     (* Right-click on content: context menu *)
     Library.error lib "";
-    State.focus_library tab st;
+    State.focus_library st tab;
     if not (Table.IntSet.equal tab.selected old_selected) then
       refresh_deps lib;
     let search =
@@ -1111,7 +1113,7 @@ let run_view (st : state)
   | `HeadMenu i_opt ->
     (* Right-click on header: header menu *)
     Library.error lib "";
-    State.focus_library tab st;
+    State.focus_library st tab;
     let current_attrs = Iarray.to_list (Iarray.map fst view.columns) in
     let unused_attrs = Data.diff_attrs all_attrs current_attrs in
 (*

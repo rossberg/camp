@@ -22,12 +22,17 @@ type time = float
 
 type display = [`Table | `Grid]
 
-type 'attr view =
+type ('data, 'attr) view =
 {
   mutable shown : display option;
   mutable columns : 'attr columns;
   mutable sorting : 'attr sorting;
+  mutable save : 'data Table.save option;
 }
+
+type artists_view = (artist, artist_attr_ex) view
+type albums_view = (album, album_attr_ex) view
+type tracks_view = (track, track_attr_ex) view
 
 type views =
 {
@@ -35,9 +40,9 @@ type views =
   mutable custom : bool;
   mutable divider_width : int;
   mutable divider_height : int;
-  artists : artist_attr_ex view;
-  albums : album_attr_ex view;
-  tracks : track_attr_ex view;
+  artists : artists_view;
+  albums : albums_view;
+  tracks : tracks_view;
 }
 
 type dir = views Data.dir
@@ -187,7 +192,7 @@ let playlist_columns : track_attr_ex columns =
   Iarray.append [|`Pos, 30|] tracks_columns
 
 let make_view shown columns sorting : _ view =
-  { shown; columns; sorting }
+  { shown; columns; sorting; save = None }
 
 let copy_view (view : _ view) =
   { view with shown = view.shown }
@@ -264,11 +269,6 @@ let make_views_for lib path : views =
     clone_views lib.views_dir_default
 
 
-let rec complete scan path =
-  let paths = Atomic.get scan.completed in
-  if not (Atomic.compare_and_set scan.completed paths (path::paths)) then
-    complete scan path
-
 let try_refresh action busy =
   match Atomic.exchange action None with
   | None -> false
@@ -290,12 +290,19 @@ let rec refresher scan () =
     Unix.sleepf 0.05;
   refresher scan ()
 
+let rec atomic_update f a =
+  let x = Atomic.get a in
+  if not (Atomic.compare_and_set a x (f x)) then atomic_update f a
+
 let rec scanner scan queue busy () =
   let local, path, f = Safe_queue.take queue in
   Atomic.set busy (Some path);
   let changed = f () in
   Atomic.set busy None;
-  if changed then complete scan (if local then Some path else None);
+if changed then Printf.eprintf "[scanned %s]\n%!" path;
+  if changed then
+    atomic_update (fun paths -> (if local then Some path else None)::paths)
+      scan.completed;
   scanner scan queue busy ()
 
 let make_scan () =
@@ -323,7 +330,7 @@ let make_scan () =
   ignore (Domain.spawn (refresher scan));
   scan
 
-type save = {mutable it : 'a. 'a t -> unit}
+type save_f = {mutable it : 'a. 'a t -> unit}
 let save_db_fwd = {it = ignore}
 let rec saver lib () =
   Unix.sleepf 30.0;
@@ -417,6 +424,57 @@ let attr_prop = function
 
 let attr_name attr = fst (attr_prop (attr :> any_attr_ex))
 let attr_align attr = snd (attr_prop (attr :> any_attr_ex))
+
+
+(* View Helpers *)
+
+let current_is p lib =
+  match lib.current with
+  | None -> false
+  | Some dir -> p dir
+
+let current_is_all lib = current_is Data.is_all lib
+let current_is_root lib = current_is Data.is_root lib
+let current_is_dir lib = current_is Data.is_dir lib
+let current_is_album lib = current_is Data.is_album lib
+let current_is_playlist lib = current_is Data.is_playlist lib
+let current_is_viewlist lib = current_is Data.is_viewlist lib
+
+let current_is_shown_playlist lib =
+  current_is (fun (dir : dir) ->
+    dir.view.tracks.shown <> None && Data.is_playlist dir) lib
+
+let current_is_shown_viewlist lib =
+  current_is (fun (dir : dir) ->
+    dir.view.tracks.shown <> None && Data.is_viewlist dir) lib
+
+let current_is_plain_playlist lib =
+  current_is (fun (dir : dir) ->
+    lib.search.text = "" &&
+    not (Table.has_selection lib.artists) &&
+    not (Table.has_selection lib.albums) &&
+    dir.view.tracks.shown <> None && Data.is_playlist dir
+(*
+    dir.view.tracks.sorting <> [] &&
+    List.hd dir.view.tracks.sorting = (`Pos, `Asc)
+*)
+  ) lib
+
+
+let artists_sorting (view : views) = view.artists.sorting
+let albums_sorting (view : views) = view.albums.sorting
+let tracks_sorting (view : views) = view.tracks.sorting
+
+let artist_key (artist : artist) =
+  artist.name
+
+let album_key (album : album) =
+  let s1, s2, s3, s4 = Query.album_key album in
+  String.concat "\x00" [s1; s2; s3; s4]
+
+let track_key (track : track) =
+  if track.playlist = "" then track.path
+  else string_of_int track.pos ^ "\x00" ^ track.playlist
 
 
 (* Lookup *)
@@ -516,7 +574,7 @@ struct
   let display = enum display_enum
 
   let view attr =
-    record (fun (x : 'a view) -> [
+    record (fun (x : _ view) -> [
       "shown", option display x.shown;
       "columns", Data.Print.columns attr x.columns;
       "sort", Data.Print.sorting attr x.sorting;
@@ -549,11 +607,12 @@ struct
 
   let display = enum Print.display_enum
 
-  let view attr : t -> 'a view =
+  let view attr : t -> ('a, 'b) view =
     record (fun r -> {
       shown = option display (r $ "shown");
       columns = Data.Parse.columns attr (r $ "columns");
       sorting = Data.Parse.sorting attr (r $ "sort");
+      save = None;
     })
 
   let views : t -> views =
@@ -567,15 +626,23 @@ struct
       tracks = view Data.Parse.track_attr_ex (r $ "tracks");
     })
 
-  let views_noncustom (view : views) =
+  let views_noncustom (views : views) =
     record (fun r ->
-      apply (r $? "fold") bool (fun b -> view.folded <- b);
-      apply (r $? "custom") bool (fun b -> view.custom <- b);
+      apply (r $? "fold") bool (fun b -> views.folded <- b);
+      apply (r $? "custom") bool (fun b -> views.custom <- b);
     )
 
   let dir u (dir : dir) =
     views_noncustom dir.view u;
-    if dir.view.custom then dir.view <- views u
+    if dir.view.custom then
+    (
+      let view = dir.view in
+      let view' = views u in
+      view'.artists.save <- view.artists.save;
+      view'.albums.save <- view.albums.save;
+      view'.tracks.save <- view.tracks.save;
+      dir.view <- view';
+    )
 
   let browse u =
     let map = Map.of_list (map bool u) in
@@ -613,8 +680,13 @@ let save_dir _lib dir =
   );
   if is_viewlist dir then File.save_safe `Bin dir.path dir.search
 
-let rec load_dir lib dir =
+let rec load_dir lib (dir : dir) =
+  let albums_save = dir.view.albums.save in
   dir.view <- make_views_for lib dir.path;
+  dir.view.albums.save <- albums_save;
+dir.view.albums.save |> Option.iter (fun save ->
+if Array.length (Table.save_array save) <> 0 then
+Printf.eprintf "[load_dir] %d albums selected, custom=%b\n%!" (Array.length (Table.save_array save)) dir.view.custom);
   Storage.load_string_opt (dir_name dir) (fun s ->
     try
       Parse.dir (Text.parse s) dir
@@ -1060,13 +1132,18 @@ let focus_search lib =
 
 
 let set_dir_opt lib dir_opt =
+  Option.iter (fun (dir : dir) ->
+if Table.num_selected lib.albums <> 0 then
+Printf.eprintf "[set_dir] old %d albums selected\n%!" (Table.num_selected lib.albums);
+    dir.view.artists.save <- Some (Table.save lib.artists);
+    dir.view.albums.save <- Some (Table.save lib.albums);
+    dir.view.tracks.save <- Some (Table.save lib.tracks);
+  ) lib.current;
   Table.deselect_all lib.browser;
   Table.clear_undo lib.tracks;
   lib.current <- dir_opt;
-  Option.iter (fun (dir : dir) ->
-    load_dir lib dir;
-    Edit.scroll lib.search 0;  (* reset *)
-  ) lib.current
+  Option.iter (load_dir lib) dir_opt
+  (*Edit.scroll lib.search 0;  (* reset *)*)
 
 let selected_dir lib =
   Table.first_selected lib.browser
@@ -1080,6 +1157,16 @@ let select_dir lib i =
   (
     set_dir_opt lib (Some dir);
     Table.select lib.browser i i;
+    Option.iter (Table.restore lib.artists artist_key) dir.view.artists.save;
+    Option.iter (Table.restore lib.albums album_key) dir.view.albums.save;
+    Option.iter (Table.restore lib.tracks track_key) dir.view.tracks.save;
+(*
+if Option.exists (fun save -> Array.length (Table.save_array save) <> 0) dir.view.albums.save ||  Table.num_selected lib.albums <> 0 then
+*)
+let n = dir.view.albums.save |> Option.map (fun save -> Array.length (Table.save_array save)) |> Option.value ~default: 0 in
+Printf.eprintf "[select_dir] save=%s, new %d albums selected\n%!" (Table.string_of_save dir.view.albums.save) (Table.num_selected lib.albums);
+if n <> Table.num_selected lib.albums then
+Option.iter (fun save -> Array.iter (fun (album : album) -> Printf.eprintf "  %s\n%!" (String.escaped (album_key album))) (Table.save_array save)) dir.view.albums.save;
     if Data.is_playlist dir then
       rescan_playlist lib `Thorough dir
     else if Data.is_viewlist dir then
@@ -1148,39 +1235,6 @@ let reverse_dir lib dir =
   refresh_browser lib
 
 
-let current_is p lib =
-  match lib.current with
-  | None -> false
-  | Some dir -> p dir
-
-let current_is_all lib = current_is Data.is_all lib
-let current_is_root lib = current_is Data.is_root lib
-let current_is_dir lib = current_is Data.is_dir lib
-let current_is_album lib = current_is Data.is_album lib
-let current_is_playlist lib = current_is Data.is_playlist lib
-let current_is_viewlist lib = current_is Data.is_viewlist lib
-
-let current_is_shown_playlist lib =
-  current_is (fun (dir : dir) ->
-    dir.view.tracks.shown <> None && Data.is_playlist dir) lib
-
-let current_is_shown_viewlist lib =
-  current_is (fun (dir : dir) ->
-    dir.view.tracks.shown <> None && Data.is_viewlist dir) lib
-
-let current_is_plain_playlist lib =
-  current_is (fun (dir : dir) ->
-    lib.search.text = "" &&
-    not (Table.has_selection lib.artists) &&
-    not (Table.has_selection lib.albums) &&
-    dir.view.tracks.shown <> None && Data.is_playlist dir
-(*
-    dir.view.tracks.sorting <> [] &&
-    List.hd dir.view.tracks.sorting = (`Pos, `Asc)
-*)
-  ) lib
-
-
 
 (* Views *)
 
@@ -1209,24 +1263,6 @@ let deselect_all lib = Table.deselect_all lib.tracks
 let select_invert lib = Table.select_invert lib.tracks
 let select lib i j = Table.select lib.tracks i j
 let deselect lib i j = Table.deselect lib.tracks i j
-
-
-let artists_sorting (view : views) = view.artists.sorting
-let albums_sorting (view : views) = view.albums.sorting
-let tracks_sorting (view : views) = view.tracks.sorting
-
-let artist_key (artist : artist) = artist.name
-let album_key (album : album) =
-  let s1, s2, s3, s4 = Query.album_key album in
-  String.concat "\x00" [s1; s2; s3; s4]
-
-let track_key lib : track -> string =
-  if current_is_playlist lib || current_is_viewlist lib then
-    fun track -> string_of_int track.pos
-  else
-    fun track ->
-      if track.playlist = "" then track.path
-      else string_of_int track.pos ^ "\x00" ^ track.playlist
 
 
 let refresh_delay = 5.0
@@ -1294,12 +1330,10 @@ let refresh_view lib (tab : _ Table.t) selected attr_string sorting key f =
     Mutex.protect tab.mutex (fun () ->
       Table.set tab entries;
       Table.restore_selection tab key selected;
-    );
-    lib.refresh_time <-
-      min lib.refresh_time (Unix.gettimeofday () +. refresh_delay)
+    )
 
 let refresh_tracks_view lib (_, _, sel) f =
-  refresh_view lib lib.tracks sel Query.track_attr_ex_string tracks_sorting (track_key lib) f
+  refresh_view lib lib.tracks sel Query.track_attr_ex_string tracks_sorting track_key f
 let refresh_albums_view lib (_, sel, _) f =
   refresh_view lib lib.albums sel Query.album_attr_ex_string albums_sorting album_key f
 let refresh_artists_view lib (sel, _, _) f =
@@ -1383,7 +1417,7 @@ let refresh_albums_tracks ?(busy = true) ?(after = ignore) lib =
       after ();
     ))
 
-let refresh_artists_albums_tracks ?(busy = true) ?(after = ignore) lib =
+let refresh_artists_albums_tracks s ?(busy = true) ?(after = ignore) lib =
   let selections = selections lib in
   let vscroll_tracks = lib.tracks.vscroll in
   let vscroll_albums = lib.albums.vscroll in
@@ -1397,6 +1431,7 @@ let refresh_artists_albums_tracks ?(busy = true) ?(after = ignore) lib =
   );
   Atomic.set lib.scan.artists_refresh
     (Some (busy, fun () ->
+Printf.eprintf "[refresh_artists_albums_tracks %s]\n%!" s;
       refresh_artists_albums_tracks_sync' lib selections;
       Table.set_vscroll lib.tracks vscroll_tracks 1 4;
       Table.set_vscroll lib.albums vscroll_albums 1 4;
@@ -1445,12 +1480,18 @@ let refresh_after_rescan lib =
     (current_is_playlist lib || current_is_viewlist lib)
       && Table.length lib.tracks = 0
   then
+    (* Delay refresh to reduce churn when many scans are queued *)
+(Printf.eprintf "[delay now=%s </> t=%s < t'=%s]\n%!" (Data.string_of_date_time now) (if lib.refresh_time = infinity then "oo" else Data.string_of_date_time lib.refresh_time) (Data.string_of_date_time (now +. refresh_delay));
     lib.refresh_time <- min lib.refresh_time (now +. refresh_delay);
+);
+
   if now > lib.refresh_time then
   (
+    (* Delay has passed *)
+Printf.eprintf "[delayed now=%s > t=%s]\n%!" (Data.string_of_date_time now) (Data.string_of_date_time lib.refresh_time);
     lib.refresh_time <- infinity;
     refresh_browser lib;
-    refresh_artists_albums_tracks lib ~busy: false;
+    refresh_artists_albums_tracks "refresh_after_rescan" lib ~busy: false;
   )
 
 let reorder lib tab sorting attr_string key =
@@ -1471,7 +1512,7 @@ let reorder_albums lib =
   reorder lib lib.albums albums_sorting Query.album_attr_ex_string album_key
 
 let reorder_tracks lib =
-  reorder lib lib.tracks tracks_sorting Query.track_attr_ex_string (track_key lib)
+  reorder lib lib.tracks tracks_sorting Query.track_attr_ex_string track_key
 
 
 let set_views_dir_default lib v = update_views lib.views_dir_default v
@@ -1554,7 +1595,7 @@ let rec fold_dir lib dir fold =
           (
             Option.iter (select_dir lib)
               (Array.find_index ((==) dir) lib.browser.entries);
-            refresh_artists_albums_tracks lib
+            refresh_artists_albums_tracks "fold_dir" lib
           )
         ) lib.current;
       )
@@ -1614,7 +1655,7 @@ let insert_roots lib paths pos =
     Atomic.set lib.scan.changed true;
     Array.iter (fun (dir : dir) -> rescan_dir lib `Thorough dir) roots';
     refresh_browser lib;
-    refresh_artists_albums_tracks lib;
+    refresh_artists_albums_tracks "insert_roots" lib;
     true
   with Failure msg ->
     error lib msg;
@@ -1636,7 +1677,7 @@ let remove_root lib path =
       );
     Atomic.set lib.scan.changed true;
     refresh_browser lib;
-    refresh_artists_albums_tracks lib;
+    refresh_artists_albums_tracks "remove_root" lib;
     true
 
 let remove_roots lib paths =
@@ -1647,7 +1688,7 @@ let remove_roots lib paths =
 
 let refresh_search lib =
   set_search' lib lib.search.text;
-  refresh_artists_albums_tracks lib
+  refresh_artists_albums_tracks "refresh_search" lib
 
 let set_search lib search =
   if lib.search.text <> search then
@@ -1661,7 +1702,7 @@ let clear_search lib =
   (
     Edit.clear lib.search;
     lib.query <- Some Query.full_query;
-    refresh_artists_albums_tracks lib;
+    refresh_artists_albums_tracks "clear_search" lib;
   )
 
 
@@ -1721,12 +1762,12 @@ let normalize_playlist lib =
   | (`Pos, `Desc)::_ ->
     let selection = Table.save_selection lib.tracks in
     array_rev lib.tracks.entries;
-    Table.restore_selection lib.tracks (track_key lib) selection;
+    Table.restore_selection lib.tracks track_key selection;
     `Desc
   | _ ->
     let selection = Table.save_selection lib.tracks in
     Array.sort compare_pos lib.tracks.entries;
-    Table.restore_selection lib.tracks (track_key lib) selection;
+    Table.restore_selection lib.tracks track_key selection;
     `Other
 
 let restore_playlist lib = function
@@ -1734,11 +1775,11 @@ let restore_playlist lib = function
   | `Desc ->
     let selection = Table.save_selection lib.tracks in
     array_rev lib.tracks.entries;
-    Table.restore_selection lib.tracks (track_key lib) selection
+    Table.restore_selection lib.tracks track_key selection
   | `Other ->
     let selection = Table.save_selection lib.tracks in
     reorder_tracks lib;
-    Table.restore_selection lib.tracks (track_key lib) selection
+    Table.restore_selection lib.tracks track_key selection
 
 
 let renumber lib i j =
@@ -2061,5 +2102,5 @@ let parse_state lib =
       );
     apply (r $? "lib_cover") bool
       (fun b -> lib.covers_shown <- b);
-    refresh_artists_albums_tracks lib;
+    refresh_artists_albums_tracks "parse_state" lib;
   )

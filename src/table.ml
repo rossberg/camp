@@ -14,6 +14,19 @@ type 'a undo =
   undo_restore : (unit -> unit) option;
 }
 
+type 'a save =
+{
+  save_vscroll : int;
+  save_hscroll : int;
+  save_selection : 'a array;
+  save_undos : 'a undo list;
+  save_redos : 'a undo list;
+}
+let save_array x = x.save_selection
+let string_of_save = function
+| None -> "none"
+| Some save -> Printf.sprintf "{scroll=%d,%d sel=%d}" save.save_vscroll save.save_hscroll (Array.length save.save_selection)
+
 type ('a, 'b) t =
 {
   mutex : Mutex.t;
@@ -163,6 +176,8 @@ let max_sel_range tab =
   Some (Option.get (first_selected tab), Option.get (last_selected tab))
 
 let select_all tab =
+if length tab = 2983 then
+Printf.eprintf "[select_all %d]\n%!" (length tab);
   if num_selected tab < length tab then
   (
     dirty tab;
@@ -174,6 +189,8 @@ let select_all tab =
   )
 
 let deselect_all tab =
+if length tab = 2983 then
+Printf.eprintf "[deselect_all %d/%d]\n%!" (num_selected tab) (length tab);
   if has_selection tab then
   (
     dirty tab;
@@ -200,6 +217,8 @@ let select_invert tab =
   )
 
 let select tab i0 j0 =
+if length tab = 2983 then
+Printf.eprintf "[select %d-%d/%d/%d]\n%!" i0 j0 (num_selected tab) (length tab);
   dirty tab;
   let i, j = min i0 j0, max i0 j0 in
   for k = i to j do
@@ -208,6 +227,8 @@ let select tab i0 j0 =
   tab.sel_range <- Some (i0, j0)
 
 let deselect tab i0 j0 =
+if length tab = 2983 then
+Printf.eprintf "[deselect %d-%d/%d/%d]\n%!" i0 j0 (num_selected tab) (length tab);
   dirty tab;
   let i, j = min i0 j0, max i0 j0 in
   for k = i to j do
@@ -217,11 +238,16 @@ let deselect tab i0 j0 =
 
 
 let save_selection tab =
+if length tab = 2983 then
+Printf.eprintf "[save_selection %d/%d]\n%!" (num_selected tab) (length tab);
   let selection = selected tab in
   deselect_all tab;
   selection
 
 let restore_selection tab key selection =
+if length tab = 2983 then
+Printf.eprintf "[restore_selection %d/%d]\n%!" (Array.length selection) (length tab);
+assert (length tab <> 2983 || Array.length selection > 0);
   if selection <> [||] then
   (
     dirty tab;
@@ -230,6 +256,29 @@ let restore_selection tab key selection =
     Array.iteri (fun i x -> if KeySet.mem (key x) set then select tab i i)
       tab.entries;
   )
+
+
+(* Save & Restore *)
+
+let save tab =
+if length tab = 2983 then
+Printf.eprintf "[save %d]\n%!" (length tab);
+  {
+    save_vscroll = tab.vscroll;
+    save_hscroll = tab.hscroll;
+    save_selection = save_selection tab;
+    save_undos = !(tab.undos);
+    save_redos = !(tab.redos);
+  }
+
+let restore tab key save =
+if length tab = 2983 then
+Printf.eprintf "[restore %d]\n%!" (length tab);
+  tab.vscroll <- max save.save_vscroll (length tab);
+  tab.hscroll <- save.save_hscroll;
+  restore_selection tab key save.save_selection;
+  tab.undos := save.save_undos;
+  tab.redos := save.save_redos
 
 
 (* Marking *)

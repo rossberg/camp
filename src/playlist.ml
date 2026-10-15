@@ -24,7 +24,7 @@ type 'a t =
   mutable total : time * int;
   mutable total_selected : time * int;
   mutable shuffle : shuffle option;
-  view : track_attr_ex Library.view;
+  view : Library.tracks_view;
 }
 
 
@@ -238,6 +238,7 @@ let make () =
           shown = Some `Table;
           sorting = [];
           columns = [|`Pos, 0; `Name, 0; `Length, 0|];
+          save = None;
         }
     }
   in

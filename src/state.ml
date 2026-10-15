@@ -81,11 +81,11 @@ let focus_settings st =
   defocus_all st;
   Edit.focus (List.hd (Settings.foci st.settings))
 
-let focus_library (tab : _ Table.t) st =
+let focus_library st (tab : _ Table.t) =
   Playlist.deselect_all st.playlist;
   focus_table st tab
 
-let focus_filesel (tab : _ Table.t) st =
+let focus_filesel st (tab : _ Table.t) =
   Playlist.deselect_all st.playlist;
   Library.deselect_all st.library;
   focus_table st tab
@@ -101,7 +101,7 @@ let foci_settings (set : Settings.t) =
   List.map foci_edit (Settings.foci set)
 
 let foci_library (lib : _ Library.t) =
-  let f = focus_library in
+  let f tab st = focus_library st tab in
   [foci_edit lib.search; foci_table f lib.browser] @
   match lib.current, lib.log with
   | Some dir, None ->
@@ -115,7 +115,7 @@ let foci_library (lib : _ Library.t) =
   | _, _ -> []
 
 let foci_filesel (fs : _ Filesel.t) =
-  let f = focus_filesel in
+  let f tab st = focus_filesel st tab in
   [foci_table f fs.dirs; foci_table f fs.files; foci_edit fs.input]
 
 let foci_popup (pop : Popup.t) =

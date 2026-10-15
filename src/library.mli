@@ -4,12 +4,17 @@ open Data
 
 type display = [`Table | `Grid]
 
-type 'attr view =
+type ('data, 'attr) view =
 {
   mutable shown : display option;
   mutable columns : 'attr columns;
   mutable sorting : 'attr sorting;
+  mutable save : 'data Table.save option;
 }
+
+type artists_view = (artist, artist_attr_ex) view
+type albums_view = (album, album_attr_ex) view
+type tracks_view = (track, track_attr_ex) view
 
 type views =
 {
@@ -17,9 +22,9 @@ type views =
   mutable custom : bool;
   mutable divider_width : int;
   mutable divider_height : int;
-  artists : artist_attr_ex view;
-  albums : album_attr_ex view;
-  tracks : track_attr_ex view;
+  artists : artists_view;
+  albums : albums_view;
+  tracks : tracks_view;
 }
 
 type dir = views Data.dir
@@ -161,6 +166,7 @@ val refresh_tracks :
 val refresh_albums_tracks :
   ?busy: bool -> ?after: (unit -> unit) -> 'a t -> unit
 val refresh_artists_albums_tracks :
+string ->
   ?busy: bool -> ?after: (unit -> unit) -> 'a t -> unit
 
 val refresh_artists_is_busy : 'a t -> bool

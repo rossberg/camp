@@ -82,7 +82,7 @@ let run (st : state) =
 
   | `Select ->
     (* Select dir: refresh file list *)
-    State.focus_filesel dirs st;
+    State.focus_filesel st dirs;
     if Table.num_selected dirs = 0 then
       Filesel.select_dir fs dir  (* override *)
     else
@@ -97,7 +97,7 @@ let run (st : state) =
   | `Click (Some i, _) | `Menu (Some i, _) ->
     (* Click on dir name: switch view; ignore context menu *)
     if Api.Mouse.is_pressed `Left then
-      State.focus_filesel dirs st;
+      State.focus_filesel st dirs;
     if Table.num_selected dirs = 0 then
       Filesel.select_dir fs dir  (* override *)
     else
@@ -106,7 +106,7 @@ let run (st : state) =
 
   | `Click (None, _) | `Menu (None, _) ->
     (* Click into empty space: focus; ignore context menu *)
-    State.focus_filesel dirs st;
+    State.focus_filesel st dirs;
     if Table.num_selected dirs = 0 then
       Filesel.select_dir fs dir;  (* override *)
   );
@@ -139,7 +139,7 @@ let run (st : state) =
 
     | `Select | `Click (Some _, _) ->
       (* Selection change: adjust edit name; ignore context menu *)
-      State.focus_filesel files st;
+      State.focus_filesel st files;
       Option.iter (fun i ->
         let file = files.entries.(i) in
         if not file.is_dir || op.kind = `Dir then
@@ -163,17 +163,17 @@ let run (st : state) =
 
     | `Click (None, _) ->
       (* Click into empty space: focus *)
-      State.focus_filesel files st;
+      State.focus_filesel st files;
       false
 
     | `Menu _ ->
       (* Right-click on content: ignore *)
-      State.focus_filesel files st;
+      State.focus_filesel st files;
       false
 
     | `HeadMenu _ ->
       (* Right-click on header: ignore *)
-      State.focus_filesel files st;
+      State.focus_filesel st files;
       false
   in
 

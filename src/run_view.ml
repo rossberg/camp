@@ -45,9 +45,11 @@ let spin_changed (st : state) =
 
 (* Generic abstraction *)
 
+(*
 (* Because we cannot define a bounded abstract type attr < Data.any_attr
  * in the signature, we have to encode the existential quantification. *)
 type modifyer = {f : 'a. ([< Data.any_attr_ex > `Custom] as 'a) Library.view -> 'a list -> unit}
+*)
 
 module type View =
 sig
@@ -73,8 +75,8 @@ sig
   val deselect_other : unit -> unit
   val refresh_deps : 'a Library.t -> unit
 
-  val modify_view : (modifyer -> unit) option
 (*
+  val modify_view : (modifyer -> unit) option
   val view_mode : attr Library.view option
   val attrs : attr list
   val diff_attrs : attr list -> attr list -> attr list
@@ -126,7 +128,9 @@ let playlist_view (st : state) : view =
     let area = WindowUi.Playlist.area
     let deselect_other () = Library.deselect_all st.library
     let refresh_deps = ignore
+(*
     let modify_view = Some (fun {f} -> f it.view Data.track_attrs)
+*)
 (*
     let view_mode = Some it.view
     let attrs = List.filter (fun a -> a <> `Pos && a <> `Name) Data.track_attrs
@@ -143,16 +147,18 @@ let tracks_view (st : state) : view =
     let is_same = true
     let it = st.library
     let tab = st.library
-    let focus = State.focus_library st.library.tracks
+    let focus st = State.focus_library st st.library.tracks
     let area =
       WindowUi.Library.View.(
         if st.geometry.lower_shown then Lower.area else Left.area)
     let deselect_other () = Playlist.deselect_all st.playlist
     let refresh_deps = ignore
+(*
     let modify_view =
       Option.map (fun (dir : dir) {f} ->
         f dir.view.tracks Data.track_attrs
       ) it.current
+*)
 (*
     let view_mode = Option.map (fun (dir : dir) -> dir.view.tracks) it.current
     let attrs = Data.track_attrs
@@ -169,16 +175,18 @@ let albums_view (st : state) : view =
     let is_same = false
     let it = st.library
     let tab = it.albums
-    let focus = State.focus_library tab
+    let focus st = State.focus_library st tab
     let area =
       WindowUi.Library.View.(
         if st.geometry.right_shown then Right.area else Left.area)
     let deselect_other = ignore
     let refresh_deps lib = Library.refresh_tracks lib
+(*
     let modify_view =
       Option.map (fun (dir : dir) {f} ->
         f dir.view.albums Data.album_attrs
       ) it.current
+*)
 (*
     let view_mode = Option.map (fun (dir : dir) -> dir.view.albums) it.current
     let attrs = Data.album_attrs
@@ -195,14 +203,16 @@ let artists_view (st : state) : view =
     let is_same = false
     let it = st.library
     let tab = it.artists
-    let focus = State.focus_library tab
+    let focus st = State.focus_library st tab
     let area = WindowUi.Library.View.Left.area
     let deselect_other = ignore
     let refresh_deps lib = Library.refresh_albums_tracks lib
+(*
     let modify_view =
       Option.map (fun (dir : dir) {f} ->
         f dir.view.artists Data.artist_attrs
       ) it.current
+*)
 (*
     let view_mode = Option.map (fun (dir : dir) -> dir.view.artists) it.current
     let attrs = Data.artist_attrs
@@ -1065,6 +1075,7 @@ let select_invert (st : state) (module View : View) =
 
 (* Initiate Menus *)
 
+(*
 let _header_menu (st : state) (module View : View) (tab : _ Table.t) kind =
   Option.iter (fun modify -> modify {f = fun (view : _ Library.view) attrs ->
     if view.shown = Some `Table then
@@ -1078,6 +1089,7 @@ let _header_menu (st : state) (module View : View) (tab : _ Table.t) kind =
           Some (fun () -> st.geometry.playlist_shown <- false))
     )
   }) View.modify_view
+*)
 
 
 let subject_tracks' (module View : View) all =

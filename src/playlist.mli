@@ -13,7 +13,7 @@ type 'cache t = private
   mutable total : time * int;
   mutable total_selected : time * int;
   mutable shuffle : shuffle option;
-  view : track_attr_ex Library.view;
+  view : (track, track_attr_ex) Library.view;
 }
 
 

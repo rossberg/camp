@@ -3,6 +3,7 @@
 module IntSet : module type of Set.Make(Int)
 
 type 'data undo
+type 'data save
 
 type ('data, 'cache) t = private
 {
@@ -22,6 +23,9 @@ type ('data, 'cache) t = private
   undo_depth : int;
   undo_save : (unit -> unit -> unit) option;
 }
+(*TODO: remove*)
+val save_array : 'a save->'a array
+val string_of_save : 'a save option -> string
 
 
 (* Constructor *)
@@ -75,6 +79,12 @@ val select_marked : ('a, 'b) t -> unit
 
 val save_selection : ('a, 'b) t -> 'a array
 val restore_selection : ('a, 'b) t -> ('a -> string) -> 'a array -> unit
+
+
+(* Save & Restore *)
+
+val save : ('a, 'b) t -> 'a save
+val restore : ('a, 'b) t -> ('a -> string) -> 'a save -> unit
 
 
 (* Marking *)
