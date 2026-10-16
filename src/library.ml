@@ -21,13 +21,14 @@ let dynarray_to_iarray a = Obj.magic (Dynarray.to_array a)
 type time = float
 
 type display = [`Table | `Grid]
+type void = |
 
 type ('data, 'attr) view =
 {
   mutable shown : display option;
   mutable columns : 'attr columns;
   mutable sorting : 'attr sorting;
-  mutable save : 'data Table.save option;
+  mutable save : ('data, void) Table.t option;
 }
 
 type artists_view = (artist, artist_attr_ex) view
@@ -85,9 +86,9 @@ type 'cache t =
   search : Edit.t;
   rename : Edit.t;
   browser : (dir, 'cache) Table.t;
-  artists : (artist, 'cache) Table.t;
-  albums : (album, 'cache) Table.t;
-  tracks : (track, 'cache) Table.t;
+  mutable artists : (artist, 'cache) Table.t;
+  mutable albums : (album, 'cache) Table.t;
+  mutable tracks : (track, 'cache) Table.t;
   covers : cover Map.t Atomic.t;
   mutable age_covers : (path * cover) Seq.t;
   mutable views_clip : views option;
@@ -684,9 +685,9 @@ let rec load_dir lib (dir : dir) =
   let albums_save = dir.view.albums.save in
   dir.view <- make_views_for lib dir.path;
   dir.view.albums.save <- albums_save;
-dir.view.albums.save |> Option.iter (fun save ->
-if Array.length (Table.save_array save) <> 0 then
-Printf.eprintf "[load_dir] %d albums selected, custom=%b\n%!" (Array.length (Table.save_array save)) dir.view.custom);
+dir.view.albums.save |> Option.iter (fun tab ->
+if Table.num_selected tab <> 0 then
+Printf.eprintf "[load_dir] %d albums selected, custom=%b\n%!" (Table.num_selected tab) dir.view.custom);
   Storage.load_string_opt (dir_name dir) (fun s ->
     try
       Parse.dir (Text.parse s) dir
@@ -1131,13 +1132,18 @@ let focus_search lib =
   Edit.focus lib.search
 
 
+(* Hack so that we are independent from cache type *)
+let coerce_table (tab : ('a, _) Table.t) : ('a, _) Table.t =
+  Table.uncache tab;
+  Obj.magic tab
+
 let set_dir_opt lib dir_opt =
   Option.iter (fun (dir : dir) ->
 if Table.num_selected lib.albums <> 0 then
 Printf.eprintf "[set_dir] old %d albums selected\n%!" (Table.num_selected lib.albums);
-    dir.view.artists.save <- Some (Table.save lib.artists);
-    dir.view.albums.save <- Some (Table.save lib.albums);
-    dir.view.tracks.save <- Some (Table.save lib.tracks);
+    dir.view.artists.save <- Some (coerce_table lib.artists);
+    dir.view.albums.save <- Some (coerce_table lib.albums);
+    dir.view.tracks.save <- Some (coerce_table lib.tracks);
   ) lib.current;
   Table.deselect_all lib.browser;
   Table.clear_undo lib.tracks;
@@ -1157,16 +1163,16 @@ let select_dir lib i =
   (
     set_dir_opt lib (Some dir);
     Table.select lib.browser i i;
-    Option.iter (Table.restore lib.artists artist_key) dir.view.artists.save;
-    Option.iter (Table.restore lib.albums album_key) dir.view.albums.save;
-    Option.iter (Table.restore lib.tracks track_key) dir.view.tracks.save;
+    Option.iter (fun tab -> lib.artists <- coerce_table tab) dir.view.artists.save;
+    Option.iter (fun tab -> lib.albums <- coerce_table tab) dir.view.albums.save;
+    Option.iter (fun tab -> lib.tracks <- coerce_table tab) dir.view.tracks.save;
 (*
 if Option.exists (fun save -> Array.length (Table.save_array save) <> 0) dir.view.albums.save ||  Table.num_selected lib.albums <> 0 then
 *)
-let n = dir.view.albums.save |> Option.map (fun save -> Array.length (Table.save_array save)) |> Option.value ~default: 0 in
+let n = dir.view.albums.save |> Option.map (fun tab -> Table.num_selected tab) |> Option.value ~default: 0 in
 Printf.eprintf "[select_dir] save=%s, new %d albums selected\n%!" (Table.string_of_save dir.view.albums.save) (Table.num_selected lib.albums);
 if n <> Table.num_selected lib.albums then
-Option.iter (fun save -> Array.iter (fun (album : album) -> Printf.eprintf "  %s\n%!" (String.escaped (album_key album))) (Table.save_array save)) dir.view.albums.save;
+Option.iter (fun save -> Array.iter (fun (album : album) -> Printf.eprintf "  %s\n%!" (String.escaped (album_key album))) save.Table.entries) dir.view.albums.save;
     if Data.is_playlist dir then
       rescan_playlist lib `Thorough dir
     else if Data.is_viewlist dir then
@@ -1422,7 +1428,7 @@ let refresh_artists_albums_tracks s ?(busy = true) ?(after = ignore) lib =
   let vscroll_tracks = lib.tracks.vscroll in
   let vscroll_albums = lib.albums.vscroll in
   let vscroll_artists = lib.artists.vscroll in
-  if busy then
+  if busy && lib.artists.entries = [||] then
   (
     Atomic.set lib.scan.artists_busy true;
     Table.set lib.tracks [||];

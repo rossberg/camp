@@ -14,19 +14,6 @@ type 'a undo =
   undo_restore : (unit -> unit) option;
 }
 
-type 'a save =
-{
-  save_vscroll : int;
-  save_hscroll : int;
-  save_selection : 'a array;
-  save_undos : 'a undo list;
-  save_redos : 'a undo list;
-}
-let save_array x = x.save_selection
-let string_of_save = function
-| None -> "none"
-| Some save -> Printf.sprintf "{scroll=%d,%d sel=%d}" save.save_vscroll save.save_hscroll (Array.length save.save_selection)
-
 type ('a, 'b) t =
 {
   mutex : Mutex.t;
@@ -45,6 +32,9 @@ type ('a, 'b) t =
   undo_depth : int;
   undo_save : (unit -> unit -> unit) option;
 }
+let string_of_save = function
+| None -> "none"
+| Some save -> Printf.sprintf "{scroll=%d,%d sel=%d}" save.vscroll save.hscroll (IntSet.cardinal save.selected)
 
 
 (* Constructor *)
@@ -247,7 +237,6 @@ Printf.eprintf "[save_selection %d/%d]\n%!" (num_selected tab) (length tab);
 let restore_selection tab key selection =
 if length tab = 2983 then
 Printf.eprintf "[restore_selection %d/%d]\n%!" (Array.length selection) (length tab);
-assert (length tab <> 2983 || Array.length selection > 0);
   if selection <> [||] then
   (
     dirty tab;
@@ -256,29 +245,6 @@ assert (length tab <> 2983 || Array.length selection > 0);
     Array.iteri (fun i x -> if KeySet.mem (key x) set then select tab i i)
       tab.entries;
   )
-
-
-(* Save & Restore *)
-
-let save tab =
-if length tab = 2983 then
-Printf.eprintf "[save %d]\n%!" (length tab);
-  {
-    save_vscroll = tab.vscroll;
-    save_hscroll = tab.hscroll;
-    save_selection = save_selection tab;
-    save_undos = !(tab.undos);
-    save_redos = !(tab.redos);
-  }
-
-let restore tab key save =
-if length tab = 2983 then
-Printf.eprintf "[restore %d]\n%!" (length tab);
-  tab.vscroll <- max save.save_vscroll (length tab);
-  tab.hscroll <- save.save_hscroll;
-  restore_selection tab key save.save_selection;
-  tab.undos := save.save_undos;
-  tab.redos := save.save_redos
 
 
 (* Marking *)

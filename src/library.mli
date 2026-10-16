@@ -3,13 +3,14 @@
 open Data
 
 type display = [`Table | `Grid]
+type void = |
 
 type ('data, 'attr) view =
 {
   mutable shown : display option;
   mutable columns : 'attr columns;
   mutable sorting : 'attr sorting;
-  mutable save : 'data Table.save option;
+  mutable save : ('data, void) Table.t option;
 }
 
 type artists_view = (artist, artist_attr_ex) view
@@ -45,9 +46,9 @@ type 'cache t = private
   search : Edit.t;
   rename : Edit.t;
   browser : (dir, 'cache) Table.t;
-  artists : (artist, 'cache) Table.t;
-  albums : (album, 'cache) Table.t;
-  tracks : (track, 'cache) Table.t;
+  mutable artists : (artist, 'cache) Table.t;
+  mutable albums : (album, 'cache) Table.t;
+  mutable tracks : (track, 'cache) Table.t;
   covers : cover Map.Make(String).t Atomic.t;
   mutable age_covers : (path * cover) Seq.t;
   mutable views_clip : views option;
