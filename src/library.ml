@@ -124,7 +124,7 @@ let ok lib =
   check "albums pos unset" (lib.albums.pos = None || lib.albums.pos = Some 0) @
   check "browser selection singular" (Table.num_selected lib.browser <= 1) @
   check "browser selection consistent with current"
-    ( Table.num_selected lib.browser = 0 ||
+    ( lib.current = None && Table.num_selected lib.browser = 0 ||
       Option.get lib.current == (Table.selected lib.browser).(0) ) @
   check "rename focus consistent" ((lib.renaming <> None) = lib.rename.focus) @
   []
@@ -201,12 +201,21 @@ let artists_default_view = make_view None artists_columns artists_sorting
 let albums_default_view = make_view None albums_columns albums_sorting
 let tracks_default_view = make_view (Some `Table) tracks_columns tracks_sorting
 
-let make_views () : views =
+let default_views =
   {
     folded = true;
     custom = false;
     divider_width = 100;
     divider_height = 100;
+    artists = make_view None [||] [];
+    albums = make_view None [||] [];
+    tracks = make_view (Some `Table) [||] [];
+  }
+
+let make_views_none () : views = default_views
+
+let make_views () : views =
+  { default_views with
     artists = copy_view artists_default_view;
     albums = copy_view albums_default_view;
     tracks = copy_view tracks_default_view;
@@ -1151,29 +1160,31 @@ let focus_search lib =
   Edit.focus lib.search
 
 
-let set_dir_opt lib dir_opt =
-if Table.num_selected lib.albums <> 0 then
-Printf.eprintf "[set_dir] old %d albums selected\n%!" (Table.num_selected lib.albums);
-  Table.deselect_all lib.browser;
-  Table.clear_undo lib.tracks;
-  lib.current <- dir_opt;
-  Option.iter (load_dir lib) dir_opt
-  (*Edit.scroll lib.search 0;  (* reset *)*)
-
 let selected_dir lib =
   Table.first_selected lib.browser
 
 let deselect_dir lib =
+Printf.eprintf "[deselect_dir] current=%s selected=%s=%s\n%!"
+(match lib.current with None -> "-" | Some dir -> "\""^dir.name^"\"")
+(match Table.first_selected lib.browser with None -> "-" | Some i -> string_of_int i)
+(if Table.num_selected lib.browser = 0 then "-" else "\""^(Table.selected lib.browser).(0).name^"\"");
   lib.artists <- no_artists;
   lib.albums <- no_albums;
   lib.tracks <- no_tracks;
-  set_dir_opt lib None
+  Table.deselect_all lib.browser;
+  lib.current <- None
+;assert
+    ( lib.current = None && Table.num_selected lib.browser = 0 ||
+      Option.get lib.current == (Table.selected lib.browser).(0) )
 
 let select_dir lib i =
   let dir = lib.browser.entries.(i) in
+Printf.eprintf "[select_dir \"%s\"] current=%s selected=%s=%s\n%!" dir.name
+(match lib.current with None -> "-" | Some dir -> "\""^dir.name^"\"")
+(match Table.first_selected lib.browser with None -> "-" | Some i -> string_of_int i)
+(if Table.num_selected lib.browser = 0 then "-" else "\""^(Table.selected lib.browser).(0).name^"\"");
   if lib.current <> Some dir then
   (
-    Table.select lib.browser i i;
     if dir.view.artists.table = None then
       dir.view.artists.table <- Some (Table.make 0);
     if dir.view.albums.table = None then
@@ -1183,7 +1194,10 @@ let select_dir lib i =
     lib.artists <- Option.get dir.view.artists.table;
     lib.albums <- Option.get dir.view.albums.table;
     lib.tracks <- Option.get dir.view.tracks.table;
-    set_dir_opt lib (Some dir);
+    Table.deselect_all lib.browser;
+    Table.select lib.browser i i;
+    lib.current <- Some dir;
+    load_dir lib dir;
 (*
 if Option.exists (fun save -> Array.length (Table.save_array save) <> 0) dir.view.albums.save ||  Table.num_selected lib.albums <> 0 then
 *)
@@ -1196,6 +1210,13 @@ Option.iter (fun table -> Array.iter (fun (album : album) -> Printf.eprintf "  %
     else if Data.is_viewlist dir then
       rescan_viewlist lib `Thorough dir
   )
+;Printf.eprintf "current=%s selected=%s=%s\n%!"
+(match lib.current with None -> "-" | Some dir -> "\""^dir.name^"\"")
+(match Table.first_selected lib.browser with None -> "-" | Some i -> string_of_int i)
+(if Table.num_selected lib.browser = 0 then "-" else "\""^(Table.selected lib.browser).(0).name^"\"")
+;assert
+    ( lib.current = None && Table.num_selected lib.browser = 0 ||
+      Option.get lib.current == (Table.selected lib.browser).(0) )
 
 
 let refresh_browser lib =

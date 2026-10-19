@@ -413,8 +413,6 @@ let run_browser (st : state) =
     (* Click into empty space: deselect everything *)
     Library.error lib "";
     Library.deselect_dir lib;
-    Library.deselect_all lib;
-    Library.refresh_artists_albums_tracks "run_browser/Click-None" lib;
     if Api.Mouse.is_pressed `Left then State.focus_library st browser;
 
   | `Drag (_, motion, traj) ->
@@ -725,8 +723,8 @@ let run_browser (st : state) =
 
   let albums = have_dir && view.albums.shown <> None in
   LibraryUi.Toggle.Albums.label ();
-  LibraryUi.Toggle.Albums.indicator1 (view.albums.shown = Some `Table);
-  LibraryUi.Toggle.Albums.indicator2 (view.albums.shown = Some `Grid);
+  LibraryUi.Toggle.Albums.indicator1 (albums && view.albums.shown = Some `Table);
+  LibraryUi.Toggle.Albums.indicator2 (albums && view.albums.shown = Some `Grid);
   let albums' =
     LibraryUi.Toggle.Albums.button (if have_dir then Some albums else None) in
   if have_dir && albums' <> albums then
@@ -747,8 +745,8 @@ let run_browser (st : state) =
 
   let tracks = have_dir && view.tracks.shown <> None in
   LibraryUi.Toggle.Tracks.label ();
-  LibraryUi.Toggle.Tracks.indicator1 (view.tracks.shown = Some `Table);
-  LibraryUi.Toggle.Tracks.indicator2 (view.tracks.shown = Some `Grid);
+  LibraryUi.Toggle.Tracks.indicator1 (tracks && view.tracks.shown = Some `Table);
+  LibraryUi.Toggle.Tracks.indicator2 (tracks && view.tracks.shown = Some `Grid);
   let tracks' =
     LibraryUi.Toggle.Tracks.button (if have_dir then Some tracks else None) in
   if have_dir && tracks' <> tracks then
@@ -1094,34 +1092,40 @@ let run_view (st : state)
 
   | `Menu (i_opt, j_opt) ->
     (* Right-click on content: context menu *)
-    Library.error lib "";
-    State.focus_library st tab;
-    if not (Table.IntSet.equal tab.selected old_selected) then
-      refresh_deps lib;
-    let search =
-      match i_opt, j_opt with
-      | Some i, Some j ->
-        let s = attr_string entries.(i) (fst view.columns.$(j)) in
-        if s = "" then [] else [s]
-      | _, _ -> []
-    in
-    if editable then
-      Run_view.(edit_menu st (make_view st) search i_opt)
-    else
-      Run_view.(list_menu st (make_view st) search)
+    if lib.current <> None then
+    (
+      Library.error lib "";
+      State.focus_library st tab;
+      if not (Table.IntSet.equal tab.selected old_selected) then
+        refresh_deps lib;
+      let search =
+        match i_opt, j_opt with
+        | Some i, Some j ->
+          let s = attr_string entries.(i) (fst view.columns.$(j)) in
+          if s = "" then [] else [s]
+        | _, _ -> []
+      in
+      if editable then
+        Run_view.(edit_menu st (make_view st) search i_opt)
+      else
+        Run_view.(list_menu st (make_view st) search)
+    )
 
   | `HeadMenu i_opt ->
     (* Right-click on header: header menu *)
-    Library.error lib "";
-    State.focus_library st tab;
-    let current_attrs = Iarray.to_list (Iarray.map fst view.columns) in
-    let unused_attrs = Data.diff_attrs all_attrs current_attrs in
+    if lib.current <> None then
+    (
+      Library.error lib "";
+      State.focus_library st tab;
+      let current_attrs = Iarray.to_list (Iarray.map fst view.columns) in
+      let unused_attrs = Data.diff_attrs all_attrs current_attrs in
 (*
-    let used_attrs = Data.diff_attrs current_attrs unused_attrs in
+      let used_attrs = Data.diff_attrs current_attrs unused_attrs in
 *)
-    let i = Option.value i_opt ~default: (Iarray.length view.columns) in
-    let removable_attrs = if i_opt = None then [] else [fst view.columns.$(i)] in
-    Run_popup.header_menu st tab view kind i removable_attrs unused_attrs None
+      let i = Option.value i_opt ~default: (Iarray.length view.columns) in
+      let removable_attrs = if i_opt = None then [] else [fst view.columns.$(i)] in
+      Run_popup.header_menu st tab view kind i removable_attrs unused_attrs None
+    )
   );
 
   if busy then
@@ -1151,6 +1155,8 @@ let busy_artists = Table.make 0
 let busy_albums = Table.make 0
 let busy_tracks = Table.make 0
 
+let no_dir = Data.make_dir "" None 0 (Library.make_views_none ())
+
 let run_views (st : state) =
   let lib = st.library in
   let geo = st.geometry in
@@ -1158,11 +1164,7 @@ let run_views (st : state) =
   let (module WindowUi) = Option.get st.layout in
 
   let have_dir = lib.current <> None in
-  let default =
-    if Array.length lib.browser.entries > 0 then lib.browser.entries.(0) else
-    Data.make_dir "" None 0 (Library.make_views ())
-  in
-  let dir = Option.value lib.current ~default in
+  let dir = Option.value lib.current ~default: no_dir in
   let view = dir.view in
 
   let show_artists =
@@ -1387,7 +1389,7 @@ let run_browse_info (st : state) =
   let now = Unix.gettimeofday () in
   if lib.error <> "" && now -. lib.error_time < 10.0 then
     MessageUi.text (Ui.error_color geo.ui) `Regular true lib.error
-  else
+  else if lib.current <> None then
   (
     let tr = Table.length lib.tracks in
     let al = Table.length lib.albums in

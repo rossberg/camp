@@ -62,6 +62,7 @@ type t = private
 
 val make : unit -> t
 val make_views : unit -> views
+val make_views_none : unit -> views
 val clone_views : views -> views
 val update_views : views -> views -> unit
 
