@@ -18,13 +18,13 @@ type shuffle =
   mutable unobserved : int;
 }
 
-type 'a t =
+type 'cache t =
 {
-  table : (track, 'a) Table.t;
+  table : (track, 'cache) Table.t;
   mutable total : time * int;
   mutable total_selected : time * int;
   mutable shuffle : shuffle option;
-  view : Library.tracks_view;
+  view : 'cache Library.tracks_view;
 }
 
 

@@ -3,39 +3,38 @@
 open Data
 
 type display = [`Table | `Grid]
-type void = |
 
-type ('data, 'attr) view =
+type ('data, 'attr, 'cache) view =
 {
   mutable shown : display option;
   mutable columns : 'attr columns;
   mutable sorting : 'attr sorting;
-  mutable save : ('data, void) Table.t option;
+  mutable table : ('data, 'cache) Table.t option;
 }
 
-type artists_view = (artist, artist_attr_ex) view
-type albums_view = (album, album_attr_ex) view
-type tracks_view = (track, track_attr_ex) view
+type 'cache artists_view = (artist, artist_attr_ex, 'cache) view
+type 'cache albums_view = (album, album_attr_ex, 'cache) view
+type 'cache tracks_view = (track, track_attr_ex, 'cache) view
 
-type views =
+type 'cache views =
 {
   mutable folded : bool;
   mutable custom : bool;
   mutable divider_width : int;
   mutable divider_height : int;
-  artists : artists_view;
-  albums : albums_view;
-  tracks : tracks_view;
+  artists : 'cache artists_view;
+  albums : 'cache albums_view;
+  tracks : 'cache tracks_view;
 }
 
-type dir = views Data.dir
+type 'cache dir = 'cache views Data.dir
 type scan
 type cover
 
 type 'cache t = private
 {
-  mutable root : dir;
-  mutable current : dir option;
+  mutable root : 'cache dir;
+  mutable current : 'cache dir option;
   mutable error : string;
   mutable error_time : time;
   mutable refresh_time : time;
@@ -45,16 +44,16 @@ type 'cache t = private
   mutable query : Query.query option;
   search : Edit.t;
   rename : Edit.t;
-  browser : (dir, 'cache) Table.t;
+  browser : ('cache dir, 'cache) Table.t;
   mutable artists : (artist, 'cache) Table.t;
   mutable albums : (album, 'cache) Table.t;
   mutable tracks : (track, 'cache) Table.t;
   covers : cover Map.Make(String).t Atomic.t;
   mutable age_covers : (path * cover) Seq.t;
-  mutable views_clip : views option;
-  mutable views_dir_default : views;
-  mutable views_album_default : views;
-  mutable views_playlist_default : views;
+  mutable views_clip : 'cache views option;
+  mutable views_dir_default : 'cache views;
+  mutable views_album_default : 'cache views;
+  mutable views_playlist_default : 'cache views;
   scan : scan;
 }
 
@@ -62,9 +61,9 @@ type 'cache t = private
 (* Constructor *)
 
 val make : unit -> 'a t
-val make_views : unit -> views
-val clone_views : views -> views
-val update_views : views -> views -> unit
+val make_views : unit -> 'a views
+val clone_views : 'a views -> 'a views
+val update_views : 'a views -> 'a views -> unit
 
 
 (* Validation *)
@@ -99,7 +98,7 @@ val load_browser : 'a t -> unit
 type scan_mode = [`Quick | `Thorough]
 
 val rescan_root : 'a t -> scan_mode -> unit
-val rescan_dirs : 'a t -> scan_mode -> dir array -> unit
+val rescan_dirs : 'a t -> scan_mode -> 'a dir array -> unit
 val rescan_tracks : 'a t -> scan_mode -> track array -> unit
 
 val rescan_busy : 'a t -> string option
@@ -122,18 +121,18 @@ val deselect_dir : 'a t -> unit
 val insert_roots : 'a t -> path list -> int -> bool
 val remove_roots : 'a t -> path list -> bool
 
-val find_dir : 'a t -> path -> dir option
-val insert_dir : 'a t -> path -> dir option
+val find_dir : 'a t -> path -> 'a dir option
+val insert_dir : 'a t -> path -> 'a dir option
 val remove_dir : 'a t -> path -> bool
-val reverse_dir : 'a t -> dir -> unit
-val move_dir : 'a t -> dir -> int -> int -> unit
-val save_dir : 'a t -> dir -> unit
-val fold_dir : 'a t -> dir -> bool -> unit
-val find_entry_dir : 'a t -> dir -> int option
+val reverse_dir : 'a t -> 'a dir -> unit
+val move_dir : 'a t -> 'a dir -> int -> int -> unit
+val save_dir : 'a t -> 'a dir -> unit
+val fold_dir : 'a t -> 'a dir -> bool -> unit
+val find_entry_dir : 'a t -> 'a dir -> int option
 
-val find_parent : 'a t -> dir -> dir option
-val find_parents : 'a t -> dir -> dir list
-val find_parent_pos : 'a t -> dir -> int
+val find_parent : 'a t -> 'a dir -> 'a dir option
+val find_parents : 'a t -> 'a dir -> 'a dir list
+val find_parent_pos : 'a t -> 'a dir -> int
 
 val current_is_all : 'a t -> bool
 val current_is_root : 'a t -> bool
@@ -207,7 +206,7 @@ val template_views : 'a t -> unit
 val inherit_views : 'a t -> bool -> bool -> unit
 val propagate_views : 'a t -> bool -> bool -> unit
 
-val make_viewlist : 'a t -> dir -> string
+val make_viewlist : 'a t -> 'a dir -> string
 
 
 (* Playlist Editing *)
@@ -241,7 +240,7 @@ val redo : 'a t -> unit
 type repair_map = track list Map.Make(String).t
 
 val repair_key : path -> string
-val repair_map : 'a t -> (dir -> unit) -> repair_map
+val repair_map : 'a t -> ('a dir -> unit) -> repair_map
 val repair_path : repair_map -> path -> path ->
   [`Ok | `Replace of track | `Ambiguous | `Missing]
 
