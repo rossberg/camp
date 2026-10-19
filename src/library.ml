@@ -308,14 +308,6 @@ let rec scanner scan queue busy () =
   Atomic.set busy (Some path);
   let changed = f () in
   Atomic.set busy None;
-(*
-if changed then
-Printf.eprintf "[scanned %s %s] changed=%b\n%!"
-(if queue == scan.dir_queue then "dir" else
-if queue == scan.file_queue then "file" else
-if queue == scan.cover_queue then "cover" else "unknown")
-path changed;
-*)
   if changed then
     atomic_update (fun paths -> (if local then Some path else None)::paths)
       scan.completed;
@@ -705,9 +697,6 @@ let rec load_dir lib (dir : dir) =
   views.albums.table <- dir.view.albums.table;
   views.tracks.table <- dir.view.tracks.table;
   dir.view <- views;
-dir.view.albums.table |> Option.iter (fun tab ->
-if Table.num_selected tab <> 0 then
-Printf.eprintf "[load_dir] %d albums selected, custom=%b\n%!" (Table.num_selected tab) dir.view.custom);
   Storage.load_string_opt (dir_name dir) (fun s ->
     try
       Parse.dir (Text.parse s) dir
@@ -772,7 +761,7 @@ let rec collect_covers lib win =
   let now = Api.Draw.frame win in
   let rec progress n =
     if n > 0 && Safe_queue.length lib.scan.cover_queue = 0 then
-      match Unix.sleepf 0.02; Seq.uncons lib.age_covers with (*XXX*)
+      match (*Unix.sleepf 0.02;*) Seq.uncons lib.age_covers with
       | None -> lib.age_covers <- Map.to_seq (Atomic.get lib.covers); true
       | Some ((path, cover), tail) ->
         lib.age_covers <- tail;
@@ -784,18 +773,18 @@ let rec collect_covers lib win =
         progress (n - 1)
     else false
   in
+(*
   let completed = progress 20 in
   collect_covers_cont lib win (if completed then 0.02 else 0.0);
-(*
+*)
   let completed = progress 100 in
   let delay = if completed then 10.0 else 0.1 in
   ignore (Domain.spawn (fun () -> collect_covers_cont lib win delay));
-*)
   false
 
 and collect_covers_cont lib win delay =
-  (*Unix.sleepf delay;*) (*XXX*)
-  Safe_queue.add (false, string_of_float delay, fun () -> collect_covers lib win) lib.scan.cover_queue
+  Unix.sleepf delay;
+  Safe_queue.add (false, "(collect)", fun () -> collect_covers lib win) lib.scan.cover_queue
 
 let rescan_cover' lib path =
   try
@@ -835,7 +824,7 @@ let load_cover lib win path =
   | None ->
     (* Start collector job if this is the first cover loaded. *)
     if Map.is_empty (Atomic.get lib.covers) then
-      collect_covers_cont lib win 10.0;
+      collect_covers_cont lib win 0.0;
     rescan_cover lib path; None
 
 let purge_covers lib =
@@ -1165,7 +1154,6 @@ let selected_dir lib =
 
 let set_dir_opt lib dir_opt =
   Option.iter (fun (dir : dir) ->
-Printf.eprintf "[set_dir_opt] clear \"%s\"\n%!" dir.name;
     let view = dir.view in
     Option.iter Table.defocus view.artists.table;
     Option.iter Table.defocus view.albums.table;
@@ -1177,53 +1165,27 @@ Printf.eprintf "[set_dir_opt] clear \"%s\"\n%!" dir.name;
     if Option.exists Table.is_untouched view.artists.table then view.artists.table <- None;
     if Option.exists Table.is_untouched view.albums.table then view.albums.table <- None;
     if Option.exists Table.is_untouched view.tracks.table then view.tracks.table <- None;
-if view.tracks.table = None then Printf.eprintf "[set_dir_opt] purged tracks table\n%!"
-else
-let tab = Option.get view.tracks.table in
-Printf.eprintf "pos=%b focus=%b v=%b h=%b sel=%b mark=%b cache=%b undo=%b redo=%b\n%!"
-(tab.pos = None)
-(tab.focus = false)
-(tab.vscroll = 0)
-(tab.hscroll = 0)
-(tab.selected = IntSet.empty)
-(tab.marked = IntSet.empty)
-(tab.cache = None)
-(!(tab.undos) = [])
-(!(tab.redos) = [])
   ) lib.current;
   lib.current <- dir_opt;
   Table.deselect_all lib.browser
 
 let deselect_dir lib =
-Printf.eprintf "[deselect_dir] current=%s selected=%s=%s\n%!"
-(match lib.current with None -> "-" | Some dir -> "\""^dir.name^"\"")
-(match Table.first_selected lib.browser with None -> "-" | Some i -> string_of_int i)
-(if Table.num_selected lib.browser = 0 then "-" else "\""^(Table.selected lib.browser).(0).name^"\"");
   lib.artists <- no_artists;
   lib.albums <- no_albums;
   lib.tracks <- no_tracks;
   set_dir_opt lib None
-;assert
-    ( lib.current = None && Table.num_selected lib.browser = 0 ||
-      Option.get lib.current == (Table.selected lib.browser).(0) )
 
 let select_dir lib i =
   let dir = lib.browser.entries.(i) in
-Printf.eprintf "[select_dir \"%s\"] current=%s selected=%s=%s\n%!" dir.name
-(match lib.current with None -> "-" | Some dir -> "\""^dir.name^"\"")
-(match Table.first_selected lib.browser with None -> "-" | Some i -> string_of_int i)
-(if Table.num_selected lib.browser = 0 then "-" else "\""^(Table.selected lib.browser).(0).name^"\"");
   if lib.current <> Some dir then
   (
-    if dir.view.artists.table = None then
-      dir.view.artists.table <- Some (Table.make 0);
-    if dir.view.albums.table = None then
-      dir.view.albums.table <- Some (Table.make 0);
-    if dir.view.tracks.table = None then
-      dir.view.tracks.table <- Some (Table.make 100);
-    lib.artists <- Option.get dir.view.artists.table;
-    lib.albums <- Option.get dir.view.albums.table;
-    lib.tracks <- Option.get dir.view.tracks.table;
+    let view = dir.view in
+    if view.artists.table = None then view.artists.table <- Some (Table.make 0);
+    if view.albums.table = None then view.albums.table <- Some (Table.make 0);
+    if view.tracks.table = None then view.tracks.table <- Some (Table.make 100);
+    lib.artists <- Option.get view.artists.table;
+    lib.albums <- Option.get view.albums.table;
+    lib.tracks <- Option.get view.tracks.table;
     set_dir_opt lib (Some dir);
     Table.select lib.browser i i;
     load_dir lib dir;
@@ -1232,13 +1194,6 @@ Printf.eprintf "[select_dir \"%s\"] current=%s selected=%s=%s\n%!" dir.name
     else if Data.is_viewlist dir then
       rescan_viewlist lib `Thorough dir
   )
-;Printf.eprintf "  current=%s selected=%s=%s\n%!"
-(match lib.current with None -> "-" | Some dir -> "\""^dir.name^"\"")
-(match Table.first_selected lib.browser with None -> "-" | Some i -> string_of_int i)
-(if Table.num_selected lib.browser = 0 then "-" else "\""^(Table.selected lib.browser).(0).name^"\"")
-;assert
-    ( lib.current = None && Table.num_selected lib.browser = 0 ||
-      Option.get lib.current == (Table.selected lib.browser).(0) )
 
 
 let refresh_browser lib =
@@ -1487,7 +1442,7 @@ let refresh_albums_tracks ?(busy = true) ?(after = ignore) lib =
       after ();
     ))
 
-let refresh_artists_albums_tracks s ?(busy = true) ?(after = ignore) lib =
+let refresh_artists_albums_tracks ?(busy = true) ?(after = ignore) lib =
   let selections = lazy (selections lib) in
   let vscroll_tracks = lib.tracks.vscroll in
   let vscroll_albums = lib.albums.vscroll in
@@ -1502,7 +1457,6 @@ let refresh_artists_albums_tracks s ?(busy = true) ?(after = ignore) lib =
   );
   Atomic.set lib.scan.artists_refresh
     (Some (busy, fun () ->
-Printf.eprintf "[refresh_artists_albums_tracks %s]\n%!" s;
       refresh_artists_albums_tracks_sync' lib (Lazy.force selections);
       Table.set_vscroll lib.tracks vscroll_tracks 1 4;
       Table.set_vscroll lib.albums vscroll_albums 1 4;
@@ -1552,19 +1506,13 @@ let refresh_after_rescan lib =
       && Table.length lib.tracks = 0
   then
     (* Delay refresh to reduce churn when many scans are queued *)
-(Printf.eprintf "[delay now=%s </> t=%s < t'=%s] %d updates%s\n%!" (Data.string_of_date_time now) (if lib.refresh_time = infinity then "oo" else Data.string_of_date_time lib.refresh_time) (Data.string_of_date_time (now +. refresh_delay))
-0 (*(List.length updates)*)
-"" (*(String.concat "\n" ("" :: List.map (Option.value ~default: "(all)") updates))*)
-;
     lib.refresh_time <- min lib.refresh_time (now +. refresh_delay);
-);
 
   if now > lib.refresh_time then
   (
     (* Delay has passed *)
-Printf.eprintf "[delayed now=%s > t=%s]\n%!" (Data.string_of_date_time now) (Data.string_of_date_time lib.refresh_time);
     refresh_browser lib;
-    refresh_artists_albums_tracks "refresh_after_rescan" lib ~busy: false;
+    refresh_artists_albums_tracks lib ~busy: false;
   )
 
 let reorder lib tab sorting attr_string key =
@@ -1668,7 +1616,7 @@ let rec fold_dir lib dir fold =
           (
             Option.iter (select_dir lib)
               (Array.find_index ((==) dir) lib.browser.entries);
-            refresh_artists_albums_tracks "fold_dir" lib
+            refresh_artists_albums_tracks lib
           )
         ) lib.current;
       )
@@ -1728,7 +1676,7 @@ let insert_roots lib paths pos =
     Atomic.set lib.scan.changed true;
     Array.iter (fun (dir : dir) -> rescan_dir lib `Thorough dir) roots';
     refresh_browser lib;
-    refresh_artists_albums_tracks "insert_roots" lib;
+    refresh_artists_albums_tracks lib;
     true
   with Failure msg ->
     error lib msg;
@@ -1750,7 +1698,7 @@ let remove_root lib path =
       );
     Atomic.set lib.scan.changed true;
     refresh_browser lib;
-    refresh_artists_albums_tracks "remove_root" lib;
+    refresh_artists_albums_tracks lib;
     true
 
 let remove_roots lib paths =
@@ -1761,7 +1709,7 @@ let remove_roots lib paths =
 
 let refresh_search lib =
   set_search' lib lib.search.text;
-  refresh_artists_albums_tracks "refresh_search" lib
+  refresh_artists_albums_tracks lib
 
 let set_search lib search =
   if lib.search.text <> search then
@@ -1775,7 +1723,7 @@ let clear_search lib =
   (
     Edit.clear lib.search;
     lib.query <- Some Query.full_query;
-    refresh_artists_albums_tracks "clear_search" lib;
+    refresh_artists_albums_tracks lib;
   )
 
 
@@ -2175,5 +2123,5 @@ let parse_state lib =
       );
     apply (r $? "lib_cover") bool
       (fun b -> lib.covers_shown <- b);
-    refresh_artists_albums_tracks "parse_state" lib;
+    refresh_artists_albums_tracks lib;
   )

@@ -111,7 +111,7 @@ let remove_list (st : state) =
       if not (Library.remove_dir lib dir.path) then
         error_flash st
       else
-        Library.refresh_artists_albums_tracks "remove_list" lib
+        Library.refresh_artists_albums_tracks lib
     )
   ) lib.current
 
@@ -288,7 +288,7 @@ let drop_on_browser (st : state) tracks =
             Library.deselect_dir lib;  (* force reload *)
             Library.select_dir lib i;
             (*if st.playlist.table.focus then Library.deselect_all lib;*)
-            Library.refresh_artists_albums_tracks "drop_on_browser" lib;
+            Library.refresh_artists_albums_tracks lib;
           );
         )
       | _ -> ()
@@ -349,7 +349,7 @@ let run_browser (st : state) =
       | Some i -> Library.select_dir lib i  (* do bureaucracy *)
       );
       (*Library.deselect_all lib;*)
-      Library.refresh_artists_albums_tracks "run_browser/Select" lib;
+      Library.refresh_artists_albums_tracks lib;
     );
 
   | `Fold i ->
@@ -369,7 +369,7 @@ let run_browser (st : state) =
       | Some i -> Library.select_dir lib i  (* do bureaucracy *)
       );
       (*if st.playlist.table.focus then Library.deselect_all lib;  (* can this happen? *)*)
-      Library.refresh_artists_albums_tracks "run_browser/Click-Some" lib;
+      Library.refresh_artists_albums_tracks lib;
     );
     if Api.Mouse.is_pressed `Left && Api.Key.are_modifiers_down [`Shift] then
     (
@@ -506,7 +506,7 @@ let run_browser (st : state) =
       | Some i -> Library.select_dir lib i  (* do bureaucracy *)
       );
       (*Library.deselect_all lib;*)
-      Library.refresh_artists_albums_tracks "run_browser/Menu" lib;
+      Library.refresh_artists_albums_tracks lib;
     );
     let c = Ui.text_color geo.ui in
     let all, quant =

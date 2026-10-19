@@ -167,7 +167,6 @@ val refresh_tracks :
 val refresh_albums_tracks :
   ?busy: bool -> ?after: (unit -> unit) -> t -> unit
 val refresh_artists_albums_tracks :
-string ->
   ?busy: bool -> ?after: (unit -> unit) -> t -> unit
 
 val refresh_artists_is_busy : t -> bool
