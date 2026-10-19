@@ -1163,6 +1163,37 @@ let focus_search lib =
 let selected_dir lib =
   Table.first_selected lib.browser
 
+let set_dir_opt lib dir_opt =
+  Option.iter (fun (dir : dir) ->
+Printf.eprintf "[set_dir_opt] clear \"%s\"\n%!" dir.name;
+    let view = dir.view in
+    Option.iter Table.defocus view.artists.table;
+    Option.iter Table.defocus view.albums.table;
+    Option.iter Table.defocus view.tracks.table;
+    Option.iter Table.uncache view.artists.table;
+    Option.iter Table.uncache view.albums.table;
+    Option.iter Table.uncache view.tracks.table;
+    (* Avoid keeping tables around redundantly *)
+    if Option.exists Table.is_untouched view.artists.table then view.artists.table <- None;
+    if Option.exists Table.is_untouched view.albums.table then view.albums.table <- None;
+    if Option.exists Table.is_untouched view.tracks.table then view.tracks.table <- None;
+if view.tracks.table = None then Printf.eprintf "[set_dir_opt] purged tracks table\n%!"
+else
+let tab = Option.get view.tracks.table in
+Printf.eprintf "pos=%b focus=%b v=%b h=%b sel=%b mark=%b cache=%b undo=%b redo=%b\n%!"
+(tab.pos = None)
+(tab.focus = false)
+(tab.vscroll = 0)
+(tab.hscroll = 0)
+(tab.selected = IntSet.empty)
+(tab.marked = IntSet.empty)
+(tab.cache = None)
+(!(tab.undos) = [])
+(!(tab.redos) = [])
+  ) lib.current;
+  lib.current <- dir_opt;
+  Table.deselect_all lib.browser
+
 let deselect_dir lib =
 Printf.eprintf "[deselect_dir] current=%s selected=%s=%s\n%!"
 (match lib.current with None -> "-" | Some dir -> "\""^dir.name^"\"")
@@ -1171,8 +1202,7 @@ Printf.eprintf "[deselect_dir] current=%s selected=%s=%s\n%!"
   lib.artists <- no_artists;
   lib.albums <- no_albums;
   lib.tracks <- no_tracks;
-  Table.deselect_all lib.browser;
-  lib.current <- None
+  set_dir_opt lib None
 ;assert
     ( lib.current = None && Table.num_selected lib.browser = 0 ||
       Option.get lib.current == (Table.selected lib.browser).(0) )
@@ -1194,23 +1224,15 @@ Printf.eprintf "[select_dir \"%s\"] current=%s selected=%s=%s\n%!" dir.name
     lib.artists <- Option.get dir.view.artists.table;
     lib.albums <- Option.get dir.view.albums.table;
     lib.tracks <- Option.get dir.view.tracks.table;
-    Table.deselect_all lib.browser;
+    set_dir_opt lib (Some dir);
     Table.select lib.browser i i;
-    lib.current <- Some dir;
     load_dir lib dir;
-(*
-if Option.exists (fun save -> Array.length (Table.save_array save) <> 0) dir.view.albums.save ||  Table.num_selected lib.albums <> 0 then
-*)
-let n = dir.view.albums.table |> Option.map (fun tab -> Table.num_selected tab) |> Option.value ~default: 0 in
-Printf.eprintf "[select_dir] save=%s, new %d albums selected\n%!" (Table.string_of_save dir.view.albums.table) (Table.num_selected lib.albums);
-if n <> Table.num_selected lib.albums then
-Option.iter (fun table -> Array.iter (fun (album : album) -> Printf.eprintf "  %s\n%!" (String.escaped (album_key album))) table.Table.entries) dir.view.albums.table;
     if Data.is_playlist dir then
       rescan_playlist lib `Thorough dir
     else if Data.is_viewlist dir then
       rescan_viewlist lib `Thorough dir
   )
-;Printf.eprintf "current=%s selected=%s=%s\n%!"
+;Printf.eprintf "  current=%s selected=%s=%s\n%!"
 (match lib.current with None -> "-" | Some dir -> "\""^dir.name^"\"")
 (match Table.first_selected lib.browser with None -> "-" | Some i -> string_of_int i)
 (if Table.num_selected lib.browser = 0 then "-" else "\""^(Table.selected lib.browser).(0).name^"\"")

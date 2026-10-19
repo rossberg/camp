@@ -22,13 +22,13 @@ type ('data, 'cache) t = private
   undo_depth : int;
   undo_save : (unit -> unit -> unit) option;
 }
-(*TODO: remove*)
-val string_of_save : ('a,'b) t option -> string
 
 
 (* Constructor *)
 
 val make : ?save : (unit -> unit -> unit) -> int -> ('a, 'b) t
+
+val is_untouched : ('a, 'b) t -> bool
 
 
 (* Validation *)

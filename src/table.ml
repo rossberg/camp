@@ -32,9 +32,6 @@ type ('a, 'b) t =
   undo_depth : int;
   undo_save : (unit -> unit -> unit) option;
 }
-let string_of_save = function
-| None -> "none"
-| Some save -> Printf.sprintf "{scroll=%d,%d sel=%d}" save.vscroll save.hscroll (IntSet.cardinal save.selected)
 
 
 (* Constructor *)
@@ -57,6 +54,17 @@ let make ?save undo_depth =
     undo_depth;
     undo_save = save;
   }
+
+let is_untouched tab =
+  tab.pos <= Some 0 &&
+  tab.focus = false &&
+  tab.vscroll = 0 &&
+  tab.hscroll = 0 &&
+  tab.selected = IntSet.empty &&
+  tab.marked = IntSet.empty &&
+  tab.cache = None &&
+  !(tab.undos) = [] &&
+  !(tab.redos) = []
 
 
 (* Accessors *)
