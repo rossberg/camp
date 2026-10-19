@@ -74,7 +74,7 @@ let focus_edit st (ed : Edit.t) =
   Edit.focus ed
 
 let focus_playlist st =
-  Library.deselect_all st.library;
+  (*Library.deselect_all st.library;*)
   focus_table st st.playlist.table
 
 let focus_settings st =
@@ -82,12 +82,12 @@ let focus_settings st =
   Edit.focus (List.hd (Settings.foci st.settings))
 
 let focus_library st (tab : _ Table.t) =
-  Playlist.deselect_all st.playlist;
+  (*Playlist.deselect_all st.playlist;*)
   focus_table st tab
 
 let focus_filesel st (tab : _ Table.t) =
-  Playlist.deselect_all st.playlist;
-  Library.deselect_all st.library;
+  (*Playlist.deselect_all st.playlist;*)
+  (*Library.deselect_all st.library;*)
   focus_table st tab
 
 let foci_table f (tab : _ Table.t) = tab.focus, f tab
@@ -217,9 +217,6 @@ let ok' st =
   check "at most one focus" (List.length (focus st) <= 1) @
   check "playlist empty when no current track"
     (st.control.current <> None || st.playlist.table.entries = [||]) @
-  check "at most one selection"
-    (not (Table.has_selection st.playlist.table &&
-      Table.has_selection st.library.tracks)) @
   check "file selection with op"
     (st.geometry.filesel_shown = (st.filesel.op <> None)) @
   check "popup modal"

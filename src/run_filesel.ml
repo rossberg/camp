@@ -195,7 +195,7 @@ let run (st : state) =
   if fs.input.focus then
   (
     (* Have or gained focus: make sure it's consistent *)
-    Filesel.deselect_file fs;
+    (*Filesel.deselect_file fs;*)
     State.defocus_all st;
     Filesel.focus_input fs;
   );

@@ -72,7 +72,7 @@ sig
   val is_same : bool
   val focus : State.t -> unit
   val area : Ui.area
-  val deselect_other : unit -> unit
+  (*val deselect_other : unit -> unit*)
   val refresh_deps : Library.t -> unit
 
 (*
@@ -126,7 +126,7 @@ let playlist_view (st : state) : view =
     let tab = st.playlist
     let focus = State.focus_playlist
     let area = WindowUi.Playlist.area
-    let deselect_other () = Library.deselect_all st.library
+    (*let deselect_other () = Library.deselect_all st.library*)
     let refresh_deps = ignore
 (*
     let modify_view = Some (fun {f} -> f it.view Data.track_attrs)
@@ -151,7 +151,7 @@ let tracks_view (st : state) : view =
     let area =
       WindowUi.Library.View.(
         if st.geometry.lower_shown then Lower.area else Left.area)
-    let deselect_other () = Playlist.deselect_all st.playlist
+    (*let deselect_other () = Playlist.deselect_all st.playlist*)
     let refresh_deps = ignore
 (*
     let modify_view =
@@ -179,7 +179,7 @@ let albums_view (st : state) : view =
     let area =
       WindowUi.Library.View.(
         if st.geometry.right_shown then Right.area else Left.area)
-    let deselect_other = ignore
+    (*let deselect_other = ignore*)
     let refresh_deps lib = Library.refresh_tracks lib
 (*
     let modify_view =
@@ -205,7 +205,7 @@ let artists_view (st : state) : view =
     let tab = it.artists
     let focus st = State.focus_library st tab
     let area = WindowUi.Library.View.Left.area
-    let deselect_other = ignore
+    (*let deselect_other = ignore*)
     let refresh_deps lib = Library.refresh_albums_tracks lib
 (*
     let modify_view =
@@ -379,7 +379,7 @@ let queue_on_playlist' (st : state) (tracks : Data.track array) mode =
     and append () =
       Mutex.protect st.playlist.table.mutex (fun () ->
         Playlist.append st.playlist tracks;
-        Playlist.deselect_all st.playlist;  (* avoid double selection *)
+        (*Playlist.deselect_all st.playlist;  (* avoid double selection *)*)
       );
       ignore (Control.switch_if_empty st.control (Some tracks.(0)));
     and jump i =
@@ -409,7 +409,7 @@ let queue_on_playlist' (st : state) (tracks : Data.track array) mode =
       (* Triple-click: replace playlist *)
       Mutex.protect st.playlist.table.mutex (fun () ->
         Playlist.replace_all st.playlist tracks;
-        Playlist.deselect_all st.playlist;  (* avoid double selection *)
+        (*Playlist.deselect_all st.playlist;  (* avoid double selection *)*)
       );
       jump 0;
     );
@@ -794,8 +794,8 @@ let separator_avail st view =
   all_editable st view
 let separator st (module View : View) pos =
   View.(insert it) pos [|Data.make_separator ()|];
-  adjust_vscroll st (module View);
-  View.deselect_other ()
+  (*View.deselect_other ();*)
+  adjust_vscroll st (module View)
 
 let remove_avail st (module View : View) =
   editable st (module View) && View.(num_selected it > 0)
@@ -883,7 +883,7 @@ let paste (st : state) (module View : View) =
     let pos = Option.value View.(first_selected it) ~default: View.(length it) in
     View.(insert it) pos tracks;
     adjust_vscroll st (module View);
-    View.deselect_other ();
+    (*View.deselect_other ();*)
     update_control st;
   )
 
@@ -969,7 +969,7 @@ let queue (st : state) (module View : View) replace =
   let tracks = Library.(if has_selection lib then selected else tracks) lib in
   Playlist.(if replace then replace_all else append) st.playlist
     (Track.copy_array tracks);
-  if not st.playlist.table.focus then Playlist.deselect_all st.playlist;
+  (*if not st.playlist.table.focus then Playlist.deselect_all st.playlist;*)
   ignore (Control.switch_if_empty st.control (Some tracks.(0)))
 
 let inherit_avail (st : state) _view =
@@ -983,7 +983,7 @@ let inherit_ (st : state) (module View : View) replace =
     let tracks = Playlist.(if has_selection pl then selected else tracks) pl in
     Library.(if replace then replace_all else append) st.library
       (Track.copy_array tracks);
-    if not st.library.tracks.focus then Library.deselect_all st.library;
+    (*if not st.library.tracks.focus then Library.deselect_all st.library;*)
     Library.clear_search st.library;
   )
 

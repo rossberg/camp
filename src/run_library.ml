@@ -287,7 +287,7 @@ let drop_on_browser (st : state) tracks =
           (
             Library.deselect_dir lib;  (* force reload *)
             Library.select_dir lib i;
-            if st.playlist.table.focus then Library.deselect_all lib;
+            (*if st.playlist.table.focus then Library.deselect_all lib;*)
             Library.refresh_artists_albums_tracks "drop_on_browser" lib;
           );
         )
@@ -368,7 +368,7 @@ let run_browser (st : state) =
       | None -> Library.deselect_dir lib
       | Some i -> Library.select_dir lib i  (* do bureaucracy *)
       );
-      if st.playlist.table.focus then Library.deselect_all lib;  (* can this happen? *)
+      (*if st.playlist.table.focus then Library.deselect_all lib;  (* can this happen? *)*)
       Library.refresh_artists_albums_tracks "run_browser/Click-Some" lib;
     );
     if Api.Mouse.is_pressed `Left && Api.Key.are_modifiers_down [`Shift] then
