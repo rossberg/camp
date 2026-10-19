@@ -55,7 +55,7 @@ module type View =
 sig
   open Data
 
-  type 'cache t
+  type t
   type table
 
   module Select :  (* ops on the target table *)
@@ -67,13 +67,13 @@ sig
     val select_invert : table -> unit
   end
 
-  val it : Ui.cached t
+  val it : t
   val tab : table
   val is_same : bool
   val focus : State.t -> unit
   val area : Ui.area
   val deselect_other : unit -> unit
-  val refresh_deps : 'a Library.t -> unit
+  val refresh_deps : Library.t -> unit
 
 (*
   val modify_view : (modifyer -> unit) option
@@ -83,34 +83,34 @@ sig
 *)
   (* Ops on the underlying tracks table *)
 
-  val length : Ui.cached t -> int
-  val tracks : Ui.cached t -> track array
-  val table : Ui.cached t -> (track, Ui.cached) Table.t
+  val length : t -> int
+  val tracks : t -> track array
+  val table : t -> (track, Cache.t) Table.t
 
-  val num_selected : Ui.cached t -> int
-  val first_selected : Ui.cached t -> int option
-  val is_selected : Ui.cached t -> int -> bool
-  val selected : Ui.cached t -> track array
-  val select_all : Ui.cached t -> unit
-  val deselect_all : Ui.cached t -> unit
-  val select_invert : Ui.cached t -> unit
-(*  val select : Ui.cached t -> int -> int -> unit*)
-(*  val deselect : Ui.cached t -> int -> int -> unit*)
+  val num_selected : t -> int
+  val first_selected : t -> int option
+  val is_selected : t -> int -> bool
+  val selected : t -> track array
+  val select_all : t -> unit
+  val deselect_all : t -> unit
+  val select_invert : t -> unit
+(*  val select : t -> int -> int -> unit*)
+(*  val deselect : t -> int -> int -> unit*)
 
-  val insert : Ui.cached t -> int -> track array -> unit
-  val replace_all : Ui.cached t -> track array -> unit
-  val replace_map : Ui.cached t -> track Map.t -> bool -> unit
-  val remove_all : Ui.cached t -> unit
-  val remove_selected : Ui.cached t -> unit
-  val remove_unselected : Ui.cached t -> unit
-  val remove_invalid : Ui.cached t -> bool -> unit
-  val remove_duplicates : Ui.cached t -> bool -> unit
-(*  val move_selected : Ui.cached t -> int -> unit*)
-  val reverse_selected : Ui.cached t -> unit
-  val reverse_all : Ui.cached t -> unit
-  val reorder_all : Ui.cached t -> unit
-  val undo : Ui.cached t -> unit
-  val redo : Ui.cached t -> unit
+  val insert : t -> int -> track array -> unit
+  val replace_all : t -> track array -> unit
+  val replace_map : t -> track Map.t -> bool -> unit
+  val remove_all : t -> unit
+  val remove_selected : t -> unit
+  val remove_unselected : t -> unit
+  val remove_invalid : t -> bool -> unit
+  val remove_duplicates : t -> bool -> unit
+(*  val move_selected : t -> int -> unit*)
+  val reverse_selected : t -> unit
+  val reverse_all : t -> unit
+  val reorder_all : t -> unit
+  val undo : t -> unit
+  val redo : t -> unit
 end
 
 type view = (module View)
@@ -120,7 +120,7 @@ let playlist_view (st : state) : view =
   (module struct
     include Playlist
     module Select = Playlist
-    type table = Ui.cached t
+    type table = t
     let is_same = true
     let it = st.playlist
     let tab = st.playlist
@@ -143,7 +143,7 @@ let tracks_view (st : state) : view =
   (module struct
     include Library
     module Select = Library
-    type table = Ui.cached t
+    type table = t
     let is_same = true
     let it = st.library
     let tab = st.library
@@ -502,7 +502,7 @@ let modify ops (st : state) dir on_start on_pl =
       Iarray.sub columns ~pos: 1 ~len: 2,
       Iarray.append [|Iarray.get st.geometry.repair_log_columns 0|]
     in
-    let close b (log : _ Log.t) =
+    let close b (log : Log.t) =
       st.geometry.repair_log_columns <- mk_columns (Iarray.map fst log.columns);
       Library.end_log st.library;
       ops.final b;

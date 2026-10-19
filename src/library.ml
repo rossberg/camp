@@ -22,30 +22,30 @@ type time = float
 
 type display = [`Table | `Grid]
 
-type ('data, 'attr, 'cache) view =
+type ('data, 'attr) view =
 {
   mutable shown : display option;
   mutable columns : 'attr columns;
   mutable sorting : 'attr sorting;
-  mutable table : ('data, 'cache) Table.t option;
+  mutable table : ('data, Cache.t) Table.t option;
 }
 
-type 'cache artists_view = (artist, artist_attr_ex, 'cache) view
-type 'cache albums_view = (album, album_attr_ex, 'cache) view
-type 'cache tracks_view = (track, track_attr_ex, 'cache) view
+type artists_view = (artist, artist_attr_ex) view
+type albums_view = (album, album_attr_ex) view
+type tracks_view = (track, track_attr_ex) view
 
-type 'cache views =
+type views =
 {
   mutable folded : bool;
   mutable custom : bool;
   mutable divider_width : int;
   mutable divider_height : int;
-  artists : 'cache artists_view;
-  albums : 'cache albums_view;
-  tracks : 'cache tracks_view;
+  artists : artists_view;
+  albums : albums_view;
+  tracks : tracks_view;
 }
 
-type 'cache dir = 'cache views Data.dir
+type dir = views Data.dir
 
 type scan =
 {
@@ -71,29 +71,29 @@ type cover =
   | ScannedCover of Meta.picture
   | Cover of {image : Api.image; mutable last_use : int}
 
-type 'cache t =
+type t =
 {
-  mutable root : 'cache dir;
-  mutable current : 'cache dir option;
+  mutable root : dir;
+  mutable current : dir option;
   mutable error : string;
   mutable error_time : time;
   mutable refresh_time : time;
   mutable covers_shown : bool;
   mutable renaming : int option;
-  mutable log : 'cache Log.t option;
+  mutable log : Log.t option;
   mutable query : Query.query option;
   search : Edit.t;
   rename : Edit.t;
-  browser : ('cache dir, 'cache) Table.t;
-  mutable artists : (artist, 'cache) Table.t;
-  mutable albums : (album, 'cache) Table.t;
-  mutable tracks : (track, 'cache) Table.t;
+  browser : (dir, Cache.t) Table.t;
+  mutable artists : (artist, Cache.t) Table.t;
+  mutable albums : (album, Cache.t) Table.t;
+  mutable tracks : (track, Cache.t) Table.t;
   covers : cover Map.t Atomic.t;
   mutable age_covers : (path * cover) Seq.t;
-  mutable views_clip : 'cache views option;
-  mutable views_dir_default : 'cache views;
-  mutable views_album_default : 'cache views;
-  mutable views_playlist_default : 'cache views;
+  mutable views_clip : views option;
+  mutable views_dir_default : views;
+  mutable views_album_default : views;
+  mutable views_playlist_default : views;
   scan : scan;
 }
 
@@ -201,7 +201,7 @@ let artists_default_view = make_view None artists_columns artists_sorting
 let albums_default_view = make_view None albums_columns albums_sorting
 let tracks_default_view = make_view (Some `Table) tracks_columns tracks_sorting
 
-let make_views () : _ views =
+let make_views () : views =
   {
     folded = true;
     custom = false;
@@ -231,7 +231,7 @@ let playlist_default_views =
     tracks = make_view (Some `Table) playlist_columns playlist_sorting
   }
 
-let clone_views (views : _ views) =
+let clone_views (views : views) =
   {
     folded = true;
     custom = false;
@@ -247,7 +247,7 @@ let update_view (view : _ view) (from : _ view) =
   view.columns <- from.columns;
   view.sorting <- from.sorting
 
-let update_views (views : _ views) (from : _ views) =
+let update_views (views : views) (from : views) =
   (* .folded and .custom are left untouched! *)
   views.divider_width <- from.divider_width;
   views.divider_height <- from.divider_height;
@@ -256,7 +256,7 @@ let update_views (views : _ views) (from : _ views) =
   update_view views.tracks from.tracks
 
 
-let make_views_for lib path : _ views =
+let make_views_for lib path : views =
   if path = "" then
     root_default_views
   else if is_playlist_path path || is_viewlist_path path then
@@ -337,11 +337,10 @@ let make_scan () =
   ignore (Domain.spawn (refresher scan));
   scan
 
-type save_f = {mutable it : 'a. 'a t -> unit}
-let save_db_fwd = {it = ignore}
+let save_db_fwd = ref ignore
 let rec saver lib () =
   Unix.sleepf 30.0;
-  save_db_fwd.it lib;
+  !save_db_fwd lib;
   saver lib ()
 
 let no_artists = Table.make 0
@@ -452,15 +451,15 @@ let current_is_playlist lib = current_is Data.is_playlist lib
 let current_is_viewlist lib = current_is Data.is_viewlist lib
 
 let current_is_shown_playlist lib =
-  current_is (fun (dir : _ dir) ->
+  current_is (fun (dir : dir) ->
     dir.view.tracks.shown <> None && Data.is_playlist dir) lib
 
 let current_is_shown_viewlist lib =
-  current_is (fun (dir : _ dir) ->
+  current_is (fun (dir : dir) ->
     dir.view.tracks.shown <> None && Data.is_viewlist dir) lib
 
 let current_is_plain_playlist lib =
-  current_is (fun (dir : _ dir) ->
+  current_is (fun (dir : dir) ->
     lib.search.text = "" &&
     not (Table.has_selection lib.artists) &&
     not (Table.has_selection lib.albums) &&
@@ -472,9 +471,9 @@ let current_is_plain_playlist lib =
   ) lib
 
 
-let artists_sorting (views : _ views) = views.artists.sorting
-let albums_sorting (views : _ views) = views.albums.sorting
-let tracks_sorting (views : _ views) = views.tracks.sorting
+let artists_sorting (views : views) = views.artists.sorting
+let albums_sorting (views : views) = views.albums.sorting
+let tracks_sorting (views : views) = views.tracks.sorting
 
 let artist_key (artist : artist) =
   artist.name
@@ -491,9 +490,8 @@ let track_key (track : track) =
 (* Lookup *)
 
 let rec find_dir lib path = find_dir' path lib.root
-and find_dir' path (dir : _ dir) =
-  Iarray.find_map (find_dir'' path) dir.children
-and find_dir'' path (dir : _ dir) =
+and find_dir' path (dir : dir) = Iarray.find_map (find_dir'' path) dir.children
+and find_dir'' path (dir : dir) =
   if String.starts_with path ~prefix: dir.path then
     if String.length path = String.length dir.path then
       Some dir
@@ -502,10 +500,10 @@ and find_dir'' path (dir : _ dir) =
   else
     None
 
-let find_entry_dir lib (dir : _ dir) =
+let find_entry_dir lib (dir : dir) =
   Array.find_index ((==) dir) lib.browser.entries
 
-let find_parent lib (dir : _ dir) =
+let find_parent lib (dir : dir) =
   match dir.parent with
   | None -> None
   | Some "" -> Some lib.root
@@ -516,16 +514,16 @@ let rec find_parents lib dir =
   | None -> []
   | Some parent -> parent :: find_parents lib parent
 
-let find_parent_pos lib (dir : _ dir) =
+let find_parent_pos lib (dir : dir) =
   let parent = Option.get (find_parent lib dir) in
   let siblings = parent.children in
   let rec loop i = if siblings.$(i) == dir then i else loop (i + 1) in
   loop 0
 
 let rec find_track lib path = find_track' path lib.root
-and find_track' path (dir : _ dir) =
+and find_track' path (dir : dir) =
   Iarray.find_map (find_track'' path) dir.children
-and find_track'' path (dir : _ dir) =
+and find_track'' path (dir : dir) =
   if String.starts_with path ~prefix: dir.path then
     if File.(dir path // "") = dir.path then
       Iarray.find_opt (fun (track : track) -> track.path = path) dir.tracks
@@ -575,7 +573,7 @@ let load_db lib =
     lib.root <- Bin.decode (Data.Decode.dir (make_views_for lib)) s;
   )
 
-let _ = save_db_fwd.it <- save_db
+let _ = save_db_fwd := save_db
 
 
 module Print =
@@ -593,7 +591,7 @@ struct
     ])
 
   let views full =
-    record (fun (x : _ views) -> [
+    record (fun (x : views) -> [
       "fold", bool x.folded;
       "custom", bool x.custom;
     ] @ if not (x.custom || full) then [] else [
@@ -604,10 +602,10 @@ struct
       "tracks", view Data.Print.track_attr_ex x.tracks;
     ])
 
-  let dir (x : _ dir) = views false x.view
+  let dir (x : dir) = views false x.view
 
-  let browse (x : _ dir) =
-    let rec tree (dir : _ dir) =
+  let browse (x : dir) =
+    let rec tree (dir : dir) =
       (dir.path, dir.view.folded) ::
       List.concat_map tree (Iarray.to_list dir.children)
     in map bool (tree x)
@@ -627,7 +625,7 @@ struct
       table = None;
     })
 
-  let views : t -> _ views =
+  let views : t -> views =
     record (fun r -> {
       folded = bool (r $ "fold");
       custom = default true bool (r $? "custom");
@@ -638,13 +636,13 @@ struct
       tracks = view Data.Parse.track_attr_ex (r $ "tracks");
     })
 
-  let views_noncustom (views : _ views) =
+  let views_noncustom (views : views) =
     record (fun r ->
       apply (r $? "fold") bool (fun b -> views.folded <- b);
       apply (r $? "custom") bool (fun b -> views.custom <- b);
     )
 
-  let dir u (dir : _ dir) =
+  let dir u (dir : dir) =
     views_noncustom dir.view u;
     if dir.view.custom then
     (
@@ -658,7 +656,7 @@ struct
 
   let browse u =
     let map = Map.of_list (map bool u) in
-    let rec tree (dir : _ dir) =
+    let rec tree (dir : dir) =
       Option.iter (fun b -> dir.view.folded <- b) (Map.find_opt dir.path map);
       Iarray.iter tree dir.children
     in tree
@@ -692,7 +690,7 @@ let save_dir _lib dir =
   );
   if is_viewlist dir then File.save_safe `Bin dir.path dir.search
 
-let rec load_dir lib (dir : _ dir) =
+let rec load_dir lib (dir : dir) =
   let views = make_views_for lib dir.path in
   views.artists.table <- dir.view.artists.table;
   views.albums.table <- dir.view.albums.table;
@@ -920,7 +918,7 @@ let rescan_track' lib mode (track : track) =
     Storage.log_exn "file" exn ("scanning track " ^ track.path);
     false
 
-let rescan_dir_tracks' lib mode (dir : _ dir) =
+let rescan_dir_tracks' lib mode (dir : dir) =
   try
     let new_tracks = Dynarray.create () in
     let old_tracks =
@@ -952,7 +950,7 @@ let rescan_dir_tracks' lib mode (dir : _ dir) =
     Storage.log_exn "file" exn ("scanning tracks in directory " ^ dir.path);
     true
 
-let rescan_playlist' lib _mode (dir : _ dir) =
+let rescan_playlist' lib _mode (dir : dir) =
   try
     let items = Iarray.of_list (M3u.load dir.path) in
     dir.tracks <-
@@ -964,7 +962,7 @@ let rescan_playlist' lib _mode (dir : _ dir) =
   | Sys_error _ -> true
   | exn -> Storage.log_exn "file" exn ("scanning playlist " ^ dir.path); true
 
-let rescan_viewlist' lib _mode (dir : _ dir) =
+let rescan_viewlist' lib _mode (dir : dir) =
   try
     let s = File.load `Bin dir.path in
     (match Query.parse_query s with
@@ -987,8 +985,8 @@ let rescan_viewlist' lib _mode (dir : _ dir) =
   | exn -> Storage.log_exn "file" exn ("scanning viewlist " ^ dir.path); true
 
 
-let rec rescan_dir' lib mode (origin : _ dir) =
-  let rec scan_file (parent : _ dir) old_dirs file =
+let rec rescan_dir' lib mode (origin : dir) =
+  let rec scan_file (parent : dir) old_dirs file =
     let parent_path = parent.path in
     let path = File.(parent_path // file) in
     let subdir path' change_if_new =
@@ -1014,10 +1012,10 @@ let rec rescan_dir' lib mode (origin : _ dir) =
     else
       None
 
-  and scan_dir (dir : _ dir) =
+  and scan_dir (dir : dir) =
     Domain.cpu_relax ();
     let old_dirs =
-      Iarray.fold_left (fun map (dir : _ dir) ->
+      Iarray.fold_left (fun map (dir : dir) ->
         Map.add dir.path dir map
       ) Map.empty dir.children
     in
@@ -1044,7 +1042,7 @@ let rec rescan_dir' lib mode (origin : _ dir) =
       Array.stable_sort Data.compare_dir children';
       (* Post-process to preserve possible custom order among old dirs. *)
       let new_dirs =
-        Array.fold_left (fun (i, map) (dir : _ dir) ->
+        Array.fold_left (fun (i, map) (dir : dir) ->
           i + 1, Map.add dir.path i map
         ) (0, Map.empty) children' |> snd |> ref
       in
@@ -1073,18 +1071,18 @@ let rec rescan_dir' lib mode (origin : _ dir) =
       rescan_dir_tracks lib mode dir;
       Some [dir]
 
-  and scan_playlist (dir : _ dir) =
+  and scan_playlist (dir : dir) =
     if is_playlist_path dir.name then dir.name <- File.remove_extension dir.name;
     if not (is_very_quick mode) then rescan_playlist lib mode dir;
     Some [dir]
 
-  and scan_viewlist (dir : _ dir) =
+  and scan_viewlist (dir : dir) =
     if is_viewlist_path dir.name then dir.name <- File.remove_extension dir.name;
     if not (is_very_quick mode) then rescan_viewlist lib mode dir;
     Some [dir]
 
-  and absent_dir (dir : _ dir) =
-    Data.iter_dir (fun (dir : _ dir) ->
+  and absent_dir (dir : dir) =
+    Data.iter_dir (fun (dir : dir) ->
       if Data.is_dir dir then
         Iarray.iter (fun (track : track) -> track.status <- `Absent) dir.tracks
     ) dir
@@ -1101,15 +1099,15 @@ let rec rescan_dir' lib mode (origin : _ dir) =
     true
 
 
-and rescan_dir lib mode (dir : _ dir) =
+and rescan_dir lib mode (dir : dir) =
   Safe_queue.add (false, dir.path, fun () ->
     rescan_dir' lib (mode :> [scan_mode | `VeryQuick]) dir) lib.scan.dir_queue
 
-and rescan_playlist lib mode (dir : _ dir) =
+and rescan_playlist lib mode (dir : dir) =
   Safe_queue.add (true, dir.path, fun () -> rescan_playlist' lib mode dir)
     lib.scan.file_queue
 
-and rescan_viewlist lib mode (dir : _ dir) =
+and rescan_viewlist lib mode (dir : dir) =
   Safe_queue.add (true, dir.path, fun () -> rescan_viewlist' lib mode dir)
     lib.scan.file_queue
 
@@ -1117,7 +1115,7 @@ and rescan_track lib mode (track : track) =
   Safe_queue.add (true, track.path, fun () -> rescan_track' lib mode track)
     lib.scan.file_queue
 
-and rescan_dir_tracks lib mode (dir : _ dir) =
+and rescan_dir_tracks lib mode (dir : dir) =
   Safe_queue.add (true, dir.path, fun () -> rescan_dir_tracks' lib mode dir)
     lib.scan.dir_queue
 
@@ -1201,8 +1199,8 @@ Option.iter (fun table -> Array.iter (fun (album : album) -> Printf.eprintf "  %
 
 
 let refresh_browser lib =
-  let rec entries (dir : _ dir) acc =
-    Option.iter (fun (cur : _ dir) ->
+  let rec entries (dir : dir) acc =
+    Option.iter (fun (cur : dir) ->
       if cur.path = dir.path then lib.current <- Some dir) lib.current;
     dir ::
     (if dir.view.folded then acc else Iarray.fold_right entries dir.children acc)
@@ -1220,7 +1218,7 @@ let insert_dir lib path =
   | Some parent ->
     ignore (rescan_dir' lib `VeryQuick parent);
     refresh_browser lib;
-    Iarray.find_opt (fun (dir : _ dir) -> dir.path = path) parent.children
+    Iarray.find_opt (fun (dir : dir) -> dir.path = path) parent.children
 
 let remove_dir lib path =
   match find_dir lib File.(dir path // "") with
@@ -1230,7 +1228,7 @@ let remove_dir lib path =
   | Some parent ->
     ignore (rescan_dir' lib `VeryQuick parent);
     refresh_browser lib;
-    not (Iarray.exists (fun (dir : _ dir) -> dir.path = path) parent.children)
+    not (Iarray.exists (fun (dir : dir) -> dir.path = path) parent.children)
 
 let move_dir lib dir pos pos' =
   if pos <> pos' then
@@ -1527,7 +1525,7 @@ Printf.eprintf "[delayed now=%s > t=%s]\n%!" (Data.string_of_date_time now) (Dat
   )
 
 let reorder lib tab sorting attr_string key =
-  Option.iter (fun (dir : _ dir) ->
+  Option.iter (fun (dir : dir) ->
     let s = sorting dir.view in
     if s <> [] then
     (
@@ -1552,7 +1550,7 @@ let _set_views_album_default lib v = update_views lib.views_album_default v
 let set_views_playlist_default lib v = update_views lib.views_playlist_default v
 
 let copy_views lib =
-  Option.iter (fun (current : _ dir) ->
+  Option.iter (fun (current : dir) ->
     let views =
       match lib.views_clip with Some x -> x | None -> make_views_for lib "" in
     update_views views current.view;
@@ -1560,12 +1558,12 @@ let copy_views lib =
   ) lib.current
 
 let paste_views lib =
-  Option.iter (fun (current : _ dir) ->
+  Option.iter (fun (current : dir) ->
     Option.iter (fun clip -> update_views current.view clip) lib.views_clip
   ) lib.current
 
 let default_views lib =
-  Option.iter (fun (current : _ dir) ->
+  Option.iter (fun (current : dir) ->
     let view = make_views_for lib current.path in
     view.folded <- current.view.folded;
     current.view <- view;
@@ -1573,7 +1571,7 @@ let default_views lib =
   ) lib.current
 
 let template_views lib =
-  Option.iter (fun (current : _ dir) ->
+  Option.iter (fun (current : dir) ->
     (if is_playlist_path current.path || is_viewlist_path current.path then
       set_views_playlist_default
 (*
@@ -1587,7 +1585,7 @@ let template_views lib =
   ) lib.current
 
 let inherit_views lib custom deep =
-  Option.iter (fun (current : _ dir) ->
+  Option.iter (fun (current : dir) ->
     Iarray.iter (
       (if deep then Data.iter_dir else (@@)) (fun dir ->
         dir.view.custom <- custom;
@@ -1597,7 +1595,7 @@ let inherit_views lib custom deep =
   ) lib.current
 
 let propagate_views lib custom deep =
-  Option.iter (fun (current : _ dir) ->
+  Option.iter (fun (current : dir) ->
     Iarray.iter (
       (if deep then Data.iter_dir else Fun.id) (fun dir ->
         update_views dir.view current.view;
@@ -1622,7 +1620,7 @@ let rec fold_dir lib dir fold =
       if fold then
       (
         (* If current dir was a sub directory, then deselect parent. *)
-        Option.iter (fun (current : _ dir) ->
+        Option.iter (fun (current : dir) ->
           if String.starts_with ~prefix: dir.path current.path then
           (
             Option.iter (select_dir lib)
@@ -1656,7 +1654,7 @@ let make_root lib path =
   (
     let dirpath = File.(path // "") in
     match
-      Iarray.find_opt (fun (dir : _ dir) ->
+      Iarray.find_opt (fun (dir : dir) ->
         path = dir.path ||
         String.starts_with ~prefix: dirpath dir.path ||
         String.starts_with ~prefix: dir.path dirpath
@@ -1685,7 +1683,7 @@ let insert_roots lib paths pos =
           roots.$(i - len')
       );
     Atomic.set lib.scan.changed true;
-    Array.iter (fun (dir : _ dir) -> rescan_dir lib `Thorough dir) roots';
+    Array.iter (fun (dir : dir) -> rescan_dir lib `Thorough dir) roots';
     refresh_browser lib;
     refresh_artists_albums_tracks "insert_roots" lib;
     true
@@ -1696,7 +1694,7 @@ let insert_roots lib paths pos =
 let remove_root lib path =
   let dirpath = File.(path // "") in
   let roots = lib.root.children in
-  match Iarray.find_index (fun (root : _ dir) -> root.path = dirpath) roots with
+  match Iarray.find_index (fun (root : dir) -> root.path = dirpath) roots with
   | None ->
     error lib "Directory is not a root directory";
     false
@@ -1770,7 +1768,7 @@ let save_playlist lib =
   with exn ->
     Storage.log_exn "file" exn ("writing playlist " ^ dir.path)
 
-let make_viewlist lib (dir : _ dir) =
+let make_viewlist lib (dir : dir) =
   let prefix =
     if Data.is_all dir || Data.is_viewlist dir then ""
     else "\"" ^ dir.path ^ "\" @ #filepath "
@@ -1850,7 +1848,7 @@ let insert lib pos tracks =  (* takes ownership of tracks *)
       ) tracks;
     Table.insert lib.tracks pos'' tracks;
     renumber lib (pos'' + len') (len + len');
-    Option.iter (fun (dir : _ dir) ->
+    Option.iter (fun (dir : dir) ->
       dir.tracks <- Iarray.of_array lib.tracks.entries;
     ) lib.current;
     select lib pos'' (pos'' + len' - 1);
@@ -1868,7 +1866,7 @@ let remove_all lib =
   (
     let order = normalize_playlist lib in
     Table.remove_all lib.tracks;
-    Option.iter (fun (dir : _ dir) -> dir.tracks <- [||]) lib.current;
+    Option.iter (fun (dir : dir) -> dir.tracks <- [||]) lib.current;
     restore_playlist lib order;
     save_playlist lib;
   )
@@ -1880,7 +1878,7 @@ let remove_if p lib n =
     let order = normalize_playlist lib in
     let _js = Table.remove_if p lib.tracks n in
     renumber_all lib;
-    Option.iter (fun (dir : _ dir) ->
+    Option.iter (fun (dir : dir) ->
       dir.tracks <- Iarray.of_array lib.tracks.entries;
     ) lib.current;
     restore_playlist lib order;
@@ -2129,7 +2127,7 @@ let parse_state lib =
       (fun i ->
         lib.current <- None;
         Option.iter (select_dir lib)
-          (Array.find_index (fun (dir : _ dir) -> dir.path = i)
+          (Array.find_index (fun (dir : dir) -> dir.path = i)
             lib.browser.entries);
       );
     apply (r $? "lib_cover") bool

@@ -29,13 +29,13 @@ type op =
   run : path -> unit;
 }
 
-type 'cache t =
+type t =
 {
   mutable op : op option;
   mutable path : path;
   mutable roots : dir array;
-  dirs : (dir, 'cache) Table.t;
-  files : (file, 'cache) Table.t;
+  dirs : (dir, Cache.t) Table.t;
+  files : (file, Cache.t) Table.t;
   input : Edit.t;
   mutable columns : int iarray;
 }
@@ -43,65 +43,65 @@ type 'cache t =
 
 (* Constructor *)
 
-val make : unit -> 'a t
+val make : unit -> t
 
 
 (* Validation *)
 
 type error = string
 
-val ok : 'a t -> error list
+val ok : t -> error list
 
 
 (* Persistence *)
 
-val print_state : 'a t -> Text.t
-val print_intern : 'a t -> Text.t
-val parse_state : 'a t -> Text.t -> unit
+val print_state : t -> Text.t
+val print_intern : t -> Text.t
+val parse_state : t -> Text.t -> unit
 
 
 (* Focus *)
 
-val defocus : 'a t -> unit
-val focus_directories : 'a t -> unit
-val focus_files : 'a t -> unit
-val focus_input : 'a t -> unit
+val defocus : t -> unit
+val focus_directories : t -> unit
+val focus_files : t -> unit
+val focus_input : t -> unit
 
 
 (* Refresh *)
 
-val refresh_files : 'a t -> unit
-val refresh_dirs : 'a t -> unit
-val refresh_roots : 'a t -> unit
+val refresh_files : t -> unit
+val refresh_dirs : t -> unit
+val refresh_roots : t -> unit
 
 
 (* Navigation *)
 
-val selected_dir : 'a t -> int
-val selected_file : 'a t -> int option
-val select_dir : 'a t -> int -> unit
-val select_file : 'a t -> int -> unit
-val deselect_file : 'a t -> unit
-val deselect_file_if_input_differs : 'a t -> unit
+val selected_dir : t -> int
+val selected_file : t -> int option
+val select_dir : t -> int -> unit
+val select_file : t -> int -> unit
+val deselect_file : t -> unit
+val deselect_file_if_input_differs : t -> unit
 
-val set_dir_path : 'a t -> path -> unit
+val set_dir_path : t -> path -> unit
 
-val fold_dir : 'a t -> dir -> bool -> unit
-val reorder_files : 'a t -> int -> unit
+val fold_dir : t -> dir -> bool -> unit
+val reorder_files : t -> int -> unit
 
 
 (* Input *)
 
-val init : 'a t -> unit
-val reset : 'a t -> unit
+val init : t -> unit
+val reset : t -> unit
 
-val current_file_path : 'a t -> path option
-val current_file_exists : 'a t -> bool
-val current_sel_is_dir : 'a t -> bool
+val current_file_path : t -> path option
+val current_file_exists : t -> bool
+val current_sel_is_dir : t -> bool
 
 
 (* Formatting *)
 
-val columns : 'a t -> (int * [> `Left | `Right]) iarray
+val columns : t -> (int * [> `Left | `Right]) iarray
 val row : file -> string iarray
 val heading : string iarray * (int * [`Asc | `Desc]) list

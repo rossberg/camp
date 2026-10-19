@@ -5,7 +5,7 @@
     safe_queue
     edit table
     data track query spectrum text bin storage
-    control playlist settings library filesel log popup config
+    cache control playlist settings library filesel log popup config
     api ui geometry layout
     state app
     run_popup run_filesel run_control

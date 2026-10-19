@@ -5,10 +5,10 @@ open Audio_file
 type config = Config.t
 type geometry = Geometry.t
 type control = Control.t
-type playlist = Ui.cached Playlist.t
+type playlist = Playlist.t
 type settings = Settings.t
-type library = Ui.cached Library.t
-type filesel = Ui.cached Filesel.t
+type library = Library.t
+type filesel = Filesel.t
 type popup = Popup.t
 type layout = (module Layout.Window)
 
@@ -93,14 +93,14 @@ let focus_filesel st (tab : _ Table.t) =
 let foci_table f (tab : _ Table.t) = tab.focus, f tab
 let foci_edit (ed : Edit.t) = ed.focus, fun st -> focus_edit st ed
 
-let foci_playlist (pl : _ Playlist.t) =
+let foci_playlist (pl : Playlist.t) =
   let f = fun _ -> focus_playlist in
   [foci_table f pl.table]
 
 let foci_settings (set : Settings.t) =
   List.map foci_edit (Settings.foci set)
 
-let foci_library (lib : _ Library.t) =
+let foci_library (lib : Library.t) =
   let f tab st = focus_library st tab in
   [foci_edit lib.search; foci_table f lib.browser] @
   match lib.current, lib.log with
@@ -114,7 +114,7 @@ let foci_library (lib : _ Library.t) =
       [foci_table f lib.tracks] else [])
   | _, _ -> []
 
-let foci_filesel (fs : _ Filesel.t) =
+let foci_filesel (fs : Filesel.t) =
   let f tab st = focus_filesel st tab in
   [foci_table f fs.dirs; foci_table f fs.files; foci_edit fs.input]
 

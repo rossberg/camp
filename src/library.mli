@@ -4,152 +4,152 @@ open Data
 
 type display = [`Table | `Grid]
 
-type ('data, 'attr, 'cache) view =
+type ('data, 'attr) view =
 {
   mutable shown : display option;
   mutable columns : 'attr columns;
   mutable sorting : 'attr sorting;
-  mutable table : ('data, 'cache) Table.t option;
+  mutable table : ('data, Cache.t) Table.t option;
 }
 
-type 'cache artists_view = (artist, artist_attr_ex, 'cache) view
-type 'cache albums_view = (album, album_attr_ex, 'cache) view
-type 'cache tracks_view = (track, track_attr_ex, 'cache) view
+type artists_view = (artist, artist_attr_ex) view
+type albums_view = (album, album_attr_ex) view
+type tracks_view = (track, track_attr_ex) view
 
-type 'cache views =
+type views =
 {
   mutable folded : bool;
   mutable custom : bool;
   mutable divider_width : int;
   mutable divider_height : int;
-  artists : 'cache artists_view;
-  albums : 'cache albums_view;
-  tracks : 'cache tracks_view;
+  artists : artists_view;
+  albums : albums_view;
+  tracks : tracks_view;
 }
 
-type 'cache dir = 'cache views Data.dir
+type dir = views Data.dir
 type scan
 type cover
 
-type 'cache t = private
+type t = private
 {
-  mutable root : 'cache dir;
-  mutable current : 'cache dir option;
+  mutable root : dir;
+  mutable current : dir option;
   mutable error : string;
   mutable error_time : time;
   mutable refresh_time : time;
   mutable covers_shown : bool;
   mutable renaming : int option;
-  mutable log : 'cache Log.t option;
+  mutable log : Log.t option;
   mutable query : Query.query option;
   search : Edit.t;
   rename : Edit.t;
-  browser : ('cache dir, 'cache) Table.t;
-  mutable artists : (artist, 'cache) Table.t;
-  mutable albums : (album, 'cache) Table.t;
-  mutable tracks : (track, 'cache) Table.t;
+  browser : (dir, Cache.t) Table.t;
+  mutable artists : (artist, Cache.t) Table.t;
+  mutable albums : (album, Cache.t) Table.t;
+  mutable tracks : (track, Cache.t) Table.t;
   covers : cover Map.Make(String).t Atomic.t;
   mutable age_covers : (path * cover) Seq.t;
-  mutable views_clip : 'cache views option;
-  mutable views_dir_default : 'cache views;
-  mutable views_album_default : 'cache views;
-  mutable views_playlist_default : 'cache views;
+  mutable views_clip : views option;
+  mutable views_dir_default : views;
+  mutable views_album_default : views;
+  mutable views_playlist_default : views;
   scan : scan;
 }
 
 
 (* Constructor *)
 
-val make : unit -> 'a t
-val make_views : unit -> 'a views
-val clone_views : 'a views -> 'a views
-val update_views : 'a views -> 'a views -> unit
+val make : unit -> t
+val make_views : unit -> views
+val clone_views : views -> views
+val update_views : views -> views -> unit
 
 
 (* Validation *)
 
 type error = string
 
-val ok : 'a t -> error list
+val ok : t -> error list
 
 
 (* Error Message *)
 
-val error : 'a t -> string -> unit
+val error : t -> string -> unit
 
 
 (* Persistence *)
 
-val print_state : 'a t -> Text.t
-val print_intern : 'a t -> Text.t
-val parse_state : 'a t -> Text.t -> unit  (* assumes roots already set *)
+val print_state : t -> Text.t
+val print_intern : t -> Text.t
+val parse_state : t -> Text.t -> unit  (* assumes roots already set *)
 
-val save_playlist : 'a t -> unit
+val save_playlist : t -> unit
 
-val save_db : 'a t -> unit
-val load_db : 'a t -> unit
+val save_db : t -> unit
+val load_db : t -> unit
 
-val save_browser : 'a t -> unit
-val load_browser : 'a t -> unit
+val save_browser : t -> unit
+val load_browser : t -> unit
 
 
 (* Scanning *)
 
 type scan_mode = [`Quick | `Thorough]
 
-val rescan_root : 'a t -> scan_mode -> unit
-val rescan_dirs : 'a t -> scan_mode -> 'a dir array -> unit
-val rescan_tracks : 'a t -> scan_mode -> track array -> unit
+val rescan_root : t -> scan_mode -> unit
+val rescan_dirs : t -> scan_mode -> dir array -> unit
+val rescan_tracks : t -> scan_mode -> track array -> unit
 
-val rescan_busy : 'a t -> string option
+val rescan_busy : t -> string option
 
-val refresh_after_rescan : 'a t -> unit
+val refresh_after_rescan : t -> unit
 
 
 (* Browser *)
 
-val length_browser : 'a t -> int
+val length_browser : t -> int
 
-val focus_search : 'a t -> unit
-val focus_browser : 'a t -> unit
-val refresh_browser : 'a t -> unit
+val focus_search : t -> unit
+val focus_browser : t -> unit
+val refresh_browser : t -> unit
 
-val selected_dir : 'a t -> int option
-val select_dir : 'a t -> int -> unit
-val deselect_dir : 'a t -> unit
+val selected_dir : t -> int option
+val select_dir : t -> int -> unit
+val deselect_dir : t -> unit
 
-val insert_roots : 'a t -> path list -> int -> bool
-val remove_roots : 'a t -> path list -> bool
+val insert_roots : t -> path list -> int -> bool
+val remove_roots : t -> path list -> bool
 
-val find_dir : 'a t -> path -> 'a dir option
-val insert_dir : 'a t -> path -> 'a dir option
-val remove_dir : 'a t -> path -> bool
-val reverse_dir : 'a t -> 'a dir -> unit
-val move_dir : 'a t -> 'a dir -> int -> int -> unit
-val save_dir : 'a t -> 'a dir -> unit
-val fold_dir : 'a t -> 'a dir -> bool -> unit
-val find_entry_dir : 'a t -> 'a dir -> int option
+val find_dir : t -> path -> dir option
+val insert_dir : t -> path -> dir option
+val remove_dir : t -> path -> bool
+val reverse_dir : t -> dir -> unit
+val move_dir : t -> dir -> int -> int -> unit
+val save_dir : t -> dir -> unit
+val fold_dir : t -> dir -> bool -> unit
+val find_entry_dir : t -> dir -> int option
 
-val find_parent : 'a t -> 'a dir -> 'a dir option
-val find_parents : 'a t -> 'a dir -> 'a dir list
-val find_parent_pos : 'a t -> 'a dir -> int
+val find_parent : t -> dir -> dir option
+val find_parents : t -> dir -> dir list
+val find_parent_pos : t -> dir -> int
 
-val current_is_all : 'a t -> bool
-val current_is_root : 'a t -> bool
-val current_is_dir : 'a t -> bool
-val current_is_album : 'a t -> bool
-val current_is_playlist : 'a t -> bool
-val current_is_viewlist : 'a t -> bool
-val current_is_shown_playlist : 'a t -> bool  (* tracks view is active *)
-val current_is_shown_viewlist : 'a t -> bool  (* tracks view is active *)
-val current_is_plain_playlist : 'a t -> bool  (* tracks view is sorted by pos *)
+val current_is_all : t -> bool
+val current_is_root : t -> bool
+val current_is_dir : t -> bool
+val current_is_album : t -> bool
+val current_is_playlist : t -> bool
+val current_is_viewlist : t -> bool
+val current_is_shown_playlist : t -> bool  (* tracks view is active *)
+val current_is_shown_viewlist : t -> bool  (* tracks view is active *)
+val current_is_plain_playlist : t -> bool  (* tracks view is sorted by pos *)
 
-val has_track : 'a t -> track -> bool
+val has_track : t -> track -> bool
 
-val start_rename : 'a t -> int -> unit
-val end_rename : 'a t -> bool -> unit
-val start_log : 'a t -> 'a Log.t -> unit
-val end_log : 'a t -> unit
+val start_rename : t -> int -> unit
+val end_rename : t -> bool -> unit
+val start_log : t -> Log.t -> unit
+val end_log : t -> unit
 
 
 (* Views *)
@@ -157,82 +157,82 @@ val end_log : 'a t -> unit
 val attr_name : [< any_attr_ex] -> string
 val attr_align : [< any_attr_ex] -> [`Left | `Right | `Center]
 
-val refresh_tracks_sync : 'a t -> unit
-val refresh_albums_tracks_sync : 'a t -> unit
-val refresh_artists_albums_tracks_sync : 'a t -> unit
+val refresh_tracks_sync : t -> unit
+val refresh_albums_tracks_sync : t -> unit
+val refresh_artists_albums_tracks_sync : t -> unit
 
 val refresh_tracks :
-  ?busy: bool -> ?after: (unit -> unit) -> 'a t -> unit
+  ?busy: bool -> ?after: (unit -> unit) -> t -> unit
 val refresh_albums_tracks :
-  ?busy: bool -> ?after: (unit -> unit) -> 'a t -> unit
+  ?busy: bool -> ?after: (unit -> unit) -> t -> unit
 val refresh_artists_albums_tracks :
 string ->
-  ?busy: bool -> ?after: (unit -> unit) -> 'a t -> unit
+  ?busy: bool -> ?after: (unit -> unit) -> t -> unit
 
-val refresh_artists_is_busy : 'a t -> bool
-val refresh_albums_is_busy : 'a t -> bool
-val refresh_tracks_is_busy : 'a t -> bool
+val refresh_artists_is_busy : t -> bool
+val refresh_albums_is_busy : t -> bool
+val refresh_tracks_is_busy : t -> bool
 
-val reorder_artists : 'a t -> unit
-val reorder_albums : 'a t -> unit
-val reorder_tracks : 'a t -> unit
+val reorder_artists : t -> unit
+val reorder_albums : t -> unit
+val reorder_tracks : t -> unit
 
-val focus_artists : 'a t -> unit
-val focus_albums : 'a t -> unit
-val focus_tracks : 'a t -> unit
-val defocus : 'a t -> unit
+val focus_artists : t -> unit
+val focus_albums : t -> unit
+val focus_tracks : t -> unit
+val defocus : t -> unit
 
-val has_selection : 'a t -> bool
-val num_selected : 'a t -> int
-val first_selected : 'a t -> int option
-val last_selected : 'a t -> int option
-val is_selected : 'a t -> int -> bool
-val selected : 'a t -> track array
+val has_selection : t -> bool
+val num_selected : t -> int
+val first_selected : t -> int option
+val last_selected : t -> int option
+val is_selected : t -> int -> bool
+val selected : t -> track array
 
-val select : 'a t -> int -> int -> unit
-val deselect : 'a t -> int -> int -> unit
-val select_all : 'a t -> unit
-val deselect_all : 'a t -> unit
-val select_invert : 'a t -> unit
+val select : t -> int -> int -> unit
+val deselect : t -> int -> int -> unit
+val select_all : t -> unit
+val deselect_all : t -> unit
+val select_invert : t -> unit
 
-val set_search : 'a t -> string -> unit
-val clear_search : 'a t -> unit
-val refresh_search : 'a t -> unit
+val set_search : t -> string -> unit
+val clear_search : t -> unit
+val refresh_search : t -> unit
 
-val copy_views : 'a t -> unit
-val paste_views : 'a t -> unit
-val default_views : 'a t -> unit
-val template_views : 'a t -> unit
-val inherit_views : 'a t -> bool -> bool -> unit
-val propagate_views : 'a t -> bool -> bool -> unit
+val copy_views : t -> unit
+val paste_views : t -> unit
+val default_views : t -> unit
+val template_views : t -> unit
+val inherit_views : t -> bool -> bool -> unit
+val propagate_views : t -> bool -> bool -> unit
 
-val make_viewlist : 'a t -> 'a dir -> string
+val make_viewlist : t -> dir -> string
 
 
 (* Playlist Editing *)
 
-val length : 'a t -> int
-val tracks : 'a t -> track array
-val table : 'a t -> (track, 'a) Table.t
+val length : t -> int
+val tracks : t -> track array
+val table : t -> (track, Cache.t) Table.t
 
-val insert : 'a t -> int -> track array -> unit
-val append : 'a t -> track array -> unit
-val replace_all : 'a t -> track array -> unit
-val replace_map : Ui.cached t -> track Map.Make(String).t -> bool -> unit
+val insert : t -> int -> track array -> unit
+val append : t -> track array -> unit
+val replace_all : t -> track array -> unit
+val replace_map : t -> track Map.Make(String).t -> bool -> unit
 
-val remove_all : 'a t -> unit
-val remove_selected : 'a t -> unit
-val remove_unselected : 'a t -> unit
-val remove_invalid : 'a t -> bool -> unit
-val remove_duplicates : 'a t -> bool -> unit
+val remove_all : t -> unit
+val remove_selected : t -> unit
+val remove_unselected : t -> unit
+val remove_invalid : t -> bool -> unit
+val remove_duplicates : t -> bool -> unit
 
-val move_selected : 'a t -> int -> unit
-val reverse_selected : 'a t -> unit
-val reverse_all : 'a t -> unit
-val reorder_all : 'a t -> unit
+val move_selected : t -> int -> unit
+val reverse_selected : t -> unit
+val reverse_all : t -> unit
+val reorder_all : t -> unit
 
-val undo : 'a t -> unit
-val redo : 'a t -> unit
+val undo : t -> unit
+val redo : t -> unit
 
 
 (* Playlist Repair *)
@@ -240,13 +240,13 @@ val redo : 'a t -> unit
 type repair_map = track list Map.Make(String).t
 
 val repair_key : path -> string
-val repair_map : 'a t -> ('a dir -> unit) -> repair_map
+val repair_map : t -> (dir -> unit) -> repair_map
 val repair_path : repair_map -> path -> path ->
   [`Ok | `Replace of track | `Ambiguous | `Missing]
 
 
 (* Covers *)
 
-val load_cover : 'a t -> Api.window -> path -> Api.image option
-val purge_covers : 'a t -> unit
-val activate_covers : 'a t -> bool -> unit
+val load_cover : t -> Api.window -> path -> Api.image option
+val purge_covers : t -> unit
+val activate_covers : t -> bool -> unit

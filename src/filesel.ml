@@ -31,13 +31,13 @@ type op =
   run : path -> unit;
 }
 
-type 'cache t =
+type t =
 {
   mutable op : op option;
   mutable path : path;
   mutable roots : dir array;
-  dirs : (dir, 'cache) Table.t;
-  files : (file, 'cache) Table.t;
+  dirs : (dir, Cache.t) Table.t;
+  files : (file, Cache.t) Table.t;
   input : Edit.t;
   mutable columns : int iarray;
 }

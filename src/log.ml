@@ -2,16 +2,16 @@
 
 type entry = Ui.color * Ui.cell iarray
 
-type 'cache t =
+type t =
 {
-  table : (entry, 'cache) Table.t;
+  table : (entry, Cache.t) Table.t;
   mutable columns : Ui.column iarray;
   mutable heading : Ui.heading option;
   mutable info : string;
   mutable cancel : bool;
   mutable completed : bool;
-  mutable on_completion : 'cache t -> unit;
-  mutable on_menu : 'cache t -> int option * int option -> unit;
+  mutable on_completion : t -> unit;
+  mutable on_menu : t -> int option * int option -> unit;
 }
 
 

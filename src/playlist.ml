@@ -18,13 +18,13 @@ type shuffle =
   mutable unobserved : int;
 }
 
-type 'cache t =
+type t =
 {
-  table : (track, 'cache) Table.t;
+  table : (track, Cache.t) Table.t;
   mutable total : time * int;
   mutable total_selected : time * int;
   mutable shuffle : shuffle option;
-  view : 'cache Library.tracks_view;
+  view : Library.tracks_view;
 }
 
 
@@ -227,9 +227,10 @@ let save_undo tabr () =
 
 let make () =
   let r = ref None in
+  let table = Table.make 100 ~save: (save_undo r) in
   let pl =
     {
-      table = Table.make 100 ~save: (save_undo r);
+      table;
       total = 0.0, 0;
       total_selected = 0.0, 0;
       shuffle = None;
@@ -238,7 +239,7 @@ let make () =
           shown = Some `Table;
           sorting = [];
           columns = [|`Pos, 0; `Name, 0; `Length, 0|];
-          save = None;
+          table = Some table;
         }
     }
   in
