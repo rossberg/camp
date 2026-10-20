@@ -2570,6 +2570,8 @@ let grid_table ui owner area (sty : grid_table_style) header_opt
       if result <> `None || ui.modal || not tab.focus then result else
       (
         let d =
+          if key_status' ui (`Arrow `Left) = `Pressed then -1 else
+          if key_status' ui (`Arrow `Right) = `Pressed then +1 else
           if key_status' ui (`Arrow `Up) = `Pressed then -line else
           if key_status' ui (`Arrow `Down) = `Pressed then +line else
           if key_status' ui (`Page `Up) = `Pressed then -page else
