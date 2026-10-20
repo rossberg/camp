@@ -1518,6 +1518,37 @@ let _ =
     | Header_reorder _ -> "Header_reorder"
     | drag -> f' drag
 
+let draw_header_reorder ui h gw cols titles i =
+  let cw, align = Iarray.get cols i in
+  let title = Iarray.get titles i in
+  delay ui (fun () ->
+    let bg = `Trans (`Gray 0x80, 0x80) in
+    let fg = `Trans (`Black, 0x80) in
+    let font = font ui h in
+    let tw = Draw.text_width ui.win h font title in
+    let w = (if cw > 0 then cw else tw) + gw in
+    let dx =
+      match align with
+      | `Left -> 0
+      | `Center -> (w - tw) / 2
+      | `Right -> w - tw
+    in
+    let mx, my = Mouse.pos ui.win in
+    let x, y = mx - w/2, my - h/2 in
+    Draw.fill_rect ui.win x y w h bg;
+    if cw > 0 && tw >= cw then Draw.clip ui.win x y w h;
+    Draw.text ui.win (x + max 0 dx + gw/2) y h fg font title;
+    if cw > 0 && tw >= cw then
+    (
+      Draw.unclip ui.win;
+      let rw = min cw 16 in
+      let bg' = `Gray 0x80 in  (* not quite right, but can't use alpha here *)
+      Draw.gradient ui.win (x + w - rw - gw/2) y rw h
+        (`Trans (bg, 0)) `Horizontal bg';
+      Draw.fill_rect ui.win (x + w - gw/2) y (gw/2) h bg';
+    )
+  )
+
 let header ui owner area ph gw cols (titles, sorting) hscroll =
   let (x, y, w, h) as r, status = widget ui (Some owner) area no_modkey in
   let texts = Iarray.map (fun s -> `Text s) titles in
@@ -1603,6 +1634,7 @@ let header ui owner area ph gw cols (titles, sorting) hscroll =
 
   | Header_reorder {mouse_x; col = i; moved} when status = `Pressed ->
     if moved then Mouse.set_cursor ui.win `Point;
+    if moved then draw_header_reorder ui th gw cols titles i;
     let dx = mx - mouse_x in
     if dx = 0 then `None else
     let _ = ui.drag <- Header_reorder {mouse_x; col = i; moved = true} in

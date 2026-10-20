@@ -8,6 +8,9 @@ Library:
 - [fix] Remove a condition that forced a redundant view refresh every 5 seconds
 - [fix] Spend less CPU on cleaning up covers cache
 
+UI:
+- [chg] Draw shadow header when dragging column header for reordering
+
 
 === 0.9.7 (2026-10-05) ===
 
