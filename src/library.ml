@@ -484,7 +484,7 @@ let album_key (album : album) =
   String.concat "\x00" [s1; s2; s3; s4]
 
 let track_key (track : track) =
-  if track.playlist = "" then track.path
+  if track.pos = -1 then track.path
   else string_of_int track.pos ^ "\x00" ^ track.playlist
 
 
@@ -1339,7 +1339,7 @@ let sort attr_string sorting entries =
     Array.iteri (fun i (_, entry) -> entries.(i) <- entry) entries';
   )
 
-let refresh_view lib (tab : _ Table.t) selected attr_string sorting key f =
+let refresh_view lib (tab : _ Table.t) selection attr_string sorting key f =
   match lib.current with
   | None -> Table.remove_all tab
   | Some dir ->
@@ -1353,7 +1353,7 @@ let refresh_view lib (tab : _ Table.t) selected attr_string sorting key f =
     sort attr_string (sorting dir.view) entries;
     Mutex.protect tab.mutex (fun () ->
       Table.set tab entries;
-      Table.restore_selection tab key selected;
+      Table.restore_selection tab key selection;
     )
 
 let refresh_tracks_view lib (_, _, sel) f =
