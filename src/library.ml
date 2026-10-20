@@ -1152,42 +1152,44 @@ let focus_search lib =
 let selected_dir lib =
   Table.first_selected lib.browser
 
-let set_dir_opt lib dir_opt =
+let forget_dir lib =
   Option.iter (fun (dir : dir) ->
-    let view = dir.view in
-    Option.iter Table.defocus view.artists.table;
-    Option.iter Table.defocus view.albums.table;
-    Option.iter Table.defocus view.tracks.table;
-    Option.iter Table.uncache view.artists.table;
-    Option.iter Table.uncache view.albums.table;
-    Option.iter Table.uncache view.tracks.table;
-    (* Avoid keeping tables around redundantly *)
-    if Option.exists Table.is_untouched view.artists.table then view.artists.table <- None;
-    if Option.exists Table.is_untouched view.albums.table then view.albums.table <- None;
-    if Option.exists Table.is_untouched view.tracks.table then view.tracks.table <- None;
-  ) lib.current;
-  lib.current <- dir_opt;
-  Table.deselect_all lib.browser
+    let forget_view view =
+      Option.iter (fun tab ->
+        Table.defocus tab;
+        Table.uncache tab;
+        (* Avoid keeping table around redundantly *)
+        if Table.is_untouched tab then view.table <- None;
+      ) view.table
+    in
+    forget_view dir.view.artists;
+    forget_view dir.view.albums;
+    forget_view dir.view.tracks;
+  ) lib.current
 
 let deselect_dir lib =
+  Table.deselect_all lib.browser;
+  forget_dir lib;
+  lib.current <- None;
   lib.artists <- no_artists;
   lib.albums <- no_albums;
-  lib.tracks <- no_tracks;
-  set_dir_opt lib None
+  lib.tracks <- no_tracks
 
 let select_dir lib i =
   let dir = lib.browser.entries.(i) in
   if lib.current <> Some dir then
   (
-    let view = dir.view in
-    if view.artists.table = None then view.artists.table <- Some (Table.make 0);
-    if view.albums.table = None then view.albums.table <- Some (Table.make 0);
-    if view.tracks.table = None then view.tracks.table <- Some (Table.make 100);
-    lib.artists <- Option.get view.artists.table;
-    lib.albums <- Option.get view.albums.table;
-    lib.tracks <- Option.get view.tracks.table;
-    set_dir_opt lib (Some dir);
+    let remember_view view n =
+      if view.table = None then view.table <- Some (Table.make n);
+      Option.get view.table
+    in
+    Table.deselect_all lib.browser;
     Table.select lib.browser i i;
+    forget_dir lib;
+    lib.current <- Some dir;
+    lib.artists <- remember_view dir.view.artists 0;
+    lib.albums <- remember_view dir.view.albums 0;
+    lib.tracks <- remember_view dir.view.tracks 100;
     load_dir lib dir;
     if Data.is_playlist dir then
       rescan_playlist lib `Thorough dir
