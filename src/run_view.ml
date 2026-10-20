@@ -21,12 +21,6 @@ let exec prog args =
 
 let fmt = Printf.sprintf
 
-let area_page (st : state) area =
-  let geo = st.geometry in
-  let _, _, _, h = Ui.dim geo.ui area in
-  let rh = Geometry.text_h geo + 2 * Geometry.pad_h geo in
-  max 1 (int_of_float (Float.floor (float h /. float rh)))
-
 
 (* Spinner *)
 
@@ -72,6 +66,9 @@ sig
   val is_same : bool
   val focus : State.t -> unit
   val area : Ui.area
+  val is_grid : bool
+  val line : int
+  val page : int
   (*val deselect_other : unit -> unit*)
   val refresh_deps : Library.t -> unit
 
@@ -126,6 +123,9 @@ let playlist_view (st : state) : view =
     let tab = st.playlist
     let focus = State.focus_playlist
     let area = WindowUi.Playlist.area
+    let is_grid = false
+    let line = 1
+    let page = Ui.rich_table_page st.geometry.ui area WindowUi.Playlist.style
     (*let deselect_other () = Library.deselect_all st.library*)
     let refresh_deps = ignore
 (*
@@ -149,8 +149,18 @@ let tracks_view (st : state) : view =
     let tab = st.library
     let focus st = State.focus_library st st.library.tracks
     let area =
-      WindowUi.Library.View.(
-        if st.geometry.lower_shown then Lower.area else Left.area)
+      let open WindowUi.Library.View in
+      if st.geometry.lower_shown then Lower.area else Left.area
+    let is_grid =
+      Option.exists (fun (dir : dir) -> dir.view.tracks.shown = Some `Grid)
+        it.current
+    let line, page =
+      let open WindowUi.Library.View in
+      if is_grid then
+        let n, m = Ui.grid_table_page st.geometry.ui area grid_style in
+        n, n * m
+      else
+        1, Ui.rich_table_page st.geometry.ui area style
     (*let deselect_other () = Playlist.deselect_all st.playlist*)
     let refresh_deps = ignore
 (*
@@ -171,14 +181,24 @@ let albums_view (st : state) : view =
   (module struct
     include Library
     module Select = Table
-    type table = (Data.album, Ui.cached) Table.t
+    type table = (Data.album, Cache.t) Table.t
     let is_same = false
     let it = st.library
     let tab = it.albums
     let focus st = State.focus_library st tab
     let area =
-      WindowUi.Library.View.(
-        if st.geometry.right_shown then Right.area else Left.area)
+      let open WindowUi.Library.View in
+      if st.geometry.right_shown then Right.area else Left.area
+    let is_grid =
+      Option.exists (fun (dir : dir) -> dir.view.albums.shown = Some `Grid)
+        it.current
+    let line, page =
+      let open WindowUi.Library.View in
+      if is_grid then
+        let n, m = Ui.grid_table_page st.geometry.ui area grid_style in
+        n, n * m
+      else
+        1, Ui.rich_table_page st.geometry.ui area style
     (*let deselect_other = ignore*)
     let refresh_deps lib = Library.refresh_tracks lib
 (*
@@ -199,12 +219,15 @@ let artists_view (st : state) : view =
   (module struct
     include Library
     module Select = Table
-    type table = (Data.artist, Ui.cached) Table.t
+    type table = (Data.artist, Cache.t) Table.t
     let is_same = false
     let it = st.library
     let tab = it.artists
     let focus st = State.focus_library st tab
     let area = WindowUi.Library.View.Left.area
+    let is_grid = false
+    let line, page =
+      1, Ui.rich_table_page st.geometry.ui area WindowUi.Library.View.style
     (*let deselect_other = ignore*)
     let refresh_deps lib = Library.refresh_albums_tracks lib
 (*
@@ -389,7 +412,8 @@ let queue_on_playlist' (st : state) (tracks : Data.track array) mode =
       if st.layout <> None then  (* can't use Option.iter for typing reasons *)
       (
         let (module WindowUi) = Option.get st.layout in
-        Playlist.adjust_scroll st.playlist (area_page st WindowUi.Playlist.area)
+        Playlist.adjust_scroll st.playlist
+          WindowUi.Playlist.(Ui.rich_table_page st.geometry.ui area style)
       )
     in
     (match mode with
@@ -786,7 +810,7 @@ let all_editable st view =
 
 let adjust_vscroll st (module View : View) =
   Option.iter (fun pos ->
-    Table.adjust_vscroll View.(table it) pos 1 (area_page st View.area)
+    Table.adjust_vscroll View.(table it) pos View.line View.page
   ) View.(first_selected it)
 
 

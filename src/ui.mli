@@ -197,6 +197,7 @@ val rich_table :
     rich_table_action
 
 val rich_table_inner_area : t -> area -> rich_table_style -> area
+val rich_table_page : t -> area -> rich_table_style -> int
 val rich_table_mouse : t -> area -> rich_table_style -> column iarray ->
   ('a, cached) Table.t -> (int option * int option) option
 val rich_table_drag : t -> area -> rich_table_style -> [`Above | `Inside] ->
@@ -256,6 +257,7 @@ val grid_table :
     grid_table_action
 
 val grid_table_inner_area : t -> area -> grid_table_style -> area
+val grid_table_page : t -> area -> grid_table_style -> int * int
 val grid_table_mouse : t -> area -> grid_table_style ->
   ('a, cached) Table.t -> (int option * int option) option
 val grid_table_drag : t -> area -> grid_table_style -> [`Left | `Inside] ->

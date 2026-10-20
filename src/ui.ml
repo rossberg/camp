@@ -1671,16 +1671,20 @@ type rich_table_action =
 
 let rich_table_inner_area _ui area sty =
   let p, ax, ay, aw, ah = area in
-  let ty = if not sty.has_heading then ay else ay + sty.text_h + 2 * sty.pad_h + 2 in
-  let tw =
-    aw - (if sty.scroll_w = 0 then 0 else sty.scroll_w + 1)
-  in
+  let ty =
+    if not sty.has_heading then ay else ay + sty.text_h + 2 * sty.pad_h + 2 in
+  let tw = aw - (if sty.scroll_w = 0 then 0 else sty.scroll_w + 1) in
   let th =
     ah -
     (if ah < 0 then 0 else ty - ay) -
     (if sty.scroll_h = 0 then 0 else sty.scroll_h + 1)
   in
   (p, ax, ty, tw, th)
+
+let rich_table_page ui area sty =
+  let _, _, _, h = dim ui (rich_table_inner_area ui area sty) in
+  let rh = sty.text_h + 2 * sty.pad_h in
+  max 1 (int_of_float (Float.floor (float h /. float rh)))
 
 let rich_table_mouse ui area sty cols (tab : _ Table.t) =
   let area' = rich_table_inner_area ui area sty in
@@ -2262,10 +2266,21 @@ let _ =
 
 let grid_table_inner_area _ui area sty =
   let p, ax, ay, aw, ah = area in
-  let ty = if not sty.has_heading then ay else ay + sty.text_h + 2 in
+  let ty =
+    if not sty.has_heading then ay else ay + sty.text_h + 2 * sty.pad_h + 2 in
   let tw = aw - (if sty.scroll_w = 0 then 0 else sty.scroll_w + 1) in
   let th = ah - (if ah < 0 then 0 else ty - ay) in
   (p, ax, ty, tw, th)
+
+let grid_table_page ui area sty =
+  let _, _, w, h = dim ui (grid_table_inner_area ui area sty) in
+  let img_max = w - 2 * sty.gutter_w in
+  let img_h = min sty.img_h img_max in
+  let iw = sty.gutter_w + img_h in
+  let ih = iw + sty.text_h in
+  let ncols = max 1 Float.(to_int (floor (float w /. float iw))) in
+  let nrows = max 1 Float.(to_int (floor (float h /. float ih))) in
+  ncols, nrows
 
 let grid_table_mouse ui area sty (tab : _ Table.t) =
   let area' = grid_table_inner_area ui area sty in

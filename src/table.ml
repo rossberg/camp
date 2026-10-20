@@ -109,7 +109,7 @@ let set_vscroll tab i line page =
 
 let adjust_vscroll tab i line page =
   let d = tab.vscroll in
-  let i' = if i >= d && i < d + page then d else i - (page - 2)/2 in
+  let i' = if i >= d && i < d + page then d else i - (page - 1)/2 in
   set_vscroll tab i' line page
 
 let focus tab = tab.focus <- true
