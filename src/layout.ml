@@ -619,18 +619,6 @@ struct
         let paste = focus_key KeyBind.paste
         let rev = focus_key KeyBind.rev
       end
-
-      (* Total text field *)
-      module Total =
-      struct
-        let w = - margin - scrollbar_w g
-        let x = Button.x 4 7
-        let y = footer
-
-        let box = Ui.box g.ui (p, x, y, w, line) `Black
-        let text =
-          Ui.text g.ui (p, x, y + padh, w - (gutter + 1)/2, text) `Right
-      end
     end
   end
 
