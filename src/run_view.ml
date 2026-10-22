@@ -345,7 +345,7 @@ let expand_paths (st : state) paths =
     tracks := track :: !tracks
   in
   let add_playlist path =
-    let items = M3u.load path in
+    let items = M3u.load M3u.Native path in
     List.iter (fun item -> add_track (Track.of_m3u_item item)) items
   in
   let add_viewlist path =
@@ -677,9 +677,11 @@ let modify_simple f ops (st : state) dir =
       items'
     )
 
+let modify_native st = modify_simple (fun _dir -> M3u.native_path) st
+let modify_portable st = modify_simple (fun _dir -> M3u.portable_path) st
 let modify_relative st = modify_simple M3u.relative_path st
-let modify_local st = modify_simple M3u.local_path st
-let modify_resolve st = modify_simple M3u.resolve_path st
+let modify_driveless st = modify_simple M3u.driveless_path st
+let modify_absolute st = modify_simple M3u.absolute_path st
 
 let modify_repair ops (st : state) dir =
   let success, fail, fuzzy = ref 0, ref 0, ref 0 in
@@ -725,8 +727,8 @@ let modify_dir modify =
     is_pl = Data.is_playlist;
     show_path = true;
     dir_path = (fun (dir : dir) -> dir.path);
-    load = (fun (dir : dir) -> M3u.parse_ext (File.load `Bin dir.path));
-    save = (fun (dir : dir) _ items' -> File.save_safe `Bin dir.path (M3u.make_ext items'));
+    load = (fun (dir : dir) -> M3u.parse_ext M3u.Native (File.load `Bin dir.path));
+    save = (fun (dir : dir) _ items' -> File.save_safe `Bin dir.path (M3u.make_ext !Track.m3u_format items'));
     map_items = List.map;
     exists2_items = List.exists2;
     item_path = (fun (item : M3u.item) -> item.path);
@@ -735,9 +737,11 @@ let modify_dir modify =
     final = ignore;
   }
 
+let native_dir = modify_dir modify_native
+let portable_dir = modify_dir modify_portable
 let relative_dir = modify_dir modify_relative
-let local_dir = modify_dir modify_local
-let resolve_dir = modify_dir modify_resolve
+let driveless_dir = modify_dir modify_driveless
+let absolute_dir = modify_dir modify_absolute
 let repair_dir = modify_dir modify_repair
 
 let modify_view modify (st : state) view all =
@@ -767,8 +771,8 @@ let modify_view modify (st : state) view all =
   } st view
 
 let _relative_view = modify_view modify_relative
-let _local_view = modify_view modify_local
-let _resolve_view = modify_view modify_resolve
+let _driveless_view = modify_view modify_driveless
+let _absolute_view = modify_view modify_absolute
 let repair_view = modify_view modify_repair
 
 
@@ -937,7 +941,8 @@ let load_avail st (module View : View) =
   all_editable st (module View)
 let load (st : state) (module View : View) =
   Run_filesel.filesel st `File `Read "" ".m3u" (fun path ->
-    let tracks = Array.map Track.of_m3u_item (Array.of_list (M3u.load path)) in
+    let tracks =
+      Array.map Track.of_m3u_item (Array.of_list (M3u.load M3u.Native path)) in
     View.(replace_all it) tracks;
     View.(focus st);
     if View.(table it) == st.playlist.table then

@@ -148,12 +148,37 @@ let run (st : state) focus_change =
             "DISPLAY LIVE VALUE", ctl.fps, fun _ -> ctl.fps <- not ctl.fps
           ];
         ];
-        "PLAYLIST", `Section [
+        "PLAYLIST", `Section ([
           "HEADERS", `Choice [
             "SHOW", geo.playlist_headers,
               (fun _ -> geo.playlist_headers <- not geo.playlist_headers);
           ];
-        ];
+        ] @
+        (if not (Sys.win32 || Sys.cygwin) then [] else
+        [
+          "M3U FORMAT", `Choice [
+(*
+            "RAW", !Track.m3u_format = M3u.Raw,
+              (fun _ -> Track.m3u_format := M3u.Raw);
+*)
+            "NATIVE", !Track.m3u_format = M3u.Native,
+              (fun _ -> Track.m3u_format := M3u.Native);
+            "PORTABLE", !Track.m3u_format = M3u.Portable,
+              (fun _ -> Track.m3u_format := M3u.Portable);
+          ];
+        ]) @ [
+          "M3U LOCATE", `Choice ([
+            "RELATIVE", !Track.m3u_reloc = M3u.Relative,
+              (fun _ -> Track.m3u_reloc := M3u.Relative);
+            "ABSOLUTE", !Track.m3u_reloc = M3u.Absolute,
+              (fun _ -> Track.m3u_reloc := M3u.Absolute);
+          ] @
+          if not (Sys.win32 || Sys.cygwin) then [] else
+          [
+            "DRIVELESS", !Track.m3u_reloc = M3u.Driveless,
+              (fun _ -> Track.m3u_reloc := M3u.Driveless);
+          ])
+        ]);
         "LIBRARY", `Section [
           "EXPAND", `Choice [
             "LEFT", geo.extension_side = `Left,

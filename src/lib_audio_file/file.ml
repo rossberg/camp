@@ -28,15 +28,33 @@ let remove_drive path =
 let is_proper name = name <> "" && name.[0] <> '.' && name.[0] <> '$'
 
 let is_name path =
-  is_proper path && not (has_drive path || String.contains path sep.[0])
+  assert (String.length sep = 1);
+  is_proper path &&
+  not (has_drive path ||
+    String.contains path sep.[0] || sep <> "/" && String.contains path '/')
 
 let is_url path =
   match String.index_opt path ':' with
   | None -> false
-  | Some i -> String.length path >= i + 2 && path.[i+1] = '/' && path.[i+2] = '/'
+  | Some i ->
+    String.length path >= i + 2 && path.[i + 1] = '/' && path.[i + 2] = '/'
 
 
-let explode path = assert (String.length sep = 1); String.split_on_char sep.[0] path
+let explode s =
+  assert (String.length sep = 1);
+  if s = "" then [] else
+  let ss = ref [] in
+  let j = ref (String.length s) in
+  for i = String.length s - 1 downto 0 do
+    let c = s.[i] in
+    if c = sep.[0] || c = '/' then
+    (
+      ss := String.sub s (i + 1) (!j - i - 1) :: !ss;
+      j := i;
+    )
+  done;
+  String.sub s 0 !j :: !ss
+
 let implode names = if names = [] then current else String.concat sep names
 
 let normalize path =
@@ -61,9 +79,11 @@ let rec relative' names1 names2 =
     List.init (List.length names1) (fun _ -> parent) @ names2
 
 let relative dir path =
-  let ddrive, dpath = drive dir, remove_drive dir in
-  let idrive, ipath = drive path, remove_drive path in
+  let ddrive = drive dir in
+  let idrive = drive path in
   if idrive <> ddrive && idrive <> "" then path else
+  let dpath = remove_drive dir in
+  let ipath = remove_drive path in
   implode (relative' (explode dpath) (explode ipath))
 
 let resolve dir path =
@@ -99,6 +119,7 @@ let exists path =
 let is_dir path =
   let path = escape path in
   String.ends_with ~suffix: sep path ||
+  String.ends_with ~suffix: "/" path ||
   if not Sys.win32 || String.length path < 256 then Sys.is_directory path else
   (* Sys.is_directory doesn't like Windows UNC prefix *)
   try (stat path).st_kind = S_DIR with Unix.Unix_error _ -> false
@@ -249,11 +270,16 @@ let current_dir () = Sys.getcwd ()
 let change_dir path = Sys.chdir (escape path)
 
 let rec normalize_dir path =
-  if not Sys.win32
-  || String.length path = 3 && path.[1] = ':' && path.[2] = '\\' then
+  if
+    not Sys.win32 ||
+      String.length path = 3 &&
+      path.[1] = ':' && (path.[2] = sep.[0] || path.[2] = '/')
+  then
     path
   else if String.ends_with ~suffix: sep path then
-    normalize_dir String.(sub path 0 (length path - length sep))
+    normalize_dir (String.drop_last (String.length sep) path)
+  else if String.ends_with ~suffix: "/" path then
+    normalize_dir (String.drop_last 1 path)
   else
     path
 

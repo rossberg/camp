@@ -485,6 +485,9 @@ let reorder_all pl =
 
 (* Persistence *)
 
+let format_enum = M3u.["raw", Raw; "native", Native; "portable", Portable]
+let reloc_enum = M3u.["absolute", Absolute; "driveless", Driveless; "relative", Relative]
+
 let print_state pl =
   let open Text.Print in
   record (fun pl -> [
@@ -492,6 +495,8 @@ let print_state pl =
     "scroll", nat pl.table.vscroll;
     "shuffle", bool (pl.shuffle <> None);
     "columns", Data.Print.(columns track_attr_ex pl.view.columns);
+    "format", enum format_enum !Track.m3u_format;
+    "reloc", enum reloc_enum !Track.m3u_reloc;
   ]) pl
 
 let print_intern pl =
@@ -529,4 +534,8 @@ let parse_state pl =
       (fun b -> if b then shuffle pl pl.table.pos);
     apply (r $? "columns") Data.Parse.(columns track_attr_ex)
       (fun cols -> pl.view.columns <- cols);
+    apply (r $? "format") (enum format_enum)
+      (fun fmt -> Track.m3u_format := fmt);
+    apply (r $? "reloc") (enum reloc_enum)
+      (fun reloc -> Track.m3u_reloc := reloc);
   )

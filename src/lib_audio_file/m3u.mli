@@ -1,31 +1,32 @@
 (* M3U Playlist Creation & Parsing *)
 
+type t = string
 type path = string
-type playlist = string
 
 type info = {time : int; title : string}
 type item = {path : path; info : info option}
 
+type format = Raw | Native | Portable
+type reloc = Absolute | Driveless | Relative
+
 val separator : path
 val is_separator : path -> bool
 
-val make : path list -> playlist
-val make_ext : item list -> playlist
+val make : format -> path list -> t
+val make_ext : format -> item list -> t
 
-val parse : playlist -> path list
-val parse_ext : playlist -> item list
+val parse : format -> t -> path list
+val parse_ext : format -> t -> item list
 
-val local_path : path -> path -> path
-val local_item : path -> item -> item
-val local : path -> item list -> item list
-val resolve_path : path -> path -> path
-val resolve_item : path -> item -> item
-val resolve : path -> item list -> item list
+val native_path : path -> path
+val portable_path : path -> path
+val absolute_path : path -> path -> path
+val driveless_path : path -> path -> path
 val relative_path : path -> path -> path
-val relative_item : path -> item -> item
-val relative : path -> item list -> item list
+val format_path : format -> path -> path
+val reloc_path : reloc -> path -> path -> path
 
-val load : path -> item list
-val save : path -> item list -> unit
+val load : format -> path -> item list
+val save : format -> reloc -> path -> item list -> unit
 
 val is_known_ext : path -> bool

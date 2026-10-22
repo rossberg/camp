@@ -60,9 +60,12 @@ let time track =
     | None -> 0.0
 
 
-(* Conversion *)
+(* M3U Conversion *)
 
-let to_m3u_item (track : track) =
+let m3u_format = ref M3u.Native
+let m3u_reloc = ref M3u.Absolute
+
+let to_m3u_item' f (track : track) =
   let info =
     Option.map (fun (meta : Meta.t) ->
       let title = name_of_meta track.path meta in
@@ -70,7 +73,11 @@ let to_m3u_item (track : track) =
       M3u.{title; time = int_of_float time}
     ) track.meta
   in
-  M3u.{path = track.path; info}
+  M3u.{path = f track.path; info}
+
+let to_m3u_item track = to_m3u_item' Fun.id track
+let to_m3u_item_reloc dir track =
+  to_m3u_item' (M3u.reloc_path !m3u_reloc dir) track
 
 let of_m3u_item (item : M3u.item) =
   if M3u.is_separator item.path then
@@ -95,8 +102,11 @@ let of_pos_m3u_item i item =
   track.pos <- i;
   track
 
-let to_m3u tracks = M3u.make_ext (Array.to_list (Array.map to_m3u_item tracks))
-let of_m3u s = Array.mapi of_pos_m3u_item (Array.of_list (M3u.parse_ext s))
+let to_m3u tracks =
+  M3u.make_ext M3u.Native (Array.to_list (Array.map to_m3u_item tracks))
+
+let of_m3u s =
+  Array.mapi of_pos_m3u_item (Array.of_list (M3u.parse_ext !m3u_format s))
 
 
 (* Updating *)

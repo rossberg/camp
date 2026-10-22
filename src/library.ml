@@ -950,7 +950,7 @@ let rescan_dir_tracks' lib mode (dir : dir) =
 
 let rescan_playlist' lib _mode (dir : dir) =
   try
-    let items = Iarray.of_list (M3u.load dir.path) in
+    let items = Iarray.of_list (M3u.load M3u.Native dir.path) in
     dir.tracks <-
       Iarray.mapi (fun pos item ->
         {(find_item lib item) with pos; playlist = dir.path}
@@ -1755,8 +1755,10 @@ let save_playlist lib =
   Array.sort (fun (t1 : track) (t2 : track) -> compare t1.pos t2.pos) tracks;
   dir.tracks <- Iarray.of_array tracks;
   try
-    let items = Array.to_list (Array.map (Track.to_m3u_item) tracks) in
-    let s = M3u.make_ext items in
+    let base_path = File.dir dir.path in
+    let items =
+      Array.to_list (Array.map (Track.to_m3u_item_reloc base_path) tracks) in
+    let s = M3u.make_ext !Track.m3u_format items in
     File.save_safe `Bin dir.path s;
   with exn ->
     Storage.log_exn "file" exn ("writing playlist " ^ dir.path)
@@ -2020,7 +2022,7 @@ let path_distance path1 path2 =
 *)
 
 let repair_path (map : repair_map) base_path path =
-  let path' = M3u.resolve_path base_path path in
+  let path' = M3u.absolute_path base_path path in
   if M3u.is_separator path
   || File.(exists path' && name (real path') = name path') then `Ok else
   match Map.find_opt (repair_key path') map with

@@ -60,7 +60,9 @@ val external_queue_on_playlist : State.t -> path list -> queue_mode -> unit
 
 (* Playlist Modification *)
 
-val local_dir : State.t -> Library.dir -> unit
+val native_dir : State.t -> Library.dir -> unit
+val portable_dir : State.t -> Library.dir -> unit
 val relative_dir : State.t -> Library.dir -> unit
-val resolve_dir : State.t -> Library.dir -> unit
+val driveless_dir : State.t -> Library.dir -> unit
+val absolute_dir : State.t -> Library.dir -> unit
 val repair_dir : State.t -> Library.dir -> unit

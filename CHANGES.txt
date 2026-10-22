@@ -1,6 +1,11 @@
 === 0.9.8 (WIP) ===
 
+Playlist:
+- [new] Support relative and absolute track paths when writing playlist files
+- [new] On Windows, support both native (\) or portable (/) path formats
+
 Library:
+- [new] Same playlist format configuration options apply as for Playlist
 - [chg] Allow drag & drop onto Library playlist even when it is not ordered
 - [chg] Remember selection, scroll positions, and undos for every directory
 - [chg] Allow simultaneous selection in playlist and tracks view

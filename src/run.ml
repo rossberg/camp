@@ -189,7 +189,8 @@ and run' (st : state) (x, y, w, h as r) =
   (
     (* If we're just starting up, and double-click caused it, force playing *)
     if Api.Draw.frame win <= 1 then Control.stop st.control;
-    Run_view.external_queue_on_playlist st (M3u.parse !m3u) `QueueAndJump;
+    Run_view.external_queue_on_playlist st (M3u.parse M3u.Native !m3u)
+      `QueueAndJump;
   );
 
   (* Start drawing *)
@@ -514,7 +515,7 @@ let start' () =
 
 
 let start paths =
-  let m3u = if paths = [] then "" else M3u.make paths in
+  let m3u = if paths = [] then "" else M3u.make M3u.Raw paths in
   if Storage.exists queue_file then
   (
     (* TODO: this could race, should lock the file *)

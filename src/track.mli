@@ -22,9 +22,13 @@ val split_name : string -> string list
 val time : track -> time
 
 
-(* Conversion *)
+(* M3U Conversion *)
+
+val m3u_format : M3u.format ref
+val m3u_reloc : M3u.reloc ref
 
 val to_m3u_item : track -> M3u.item
+val to_m3u_item_reloc : path -> track -> M3u.item
 val of_m3u_item : M3u.item -> track
 
 val to_m3u : track array -> string
