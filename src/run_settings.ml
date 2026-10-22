@@ -239,7 +239,10 @@ let run (st : state) focus_change =
           );
         ];
         "DEVELOPER", `Section [
-          "SHOW", `Flag (set.developer, fun b -> set.developer <- b);
+          "SHOW", `Flag (set.developer, fun b ->
+            set.developer <- b;
+            if b then Ui.delay geo.ui (fun _ -> set.vscroll <- max_int);
+          );
         ]
       ] @
       if not set.developer then [] else
