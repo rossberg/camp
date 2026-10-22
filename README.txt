@@ -408,20 +408,18 @@ Other things to do in the Browser:
 
 * Turn Playlists (context menu): Go through all playlists under the selected
   folder and modify how they store their file paths, either absolutely, or
-  relatively to the location of the playlist. On Windows, there is the
-  additional option to use "driveless" paths, which are absolute but without
-  the drive letter.
+  relatively to the location of the playlist. Absolute paths have the advantage
+  that you can move the playlist around your drives and it will still find the
+  tracks. Relative paths have the advantage that you can move the library as a
+  whole (audio files + playlists) and the playlists continue to function.
 
-  Absolute paths have the advantage that you can move the playlist around your
-  drives and it will still find the tracks. Relative paths have the advantage
-  that you can move the library as a whole (audio files + playlists) and the
-  playlists continue to function. Driveless may be the best option on external
-  harddrives, where Windows assigns drive letters willy-nilly.
-
-  On Windows, there are additional menu options for turning playlists into
-  "native" format, using the Windows-specific "\" as directory separators, or
-  "portable" format with "/", like everybody else. Windows understands both,
-  but the latter is portable across all modern operating systems.
+  On Windows everything is weirder, so there are two additional options:
+  "Driveless" paths are absolute but without the drive letter. They may be the
+  best option to use for libraries stored on external harddrives, where Windows
+  assigns drive letters willy-nilly. "Portable" paths on the other hand are
+  relative paths, but instead of using the Windows-specific "\" as a directory
+  separator it uses "/" like everybody else. Windows understands both, but the
+  latter is portable across all modern operating systems.
 
   By default, Camp produces absolute playlists in native format, but this can
   be configured in the Settings (Section 3.7).

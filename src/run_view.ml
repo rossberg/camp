@@ -677,11 +677,11 @@ let modify_simple f ops (st : state) dir =
       items'
     )
 
-let modify_native st = modify_simple (fun _dir -> M3u.native_path) st
-let modify_portable st = modify_simple (fun _dir -> M3u.portable_path) st
+let modify_absolute st = modify_simple M3u.absolute_path st
 let modify_relative st = modify_simple M3u.relative_path st
 let modify_driveless st = modify_simple M3u.driveless_path st
-let modify_absolute st = modify_simple M3u.absolute_path st
+let modify_portable st =
+  modify_simple (fun dir path -> M3u.portable_path (M3u.relative_path dir path)) st
 
 let modify_repair ops (st : state) dir =
   let success, fail, fuzzy = ref 0, ref 0, ref 0 in
@@ -737,11 +737,10 @@ let modify_dir modify =
     final = ignore;
   }
 
-let native_dir = modify_dir modify_native
-let portable_dir = modify_dir modify_portable
+let absolute_dir = modify_dir modify_absolute
 let relative_dir = modify_dir modify_relative
 let driveless_dir = modify_dir modify_driveless
-let absolute_dir = modify_dir modify_absolute
+let portable_dir = modify_dir modify_portable
 let repair_dir = modify_dir modify_repair
 
 let modify_view modify (st : state) view all =

@@ -154,6 +154,32 @@ let run (st : state) focus_change =
               (fun _ -> geo.playlist_headers <- not geo.playlist_headers);
           ];
         ] @
+        (if not (Sys.win32 || Sys.cygwin) then
+          [
+            "M3U FORMAT", `Choice [
+              "ABSOLUTE", !Track.m3u_reloc = M3u.Absolute,
+                (fun _ -> Track.m3u_reloc := M3u.Absolute);
+              "RELATIVE", !Track.m3u_reloc = M3u.Relative,
+                (fun _ -> Track.m3u_reloc := M3u.Relative);
+            ]
+          ]
+        else
+          [
+            "M3U FORMAT", `Choice [
+              "ABSOLUTE", !Track.m3u_format = M3u.Native && !Track.m3u_reloc = M3u.Absolute,
+                (fun _ -> Track.m3u_format := M3u.Native; Track.m3u_reloc := M3u.Absolute);
+              "RELATIVE", !Track.m3u_format = M3u.Native && !Track.m3u_reloc = M3u.Relative,
+                (fun _ -> Track.m3u_format := M3u.Native; Track.m3u_reloc := M3u.Relative);
+            ];
+            "", `Choice [
+              "DRIVELESS", !Track.m3u_format = M3u.Native && !Track.m3u_reloc = M3u.Driveless,
+                (fun _ -> Track.m3u_format := M3u.Native; Track.m3u_reloc := M3u.Driveless);
+              "PORTABLE", !Track.m3u_format = M3u.Portable && !Track.m3u_reloc = M3u.Relative,
+                (fun _ -> Track.m3u_format := M3u.Portable; Track.m3u_reloc := M3u.Relative);
+            ];
+          ])
+        );
+(*
         (if not (Sys.win32 || Sys.cygwin) then [] else
         [
           "M3U FORMAT", `Choice [
@@ -179,6 +205,7 @@ let run (st : state) focus_change =
               (fun _ -> Track.m3u_reloc := M3u.Driveless);
           ])
         ]);
+*)
         "LIBRARY", `Section [
           "EXPAND", `Choice [
             "LEFT", geo.extension_side = `Left,

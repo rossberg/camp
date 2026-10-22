@@ -224,11 +224,8 @@ let playlists_avail (st : state) =
 
 let playlists_modify f st dir_opt = Option.iter (f st) dir_opt
 
-let native_playlist_avail = playlists_avail
-let native_playlist = playlists_modify Run_view.native_dir
-
-let portable_playlist_avail = playlists_avail
-let portable_playlist = playlists_modify Run_view.portable_dir
+let absolute_playlist_avail = playlists_avail
+let absolute_playlist = playlists_modify Run_view.absolute_dir
 
 let relative_playlist_avail = playlists_avail
 let relative_playlist = playlists_modify Run_view.relative_dir
@@ -236,8 +233,8 @@ let relative_playlist = playlists_modify Run_view.relative_dir
 let driveless_playlist_avail = playlists_avail
 let driveless_playlist = playlists_modify Run_view.driveless_dir
 
-let absolute_playlist_avail = playlists_avail
-let absolute_playlist = playlists_modify Run_view.absolute_dir
+let portable_playlist_avail = playlists_avail
+let portable_playlist = playlists_modify Run_view.portable_dir
 
 let repair_playlist_avail = playlists_avail
 let repair_playlist = playlists_modify Run_view.repair_dir
@@ -556,17 +553,15 @@ let run_browser (st : state) =
         `Separator, ignore;
         `Entry (c, "Repair Playlist" ^ pls ^ "...", Layout.KeyBind.repair_dir, repair_playlist_avail st),
           (fun () -> repair_playlist st st.library.current);
-        `Entry (c, "Turn Playlist" ^ pls ^ " Relative...", Layout.KeyBind.na, relative_playlist_avail st),
-          (fun () -> relative_playlist st st.library.current);
         `Entry (c, "Turn Playlist" ^ pls ^ " Absolute...", Layout.KeyBind.na, absolute_playlist_avail st),
           (fun () -> absolute_playlist st st.library.current);
+        `Entry (c, "Turn Playlist" ^ pls ^ " Relative...", Layout.KeyBind.na, relative_playlist_avail st),
+          (fun () -> relative_playlist st st.library.current);
       |];
       (if not (Sys.win32 || Sys.cygwin) then [||] else
         [|
           `Entry (c, "Turn Playlist" ^ pls ^ " Driveless...", Layout.KeyBind.na, driveless_playlist_avail st),
             (fun () -> driveless_playlist st st.library.current);
-          `Entry (c, "Turn Playlist" ^ pls ^ " Native...", Layout.KeyBind.na, native_playlist_avail st),
-            (fun () -> native_playlist st st.library.current);
           `Entry (c, "Turn Playlist" ^ pls ^ " Portable...", Layout.KeyBind.na, portable_playlist_avail st),
             (fun () -> portable_playlist st st.library.current);
         |]
