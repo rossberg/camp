@@ -76,7 +76,9 @@ val select_invert : ('a, 'b) t -> unit
 val select_marked : ('a, 'b) t -> unit
 
 val save_selection : ('a, 'b) t -> 'a array
-val restore_selection : ('a, 'b) t -> ('a -> string) -> 'a array -> unit
+val restore_selection :
+  ('a, 'b) t -> ('a -> 'k) -> (module Set.S with type elt = 'k) -> 'a array ->
+    unit
 
 
 (* Marking *)

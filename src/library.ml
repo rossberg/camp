@@ -476,17 +476,6 @@ let artists_sorting (views : views) = views.artists.sorting
 let albums_sorting (views : views) = views.albums.sorting
 let tracks_sorting (views : views) = views.tracks.sorting
 
-let artist_key (artist : artist) =
-  artist.name
-
-let album_key (album : album) =
-  let s1, s2, s3, s4 = Query.album_key album in
-  String.concat "\x00" [s1; s2; s3; s4]
-
-let track_key (track : track) =
-  if track.pos = -1 then track.path
-  else string_of_int track.pos ^ "\x00" ^ track.playlist
-
 
 (* Lookup *)
 
@@ -1207,7 +1196,8 @@ let refresh_browser lib =
   in
   let selection = Table.save_selection lib.browser in
   Table.set lib.browser (Array.of_list (entries lib.root []));
-  Table.restore_selection lib.browser (fun dir -> dir.path) selection
+  Table.restore_selection lib.browser (fun dir -> dir.path) (module Set)
+    selection
 
 
 let insert_dir lib path =
@@ -1339,7 +1329,7 @@ let sort attr_string sorting entries =
     Array.iteri (fun i (_, entry) -> entries.(i) <- entry) entries';
   )
 
-let refresh_view lib (tab : _ Table.t) selection attr_string sorting key f =
+let refresh_view lib (tab : _ Table.t) selection attr_string sorting key set f =
   match lib.current with
   | None -> Table.remove_all tab
   | Some dir ->
@@ -1353,15 +1343,18 @@ let refresh_view lib (tab : _ Table.t) selection attr_string sorting key f =
     sort attr_string (sorting dir.view) entries;
     Mutex.protect tab.mutex (fun () ->
       Table.set tab entries;
-      Table.restore_selection tab key selection;
+      Table.restore_selection tab key set selection;
     )
 
 let refresh_tracks_view lib (_, _, sel) f =
-  refresh_view lib lib.tracks sel Query.track_attr_ex_string tracks_sorting track_key f
+  refresh_view lib lib.tracks sel Query.track_attr_ex_string tracks_sorting
+    Query.track_key (module Query.TrackSet) f
 let refresh_albums_view lib (_, sel, _) f =
-  refresh_view lib lib.albums sel Query.album_attr_ex_string albums_sorting album_key f
+  refresh_view lib lib.albums sel Query.album_attr_ex_string albums_sorting
+    Query.album_key (module Query.AlbumSet) f
 let refresh_artists_view lib (sel, _, _) f =
-  refresh_view lib lib.artists sel Query.artist_attr_ex_string artists_sorting artist_key f
+  refresh_view lib lib.artists sel Query.artist_attr_ex_string artists_sorting
+    Query.artist_key (module Query.ArtistSet) f
 
 let refresh_tracks_sync' lib selections =
   refresh_tracks_view lib selections
@@ -1517,25 +1510,28 @@ let refresh_after_rescan lib =
     refresh_artists_albums_tracks lib ~busy: false;
   )
 
-let reorder lib tab sorting attr_string key =
+let reorder lib tab sorting attr_string key set =
   Option.iter (fun (dir : dir) ->
     let s = sorting dir.view in
     if s <> [] then
     (
       let selection = Table.save_selection tab in
       sort attr_string s tab.entries;
-      Table.restore_selection tab key selection;
+      Table.restore_selection tab key set selection;
     )
   ) lib.current
 
 let reorder_artists lib =
-  reorder lib lib.artists artists_sorting Query.artist_attr_ex_string artist_key
+  reorder lib lib.artists artists_sorting Query.artist_attr_ex_string
+    Query.artist_key (module Query.ArtistSet)
 
 let reorder_albums lib =
-  reorder lib lib.albums albums_sorting Query.album_attr_ex_string album_key
+  reorder lib lib.albums albums_sorting Query.album_attr_ex_string
+    Query.album_key (module Query.AlbumSet)
 
 let reorder_tracks lib =
-  reorder lib lib.tracks tracks_sorting Query.track_attr_ex_string track_key
+  reorder lib lib.tracks tracks_sorting Query.track_attr_ex_string
+    Query.track_key (module Query.TrackSet)
 
 
 let set_views_dir_default lib v = update_views lib.views_dir_default v
@@ -1787,12 +1783,14 @@ let normalize_playlist lib =
   | (`Pos, `Desc)::_ ->
     let selection = Table.save_selection lib.tracks in
     array_rev lib.tracks.entries;
-    Table.restore_selection lib.tracks track_key selection;
+    Table.restore_selection lib.tracks Query.track_key (module Query.TrackSet)
+      selection;
     `Desc
   | _ ->
     let selection = Table.save_selection lib.tracks in
     Array.sort compare_pos lib.tracks.entries;
-    Table.restore_selection lib.tracks track_key selection;
+    Table.restore_selection lib.tracks Query.track_key (module Query.TrackSet)
+      selection;
     `Other
 
 let restore_playlist lib = function
@@ -1800,11 +1798,13 @@ let restore_playlist lib = function
   | `Desc ->
     let selection = Table.save_selection lib.tracks in
     array_rev lib.tracks.entries;
-    Table.restore_selection lib.tracks track_key selection
+    Table.restore_selection lib.tracks Query.track_key (module Query.TrackSet)
+      selection
   | `Other ->
     let selection = Table.save_selection lib.tracks in
     reorder_tracks lib;
-    Table.restore_selection lib.tracks track_key selection
+    Table.restore_selection lib.tracks Query.track_key (module Query.TrackSet)
+      selection
 
 
 let renumber lib i j =

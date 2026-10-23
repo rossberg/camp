@@ -63,6 +63,8 @@ let ok fs =
 
 (* Refresh *)
 
+module PathSet = Set.Make(String)
+
 let refresh_files fs =
   let i = Option.get (Table.first_selected fs.dirs) in
   let dir = fs.dirs.entries.(i) in
@@ -79,7 +81,8 @@ let refresh_dirs fs =
   in
   let selection = Table.save_selection fs.dirs in
   Table.set fs.dirs (Array.of_list (entries fs.roots 0 []));
-  Table.restore_selection fs.dirs (fun dir -> dir.path) selection;
+  Table.restore_selection fs.dirs
+    (fun dir -> dir.path) (module PathSet) selection;
   Table.adjust_vscroll fs.files
     (Option.value (Table.first_selected fs.files) ~default: 0) 1 4
 
@@ -357,7 +360,8 @@ let reorder_files fs k =
   Array.stable_sort cmp' enriched;
   let selection = Table.save_selection fs.files in
   Table.set fs.files (Array.map snd enriched);
-  Table.restore_selection fs.files (fun (file : file) -> file.name) selection
+  Table.restore_selection fs.files
+    (fun (file : file) -> file.name) (module PathSet) selection
 
 
 (* Persistence *)

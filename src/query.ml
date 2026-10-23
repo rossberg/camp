@@ -434,17 +434,30 @@ and check : 'x 'a. ('x, 'a) Data.kind -> expr -> 'x -> bool = fun k q x ->
   | _ -> assert false
 
 
-(* Execution *)
+(* Collections *)
+
+module ArtistKey = String
 
 module AlbumKey =
 struct
   type t = string * string * string * string
   let compare : t -> t -> int = compare
 end
-module AlbumSet = Set.Make(AlbumKey)
-module AlbumMap = Map.Make(AlbumKey)
+
+module TrackKey =
+struct
+  type t = int * string
+  let compare : t -> t -> int = compare
+end
+
 module ArtistSet = Set.Make(String)
 module ArtistMap = Map.Make(String)
+module AlbumSet = Set.Make(AlbumKey)
+module AlbumMap = Map.Make(AlbumKey)
+module TrackSet = Set.Make(TrackKey)
+module TrackMap = Map.Make(TrackKey)
+
+let artist_key (x : artist) = x.name
 
 let album_key' attr_string x : AlbumKey.t =
   ( attr_string x `AlbumArtist,
@@ -454,7 +467,16 @@ let album_key' attr_string x : AlbumKey.t =
   )
 
 let album_key album = album_key' album_attr_string album
+
 let track_album_key track = album_key' track_attr_string track
+
+let track_key (x : track) : TrackKey.t =
+  ( x.pos,
+    if x.pos < 0 then x.path else x.playlist
+  )
+
+
+(* Execution *)
 
 let new_album_of_track (track : track) : album =
   let meta = Option.value track.meta ~default: Meta.unknown in
@@ -574,7 +596,8 @@ let exec q p dir =
             match ArtistMap.find_opt name !artist_map with
             | None ->
               let artist = new_artist name in
-              artist_map := ArtistMap.add artist.name artist !artist_map;
+              let artist_key = artist_key artist in
+              artist_map := ArtistMap.add artist_key artist !artist_map;
               Dynarray.add_last artists artist;
               artist
             | Some artist -> artist

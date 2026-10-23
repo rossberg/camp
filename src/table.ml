@@ -1,7 +1,6 @@
 (* Table state *)
 
 module IntSet = Set.Make(Int)
-module KeySet = Set.Make(String)
 
 type 'a undo =
 {
@@ -236,15 +235,12 @@ Printf.eprintf "[deselect %d-%d/%d/%d]\n%!" i0 j0 (num_selected tab) (length tab
 
 
 let save_selection tab =
-if length tab = 2983 then
-Printf.eprintf "[save_selection %d/%d]\n%!" (num_selected tab) (length tab);
   let selection = selected tab in
   deselect_all tab;
   selection
 
-let restore_selection tab key selection =
-if length tab = 2983 then
-Printf.eprintf "[restore_selection %d/%d]\n%!" (Array.length selection) (length tab);
+let restore_selection (type k) tab key (module KeySet : Set.S with type elt = k)
+  selection =
   if selection <> [||] then
   (
     dirty tab;

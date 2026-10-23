@@ -54,23 +54,35 @@ val sort : ('x, 'a) Data.kind -> 'a sorting -> 'x array -> unit
 val exec : query -> (track -> bool * bool * bool) -> 'a Data.dir ->
   artist array * album array * track array
 
+
+(* Conversions *)
+
 val string_of_key : key -> string
 val string_of_value : value -> string
 val string_of_expr : expr -> string
 val string_of_query : query -> string
 
-module AlbumKey :
-sig
-  type t = string * string * string * string
-  val compare : t -> t -> int
-end
-module AlbumSet : module type of Set.Make(AlbumKey)
-module AlbumMap : module type of Map.Make(AlbumKey)
-
-val album_key : album -> AlbumKey.t
-val track_album_key : track -> AlbumKey.t
-
 val artist_attr_ex_string : artist -> Data.artist_attr_ex -> string
 val album_attr_ex_string : album -> Data.album_attr_ex -> string
 val track_attr_ex_string : track -> Data.track_attr_ex -> string
+
 val any_attr_ex_type : Data.any_attr_ex -> type_ option
+
+
+(* Collections *)
+
+module ArtistKey : Set.OrderedType
+module AlbumKey : Set.OrderedType
+module TrackKey : Set.OrderedType
+
+module ArtistSet : module type of Set.Make(ArtistKey)
+module ArtistMap : module type of Map.Make(ArtistKey)
+module AlbumSet : module type of Set.Make(AlbumKey)
+module AlbumMap : module type of Map.Make(AlbumKey)
+module TrackSet : module type of Set.Make(TrackKey)
+module TrackMap : module type of Map.Make(TrackKey)
+
+val artist_key : artist -> ArtistKey.t
+val album_key : album -> AlbumKey.t
+val track_album_key : track -> AlbumKey.t
+val track_key : track -> TrackKey.t
