@@ -123,7 +123,8 @@ install-win: win
 	sudo cp -rf $(APPNAME) `cygpath -u "$(PROGRAMFILES)"`
 
 install-linux: linux
-	sudo cp -rf $(APPNAME) $(LINUX_INSTALLDIR)/$(NAME)
+	sudo mkdir -p $(LINUX_INSTALLDIR)/$(NAME)
+	sudo cp -rf $(APPNAME)/* $(LINUX_INSTALLDIR)/$(NAME)
 	sudo ln -sf $(LINUX_INSTALLDIR)/$(NAME)/$(APPNAME).exe /usr/local/bin/$(NAME)
 	if [ $(XDG_CURRENT_DESKTOP) == "KDE" ]; then \
 	  sudo cp -f $(APPNAME)/$(NAME).desktop ~/.local/share/applications/$(NAME).desktop; \
