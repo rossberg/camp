@@ -94,7 +94,7 @@ let modal ui label =
    * Note that it cannot happen that modal_resize is true but modal isn't.
    *)
   if !App.debug_modality then
-    Printf.eprintf "[ui.modal %s] frame=%d\n%!" label (Api.Draw.frame ui.win);
+    Printf.eprintf "[ui.modal %s] frame=%d\n%!" label (Draw.frame ui.win);
   assert (ui.modal = ui.modal_resize);
   assert (not (ui.modal_resize && not ui.modal_save));
   if not ui.modal_resize then ui.modal <- true;
@@ -102,7 +102,7 @@ let modal ui label =
 
 let nonmodal ui label =
   if !App.debug_modality then
-    Printf.eprintf "[ui.nonmodal %s] frame=%d\n%!" label (Api.Draw.frame ui.win);
+    Printf.eprintf "[ui.nonmodal %s] frame=%d\n%!" label (Draw.frame ui.win);
   assert ui.modal;
   assert (not (ui.modal_resize && not ui.modal_save));
   if not ui.modal_resize then ui.modal <- false;
@@ -125,7 +125,7 @@ let except_modal ui label f =
 let modal_rect ui label r =
   if !App.debug_modality then
     Printf.eprintf "[ui.modal_rect %s] frame=%d r=%s\n%!" label
-      (Api.Draw.frame ui.win)
+      (Draw.frame ui.win)
       (match r with
       | None -> "-"
       | Some (x, y, w, h) -> Printf.sprintf "%d,%d,%d,%d" x y w h
@@ -889,7 +889,7 @@ let button ui owner area ?(protrude = true) modkey focus active =
   let (x, y, w, h), status = widget ui (Some owner) area modkey ~focus in
   let img = get_img ui ui.img_button in
   let sx, sy, h' = if status = `Pressed then 800, 400, h + 1 else 0, 200, h in
-  Api.Draw.image_part ui.win x y w h' sx sy w h' 0.0 img;
+  Draw.image_part ui.win x y w h' sx sy w h' 0.0 img;
   let grey_left, shine_left = if status = `Pressed then 0x30, 0x20 else 0x50, 0x40 in
   Draw.fill_rect ui.win (x + 1) (y + 1) 1 (h - 2) (`Gray grey_left);
   mouse_focus ui (-1, x + 1, y + 1, 1, h - 2) (2 * w) shine_left 0;
@@ -1458,11 +1458,11 @@ let draw_table ui area gw ch ph cols rows hscroll =
             (`Trans (bg, 0)) `Horizontal bg;
         )
       | `Image img ->
-        let iw, ih = Api.Image.size img in
+        let iw, ih = Image.size img in
         let q = float cw /. float ch in
         let iq = float iw /. float ih in
         let ih' = int_of_float (float ih *. iq /. q) in
-        Api.Draw.image_part ui.win !cx cy cw ch 0 0 iw ih' 0.0 img;
+        Draw.image_part ui.win !cx cy cw ch 0 0 iw ih' 0.0 img;
       )
     ) rows;
     Draw.unclip ui.win;
@@ -2248,7 +2248,7 @@ let draw_grid ui area gw iw ch ph matrix =
         let scale = float iw /. float (max iw' ih') in
         let dx = int_of_float ((float iw -. scale *. float iw') /. 2.0) in
         let dy = int_of_float ((float iw -. scale *. float ih') /. 2.0) in
-        Api.Draw.image_part ui.win (cx + dx) (cy + dy) (iw - 2*dx) (iw - 2*dy) 0 0 iw' ih' 0.0 img;
+        Draw.image_part ui.win (cx + dx) (cy + dy) (iw - 2*dx) (iw - 2*dy) 0 0 iw' ih' 0.0 img;
         let tw = Draw.text_width ui.win ch font txt in
         let dx = max 0 ((iw - tw - 2) / 2) in
         Draw.text ui.win (cx + dx + 1) (cy + iw + ph) ch fg font txt;
@@ -2723,7 +2723,7 @@ let grid_table ui owner area (sty : grid_table_style) header_opt
 
 type setting = string * setting_item
 and setting_item =
-  [ `Flag of bool * (bool -> unit)
+  [ `Toggle of bool * (bool -> unit)
   | `Choice of (string * bool * (string -> unit)) list
   | `Text of Edit.t * color * (Edit.t -> unit) * (string -> unit)
   | `Number of string * Edit.t * int * int * int * (Edit.t -> unit) * (int -> unit)
@@ -2757,7 +2757,7 @@ and setting_w ui sty (name, item) =
   max lw lw', max rw (lw - lw' - sty.sep_w)
 
 and item_w ui sty = function
-  | `Flag _ | `Text _ | `Number _ | `Button _ -> 0, 0  (* always flat *)
+  | `Toggle _ | `Text _ | `Number _ | `Button _ -> 0, 0  (* always flat *)
   | `Choice choices -> 0, choices_w ui sty choices
   | `Section settings ->
     let lw, _ = settings_w ui sty settings in
@@ -2786,7 +2786,7 @@ and setting_h ui sty xr xmax (_name, item) =
     item_h ui sty xr xmax item + sty.sep_h
 
 and item_h ui sty xr xmax = function
-  | `Flag _ | `Text _ | `Number _ | `Button _ -> sty.item_h
+  | `Toggle _ | `Text _ | `Number _ | `Button _ -> sty.item_h
   | `Choice choices ->
     sty.item_h + (List.length choices - 1) * (sty.item_h + 2 * sty.pad_h)
   | `Section settings ->
@@ -2808,7 +2808,7 @@ and setting_focus_dy ui sty xr xmax (_name, item) =
 and item_focus_dy ui sty xr xmax = function
   | `Text (ed, _, _, _) | `Number (_, ed, _, _, _, _, _) when ed.Edit.focus ->
     Some 0
-  | `Flag _ | `Choice _ | `Button _ | `Text _ | `Number _ -> None
+  | `Toggle _ | `Choice _ | `Button _ | `Text _ | `Number _ -> None
   | `Section settings ->
     Option.map ((+) (sty.item_h + 2 * sty.sep_h))
       (settings_focus_dy ui sty xr xmax settings)
@@ -2858,7 +2858,7 @@ and draw_item_flat ui sty owner xl xr y xmax ymin ymax vscroll = function
     draw_item ui sty owner xl xr y xmax ymin ymax vscroll item
 
 and draw_item ui sty owner xl xr y xmax ymin ymax vscroll = function
-  | `Flag (b, f) ->
+  | `Toggle (b, f) ->
     let y' = y + (sty.item_h - sty.label_h) / 2 in
     scrolled_area xr y' sty.label_h sty.label_h ymin ymax
       vscroll (fun area ->
@@ -3148,7 +3148,7 @@ let menu ui x y sty hscroll vscroll items =
     Iarray.map (function
       | `Separator -> ""
       | `Entry (_, _, (mods, key), _) ->
-        String.concat "+" Api.Key.(List.map modifier_name mods @ [name key])
+        String.concat "+" Key.(List.map modifier_name mods @ [name key])
     ) items
   in
   let lw = 2 * sty.gutter_w +

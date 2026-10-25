@@ -442,8 +442,8 @@ struct
 
   let current_screen = ref (-1)
   let current_pos = ref (0, 0)   (* buffered during minimization *)
-  let current_size = ref (0, 0)
-  let in_frame = ref false
+  let current_size = ref (0, 0)  (* target (virtual current) size for drawing *)
+  let in_frame = ref false       (* flag to assert proper frame bracketing *)
 
   let update () =
     if not (Raylib.is_window_minimized ()) then
