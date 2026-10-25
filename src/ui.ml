@@ -20,6 +20,7 @@ type t =
 {
   win : window;
   mutable buffered : bool;
+  mutable buffered_resize : bool;
   mutable font_sdf : bool;
   mutable palette : int;
   mutable pane : pane;
@@ -32,6 +33,9 @@ type t =
   mutable mouse_owner : owner option;  (* whether mouse was owned by a widget *)
   mutable drag  : drag;                (* associated data for drag operation *)
   mutable delayed : (unit -> unit) list; (* draw at end of frame *)
+  mutable buffer : Api.buffer;         (* used for resize *)
+  mutable buffering : bool;            (* true while using buffer *)
+  mutable resizing : rect option;      (* buffered resize *)
   img_background : image_load;
   img_button : image_load;
   img_nocover : image_load;
@@ -47,6 +51,7 @@ let make win =
   Window.set_icon win icon;
   { win;
     buffered = true;
+    buffered_resize = true;
     font_sdf = false (*Screen.is_hires (Window.screen win)*);
     palette = 0;
     pane = 0;
@@ -59,6 +64,9 @@ let make win =
     mouse_owner = None;
     drag = No_drag;
     delayed = [];
+    buffer = Buffer.create win 1 1;  (* dummy *)
+    buffering = false;
+    resizing = None;
     img_background = ref (`Unloaded "bg.jpg");
     img_button = ref (`Unloaded "but.jpg");
     img_nocover = ref (`Unloaded "nocover.jpg");
@@ -66,20 +74,6 @@ let make win =
   }
 
 let window ui = ui.win
-
-let buffered ui b = ui.buffered <- b
-let is_buffered ui = ui.buffered
-
-
-(* Mouse ownership *)
-
-let has_mouse ui owner =
-  Option.exists (String.starts_with ~prefix: owner) ui.mouse_owner
-
-let grab_mouse ui owner =
-  if not ui.modal && ui.mouse_owner = None && ui.drag = No_drag then
-    ui.mouse_owner <- Some owner;
-  has_mouse ui owner
 
 
 (* Modal mode *)
@@ -150,8 +144,13 @@ let rel_rect (maxw, maxh) (x, y, w, h) =
   let h' = rel (maxh - y') h in
   x', y', w', h'
 
+let size ui =
+  match ui.resizing with
+  | None -> Window.size ui.win
+  | Some (_, _, w, h) -> (w, h)
+
 let pane ui owner r =
-  let ww, wh as wsize = Window.size ui.win in
+  let ww, wh as wsize = size ui in
   let x, y, w, h as r' = rel_rect wsize r in
 (*
   if not (x >= 0 && y >= 0 && x + w <= ww && y + h <= wh) then
@@ -189,7 +188,7 @@ let find_pane ui pos =
   match Array.find_opt (fun (_, r) -> inside pos r) ui.panes with
   | Some rr -> Some rr
   | None ->
-    let w, h = Window.size ui.win in
+    let w, h = size ui in
     let all = (0, 0, w, h) in
     if inside pos all then
       Some (all, all)
@@ -204,7 +203,7 @@ type area = pane * int * int * int * int
 let dim ui (p, x, y, w, h) =
   let px, py, pw, ph =
     if p >= 0 then snd ui.panes.(p) else
-    let ww, wh = Window.size ui.win in 0, 0, ww, wh
+    let ww, wh = size ui in 0, 0, ww, wh
   in
   let x', y', w', h' = rel_rect (pw, ph) (x, y, w, h) in
   px + x', py + y', w', h'
@@ -238,6 +237,53 @@ let clamp min max v =
 
 let quant_floor l v = v / l * l
 let quant_ceil l v = (v + l - 1) / l * l
+
+
+(* Buffering *)
+
+let buffered ui b = ui.buffered <- b
+let is_buffered ui = ui.buffered
+
+let buffered_resize ui b = ui.buffered_resize <- b
+let is_buffered_resize ui = ui.buffered_resize
+
+let buffer_start ui buf area =
+  if not ui.buffered then area else
+  (
+Printf.eprintf "  [Ui.buffer_start]\n%!";
+    if ui.buffering then Draw.unbuffered ui.win;  (* pause global buffer *)
+    Draw.buffered ui.win buf;
+Printf.eprintf "  [Ui.buffer_start] done\n%!";
+    let _, _, w, h = dim ui area in (-1, 0, 0, w, h)
+  )
+
+let buffer_finish ui =
+  if ui.buffered then
+  (
+Printf.eprintf "  [Ui.buffer_finish]\n%!";
+    Draw.unbuffered ui.win;
+    if ui.buffering then Draw.buffered ui.win ui.buffer;  (* resume global *)
+Printf.eprintf "  [Ui.buffer_finish] done\n%!";
+  )
+
+let buffer_draw ui buf x y w h =
+  if ui.buffered then
+(
+Printf.eprintf "  [Ui.buffer_draw]\n%!";
+    Draw.buffer ui.win x y w h buf
+;Printf.eprintf "  [Ui.buffer_draw] done\n%!";
+)
+
+
+(* Mouse ownership *)
+
+let has_mouse ui owner =
+  Option.exists (String.starts_with ~prefix: owner) ui.mouse_owner
+
+let grab_mouse ui owner =
+  if not ui.modal && ui.mouse_owner = None && ui.drag = No_drag then
+    ui.mouse_owner <- Some owner;
+  has_mouse ui owner
 
 
 (* Colors *)
@@ -380,10 +426,12 @@ let get_img ui rimg =
 let nocover ui = get_img ui ui.img_nocover
 
 let background ui x y w h =
+  let ww, wh = size ui in
+  let part = x <> 0 || y <> 0 || w < ww || h < wh in
   let bg = get_img ui ui.img_background in
   let iw, ih = Image.size bg in
 
-  Draw.clip ui.win x y w h;
+  if part then Draw.clip ui.win x y w h;
 
   for i = 0 to (w + iw - 1)/iw - 1 do
     let dx = if w < iw then - (iw - w)/2 else i*iw in
@@ -400,7 +448,7 @@ let background ui x y w h =
 
   mouse_focus' ui ((min w h) / 4) 0x20 0;
 
-  Draw.unclip ui.win
+  if part then Draw.unclip ui.win
 
 
 (* Window *)
@@ -429,6 +477,15 @@ let pin ui scr =
 let start ui (wx', wy', ww', wh' as wr') =
   let wx, wy = Window.pos ui.win in
   let ww, wh = Window.size ui.win in
+(*
+let wx', wy', ww', wh' as wr' =
+if Draw.frame ui.win < 30 then wr' else
+let ww'' = ww' + if Draw.frame ui.win land 1 = 0 then +1 else -1 in
+wx',wy',ww'',wh'
+in
+*)
+Printf.eprintf "[Ui.start %d,%d -> %d,%d]\n%!" ww wh ww' wh';
+  let c = `Black in
   ui.modal <- ui.modal_save;
   ui.modal_resize <- wr' <> (wx, wy, ww, wh);
   if ui.modal_resize then
@@ -441,12 +498,41 @@ let start ui (wx', wy', ww', wh' as wr') =
     (* Suppress input when window was just resized, mouse pos may be off *)
     ui.modal_save <- ui.modal;
     ui.modal <- true;
-    Window.set_pos ui.win wx' wy';
-    Window.set_size ui.win ww' wh';
+    if not ui.buffered_resize || ww = ww' && wh = wh' then
+    (
+      Window.set_pos ui.win wx' wy';
+      Window.set_size ui.win ww' wh';
+
+      Draw.start ui.win c;
+    )
+    else
+    (
+      let bw, bh = Buffer.size ui.buffer in
+(*let bw=0 in*)
+      if ww' > bw || wh' > bh then
+      (
+        Buffer.dispose ui.buffer;
+(*ui.buffer <- Buffer.create ui.win (ww') (wh');*)
+(* *)
+        let sw, sh = Screen.size (Window.screen ui.win) in
+        let bw' = max ww' (min sw (ww' * 3 / 2)) in
+        let bh' = max wh' (min sh (wh' * 3 / 2)) in
+        ui.buffer <- Buffer.create ui.win bw' bh';
+(* *)
+      );
+      ui.buffering <- true;
+      ui.resizing <- Some wr';
+
+      Draw.start_buffered ui.win c ui.buffer;
+    )
+  )
+  else
+  (
+    Draw.start ui.win c;
   );
 
-  Draw.start ui.win (`Trans (`Black, 0x40));
-  background ui 0 0 ww wh
+  background ui 0 0 ww' wh'
+;Printf.eprintf "[Ui.start %d,%d -> %d,%d] done\n%!" ww wh ww' wh'
 
 
 let cursor varw varh lft top rgt bot =
@@ -462,10 +548,28 @@ let cursor varw varh lft top rgt bot =
   | _ -> `Point
 
 let finish ui margin (varw, varh) =
+Printf.eprintf "[Ui.finish]\n%!";
   List.iter (fun f -> f ()) (List.rev ui.delayed);
   ui.delayed <- [];
 
-  let screen_change = Draw.finish ui.win in
+  let screen_change =
+    match ui.resizing with
+    | None -> Draw.finish ui.win
+    | Some (wx, wy, ww, wh) ->
+      ignore (Draw.finish_buffered ui.win);
+      Window.set_pos ui.win wx wy;
+      Window.set_size ui.win ww wh;
+      ui.resizing <- None;
+      ui.buffering <- false;
+(*
+      (* Draw again immeditately to flush stale frame buffer and poll events *)
+      Draw.start ui.win `Black;
+      Draw.buffer ui.win 0 0 ww wh ui.buffer;
+      Draw.finish ui.win
+*)
+      Raylib.poll_input_events ();
+      Window.update_screen ui.win
+  in
   Option.iter (pin ui) screen_change;
 
   let (wx, wy) as pos = Window.pos ui.win in
@@ -479,6 +583,7 @@ let finish ui margin (varw, varh) =
   let bot = inside origin (0, wh - margin, ww, margin) in
   let no_edge = (false, false, false, false) in
 
+Printf.eprintf "[Ui.finish] done\n%!";
   let owner = ui.mouse_owner in
   if
     not (
@@ -1798,13 +1903,12 @@ let rich_table ui owner area (sty : rich_table_style) cols header_opt
           c, inv, cols
         )
       in
-      if ui.buffered then Draw.buffered ui.win buf;
-      let area' = if ui.buffered then (-1, 0, 0, w, h) else table_area in
+      let area' = buffer_start ui buf table_area in
       draw_table ui area' sty.gutter_w sty.text_h sty.pad_h cols rows tab.hscroll;
-      if ui.buffered then Draw.unbuffered ui.win;
+      buffer_finish ui;
       Table.clean tab;
     );
-    if ui.buffered then Draw.buffer ui.win x y buf;
+    buffer_draw ui buf x y w h;
 
     let mx, my as mouse = Mouse.pos ui.win in
     let i = tab.vscroll + (my - y) / rh in
@@ -2413,13 +2517,12 @@ let grid_table ui owner area (sty : grid_table_style) header_opt
           )
         )
       in
-      if ui.buffered then Draw.buffered ui.win buf;
-      let area' = if ui.buffered then (-1, 0, 0, w, h) else table_area in
+      let area' = buffer_start ui buf table_area in
       draw_grid ui area' sty.gutter_w img_h' sty.text_h sty.pad_h matrix;
-      if ui.buffered then Draw.unbuffered ui.win;
+      buffer_finish ui;
       Table.clean tab;
     );
-    if ui.buffered then Draw.buffer ui.win x y buf;
+    buffer_draw ui buf x y w h;
 
     let find_gutter mx =
       let dx = mx - x - (sty.gutter_w + 1)/2 in
@@ -3036,7 +3139,7 @@ let popup_rect ui (x, y, w, h) bw =
 let popup ui owner r bw (varw, varh, mov) greyout =
   assert (is_modal ui || mov);
   let x, y, w, h = r in
-  let ww, wh = Window.size ui.win in
+  let ww, wh = size ui in
   let w' = w + 2 * bw in
   let h' = h + 2 * bw in
   let x' = clamp 0 (ww - w') x in
@@ -3170,7 +3273,7 @@ let menu ui x y sty hscroll vscroll items =
   let enabled i =
     match Iarray.get items i with `Entry (_, _, _, b) -> b | _ -> false in
 
-  let ww, wh = Window.size ui.win in
+  let ww, wh = size ui in
 
   let maxw, maxh = ww - 2 * sty.margin, wh - 2 * sty.margin in
   let mw = (sty.gutter_w + 1)/2 in  (* inner width padding *)

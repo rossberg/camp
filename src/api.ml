@@ -203,13 +203,22 @@ end
 
 (* Raylib low-level helpers *)
 
+let raylib_begin_drawing_light () =
+  Raylib.begin_drawing ()
+
+let raylib_end_drawing_light () =
+  Raylib.Rlgl.draw_render_batch_active ();
+  Raylib.swap_screen_buffer ()
+
 let raylib_begin_mode_2d_scale sx sy =
+Printf.eprintf "  [begin_scale %d %d]\n%!" sx sy;
   Raylib.Rlgl.draw_render_batch_active ();
   Raylib.Rlgl.push_matrix ();
   Raylib.Rlgl.(matrix_mode MatrixMode.modelview);
   Raylib.Rlgl.scalef (float sx) (float sy) 1.0
 
 let raylib_end_mode_2d_scale () =
+Printf.eprintf "  [end_scale]\n%!";
   Raylib.Rlgl.draw_render_batch_active ();
   Raylib.Rlgl.pop_matrix ()
 
@@ -447,6 +456,7 @@ end
 (* Window *)
 
 type window = unit
+type buffer = {texture : Raylib.RenderTexture.t; scale : size}
 type icon = Raylib.Image.t
 
 module Window =
@@ -456,6 +466,7 @@ struct
   let current_screen = ref (-1)
   let current_pos = ref (0, 0)   (* buffered during minimization *)
   let current_size = ref (0, 0)  (* target (virtual current) size for drawing *)
+  let current_buffer = ref None  (* current buffer for refresh *)
   let in_frame = ref false       (* flag to assert proper frame bracketing *)
 
   let update () =
@@ -480,6 +491,9 @@ struct
       Raylib.(set_exit_key Key.Null);  (* seems to be reset somehow? *)
     ) :: !after_frame_finish
 
+  let draw_buffer = ref (fun _ -> assert false)
+
+let resizing = ref false
   let init x y w h title =
     Raylib.(set_trace_log_level TraceLogLevel.Warning);
     Raylib.(set_exit_key Key.Null);
@@ -493,7 +507,20 @@ struct
     Raylib.init_window (max 1 (sx w)) (max 1 (sy h)) title; (* avoid 0 on Mac *)
     Raylib.set_window_position (sx x) (sy y);
     Raylib.(clear_window_state ConfigFlags.window_hidden);
-    update ()
+    update ();
+
+    let refresh w h =
+      Option.iter (fun buf ->
+let img = Raylib.RenderTexture.texture buf.texture in
+let bw, bh = Raylib.Texture.(width img, height img) in
+Printf.eprintf "  [Window._refresh %d %d] %d,%d (*%d,%d)\n%!" w h bw bh (fst buf.scale) (snd buf.scale);
+        raylib_begin_drawing_light ();
+        !draw_buffer () 0 0 w h buf;
+        raylib_end_drawing_light ();
+resizing := false;
+      ) !current_buffer
+    in
+    if not (Glfw_hook.install refresh) then failwith "Window.init"
 
   let closed () = Raylib.window_should_close ()
 
@@ -508,11 +535,17 @@ struct
 
   let set_size () w h =
     assert (not !in_frame);
+Printf.eprintf "[Window.set_size %d %d]\n%!" (sx w) (sy h);
+resizing := true;
     Raylib.set_window_size (sx w) (sy h);
+Printf.eprintf "[Window.set_size %d %d] done\n%!" (sx w) (sy h);
+assert (not !resizing || !current_buffer = None || Raylib.get_time () < 1.0);
     update ()
 
   let set_screen () scr = current_screen := scr
   let set_icon () img = if not is_mac then Raylib.set_window_icon img
+
+  let update_screen () = Screen.update !current_screen
 
   let min_pos () = Screen.min_pos !current_screen
   let max_size () = Screen.max_size !current_screen
@@ -734,8 +767,6 @@ end
 
 (* Drawing *)
 
-type buffer = {texture : Raylib.RenderTexture.t; scale : size}
-
 module Buffer =
 struct
   let needed_scale () =
@@ -743,6 +774,9 @@ struct
 
   let create () w h =
     let sx, sy = needed_scale () in
+let ww, wh = Window.size () in
+Printf.eprintf "  [Buffer.create %d %d] %d,%d (*%d,%d) win=%d,%d\n%!"
+w h (w*sx) (h*sy) sx sy ww wh;
     let w, h = w * sx, h * sy in
     let buf = Raylib.load_render_texture w h in
     (* Override texture format to not use alpha channel;
@@ -788,6 +822,8 @@ struct
       !current_clip
 
   let shader shader_opt =  (* minimize shader changes by doing them lazily *)
+assert (shader_opt = None);
+assert (!current_shader = None);
     (match !current_shader, shader_opt with
     | None, None -> ()
     | None, Some shader -> unclipped Raylib.begin_shader_mode shader
@@ -800,14 +836,45 @@ struct
     );
     current_shader := shader_opt
 
-  let start () c =
+let buffered_state = ref false
+  let buffered () buf =
+assert (not !buffered_state);
+    assert (!current_clip = None);
+    shader None;
+    if !current_scale <> (-1, -1) then raylib_end_mode_2d_scale ();
+    Raylib.begin_texture_mode buf.texture;
+    (* Manual adjustment for High DPI scaling is needed *)
+    current_scale := Screen.sxy (point_of_vec2 (Raylib.get_window_scale_dpi ()));
+    raylib_begin_mode_2d_scale (fst !current_scale) (snd !current_scale)
+;
+let w, h = Image.size (Raylib.RenderTexture.texture buf.texture) in
+Printf.eprintf "  [Draw.buffered] %d,%d (*%d,%d)\n%!"
+w h (fst !current_scale)(snd !current_scale)
+;buffered_state := true
+
+  let unbuffered () =
+assert !buffered_state;
+    assert (!current_clip = None);
+    shader None;
+    raylib_end_mode_2d_scale ();
+    Raylib.end_texture_mode ();
+    if !current_scale <> (-1, -1) then
+    (
+      current_scale := Window.scale ();
+      raylib_begin_mode_2d_scale (fst !current_scale) (snd !current_scale);
+    )
+;
+let w,h = Raylib.(get_screen_width (), get_screen_height ()) in
+Printf.eprintf "  [Draw.unbuffered] %d,%d (*%d,%d)\n%!"
+w h (fst !current_scale)(snd !current_scale)
+;buffered_state := false
+
+  let start' f c =
     assert (!current_clip = None);
     assert (!current_scale = (-1, -1));
     incr frame;
     List.iter (fun f -> f ()) (List.rev !before_frame_start);
-    Raylib.begin_drawing ();
-    current_scale := Window.scale ();
-    raylib_begin_mode_2d_scale (fst !current_scale) (snd !current_scale);
+    f ();
     Raylib.clear_background (color c);
 (* TODO: Raylib OCaml is missing set_blend_factors_separate
     Raylib.(begin_blend_mode BlendMode.Custom_separate);
@@ -817,35 +884,44 @@ struct
 *)
     List.iter (fun f -> f ()) (List.rev !after_frame_start)
 
-  let finish () =
+  let start () c =
+Printf.eprintf "[Draw.start]\n%!";
+    Window.current_buffer := None;
+    start' (fun () ->
+      Raylib.begin_drawing ();
+      current_scale := Window.scale ();
+      raylib_begin_mode_2d_scale (fst !current_scale) (snd !current_scale);
+    ) c
+
+  let start_buffered () c buf =
+Printf.eprintf "[Draw.start_buffered]\n%!";
+    Window.current_buffer := Some buf;
+    start' (fun () -> buffered () buf) c
+
+  let finish' f =
+    assert (!current_clip = None);
     List.iter (fun f -> f ()) (List.rev !before_frame_finish);
     shader None;
     current_scale := (-1, -1);
-    raylib_end_mode_2d_scale ();
-    Raylib.end_drawing ();  (* polls input events *)
+    f ();
     List.iter (fun f -> f ()) (List.rev !after_frame_finish);
     Screen.update !Window.current_screen
 
-  let buffered () buf =
-    assert (!current_clip = None);
-    shader None;
-    raylib_end_mode_2d_scale ();
-    Raylib.begin_texture_mode buf.texture;
-    (* Manual adjustment for High DPI scaling is needed *)
-    current_scale := Screen.sxy (point_of_vec2 (Raylib.get_window_scale_dpi ()));
-    raylib_begin_mode_2d_scale (fst !current_scale) (snd !current_scale)
+  let finish () =
+    finish' (fun () ->
+      raylib_end_mode_2d_scale ();
+      Raylib.end_drawing ();
+    )
+|> fun r -> Printf.eprintf "[Draw.finish]\n%!"; r
 
-  let unbuffered () =
-    assert (!current_clip = None);
-    shader None;
-    raylib_end_mode_2d_scale ();
-    Raylib.end_texture_mode ();
-    current_scale := Window.scale ();
-    raylib_begin_mode_2d_scale (fst !current_scale) (snd !current_scale)
+  let finish_buffered () =
+    finish' unbuffered
+|> fun r -> Printf.eprintf "[Draw.finish_buffered]\n%!"; r
 
   let clip () x y w h =
     assert (!current_clip = None);
     let sx, sy = !current_scale in
+(*Printf.eprintf "  [Draw.clip %d %d %d %d] (*%d,%d)\n%!" x y w h sx sy;*)
     let (x, y, w, h) as r = x*sx, y*sy, w*sx, h*sy in
     shader None;
     current_clip := Some r;
@@ -855,6 +931,7 @@ struct
     assert (!current_clip <> None);
     shader None;
     current_clip := None;
+(*Printf.eprintf "  [Draw.unclip]\n%!";*)
     Raylib.end_scissor_mode ()
 
   let frame () = !frame
@@ -863,6 +940,8 @@ struct
     Raylib.draw_rectangle x y w h (color c)
 
   let rect () x y w h c =
+Printf.eprintf "    [Draw.rect %d %d %d %d] (*%d,%d)\n%!" x y w h (fst !current_scale)(snd !current_scale);
+assert (frame() < 100 || !Window.current_buffer = None || !current_scale >= (2,2) && !buffered_state);
     Raylib.draw_rectangle_lines x y w h (color c)
 
   let gradient () x y w h c1 o c2 =
@@ -923,6 +1002,12 @@ struct
   let text_spacing () _h _f = 1
 
   let image () x y rot sc img =
+(*
+let w, h = Image.size img in
+(*if !buffered_state then*)
+Printf.eprintf "    [Draw.image %d %d %d %d] (*%d)\n%!"
+x y w h (fst !current_scale);
+*)
     let sc = sc *. float (fst !current_scale) in
     let v = vec2_of_point (x, y) in
     shader None;
@@ -935,15 +1020,24 @@ struct
     shader None;
     Raylib.draw_texture_pro img r' r v rot Raylib.Color.white
 
-  let buffer () x y buf =
-    let w, h = Buffer.size buf in
-    let w', h' = w * fst buf.scale, h * snd buf.scale in
-    let r' = Raylib.Rectangle.create 0.0 0.0 (float w') (-. float h') in
+  let buffer () x y w h buf =
+    let _, bh = Buffer.size buf in
+    let bsx, bsy = buf.scale in
+    let w', h' = w * bsx, - h * bsy in
+    let x', y' = 0, bh * bsy + h' in
+(*if !buffered_state || x = 0 && y = 0 then*)
+Printf.eprintf "    [Draw.buffer] %d,%d,%d,%d (*%d,%d) -> %d,%d,%d,%d (*%d,%d) (buffered=%b)\n%!"
+x' y' w' h' (fst buf.scale)(snd buf.scale)
+x y w h (fst !current_scale)(snd !current_scale)
+!buffered_state;
+    let r' = Raylib.Rectangle.create (float x') (float y') (float w') (float h') in
     let r = Raylib.Rectangle.create (float x) (float y) (float w) (float h) in
     let v = vec2_of_point (0, 0) in
     let img = Raylib.RenderTexture.texture buf.texture in
     shader None;
     Raylib.draw_texture_pro img r' r v 0.0 Raylib.Color.white
+
+  let _ = Window.draw_buffer := buffer
 end
 
 

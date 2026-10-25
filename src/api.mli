@@ -50,6 +50,7 @@ end
 (* Window *)
 
 type window
+type buffer
 type icon
 
 module Window :
@@ -65,6 +66,8 @@ sig
   val set_size : window -> int -> int -> unit
   val set_screen : window -> screen -> unit
   val set_icon : window -> icon -> unit
+
+  val update_screen : window -> screen option
 
   val min_pos : window -> point
   val max_size : window -> size
@@ -137,8 +140,6 @@ end
 
 (* Drawing *)
 
-type buffer
-
 module Buffer :
 sig
   val create : window -> int -> int -> buffer
@@ -152,6 +153,8 @@ module Draw :
 sig
   val start : window -> color -> unit
   val finish : window -> screen option  (* some when screen geometry changed *)
+  val start_buffered : window -> color -> buffer -> unit
+  val finish_buffered : window -> screen option
 
   val clip : window -> int -> int -> int -> int -> unit
   val unclip : window -> unit
@@ -176,7 +179,7 @@ sig
   val text_spacing : window -> int -> font -> int
   val image : window -> int -> int -> float -> float -> image -> unit
   val image_part : window -> int -> int -> int -> int -> int -> int -> int -> int -> float -> image -> unit
-  val buffer : window -> int -> int -> buffer -> unit
+  val buffer : window -> int -> int -> int -> int -> buffer -> unit
 end
 
 

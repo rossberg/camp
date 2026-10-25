@@ -11,7 +11,9 @@ val make : window -> t
 val window : t -> window
 
 val buffered : t -> bool -> unit
+val buffered_resize : t -> bool -> unit
 val is_buffered : t -> bool
+val is_buffered_resize : t -> bool
 
 val modal : t -> string -> unit
 val nonmodal : t -> string -> unit

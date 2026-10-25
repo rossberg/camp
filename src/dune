@@ -6,7 +6,7 @@
     edit table
     data track query spectrum text bin storage
     cache control playlist settings library filesel log popup config
-    api ui geometry layout
+    api ui geometry layout glfw_hook
     state app
     run_popup run_filesel run_control
     run_view run_library
@@ -16,6 +16,10 @@
   (libraries unix directories audio_file raylib raylib-callbacks)
   (link_deps (include link_deps.sexp))
   (link_flags (:include link_flags.sexp))
+  (foreign_stubs
+    (language c)
+    (names glfw_hook_stubs)
+  )
 )
 
 (rule
