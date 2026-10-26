@@ -201,6 +201,19 @@ end
 (* *)
 
 
+(* Rayilib helpers *)
+
+let raylib_begin_mode_2d_scale sx sy =
+  Raylib.Rlgl.draw_render_batch_active ();
+  Raylib.Rlgl.push_matrix ();
+  Raylib.Rlgl.(matrix_mode MatrixMode.modelview);
+  Raylib.Rlgl.scalef (float sx) (float sy) 1.0
+
+let raylib_end_mode_2d_scale () =
+  Raylib.Rlgl.draw_render_batch_active ();
+  Raylib.Rlgl.pop_matrix ()
+
+
 (* Graphics/sound API abstraction *)
 
 open Audio_file
@@ -767,13 +780,6 @@ struct
   let current_clip = ref None
   let current_shader = ref None
 
-  let sx v = v * fst !current_scale
-  let sy v = v * snd !current_scale
-  let sfx v = v *. float (fst !current_scale)
-  let sfy v = v *. float (snd !current_scale)
-  let sxy x y = sx x, sy y
-  let sxywh x y w h = sx x, sy y, sx w, sy h
-
   let unclipped f x =
     (* Ensure well-nesting *)
     Option.iter (fun _ -> Raylib.end_scissor_mode ()) !current_clip;
@@ -797,8 +803,9 @@ struct
   let start () c =
     incr frame;
     List.iter (fun f -> f ()) (List.rev !before_frame_start);
-    current_scale := Window.scale ();
     Raylib.begin_drawing ();
+    current_scale := Window.scale ();
+    raylib_begin_mode_2d_scale (fst !current_scale) (snd !current_scale);
     Raylib.clear_background (color c);
 (* TODO: Raylib OCaml is missing set_blend_factors_separate
     Raylib.(begin_blend_mode BlendMode.Custom_separate);
@@ -811,24 +818,30 @@ struct
   let finish () =
     List.iter (fun f -> f ()) (List.rev !before_frame_finish);
     shader None;
+    raylib_end_mode_2d_scale ();
     Raylib.end_drawing ();  (* polls input events *)
     List.iter (fun f -> f ()) (List.rev !after_frame_finish);
     Screen.update !Window.current_screen
 
   let buffered () buf =
     shader None;
+    raylib_end_mode_2d_scale ();
     Raylib.begin_texture_mode buf.texture;
     (* Manual adjustment for High DPI scaling is needed *)
-    current_scale := Screen.sxy (point_of_vec2 (Raylib.get_window_scale_dpi ()))
+    current_scale := Screen.sxy (point_of_vec2 (Raylib.get_window_scale_dpi ()));
+    raylib_begin_mode_2d_scale (fst !current_scale) (snd !current_scale)
 
   let unbuffered () =
     shader None;
+    raylib_end_mode_2d_scale ();
     Raylib.end_texture_mode ();
-    current_scale := Window.scale ()
+    current_scale := Window.scale ();
+    raylib_begin_mode_2d_scale (fst !current_scale) (snd !current_scale)
 
   let clip () x y w h =
     assert (!current_clip = None);
-    let (x, y, w, h) as r = sxywh x y w h in
+    let sx, sy = !current_scale in
+    let (x, y, w, h) as r = x*sx, y*sy, w*sx, h*sy in
     shader None;
     current_clip := Some r;
     Raylib.begin_scissor_mode x y w h
@@ -842,35 +855,28 @@ struct
   let frame () = !frame
 
   let fill_rect () x y w h c =
-    let x, y, w, h = sxywh x y w h in
     Raylib.draw_rectangle x y w h (color c)
 
   let rect () x y w h c =
-    let x, y, w, h = sxywh x y w h in
     Raylib.draw_rectangle_lines x y w h (color c)
 
   let gradient () x y w h c1 o c2 =
-    let x, y, w, h = sxywh x y w h in
     (match o with
     | `Horizontal -> Raylib.draw_rectangle_gradient_h
     | `Vertical -> Raylib.draw_rectangle_gradient_v
     ) x y w h (color c1) (color c2)
 
   let fill_circ () x y w h c =
-    let x, y, w, h = sxywh x y w h in
     Raylib.draw_ellipse (x + w/2) (y + h/2) (float w /. 2.0) (float h /. 2.0) (color c)
 
   let gradient_circ () x y w h c1 c2 =
-    let x, y, w, h = sxywh x y w h in
     Raylib.draw_circle_gradient
       (vec2_of_point (x + w/2, y + h/2)) (float (w + h) /. 4.0) (color c1) (color c2)
 
   let circ () x y w h c =
-    let x, y, w, h = sxywh x y w h in
     Raylib.draw_ellipse_lines (x + w/2) (y + h/2) (float w /. 2.0) (float h /. 2.0) (color c)
 
   let fill_ring () x y w l c =
-    let x, y, w, _ = sxywh x y w w in
     Raylib.draw_ring
       (vec2_of_point (x + w/2, y + w/2)) (float w /. 2.0 -. float l) (float w /. 2.0) 0.0 360.0 1 (color c)
 (*  Raylib >6.0
@@ -882,18 +888,16 @@ struct
     let n = Array.length ps / 2 in
     let array = Ctypes.CArray.make Raylib.Vector2.t n in
     for i = 0 to n - 1 do
-      let vec = Raylib.Vector2.create (sfx ps.(2 * i)) (sfy ps.(2 * i + 1)) in
+      let vec = Raylib.Vector2.create ps.(2 * i) ps.(2 * i + 1) in
       Ctypes.CArray.unsafe_set array i vec;
     done;
     Raylib.draw_spline_linear (Ctypes.CArray.start array) n w (color c)
 
   let fill_tri () x1 y1 x2 y2 x3 y3 c =
-    let (x1, y1), (x2, y2), (x3, y3) = sxy x1 y1, sxy x2 y2, sxy x3 y3 in
     let vs = Array.map vec2_of_point [|x1, y1; x2, y2; x3, y3|] in
     Raylib.draw_triangle vs.(0) vs.(1) vs.(2) (color c)
 
   let fill_arrow () x y w h c dir =
-    let x, y, w, h = sxywh x y w h in
     let vs = Array.map vec2_of_point
       (match dir with
       | `Up -> [|x + w/2, y; x, y + h; x + w, y + h|]
@@ -905,7 +909,6 @@ struct
     Raylib.draw_triangle vs.(0) vs.(1) vs.(2) (color c)
 
   let text () x y h c f s =
-    let x, y, _, h = sxywh x y 1 h in
     shader f.shader;
     Raylib.draw_text_ex f.font s (vec2_of_point (x, y)) (float h) 1.0 (color c)
 
@@ -915,14 +918,12 @@ struct
   let text_spacing () _h _f = 1
 
   let image () x y rot sc img =
-    let x, y = sxy x y in
     let sc = sc *. float (fst !current_scale) in
     let v = vec2_of_point (x, y) in
     shader None;
     Raylib.draw_texture_ex img v rot sc Raylib.Color.white
 
   let image_part () x y w h x' y' w' h' rot img =
-    let x, y, w, h = sxywh x y w h in
     let r' = Raylib.Rectangle.create (float x') (float y') (float w') (float h') in
     let r = Raylib.Rectangle.create (float x) (float y) (float w) (float h) in
     let v = vec2_of_point (0, 0) in
@@ -932,7 +933,6 @@ struct
   let buffer () x y buf =
     let w, h = Buffer.size buf in
     let w', h' = w * fst buf.scale, h * snd buf.scale in
-    let x, y, w, h = sxywh x y w h in
     let r' = Raylib.Rectangle.create 0.0 0.0 (float w') (-. float h') in
     let r = Raylib.Rectangle.create (float x) (float y) (float w) (float h) in
     let v = vec2_of_point (0, 0) in
