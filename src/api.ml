@@ -201,7 +201,7 @@ end
 (* *)
 
 
-(* Rayilib helpers *)
+(* Raylib low-level helpers *)
 
 let raylib_begin_mode_2d_scale sx sy =
   Raylib.Rlgl.draw_render_batch_active ();
@@ -801,6 +801,8 @@ struct
     current_shader := shader_opt
 
   let start () c =
+    assert (!current_clip = None);
+    assert (!current_scale = (-1, -1));
     incr frame;
     List.iter (fun f -> f ()) (List.rev !before_frame_start);
     Raylib.begin_drawing ();
@@ -818,12 +820,14 @@ struct
   let finish () =
     List.iter (fun f -> f ()) (List.rev !before_frame_finish);
     shader None;
+    current_scale := (-1, -1);
     raylib_end_mode_2d_scale ();
     Raylib.end_drawing ();  (* polls input events *)
     List.iter (fun f -> f ()) (List.rev !after_frame_finish);
     Screen.update !Window.current_screen
 
   let buffered () buf =
+    assert (!current_clip = None);
     shader None;
     raylib_end_mode_2d_scale ();
     Raylib.begin_texture_mode buf.texture;
@@ -832,6 +836,7 @@ struct
     raylib_begin_mode_2d_scale (fst !current_scale) (snd !current_scale)
 
   let unbuffered () =
+    assert (!current_clip = None);
     shader None;
     raylib_end_mode_2d_scale ();
     Raylib.end_texture_mode ();

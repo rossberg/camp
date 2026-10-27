@@ -1742,18 +1742,22 @@ let rich_table_drag ui area sty style tab =
   | _ -> ()
 
 let adjust_cache ui tab w h =
-  Option.iter (fun buf ->
-    if Buffer.size buf <> (w, h)
-    || Buffer.scale buf <> Buffer.needed_scale ui.win then
-    (
-      Table.uncache tab;
-      Buffer.dispose buf;
-    )
-  ) tab.cache;
+  if ui.buffered then
+  (
+    Option.iter (fun buf ->
+      if Buffer.size buf <> (w, h)
+      || Buffer.scale buf <> Buffer.needed_scale ui.win then
+      (
+        Table.uncache tab;
+        Buffer.dispose buf;
+      )
+    ) tab.cache
+  );
   match tab.cache with
   | Some buf -> buf
   | None ->
-    let buf = Buffer.create ui.win w h in
+    let w', h' = if ui.buffered then w, h else 1, 1 (* dummy *) in
+    let buf = Buffer.create ui.win w' h' in
     Table.cache tab buf;
     buf
 
