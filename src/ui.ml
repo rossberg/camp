@@ -250,29 +250,21 @@ let is_buffered_resize ui = ui.buffered_resize
 let buffer_start ui buf area =
   if not ui.buffered then area else
   (
-Printf.eprintf "  [Ui.buffer_start]\n%!";
     if ui.buffering then Draw.unbuffered ui.win;  (* pause global buffer *)
     Draw.buffered ui.win buf;
-Printf.eprintf "  [Ui.buffer_start] done\n%!";
     let _, _, w, h = dim ui area in (-1, 0, 0, w, h)
   )
 
 let buffer_finish ui =
   if ui.buffered then
   (
-Printf.eprintf "  [Ui.buffer_finish]\n%!";
     Draw.unbuffered ui.win;
     if ui.buffering then Draw.buffered ui.win ui.buffer;  (* resume global *)
-Printf.eprintf "  [Ui.buffer_finish] done\n%!";
   )
 
 let buffer_draw ui buf x y w h =
   if ui.buffered then
-(
-Printf.eprintf "  [Ui.buffer_draw]\n%!";
     Draw.buffer ui.win x y w h buf
-;Printf.eprintf "  [Ui.buffer_draw] done\n%!";
-)
 
 
 (* Mouse ownership *)
@@ -477,14 +469,6 @@ let pin ui scr =
 let start ui (wx', wy', ww', wh' as wr') =
   let wx, wy = Window.pos ui.win in
   let ww, wh = Window.size ui.win in
-(*
-let wx', wy', ww', wh' as wr' =
-if Draw.frame ui.win < 30 then wr' else
-let ww'' = ww' + if Draw.frame ui.win land 1 = 0 then +1 else -1 in
-wx',wy',ww'',wh'
-in
-*)
-Printf.eprintf "[Ui.start %d,%d -> %d,%d]\n%!" ww wh ww' wh';
   let c = `Black in
   ui.modal <- ui.modal_save;
   ui.modal_resize <- wr' <> (wx, wy, ww, wh);
@@ -508,17 +492,13 @@ Printf.eprintf "[Ui.start %d,%d -> %d,%d]\n%!" ww wh ww' wh';
     else
     (
       let bw, bh = Buffer.size ui.buffer in
-(*let bw=0 in*)
       if ww' > bw || wh' > bh then
       (
         Buffer.dispose ui.buffer;
-(*ui.buffer <- Buffer.create ui.win (ww') (wh');*)
-(* *)
         let sw, sh = Screen.size (Window.screen ui.win) in
         let bw' = max ww' (min sw (ww' * 3 / 2)) in
         let bh' = max wh' (min sh (wh' * 3 / 2)) in
         ui.buffer <- Buffer.create ui.win bw' bh';
-(* *)
       );
       ui.buffering <- true;
       ui.resizing <- Some wr';
@@ -532,7 +512,6 @@ Printf.eprintf "[Ui.start %d,%d -> %d,%d]\n%!" ww wh ww' wh';
   );
 
   background ui 0 0 ww' wh'
-;Printf.eprintf "[Ui.start %d,%d -> %d,%d] done\n%!" ww wh ww' wh'
 
 
 let cursor varw varh lft top rgt bot =
@@ -548,7 +527,6 @@ let cursor varw varh lft top rgt bot =
   | _ -> `Point
 
 let finish ui margin (varw, varh) =
-Printf.eprintf "[Ui.finish]\n%!";
   List.iter (fun f -> f ()) (List.rev ui.delayed);
   ui.delayed <- [];
 
@@ -557,8 +535,11 @@ Printf.eprintf "[Ui.finish]\n%!";
     | None -> Draw.finish ui.win
     | Some (wx, wy, ww, wh) ->
       ignore (Draw.finish_buffered ui.win);
+(*
       Window.set_pos ui.win wx wy;
       Window.set_size ui.win ww wh;
+*)
+      Window.set_rect ui.win wx wy ww wh;
       ui.resizing <- None;
       ui.buffering <- false;
 (*
@@ -568,6 +549,9 @@ Printf.eprintf "[Ui.finish]\n%!";
       Draw.finish ui.win
 *)
       Raylib.poll_input_events ();
+let wx,wy=Window.pos ui.win in
+let ww,wh=Window.size ui.win in
+Printf.eprintf "[finish] %d,%d,%d,%d\n%!" wx wy ww wh;
       Window.update_screen ui.win
   in
   Option.iter (pin ui) screen_change;
@@ -583,7 +567,6 @@ Printf.eprintf "[Ui.finish]\n%!";
   let bot = inside origin (0, wh - margin, ww, margin) in
   let no_edge = (false, false, false, false) in
 
-Printf.eprintf "[Ui.finish] done\n%!";
   let owner = ui.mouse_owner in
   if
     not (
@@ -3122,7 +3105,6 @@ let settings ui owner area sty vscroll adjust_vscroll settings =
   let _, wdy = wheel_status ui r in
   let ext = if set_h = 0 then 1.0 else min 1.0 (float page_h /. float set_h) in
   let pos = if set_h = 0 then 0.0 else float vscroll' /. float set_h in
-(*Printf.printf "scroll=%d pos=%.2f/ext=%.2f page_h=%d/set_h=%d\n%!" set.vscroll pos ext page_h set_h;*)
   let scroll_area = (p, ax + w - sty.scroll_w - 1, ay + 2, sty.scroll_w, h - 3) in
   let pos' =
     scroll_bar ui (owner ^ ":vscroll") scroll_area sty.scroll_l `Vertical

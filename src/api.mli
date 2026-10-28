@@ -61,9 +61,11 @@ sig
 
   val pos : window -> point
   val size : window -> size
+  val rect : window -> rect
   val screen : window -> screen
   val set_pos : window -> int -> int -> unit
   val set_size : window -> int -> int -> unit
+  val set_rect : window -> int -> int -> int -> int -> unit
   val set_screen : window -> screen -> unit
   val set_icon : window -> icon -> unit
 
