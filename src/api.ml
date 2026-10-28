@@ -1065,13 +1065,6 @@ struct
        * then mouse pos is off. *)
       let mouse_pos = Glfw.get_cursor_pos () in
       let win_pos = Glfw.get_window_pos () in
-let mx, my = point_of_vec2 (Raylib.get_mouse_position ()) in
-let ww, wh = Glfw.get_window_size () in
-let bw, bh = Glfw.get_framebuffer_size () in
-let sw, sh = Raylib.(get_screen_width (), get_screen_height ()) in
-let rw, rh = Raylib.(get_render_width (), get_render_height ()) in
-Printf.eprintf "glfw=%d,%d rl=%d,%d win=%d,%d buf=%d,%d scr=%d,%d ren=%d,%d\n%!"
-(fst mouse_pos)(snd mouse_pos) mx my ww wh bw bh sw sh rw rh;
       current_pos := add mouse_pos win_pos;
 
 (*

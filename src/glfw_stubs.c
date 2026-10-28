@@ -39,7 +39,6 @@ extern HWND glfwGetWin32Window(GLFWwindow*);
 #include <objc/message.h>
 
 extern id glfwGetCocoaWindow(GLFWwindow*);
-//extern id glfwGetCocoaView(GLFWwindow*);
 
 #define objc_send0(t_ret, obj, sel) \
   ((t_ret (*)(id, SEL))objc_msgSend)((obj), sel_registerName(sel))
@@ -141,14 +140,9 @@ CAMLprim value glfw_get_cursor_pos()
   extern void glfwGetCursorPos(GLFWwindow*, double*, double*);
   if (win) glfwGetCursorPos(win, &x, &y);
 
-  float sx = 1, sy = 1;
-  //extern void glfwGetWindowContentScale(GLFWwindow*, float*, float*);
-  //if (win) glfwGetWindowContentScale(win, &sx, &sy);
-
   vres = caml_alloc_tuple(2);
-  /* TODO: WTF is the additional factor of 2 coming from? */
-  Store_field(vres, 0, Int_val((int)(x * sx)));
-  Store_field(vres, 1, Int_val((int)(y * sy)));
+  Store_field(vres, 0, Val_int((int)x));
+  Store_field(vres, 1, Val_int((int)y));
   CAMLreturn(vres);
 }
 
@@ -398,7 +392,12 @@ CAMLprim void glfw_drag_window(void)
 
   ReleaseCapture();
   SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
-  glfwInputMouseClick(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, getKeyMods());
+
+  #define GLFW_MOUSE_BUTTON_LEFT 0
+  #define GLFW_RELEASE 0
+
+  extern void _glfwInputMouseClick(GLFWwindow*, int, int, int);
+  _glfwInputMouseClick(win, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0 /*getKeyMods()*/);
 
 #elif defined(__APPLE__)
 
