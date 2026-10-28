@@ -43,7 +43,6 @@ sig
   val size : screen -> size
   val min_pos : screen -> point
   val max_size : screen -> size
-  val is_hires : screen -> bool
 end
 
 

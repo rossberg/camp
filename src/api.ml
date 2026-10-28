@@ -288,7 +288,7 @@ type screen = int
 
 module Screen =
 struct
-  type monitor = {outer : rect; inner : rect; hires : bool}  (* unscaled *)
+  type monitor = {outer : rect; inner : rect}  (* unscaled *)
 
   let scale = ref (1, 1)
 
@@ -310,89 +310,34 @@ struct
       Raylib.(set_config_flags ConfigFlags.(
         window_undecorated + window_resizable + window_highdpi + window_hidden));
     if current_opt = None then Raylib.init_window 1 1 "";
-    let current =
-      Option.value current_opt ~default: (Raylib.get_current_monitor ()) in
+    let current' = Raylib.get_current_monitor () in
+    let current = Option.value current_opt ~default: current' in
     let monitor_count = Raylib.get_monitor_count () in
-    let count_changed =
-      current_opt <> None && monitor_count <> Iarray.length !monitors in
-    if current_opt = None then Raylib.close_window ();
-
-    (* Probe all monitors. *)
-    let (save_x, save_y), (save_w, save_h) =
-      if current_opt = None then (0, 0), (0, 0) else
-      point_of_vec2 (Raylib.get_window_position ()),
-      Raylib.(get_screen_width (), get_screen_height ())
-    in
     monitors := Iarray.init monitor_count (fun i ->
-      (* On Mac, the window size has to be at least as large as the screen
-       * before maximization for the probing to work. At the same time, it
-       * cannot be that large at creation time, otherwise the video mode is
-       * messed up. Both these facts are extremely odd...
-       * Also, we cannot get the monitor width before init_window. *)
-      if current_opt = None then Raylib.init_window 1 1 "";
-      let x, y = point_of_vec2 (Raylib.get_monitor_position i) in
-      let w, h = Raylib.(get_monitor_width i, get_monitor_height i) in
-      let outer = x, y, w, h in
-      let mon =
-        if current_opt = None || not count_changed && i = current then
-        (
-          (* Unfortunately, Raylib does not expose glfwGetWindowWorkarea.
-           * Probe screen geometries by opening a dummy window on each and
-           * maximise. This is a hack. Unfortunately, on Mac this causes a
-           * noticable animation, so we can only afford it on startup (with a
-           * a hidden window) or with the current window when its screen
-           * resolution has actually changed. There doesn't seem a way to
-           * suppress the animation -- e.g., we cannot hide the working window
-           * quickly, since that has its own animation (plus revealing it puts
-           * the window on top).
-           * Also, have to maximize manually first, otherwise we get weird
-           * results on Mac. *)
-          Raylib.set_window_size w h;
-          Raylib.set_window_position x y;
-          Raylib.maximize_window ();
-          let max_w, max_h = Raylib.(get_screen_width (), get_screen_height ()) in
-          let min_x, min_y =
-            if not is_mac then point_of_vec2 (Raylib.get_window_position ()) else
-            (* On MacOS, maximized window pos seems to be off by a few pixels
-             * after a  resolution change, hence compute min_x/y ourselves. *)
-            w - max_w, h - max_h
-          in
-          let inner = min_x, min_y, max_w, max_h in
-          let hires = Raylib.(Vector2.y (get_window_scale_dpi ())) > 1.0 in
-          Raylib.restore_window ();  (* otherwise Raylib doesn't clear flag! *)
-          if current_opt = None then
-            Raylib.close_window ()
-          else
-          (
-            Raylib.set_window_size save_w save_h;
-            Raylib.set_window_position save_x save_y;
-          );
-          {outer; inner; hires}
-        )
-        else if not count_changed && outer = (Iarray.get !monitors i).outer then
-        (
-          (* No (dis)connect, assume monitors are still ordered as before. *)
-          Iarray.get !monitors i
-        )
-        else
-        (
-          (* Can't query new client area, approximate with full screen. *)
-          {outer; inner = outer; hires = false}
-        )
-      in
+      let sx, sy = point_of_vec2 (Raylib.get_monitor_position i) in
+      let sw, sh = Raylib.(get_monitor_width i, get_monitor_height i) in
+      let outer = sx, sy, sw, sh in
+      let x, y, w, h = Glfw.get_monitor_workarea i in
+      let inner = x, y, w - x, h - y in
+
       if !App.debug_layout then
       (
-        let {inner = min_x, min_y, max_w, max_h; hires; _} = mon in
         Printf.eprintf
-          "[api.screen %d] pos=%d,%d,%d,%d limit=%d,%d,%d,%d hires=%b%s\n%!"
-          i x y w h min_x min_y max_w max_h hires (if i = current then " current" else "");
+          "[api.screen %d] pos=%d,%d,%d,%d limit=%d,%d,%d,%d"
+          i sx sy sw sh x y (w - x) (h - y);
         if i = current then
-          Printf.eprintf "  win=%d,%d,%d,%d\n%!" save_x save_y save_w save_h;
+        (
+          let wx, wy = Glfw.get_window_pos () in
+          let ww, wh = Glfw.get_window_size () in
+          Printf.eprintf " current\n  win=%d,%d,%d,%d" wx wy ww wh;
+        );
+        Printf.eprintf "\n%!";
       );
-      mon
-    );
 
-    if count_changed then Raylib.get_current_monitor () else current
+      {outer; inner}
+    );
+    if current_opt = None then Raylib.close_window ();
+    current
 
 
   let init () =
@@ -447,7 +392,6 @@ struct
   let size scr = let {outer = _, _, w, h; _} = mon scr in uxy (w, h)
   let min_pos scr = let {inner = x, y, _, _; _} = mon scr in uxy (x, y)
   let max_size scr = let {inner = _, _, w, h; _} = mon scr in uxy (w, h)
-  let is_hires scr = let {hires; _} = mon scr in hires || snd !scale > 1
 end
 
 
@@ -699,7 +643,9 @@ struct
     (
       let glyphs = Ctypes.(CArray.make int (max - min)) in
       for i = min to max - 1 do Ctypes.CArray.set glyphs (i - min) i done;
+      Raylib.(set_trace_log_level TraceLogLevel.Error);  (* suppress warnings *)
       let font = Raylib.load_font_ex path size (Some glyphs) in
+      Raylib.(set_trace_log_level TraceLogLevel.Warning);
       (*Raylib.(set_texture_filter (Font.texture font) TextureFilter.Bilinear);*)
       {font; shader = None}
     )
