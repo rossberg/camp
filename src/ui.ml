@@ -549,9 +549,6 @@ let finish ui margin (varw, varh) =
       Draw.finish ui.win
 *)
       Raylib.poll_input_events ();
-let wx,wy=Window.pos ui.win in
-let ww,wh=Window.size ui.win in
-Printf.eprintf "[finish] %d,%d,%d,%d\n%!" wx wy ww wh;
       Window.update_screen ui.win
   in
   Option.iter (pin ui) screen_change;
@@ -604,7 +601,10 @@ Printf.eprintf "[finish] %d,%d,%d,%d\n%!" wx wy ww wh;
       Mouse.set_cursor ui.win cursor;
       ui.drag <-
         if cursor = `Point then
-          Move {overshoot = 0, 0}
+        (
+          Window.drag ui.win;
+          Move {overshoot = 0, 0}  (* overshoot unused *)
+        )
         else
         (
           let mx, my = Mouse.abs_pos ui.win in
@@ -613,7 +613,7 @@ Printf.eprintf "[finish] %d,%d,%d,%d\n%!" wx wy ww wh;
           Resize {offset = dx, dy; edge = lft, top, rgt, bot}
         );
       wr, no_edge, screen_change
-
+(*
     | Move {overshoot} ->
       Mouse.set_cursor ui.win `Point;
       let mouse = Mouse.abs_pos ui.win in
@@ -626,6 +626,7 @@ Printf.eprintf "[finish] %d,%d,%d,%d\n%!" wx wy ww wh;
       let wx'', wy'' = snap sx (sx + sw - ww) wx', snap sy (sy + sh - wh) wy' in
       ui.drag <- Move {overshoot = wx' - wx'', wy' - wy''};
       (wx'', wy'', ww, wh), no_edge, screen_change
+*)
 
     | Resize {offset; edge = lft, top, rgt, bot as edge} ->
       Mouse.set_cursor ui.win (cursor varw varh lft top rgt bot);

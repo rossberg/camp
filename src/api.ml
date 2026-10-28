@@ -505,6 +505,8 @@ struct
   let reveal () = Raylib.(clear_window_state ConfigFlags.window_hidden)
   let is_hidden () = Raylib.is_window_hidden ()
 
+  let drag () = Glfw.drag_window ()
+
   let scale () = !Screen.scale
   let rescale () dx dy =
     assert (not !in_frame);
@@ -996,7 +998,7 @@ type cursor =
 
 module Mouse =
 struct
-  let last_win_pos = ref (0, 0) (* store to work around Raylib not updating relative mouse pos on window move *)
+(*  let last_win_pos = ref (0, 0) (* store to work around Raylib not updating relative mouse pos on window move *)*)
   let current_pos = ref (0, 0)  (* work around Raylib mouse pos bug *)
   let last_pos = ref (0, 0)
   let last_press_pos = ref (min_int, min_int)
@@ -1059,6 +1061,19 @@ struct
 
   let _ = after_frame_finish :=
     (fun () ->
+      (* Work around Raylib issues: e.g. if window was moved but mouse hasn't,
+       * then mouse pos is off. *)
+      let mouse_pos = Glfw.get_cursor_pos () in
+      let win_pos = Glfw.get_window_pos () in
+let mx, my = point_of_vec2 (Raylib.get_mouse_position ()) in
+let ww, wh = Glfw.get_window_size () in
+let sw, sh = Raylib.(get_screen_width (), get_screen_height ()) in
+let rw, rh = Raylib.(get_render_width (), get_render_height ()) in
+Printf.eprintf "[mouse] pos=%d,%d rl=%d,%d win=%d,%d screen=%d,%d render=%d,%d\n%!"
+(fst mouse_pos)(snd mouse_pos) mx my ww wh sw sh rw rh;
+      current_pos := add mouse_pos win_pos;
+
+(*
       (* Work around Raylib issue: if window was moved but mouse hasn't, then
        * mouse pos is off; detect and correct by adding window delta. *)
       let mouse_pos = point_of_vec2 (Raylib.get_mouse_position ()) in
@@ -1070,6 +1085,7 @@ struct
         last_win_pos := win_pos  (* true mouse location caught up *)
       else if not is_win && win_delta <> (0, 0) then
         current_pos := sub !current_pos win_delta;
+*)
 
       (* Detect multi clicks *)
       let left = is_pressed `Left in

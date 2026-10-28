@@ -59,17 +59,27 @@ extern id glfwGetCocoaWindow(GLFWwindow*);
 
 #include <dlfcn.h>
 
-extern void *glfwGetX11Display(void) __attribute__((weak));
-extern unsigned long glfwGetX11Window(GLFWwindow*) __attribute__((weak));
+typedef int XBool;
+typedef unsigned long XTime;
+typedef unsigned long XAtom;
+typedef unsigned long XWindow;
+typedef struct XDisplay XDisplay;
+typedef struct XEvent XEvent;
+
+extern XDisplay *glfwGetX11Display(void) __attribute__((weak));
+extern XWindow glfwGetX11Window(GLFWwindow*) __attribute__((weak));
 extern void *glfwGetWaylandDisplay(void) __attribute__((weak));
 
 typedef enum {LINUX_UNINIT = 0, LINUX_INITING, LINUX_INIT} linux_init;
 
 static struct {
   linux_init init;
-  void *display;
-  int (*flush)(void*);
-  int (*move_resize)(void*, unsigned long, int, int, unsigned, unsigned);
+  XDisplay *display;
+  int (*XFlush)(XDisplay*);
+  int (*XMoveResizeWindow)(XDisplay*, XWindow, int, int, unsigned, unsigned);
+  int (*XSendEvent)(XDisplay*, XWindow, XBool, long, XEvent*);
+  int (*XUngrabPointer)(XDisplay*, XTime);
+  XAtom (*XInternAtom)(XDisplay*, const char*, XBool);
 } x11;
 
 static int x11_init(void)
@@ -81,9 +91,12 @@ static int x11_init(void)
   x11.display = glfwGetX11Display();
   void *dl = dlopen("libX11.so.6", RTLD_LAZY);
   if (!x11.display || !dl) return 0;
-  *(void**)&x11.flush = dlsym(dl, "XFlush");
-  *(void**)&x11.move_resize = dlsym(dl, "XMoveResizeWindow");
-  if (!x11.flush || !x11.move_resize) return 0;
+  *(void**)&x11.XFlush = dlsym(dl, "XFlush");
+  *(void**)&x11.XMoveResize = dlsym(dl, "XMoveResizeWindow");
+  *(void**)&x11.XSendEvent = dlsym(dl, "XSendEvent");
+  *(void**)&x11.XUngrabPointer = dlsym(dl, "XUngrabPointer");
+  *(void**)&x11.XInternAtom = dlsym(dl, "XInternAtom");
+  if (!x11.XFlush || !x11.XMoveResizeWindow || !x11.XSendEvent || !x11.XUngrabPointer || !x11.XInternAtom) return 0;
   x11.init = LINUX_INIT;
   return 1;
 }
@@ -113,6 +126,28 @@ static int wayland_init(void)
 
 
 /* Exposed GLFW functionality */
+
+CAMLprim value glfw_get_cursor_pos()
+{
+  CAMLparam0();
+  CAMLlocal1(vres);
+
+  GLFWwindow *win = glfwGetCurrentContext();
+
+  double x = 0, y = 0;
+  extern void glfwGetCursorPos(GLFWwindow*, double*, double*);
+  if (win) glfwGetCursorPos(win, &x, &y);
+
+  float sx = 0, sy = 0;
+  extern void glfwGetWindowContentScale(GLFWwindow*, float*, float*);
+  if (win) glfwGetWindowContentScale(win, &sx, &sy);
+
+  vres = caml_alloc_tuple(2);
+  /* TODO: WTF is the additional factor of 2 coming from? */
+  Store_field(vres, 0, Int_val(2*(int)(x * sx)));
+  Store_field(vres, 1, Int_val(2*(int)(y * sy)));
+  CAMLreturn(vres);
+}
 
 CAMLprim value glfw_get_window_pos()
 {
@@ -157,6 +192,7 @@ CAMLprim void glfw_set_window_rect(value vx, value vy, value vw, value vh)
   int h = Int_val(vh);
 
   GLFWwindow *win = glfwGetCurrentContext();
+  if (!win) CAMLreturn0;
 
 #if defined(_WIN32)
 
@@ -166,10 +202,9 @@ CAMLprim void glfw_set_window_rect(value vx, value vy, value vw, value vh)
     SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER);
 
 #elif defined(__APPLE__)
-  id owin = win ? glfwGetCocoaWindow(win) : NULL;
-  unsigned long mask =
-    owin ? objc_send0(unsigned long, owin, "styleMask") : 1;
-  if (mask & 1) CAMLreturn0;
+
+  id owin = glfwGetCocoaWindow(win);
+  if (!owin) CAMLreturn0;
 
   typedef struct { double x, y, w, h; } CGRect;
 
@@ -214,10 +249,10 @@ CAMLprim void glfw_set_window_rect(value vx, value vy, value vw, value vh)
   if (glfwGetPlatform() == GLFW_PLATFORM_X11)
   {
     if (!x11_init()) CAMLreturn0;
-    unsigned long xwin = glfwGetX11Window(win);
+    XWindow xwin = glfwGetX11Window(win);
     if (!xwin) CAMLreturn0;
-    x11.move_resize(x11.display, xwin, x, y, (unsigned)w, (unsigned)h);
-    x11.flush(x11.display);
+    x11.XMoveResizeWindow(x11.display, xwin, x, y, (unsigned)w, (unsigned)h);
+    x11.XFlush(x11.display);
   }
   else if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
   {
@@ -277,6 +312,139 @@ static int acquire_runtime(void)
 static void release_runtime(int acquired)
 {
   if (acquired) caml_enter_blocking_section();
+}
+
+typedef void (*GLFWwindowposfun)(GLFWwindow*, int, int);
+static GLFWwindowposfun old_pos_callback = NULL;
+static int pos_callback_init = 0;
+static value vpos_callback = Val_unit;
+
+static void pos_callback(GLFWwindow *win, int x, int y)
+{
+  if (old_pos_callback) old_pos_callback(win, x, y);
+
+  /* Redundantly set position to force update in Raylib, esp for drag_window */
+  /* (This may be fixed in Raylib 6.2?) */
+  extern void SetWindowPosition(int x, int y);  /* from Raylib */
+  SetWindowPosition(x, y);
+
+  if (busy || vpos_callback == Val_unit) return;
+  busy = 1;
+  int acquired = acquire_runtime();
+  (void)caml_callback2_exn(vpos_callback, Val_int(x), Val_int(y));
+  release_runtime(acquired);
+  busy = 0;
+}
+
+static void init_window_pos_callback()
+{
+  if (pos_callback_init) return;
+
+  GLFWwindow *win = glfwGetCurrentContext();
+  if (!win) return;
+
+  extern GLFWwindowposfun glfwSetWindowPosCallback(GLFWwindow*, GLFWwindowposfun);
+  old_pos_callback = glfwSetWindowPosCallback(win, pos_callback);
+}
+
+CAMLprim void glfw_set_window_pos_callback(value vf)
+{
+  CAMLparam1(vf);
+
+  init_window_pos_callback();
+
+  caml_register_global_root(&vpos_callback);
+  vpos_callback = vf;
+
+  CAMLreturn0;
+}
+
+CAMLprim void glfw_drag_window(void)
+{
+  CAMLparam0();
+
+  init_window_pos_callback();
+
+  GLFWwindow *win = glfwGetCurrentContext();
+  if (!win) CAMLreturn0;
+
+  /* Inspired by https://github.com/glfw/glfw/pull/2152
+   * and https://github.com/Seneral/glfw */
+
+#if defined(_WIN32)
+
+  HWND hwnd = glfwGetWin32Window(win);
+  if (!hwnd) CAMLreturn0;
+
+  ReleaseCapture();
+  SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+  glfwInputMouseClick(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, getKeyMods());
+
+#elif defined(__APPLE__)
+
+  id owin = glfwGetCocoaWindow(win);
+  if (!owin) CAMLreturn0;
+
+  id app = objc_send0(id, (id)objc_getClass("NSApplication"), "sharedApplication");
+  id currentEvent = objc_send0(id, app, "currentEvent");
+  objc_send1(void, id, owin, "performWindowDragWithEvent:", currentEvent);
+
+#elif defined(__linux__)
+
+  if (glfwGetPlatform() == GLFW_PLATFORM_X11)
+  {
+    if (!x11_init()) CAMLreturn0;
+
+    typedef struct {
+      int type;
+      unsigned long serial;
+      Bool send_event;
+      Display *display;
+      Window window;
+      unsigned long message_type;
+      int format;
+      union {
+        char b[20];
+        short s[10];
+        long l[5];
+      } data;
+    } XClientMessageEvent;
+
+    #define ClientMessage 33
+    #define SubstructureNotifyMask 0x80000
+    #define SubstructureRedirectMask 0x100000
+    #define _NET_WM_MOVERESIZE_MOVE 8
+
+    x11.XUngrabPointer(x11.display, 0);
+    x11.XFlush(x11.display);
+
+    int wx, wy;
+    double mx, my;
+    glfwGetCursorPos(win, &mx, &my);
+    glfwGetWindowPos(win, &wx, &wy);
+
+    XClientMessageEvent event;
+    memset(&event, 0, sizeof(XClientMessageEvent));
+    event.type = ClientMessage;
+    event.window = glfwGetX11Window(win);
+    event.message_type = x11.XInternAtom(x11.display, "_NET_WM_MOVERESIZE", 0);
+    event.format = 32;
+    event.data.l[0] = wx + mx;
+    event.data.l[1] = wy + my;
+    event.data.l[2] = _NET_WM_MOVERESIZE_MOVE;
+    event.data.l[3] = 0;
+    event.data.l[4] = 0;
+    x11.XSendEvent(display, x11.root, 0, SubstructureNotifyMask | SubstructureRedirectMask, (XEvent*)&event);
+  }
+  else if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
+  {
+    if (!wayland_init()) CAMLreturn0;
+    /* TODO */
+  }
+
+#endif
+
+  CAMLreturn0;
 }
 
 
