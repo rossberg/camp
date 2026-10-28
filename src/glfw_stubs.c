@@ -57,6 +57,8 @@ extern id glfwGetCocoaWindow(GLFWwindow*);
 
 #ifdef __linux__
 
+#include <dlfcn.h>
+
 extern void *glfwGetX11Display(void) __attribute__((weak));
 extern unsigned long glfwGetX11Window(GLFWwindow*) __attribute__((weak));
 extern void *glfwGetWaylandDisplay(void) __attribute__((weak));
@@ -74,7 +76,7 @@ static int x11_init(void)
 {
   if (x11.init) return x11.init == LINUX_INIT;
   x11.init = LINUX_INITING;
-  if (!glfwGetX11Display || !glfwGetPlatform || glfwGetPlatform() != GLFW_PLATFORM_X11 || !glfwGetX11Window)
+  if (!glfwGetX11Display || glfwGetPlatform() != GLFW_PLATFORM_X11 || !glfwGetX11Window)
     return 0;
   x11.display = glfwGetX11Display();
   void *dl = dlopen("libX11.so.6", RTLD_LAZY);
@@ -96,7 +98,7 @@ static int wayland_init(void)
 {
   if (wl.init) return wl.init == LINUX_INIT;
   wl.init = LINUX_INITING;
-  if (!glfwGetWaylandDisplay || !glfwGetPlatform || glfwGetPlatform() != GLFW_PLATFORM_WAYLAND)
+  if (!glfwGetWaylandDisplay || glfwGetPlatform() != GLFW_PLATFORM_WAYLAND)
     return 0;
   wl.display = glfwGetWaylandDisplay();
   void *dl = dlopen("libwayland-client.so.0", RTLD_LAZY);
@@ -213,18 +215,22 @@ CAMLprim void glfw_set_window_rect(value vx, value vy, value vw, value vh)
   {
     if (!x11_init()) CAMLreturn0;
     unsigned long xwin = glfwGetX11Window(win);
-    if (!xwin) return 0;
+    if (!xwin) CAMLreturn0;
     x11.move_resize(x11.display, xwin, x, y, (unsigned)w, (unsigned)h);
     x11.flush(x11.display);
   }
   else if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
   {
+    if (!wayland_init()) CAMLreturn0;
     /* Cannot set position */
+    extern void glfwSetWindowSize(GLFWwindow*, int, int);
     glfwSetWindowSize(win, w, h);
   }
 
 #else
 
+  extern void glfwSetWindowPos(GLFWwindow*, int, int);
+  extern void glfwSetWindowSize(GLFWwindow*, int, int);
   glfwSetWindowPos(win, x, y);
   glfwSetWindowSize(win, w, h);
 
