@@ -57,6 +57,7 @@ extern id glfwGetCocoaWindow(GLFWwindow*);
 
 #ifdef __linux__
 
+#include <string.h>
 #include <dlfcn.h>
 
 typedef int XBool;
@@ -76,6 +77,7 @@ static struct {
   linux_init init;
   XDisplay *display;
   int (*XFlush)(XDisplay*);
+  XWindow (*XDefaultRootWindow)(XDisplay*);
   int (*XMoveResizeWindow)(XDisplay*, XWindow, int, int, unsigned, unsigned);
   int (*XSendEvent)(XDisplay*, XWindow, XBool, long, XEvent*);
   int (*XUngrabPointer)(XDisplay*, XTime);
@@ -92,11 +94,12 @@ static int x11_init(void)
   void *dl = dlopen("libX11.so.6", RTLD_LAZY);
   if (!x11.display || !dl) return 0;
   *(void**)&x11.XFlush = dlsym(dl, "XFlush");
-  *(void**)&x11.XMoveResize = dlsym(dl, "XMoveResizeWindow");
+  *(void**)&x11.XDefaultRootWindow = dlsym(dl, "XDefaultRootWindow");
+  *(void**)&x11.XMoveResizeWindow = dlsym(dl, "XMoveResizeWindow");
   *(void**)&x11.XSendEvent = dlsym(dl, "XSendEvent");
   *(void**)&x11.XUngrabPointer = dlsym(dl, "XUngrabPointer");
   *(void**)&x11.XInternAtom = dlsym(dl, "XInternAtom");
-  if (!x11.XFlush || !x11.XMoveResizeWindow || !x11.XSendEvent || !x11.XUngrabPointer || !x11.XInternAtom) return 0;
+  if (!x11.XFlush || !x11.XDefaultRootWindow || !x11.XMoveResizeWindow || !x11.XSendEvent || !x11.XUngrabPointer || !x11.XInternAtom) return 0;
   x11.init = LINUX_INIT;
   return 1;
 }
@@ -138,14 +141,14 @@ CAMLprim value glfw_get_cursor_pos()
   extern void glfwGetCursorPos(GLFWwindow*, double*, double*);
   if (win) glfwGetCursorPos(win, &x, &y);
 
-  float sx = 0, sy = 0;
-  extern void glfwGetWindowContentScale(GLFWwindow*, float*, float*);
-  if (win) glfwGetWindowContentScale(win, &sx, &sy);
+  float sx = 1, sy = 1;
+  //extern void glfwGetWindowContentScale(GLFWwindow*, float*, float*);
+  //if (win) glfwGetWindowContentScale(win, &sx, &sy);
 
   vres = caml_alloc_tuple(2);
   /* TODO: WTF is the additional factor of 2 coming from? */
-  Store_field(vres, 0, Int_val(2*(int)(x * sx)));
-  Store_field(vres, 1, Int_val(2*(int)(y * sy)));
+  Store_field(vres, 0, Int_val((int)(x * sx)));
+  Store_field(vres, 1, Int_val((int)(y * sy)));
   CAMLreturn(vres);
 }
 
@@ -176,6 +179,23 @@ CAMLprim value glfw_get_window_size()
   int w = 0, h = 0;
   extern void glfwGetWindowSize(GLFWwindow*, int*, int*);
   if (win) glfwGetWindowSize(win, &w, &h);
+
+  vres = caml_alloc_tuple(2);
+  Store_field(vres, 0, Val_int(w));
+  Store_field(vres, 1, Val_int(h));
+  CAMLreturn(vres);
+}
+
+CAMLprim value glfw_get_framebuffer_size()
+{
+  CAMLparam0();
+  CAMLlocal1(vres);
+
+  GLFWwindow *win = glfwGetCurrentContext();
+
+  int w = 0, h = 0;
+  extern void glfwGetFramebufferSize(GLFWwindow*, int*, int*);
+  if (win) glfwGetFramebufferSize(win, &w, &h);
 
   vres = caml_alloc_tuple(2);
   Store_field(vres, 0, Val_int(w));
@@ -398,9 +418,9 @@ CAMLprim void glfw_drag_window(void)
     typedef struct {
       int type;
       unsigned long serial;
-      Bool send_event;
-      Display *display;
-      Window window;
+      XBool send_event;
+      XDisplay *display;
+      XWindow window;
       unsigned long message_type;
       int format;
       union {
@@ -420,7 +440,9 @@ CAMLprim void glfw_drag_window(void)
 
     int wx, wy;
     double mx, my;
+    extern void glfwGetCursorPos(GLFWwindow*, double*, double*);
     glfwGetCursorPos(win, &mx, &my);
+    extern void glfwGetWindowPos(GLFWwindow*, int*, int*);
     glfwGetWindowPos(win, &wx, &wy);
 
     XClientMessageEvent event;
@@ -434,7 +456,8 @@ CAMLprim void glfw_drag_window(void)
     event.data.l[2] = _NET_WM_MOVERESIZE_MOVE;
     event.data.l[3] = 0;
     event.data.l[4] = 0;
-    x11.XSendEvent(display, x11.root, 0, SubstructureNotifyMask | SubstructureRedirectMask, (XEvent*)&event);
+    XWindow root = x11.XDefaultRootWindow(x11.display);
+    x11.XSendEvent(x11.display, root, 0, SubstructureNotifyMask | SubstructureRedirectMask, (XEvent*)&event);
   }
   else if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
   {

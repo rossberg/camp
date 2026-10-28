@@ -602,7 +602,7 @@ let finish ui margin (varw, varh) =
       ui.drag <-
         if cursor = `Point then
         (
-          Window.drag ui.win;
+          (*Window.drag ui.win;*)
           Move {overshoot = 0, 0}  (* overshoot unused *)
         )
         else
@@ -613,7 +613,7 @@ let finish ui margin (varw, varh) =
           Resize {offset = dx, dy; edge = lft, top, rgt, bot}
         );
       wr, no_edge, screen_change
-(*
+(* *)
     | Move {overshoot} ->
       Mouse.set_cursor ui.win `Point;
       let mouse = Mouse.abs_pos ui.win in
@@ -626,7 +626,7 @@ let finish ui margin (varw, varh) =
       let wx'', wy'' = snap sx (sx + sw - ww) wx', snap sy (sy + sh - wh) wy' in
       ui.drag <- Move {overshoot = wx' - wx'', wy' - wy''};
       (wx'', wy'', ww, wh), no_edge, screen_change
-*)
+(* *)
 
     | Resize {offset; edge = lft, top, rgt, bot as edge} ->
       Mouse.set_cursor ui.win (cursor varw varh lft top rgt bot);

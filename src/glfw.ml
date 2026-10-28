@@ -4,6 +4,8 @@ external get_window_pos : unit -> int * int =
   "glfw_get_window_pos"
 external get_window_size : unit -> int * int =
   "glfw_get_window_size"
+external get_framebuffer_size : unit -> int * int =
+  "glfw_get_framebuffer_size"
 external set_window_rect : int -> int -> int -> int -> unit =
   "glfw_set_window_rect"
 external get_monitor_workarea : int -> int * int * int * int =
