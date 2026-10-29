@@ -228,13 +228,6 @@ CAMLprim void glfw_set_window_rect(value vx, value vy, value vw, value vh)
   CGRect r = { x, top - y - h, w, h };
   objc_send2(void, CGRect, BOOL, owin, "setFrame:display:", r, 1);
 
-  /* Redundantly set position again to force update in Raylib */
-  /* (This may be fixed in Raylib 6.2?) */
-  extern void glfwGetWindowPos(GLFWwindow*, int*, int*);
-  glfwGetWindowPos(win, &x, &y);
-  extern void SetWindowPosition(int x, int y);  /* from Raylib */
-  SetWindowPosition(x, y);
-
 /*
   typedef struct { double x, y; } NSPoint;
   typedef struct { double x, y, w, h; } NSRect;
@@ -337,11 +330,6 @@ static void pos_callback(GLFWwindow *win, int x, int y)
 {
   if (old_pos_callback) old_pos_callback(win, x, y);
 
-  /* Redundantly set position to force update in Raylib, esp for drag_window */
-  /* (This may be fixed in Raylib 6.2?) */
-  extern void SetWindowPosition(int x, int y);  /* from Raylib */
-  SetWindowPosition(x, y);
-
   if (busy || vpos_callback == Val_unit) return;
   busy = 1;
   int acquired = acquire_runtime();
@@ -359,6 +347,7 @@ static void init_window_pos_callback()
 
   extern GLFWwindowposfun glfwSetWindowPosCallback(GLFWwindow*, GLFWwindowposfun);
   old_pos_callback = glfwSetWindowPosCallback(win, pos_callback);
+  pos_callback_init = 1; /* extra flag since old callback may legitimately NULL */
 }
 
 CAMLprim void glfw_set_window_pos_callback(value vf)
