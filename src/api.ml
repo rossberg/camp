@@ -317,14 +317,14 @@ struct
       let sx, sy = point_of_vec2 (Raylib.get_monitor_position i) in
       let sw, sh = Raylib.(get_monitor_width i, get_monitor_height i) in
       let outer = sx, sy, sw, sh in
-      let x, y, w, h = Glfw.get_monitor_workarea i in
-      let inner = x, y, w - x, h - y in
+      let inner = Glfw.get_monitor_workarea i in
 
       if !App.debug_layout then
       (
+        let x, y, w, h = inner in
         Printf.eprintf
           "[api.screen %d] pos=%d,%d,%d,%d limit=%d,%d,%d,%d"
-          i sx sy sw sh x y (w - x) (h - y);
+          i sx sy sw sh x y w h;
         if i = current then
         (
           let wx, wy = Glfw.get_window_pos () in
@@ -410,12 +410,13 @@ struct
   let current_size = ref (0, 0)  (* target (virtual current) size for drawing *)
   let current_buffer = ref None  (* current buffer for refresh *)
   let in_frame = ref false       (* flag to assert proper frame bracketing *)
+  let dragging = ref None        (* mouse origin for dragging in progress *)
 
   let update () =
     if not (Raylib.is_window_minimized ()) then
     (
-      current_pos := point_of_vec2 (Raylib.get_window_position ());
-      current_size := Raylib.(get_screen_width (), get_screen_height ());
+      if !dragging = None then current_pos := Glfw.get_window_pos ();
+      current_size := Glfw.get_window_size ();
     )
 
   (* We have to set the window position before events are processed,
@@ -505,7 +506,9 @@ struct
   let reveal () = Raylib.(clear_window_state ConfigFlags.window_hidden)
   let is_hidden () = Raylib.is_window_hidden ()
 
-  let drag () = Glfw.drag_window ()
+  let drag () =
+    dragging := Some (Glfw.get_window_pos (), Glfw.get_cursor_pos ());
+    Glfw.drag_window ()
 
   let scale () = !Screen.scale
   let rescale () dx dy =
@@ -1061,10 +1064,18 @@ struct
 
   let _ = after_frame_finish :=
     (fun () ->
-      (* Work around Raylib issues: e.g. if window was moved but mouse hasn't,
-       * then mouse pos is off. *)
+      if not (is_down `Left) then Window.dragging := None;
       let mouse_pos = Glfw.get_cursor_pos () in
       let win_pos = Glfw.get_window_pos () in
+      (* Work around window position update throttling during drag. *)
+      let mouse_pos, win_pos =
+        match !Window.dragging with
+        | None -> mouse_pos, win_pos
+        | Some (win_start, mouse_start) ->
+          let win_pos = add win_start (sub mouse_pos mouse_start) in
+          Window.current_pos := win_pos;
+          mouse_start, win_pos
+      in
       current_pos := add mouse_pos win_pos;
 
 (*
