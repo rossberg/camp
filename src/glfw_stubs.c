@@ -127,75 +127,61 @@ static int wayland_init(void)
 #endif
 
 
-/* Exposed GLFW functionality */
+/* Window accessors */
 
-CAMLprim value glfw_get_cursor_pos()
+#define GLFW_ACCESSOR2_API(GlfwName, caml_name, type) \
+\
+CAMLprim value glfw_##caml_name() \
+{ \
+  CAMLparam0(); \
+  CAMLlocal1(vres); \
+\
+  GLFWwindow *win = glfwGetCurrentContext(); \
+\
+  type r1 = 0, r2 = 0; \
+  extern void glfw##GlfwName(GLFWwindow*, type*, type*); \
+  if (win) glfw##GlfwName(win, &r1, &r2); \
+\
+  vres = caml_alloc_tuple(2); \
+  Store_field(vres, 0, Val_int((int)r1)); \
+  Store_field(vres, 1, Val_int((int)r2)); \
+  CAMLreturn(vres); \
+} \
+
+
+GLFW_ACCESSOR2_API(GetCursorPos, get_cursor_pos, double)
+GLFW_ACCESSOR2_API(GetWindowPos, get_window_pos, int)
+GLFW_ACCESSOR2_API(GetWindowSize, get_window_size, int)
+GLFW_ACCESSOR2_API(GetFramebufferSize, get_framebuffer_size, int)
+
+
+/* glfwGetMonitorWorkarea */
+
+CAMLprim value glfw_get_monitor_workarea(value vmon)
 {
-  CAMLparam0();
+  CAMLparam1(vmon);
   CAMLlocal1(vres);
 
-  GLFWwindow *win = glfwGetCurrentContext();
+  int i = Int_val(vmon);
 
-  double x = 0, y = 0;
-  extern void glfwGetCursorPos(GLFWwindow*, double*, double*);
-  if (win) glfwGetCursorPos(win, &x, &y);
+  int n = 0;
+  typedef struct GLFWmonitor GLFWmonitor;
+  extern GLFWmonitor **glfwGetMonitors(int*);
+  GLFWmonitor **monitors = glfwGetMonitors(&n);
+  int x = 0, y = 0, w = 0, h = 0;
+  extern void glfwGetMonitorWorkarea(GLFWmonitor*, int*, int*, int*, int*);
+  if (i < n) glfwGetMonitorWorkarea(monitors[i], &x, &y, &w, &h);
 
-  vres = caml_alloc_tuple(2);
-  Store_field(vres, 0, Val_int((int)x));
-  Store_field(vres, 1, Val_int((int)y));
-  CAMLreturn(vres);
-}
-
-CAMLprim value glfw_get_window_pos()
-{
-  CAMLparam0();
-  CAMLlocal1(vres);
-
-  GLFWwindow *win = glfwGetCurrentContext();
-
-  int x = 0, y = 0;
-  extern void glfwGetWindowPos(GLFWwindow*, int*, int*);
-  if (win) glfwGetWindowPos(win, &x, &y);
-
-  vres = caml_alloc_tuple(2);
+  vres = caml_alloc_tuple(4);
   Store_field(vres, 0, Val_int(x));
   Store_field(vres, 1, Val_int(y));
+  Store_field(vres, 2, Val_int(w));
+  Store_field(vres, 3, Val_int(h));
   CAMLreturn(vres);
 }
 
-CAMLprim value glfw_get_window_size()
-{
-  CAMLparam0();
-  CAMLlocal1(vres);
 
-  GLFWwindow *win = glfwGetCurrentContext();
-
-  int w = 0, h = 0;
-  extern void glfwGetWindowSize(GLFWwindow*, int*, int*);
-  if (win) glfwGetWindowSize(win, &w, &h);
-
-  vres = caml_alloc_tuple(2);
-  Store_field(vres, 0, Val_int(w));
-  Store_field(vres, 1, Val_int(h));
-  CAMLreturn(vres);
-}
-
-CAMLprim value glfw_get_framebuffer_size()
-{
-  CAMLparam0();
-  CAMLlocal1(vres);
-
-  GLFWwindow *win = glfwGetCurrentContext();
-
-  int w = 0, h = 0;
-  extern void glfwGetFramebufferSize(GLFWwindow*, int*, int*);
-  if (win) glfwGetFramebufferSize(win, &w, &h);
-
-  vres = caml_alloc_tuple(2);
-  Store_field(vres, 0, Val_int(w));
-  Store_field(vres, 1, Val_int(h));
-  CAMLreturn(vres);
-}
+/* Emulate glfwSetWindowRect: atomic setting of pos and size */
 
 CAMLprim void glfw_set_window_rect(value vx, value vy, value vw, value vh)
 {
@@ -281,98 +267,86 @@ CAMLprim void glfw_set_window_rect(value vx, value vy, value vw, value vh)
   CAMLreturn0;
 }
 
-CAMLprim value glfw_get_monitor_workarea(value vmon)
-{
-  CAMLparam1(vmon);
-  CAMLlocal1(vres);
 
-  int i = Int_val(vmon);
+/* Window callbacks */
 
-  int n = 0;
-  typedef struct GLFWmonitor GLFWmonitor;
-  extern GLFWmonitor **glfwGetMonitors(int*);
-  GLFWmonitor **monitors = glfwGetMonitors(&n);
-  int x = 0, y = 0, w = 0, h = 0;
-  extern void glfwGetMonitorWorkarea(GLFWmonitor*, int*, int*, int*, int*);
-  if (i < n) glfwGetMonitorWorkarea(monitors[i], &x, &y, &w, &h);
+#define caml_callback0_exn caml_callback_exn
+#define caml_callback1_exn caml_callback_exn
 
-  vres = caml_alloc_tuple(4);
-  Store_field(vres, 0, Val_int(x));
-  Store_field(vres, 1, Val_int(y));
-  Store_field(vres, 2, Val_int(w));
-  Store_field(vres, 3, Val_int(h));
-  CAMLreturn(vres);
-}
+#define PARAMS0
+#define PARAMS1 , int a
+#define PARAMS2 , int a1, int a2
+#define ARGS0
+#define ARGS1 , a
+#define ARGS2 , a1, a2
+#define MLARGS0 , Val_unit
+#define MLARGS1 , Val_int(a)
+#define MLARGS2 , Val_int(a1), Val_int(a2)
+
+#define GLFW_CALLBACK_API(GlfwName, caml_name, type, N) \
+\
+typedef void (*GLFW##type##fun)(GLFWwindow* PARAMS##N); \
+static GLFW##type##fun old_##type##_callback = NULL; \
+static value v##type##_callback = Val_unit; \
+static int type##_callback_init = 0; \
+static int type##_callback_busy = 0; \
+\
+static void type##_callback(GLFWwindow *win PARAMS##N) \
+{ \
+  if (old_##type##_callback) old_##type##_callback(win ARGS##N); \
+\
+  if (type##_callback_busy || v##type##_callback == Val_unit) return; \
+  type##_callback_busy = 1; \
+  int need_unblocking = Caml_state == NULL; \
+  if (need_unblocking) caml_leave_blocking_section(); \
+  (void)caml_callback##N##_exn(v##type##_callback MLARGS##N); \
+  if (need_unblocking) caml_enter_blocking_section(); \
+  type##_callback_busy = 0; \
+} \
+\
+static void init_##type##_callback() \
+{ \
+  if (type##_callback_init) return; \
+\
+  GLFWwindow *win = glfwGetCurrentContext(); \
+  if (!win) return; \
+\
+  extern GLFW##type##fun glfwSet##GlfwName##Callback(GLFWwindow*, GLFW##type##fun); \
+  old_##type##_callback = glfwSet##GlfwName##Callback(win, type##_callback); \
+  type##_callback_init = 1; \
+} \
+\
+CAMLprim void glfw_set_##caml_name##_callback(value vf) \
+{ \
+  CAMLparam1(vf); \
+\
+  init_##type##_callback(); \
+\
+  caml_register_global_root(&v##type##_callback); \
+  v##type##_callback = vf; \
+\
+  CAMLreturn0; \
+} \
 
 
-static int busy = 0;
+GLFW_CALLBACK_API(WindowRefresh, window_refresh, windowrefresh, 0)
+GLFW_CALLBACK_API(WindowPos, window_pos, windowpos, 2)
+GLFW_CALLBACK_API(WindowSize, window_size, windowsize, 2)
+GLFW_CALLBACK_API(FramebufferSize, framebuffer_size, framebuffersize, 2)
 
-static int acquire_runtime(void)
-{
-  if (Caml_state == NULL) {
-    caml_leave_blocking_section();
-    return 1;
-  }
-  return 0;
-}
 
-static void release_runtime(int acquired)
-{
-  if (acquired) caml_enter_blocking_section();
-}
-
-typedef void (*GLFWwindowposfun)(GLFWwindow*, int, int);
-static GLFWwindowposfun old_pos_callback = NULL;
-static int pos_callback_init = 0;
-static value vpos_callback = Val_unit;
-
-static void pos_callback(GLFWwindow *win, int x, int y)
-{
-  if (old_pos_callback) old_pos_callback(win, x, y);
-
-  if (busy || vpos_callback == Val_unit) return;
-  busy = 1;
-  int acquired = acquire_runtime();
-  (void)caml_callback2_exn(vpos_callback, Val_int(x), Val_int(y));
-  release_runtime(acquired);
-  busy = 0;
-}
-
-static void init_window_pos_callback()
-{
-  if (pos_callback_init) return;
-
-  GLFWwindow *win = glfwGetCurrentContext();
-  if (!win) return;
-
-  extern GLFWwindowposfun glfwSetWindowPosCallback(GLFWwindow*, GLFWwindowposfun);
-  old_pos_callback = glfwSetWindowPosCallback(win, pos_callback);
-  pos_callback_init = 1; /* extra flag since old callback may legitimately NULL */
-}
-
-CAMLprim void glfw_set_window_pos_callback(value vf)
-{
-  CAMLparam1(vf);
-
-  init_window_pos_callback();
-
-  caml_register_global_root(&vpos_callback);
-  vpos_callback = vf;
-
-  CAMLreturn0;
-}
+/* Emulating a glfwDragWindow */
+/* Inspired by https://github.com/glfw/glfw/pull/2152
+ * and https://github.com/Seneral/glfw */
 
 CAMLprim void glfw_drag_window(void)
 {
   CAMLparam0();
 
-  init_window_pos_callback();
+  init_windowpos_callback();
 
   GLFWwindow *win = glfwGetCurrentContext();
   if (!win) CAMLreturn0;
-
-  /* Inspired by https://github.com/glfw/glfw/pull/2152
-   * and https://github.com/Seneral/glfw */
 
 #if defined(_WIN32)
 
@@ -454,71 +428,6 @@ CAMLprim void glfw_drag_window(void)
   }
 
 #endif
-
-  CAMLreturn0;
-}
-
-
-typedef void (*GLFWwindowrefreshfun)(GLFWwindow*);
-static GLFWwindowrefreshfun old_refresh_callback = NULL;
-static value vrefresh_callback = Val_unit;
-
-static void refresh_callback(GLFWwindow *win)
-{
-  if (old_refresh_callback) old_refresh_callback(win);
-
-  if (busy) return;
-  busy = 1;
-  int acquired = acquire_runtime();
-  (void)caml_callback_exn(vrefresh_callback, Val_unit);
-  release_runtime(acquired);
-  busy = 0;
-}
-
-CAMLprim void glfw_set_window_refresh_callback(value vf)
-{
-  CAMLparam1(vf);
-
-  GLFWwindow *win = glfwGetCurrentContext();
-  if (!win) CAMLreturn0;
-
-  extern GLFWwindowrefreshfun glfwSetWindowRefreshCallback(GLFWwindow*, GLFWwindowrefreshfun);
-  old_refresh_callback = glfwSetWindowRefreshCallback(win, refresh_callback);
-
-  caml_register_global_root(&vrefresh_callback);
-  vrefresh_callback = vf;
-
-  CAMLreturn0;
-}
-
-typedef void (*GLFWwindowsizefun)(GLFWwindow*, int, int);
-static GLFWwindowsizefun old_size_callback = NULL;
-static value vsize_callback = Val_unit;
-
-static void size_callback(GLFWwindow *win, int w, int h)
-{
-  if (old_size_callback) old_size_callback(win, w, h);
-
-  if (busy) return;
-  busy = 1;
-  int acquired = acquire_runtime();
-  (void)caml_callback2_exn(vsize_callback, Val_int(w), Val_int(h));
-  release_runtime(acquired);
-  busy = 0;
-}
-
-CAMLprim void glfw_set_window_size_callback(value vf)
-{
-  CAMLparam1(vf);
-
-  GLFWwindow *win = glfwGetCurrentContext();
-  if (!win) CAMLreturn0;
-
-  extern GLFWwindowsizefun glfwSetWindowSizeCallback(GLFWwindow*, GLFWwindowsizefun);
-  old_size_callback = glfwSetWindowSizeCallback(win, size_callback);
-
-  caml_register_global_root(&vsize_callback);
-  vsize_callback = vf;
 
   CAMLreturn0;
 }

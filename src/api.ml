@@ -458,13 +458,6 @@ struct
       ) !current_buffer
     in
     Glfw.set_window_size_callback resize;
-(*
-    let refresh () =
-      let w, h = Glfw.get_window_size () in
-      resize w h
-    in
-    Glfw.set_window_refresh_callback refresh;
-*)
 
     update ()
 
