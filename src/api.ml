@@ -1459,6 +1459,11 @@ end
 
 module Clipboard =
 struct
-  let read () = Raylib.get_clipboard_text ()
   let write () s = Raylib.set_clipboard_text s
+
+  let read () =
+    Raylib.(set_trace_log_level TraceLogLevel.Error);
+    let s = Raylib.get_clipboard_text () in
+    Raylib.(set_trace_log_level TraceLogLevel.Warning);
+    s
 end

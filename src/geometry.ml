@@ -312,10 +312,12 @@ let check_geo geo (ww, wh) =
     if !App.debug_strict then failwith "geometry invariant violation"
   )
 
-let change_geo geo dx dy dw dh dcw dch focusw focush flexcw flexch =
+let change_geo geo x y w h dx dy dw dh dcw dch focusw focush flexcw flexch =
+(*
   let win = Ui.window geo.ui in
   let x, y = Api.Window.pos win in
   let w, h = Api.Window.size win in
+*)
   let cw, ch = geo.control_width, geo.control_height in
   let ew, eh = geo.extension_width, geo.extension_height in
   let shownw, shownh = extension_shown_w geo, extension_shown_h geo in

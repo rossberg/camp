@@ -413,7 +413,7 @@ let x', y', w', h' = x'-dw, y'-dh, w'+dw, h'+dh in
         );
 
         let dx', dy', dw', dh' =
-          Geometry.change_geo geo dx dy dw dh dcw dch
+          Geometry.change_geo geo x y w h dx dy dw dh dcw dch
             (if win_focusw = `None then div_focusw else win_focusw)
             (if win_focush = `None then div_focush else win_focush)
             flex_ctl_w flex_ctl_h
@@ -435,6 +435,8 @@ let x', y', w', h' = x'-dw, y'-dh, w'+dw, h'+dh in
             (Geometry.extension_min_w geo) (Geometry.extension_min_h geo)
             (Geometry.browser_min_w geo) (Geometry.left_min_w geo);
         );
+        assert (w + dw' = geo.control_width + geo.extension_width);
+        assert (h + dh' = geo.control_height + geo.extension_height);
 
         x + dx', y + dy', w + dw', h + dh'
       )
