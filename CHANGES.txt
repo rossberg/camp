@@ -14,6 +14,8 @@ Library:
 - [fix] Spend less CPU on cleaning up covers cache
 
 UI:
+- [new] Smoother window moving and resizing
+- [new] Automativally adapt to live resolution changes
 - [chg] Draw shadow header when dragging column header for reordering
 
 

@@ -54,8 +54,9 @@ On Windows, no way around Cygwin and make. And you'll probably need to manually
 install the mingw64-x86_64-winpthreads package to have libwinpthread.dll in the
 path, although to be honest, I never quite understand why that is so.
 
-Camp is tested on Windows, Mac, and Linux with Wayland. It should work on Linux
-with X11, too, but I haven't had a chance to try.
+Camp is tested on Windows, Mac, and Linux with X11. I haven't had a chance to
+try Linux with Wayland, and expect issues with window positioning and resizing
+due to Wayland's lacking abilities to control them.
 
 
 2.2 Building
@@ -813,8 +814,8 @@ the underlying graphics and audio library (Raylib, Section 4.3).
   be vertically resized when the Playlist isn't open. Likewise, pop-ups cannot
   protrude from the parent window. Bummer.
 
-  Window resizing or opening/closing Playlist or Library panes may create janky
-  animation artefacts, depending on operating system on frame rate.
+  Window resizing may create janky artefacts, depending on operating system and
+  frame rate.
 
 * There may be bugs. Correction: there almost certainly are. And other
   occasional signs of immature software.

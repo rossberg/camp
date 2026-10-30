@@ -54,7 +54,7 @@ let make win =
   { win;
     buffered = true;
     buffered_resize = true;
-    native_window_resize = true;
+    native_window_resize = Sys.unix;
     native_window_move = not Sys.win32;  (* does not snap on Windows *)
     font_sdf = false; (* too slow for live resize: Screen.is_hires (Window.screen win) *)
     palette = 0;

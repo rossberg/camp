@@ -355,9 +355,8 @@ struct
 
   let update current =
     let {outer; inner; _} = Iarray.get !monitors current in
-    let x', y' = point_of_vec2 (Raylib.get_monitor_position current) in
-    let w', h' = Raylib.(get_monitor_width current, get_monitor_height current) in
-    let change = outer <> (x', y', w', h') in
+    let x', y', w', h'= Glfw.get_monitor_workarea current in
+    let change = inner <> (x', y', w', h') in
     if not change then None else
     (
       let current' = init_monitors (Some current) in
