@@ -360,7 +360,7 @@ CAMLprim value glfw_drag_window(void)
   #define GLFW_RELEASE 0
 
   extern void _glfwInputMouseClick(GLFWwindow*, int, int, int);
-  _glfwInputMouseClick(hwnd, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0 /*getKeyMods()*/);
+  _glfwInputMouseClick(win, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0 /*getKeyMods()*/);
 
   CAMLreturn(Val_true);
 
@@ -478,17 +478,17 @@ CAMLprim value glfw_resize_window(value vborder)
     case GLFW_WINDOW_TOPRIGHT: wborder = HTTOPRIGHT; break;
     case GLFW_WINDOW_BOTTOMLEFT: wborder = HTBOTTOMLEFT; break;
     case GLFW_WINDOW_BOTTOMRIGHT: wborder = HTBOTTOMRIGHT; break;
-    default: assert(0);
+    default: CAMLreturn(Val_false);
   }
 
   ReleaseCapture();
-  SendMessage(win->win32.handle, WM_NCLBUTTONDOWN, wBorder, 0);
+  SendMessage(hwnd, WM_NCLBUTTONDOWN, wborder, 0);
 
   #define GLFW_MOUSE_BUTTON_LEFT 0
   #define GLFW_RELEASE 0
 
   extern void _glfwInputMouseClick(GLFWwindow*, int, int, int);
-  _glfwInputMouseClick(hwnd, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0 /*getKeyMods()*/);
+  _glfwInputMouseClick(win, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0 /*getKeyMods()*/);
 
   CAMLreturn(Val_true);
 
