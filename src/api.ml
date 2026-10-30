@@ -511,7 +511,7 @@ struct
     if b then dragging := Some (Glfw.get_window_pos (), Glfw.get_cursor_pos ());
     b
 
-  let resize () border =
+  let resize () (wmin, hmin) (wmax, hmax) ratio_opt border =
     let border' =
       match border with
       | `N -> Glfw.top
@@ -523,6 +523,13 @@ struct
       | `SW -> Glfw.bottomleft
       | `SE -> Glfw.bottomright
     in
+    Glfw.set_window_size_limits wmin hmin wmax hmax;
+    let w, h =
+      match ratio_opt with
+      | Some ratio -> int_of_float (ratio *. 8192.0), 8192
+      | None -> -1, -1
+    in
+    Glfw.set_window_aspect_ratio h w;
     let b = Glfw.resize_window border' in
     if b then dragging := Some (Glfw.get_window_pos (), Glfw.get_cursor_pos ());
     b

@@ -535,7 +535,7 @@ let cursor varw varh lft top rgt bot =
   | false, true, true, false -> `Resize `NE_SW
   | _ -> `Point
 
-let finish ui margin (varw, varh) =
+let finish ui margin szmin szmax (varw, varh) ratio_opt =
   List.iter (fun f -> f ()) (List.rev ui.delayed);
   ui.delayed <- [];
 
@@ -637,7 +637,8 @@ let finish ui margin (varw, varh) =
               | false, false, true, true -> `SE
               | _ -> assert false
             in
-            if not (Window.resize ui.win border) then
+            if ratio_opt <> None  (* HACK: ratio works terribly on X11 *)
+            || not (Window.resize ui.win szmin szmax ratio_opt border) then
               ui.native_window_resize <- false;  (* turn off if not working *)
           );
           Resize {offset = dx, dy; edge = lft, top, rgt, bot}

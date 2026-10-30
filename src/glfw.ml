@@ -8,6 +8,10 @@ external get_monitor_workarea : int -> int * int * int * int =
 
 external set_window_rect : int -> int -> int -> int -> unit =
   "glfw_set_window_rect"
+external set_window_size_limits : int -> int -> int -> int -> unit =
+  "glfw_set_window_size_limits"
+external set_window_aspect_ratio : int -> int -> unit =
+  "glfw_set_window_aspect_ratio"
 
 let left = 1
 let top = 2

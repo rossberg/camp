@@ -310,7 +310,13 @@ and run' (st : state) (x, y, w, h as r) =
 
   let scr = Api.Window.screen win in
   let (x', y', w', h'), (lft, top, rgt, bot), screen_change =
-    Ui.finish geo.ui (Geometry.margin geo) (true, true) in
+    Ui.finish geo.ui (Geometry.margin geo)
+      Geometry.(win_min_w geo true true, win_min_h geo true true)
+      Geometry.(win_max_w geo true true, win_max_h geo true true)
+      (true, true)
+      (if Geometry.(extension_shown_w geo || extension_shown_h geo)
+        then None else geo.control_ratio)
+  in
   let x', y', w', h' =
     if not extension_change || screen_change <> None then x', y', w', h' else
     (Ui.pin geo.ui scr; x, y, w, h)  (* undo move or resize *)
@@ -481,11 +487,13 @@ and run' (st : state) (x, y, w, h as r) =
        *)
       for _ = 1 to 2 do
         Ui.start geo.ui r;
-        ignore (Ui.finish geo.ui 0 (false, false));
+        ignore
+          (Ui.finish geo.ui 0 (0, 0) (max_int, max_int) (false, false) None);
       done;
       for _ = 1 to 1 do
         Ui.start geo.ui r''';
-        ignore (Ui.finish geo.ui 0 (false, false));
+        ignore
+          (Ui.finish geo.ui 0 (0, 0) (max_int, max_int) (false, false) None);
       done;
     );
 

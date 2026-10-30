@@ -181,6 +181,44 @@ CAMLprim value glfw_get_monitor_workarea(value vmon)
 }
 
 
+/* glfwSetWindowSizeLimits */
+
+CAMLprim void glfw_set_window_size_limits(value vwmin, value vhmin, value vwmax, value vhmax)
+{
+  CAMLparam4(vwmin, vhmin, vwmax, vhmax);
+  int wmin = Int_val(vwmin);
+  int hmin = Int_val(vhmin);
+  int wmax = Int_val(vwmax);
+  int hmax = Int_val(vhmax);
+
+  GLFWwindow *win = glfwGetCurrentContext();
+  if (!win) CAMLreturn0;
+
+  extern void glfwSetWindowSizeLimits(GLFWwindow*, int, int, int, int);
+  glfwSetWindowSizeLimits(win, wmin, hmin, wmax, hmax);
+
+  CAMLreturn0;
+}
+
+
+/* glfwSetWindowAspectRatio */
+
+CAMLprim void glfw_set_window_aspect_ratio(value vw, value vh)
+{
+  CAMLparam2(vw, vh);
+  int w = Int_val(vw);
+  int h = Int_val(vh);
+
+  GLFWwindow *win = glfwGetCurrentContext();
+  if (!win) CAMLreturn0;
+
+  extern void glfwSetWindowAspectRatio(GLFWwindow*, int, int);
+  glfwSetWindowAspectRatio(win, w, h);
+
+  CAMLreturn0;
+}
+
+
 /* Emulate glfwSetWindowRect: atomic setting of pos and size */
 
 CAMLprim void glfw_set_window_rect(value vx, value vy, value vw, value vh)
@@ -428,13 +466,16 @@ CAMLprim value glfw_drag_window(void)
     event.data.l[4] = 0;
     XWindow root = x11.XDefaultRootWindow(x11.display);
     x11.XSendEvent(x11.display, root, 0, SubstructureNotifyMask | SubstructureRedirectMask, (XEvent*)&event);
+
+    CAMLreturn(Val_true);
   }
   else if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
   {
     if (!wayland_init()) CAMLreturn(Val_false);
     /* TODO */
-    CAMLreturn(Val_false);
   }
+
+  CAMLreturn(Val_false);
 
 #else
 
@@ -576,13 +617,16 @@ CAMLprim value glfw_resize_window(value vborder)
     event.data.l[4] = 0;
     XWindow root = x11.XDefaultRootWindow(x11.display);
     x11.XSendEvent(x11.display, root, 0, SubstructureNotifyMask | SubstructureRedirectMask, (XEvent*)&event);
+
+    CAMLreturn(Val_true);
   }
   else if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
   {
     if (!wayland_init()) CAMLreturn(Val_false);
     /* TODO */
-    CAMLreturn(Val_false);
   }
+
+  CAMLreturn(Val_false);
 
 #else
 

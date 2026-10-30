@@ -83,7 +83,7 @@ sig
   val is_hidden : window -> bool
 
   val drag : window -> bool
-  val resize : window -> border -> bool
+  val resize : window -> size -> size -> float option -> border -> bool
 
   val scale : window -> int * int
   val rescale : window -> int -> int -> unit
