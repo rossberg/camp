@@ -335,7 +335,7 @@ GLFW_CALLBACK_API(WindowSize, window_size, windowsize, 2)
 GLFW_CALLBACK_API(FramebufferSize, framebuffer_size, framebuffersize, 2)
 
 
-/* Emulating a glfwDragWindow */
+/* Emulation of a glfwDragWindow */
 /* Inspired by https://github.com/glfw/glfw/pull/2152
  * and https://github.com/Seneral/glfw */
 
@@ -360,7 +360,7 @@ CAMLprim value glfw_drag_window(void)
   #define GLFW_RELEASE 0
 
   extern void _glfwInputMouseClick(GLFWwindow*, int, int, int);
-  _glfwInputMouseClick(win, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0 /*getKeyMods()*/);
+  _glfwInputMouseClick(hwnd, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0 /*getKeyMods()*/);
 
   CAMLreturn(Val_true);
 
@@ -420,6 +420,150 @@ CAMLprim value glfw_drag_window(void)
     event.data.l[0] = wx + mx;
     event.data.l[1] = wy + my;
     event.data.l[2] = _NET_WM_MOVERESIZE_MOVE;
+    event.data.l[3] = 0;
+    event.data.l[4] = 0;
+    XWindow root = x11.XDefaultRootWindow(x11.display);
+    x11.XSendEvent(x11.display, root, 0, SubstructureNotifyMask | SubstructureRedirectMask, (XEvent*)&event);
+  }
+  else if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
+  {
+    if (!wayland_init()) CAMLreturn(Val_false);
+    /* TODO */
+    CAMLreturn(Val_false);
+  }
+
+#else
+
+  CAMLreturn(Val_false);
+
+#endif
+}
+
+
+/* Emulation of a glfwResizeWindow */
+/* Inspired by https://github.com/Seneral/glfw */
+
+#define GLFW_WINDOW_LEFT 1
+#define GLFW_WINDOW_TOP 2
+#define GLFW_WINDOW_RIGHT 4
+#define GLFW_WINDOW_BOTTOM 8
+#define GLFW_WINDOW_TOPLEFT (GLFW_WINDOW_TOP|GLFW_WINDOW_LEFT)
+#define GLFW_WINDOW_TOPRIGHT (GLFW_WINDOW_TOP|GLFW_WINDOW_RIGHT)
+#define GLFW_WINDOW_BOTTOMLEFT (GLFW_WINDOW_BOTTOM|GLFW_WINDOW_LEFT)
+#define GLFW_WINDOW_BOTTOMRIGHT (GLFW_WINDOW_BOTTOM|GLFW_WINDOW_RIGHT)
+
+CAMLprim value glfw_resize_window(value vborder)
+{
+  CAMLparam1(vborder);
+
+  init_windowpos_callback();
+
+  GLFWwindow *win = glfwGetCurrentContext();
+  if (!win) CAMLreturn(Val_false);
+
+#if defined(_WIN32)
+
+  HWND hwnd = glfwGetWin32Window(win);
+  if (!hwnd) CAMLreturn(Val_false);
+
+  int border = Int_val(vborder);
+  WPARAM wborder;
+  switch (border)
+  {
+    case GLFW_WINDOW_LEFT: wborder = HTLEFT; break;
+    case GLFW_WINDOW_TOP: wborder = HTTOP; break;
+    case GLFW_WINDOW_RIGHT: wborder = HTRIGHT; break;
+    case GLFW_WINDOW_BOTTOM: wborder = HTBOTTOM; break;
+    case GLFW_WINDOW_TOPLEFT: wborder = HTTOPLEFT; break;
+    case GLFW_WINDOW_TOPRIGHT: wborder = HTTOPRIGHT; break;
+    case GLFW_WINDOW_BOTTOMLEFT: wborder = HTBOTTOMLEFT; break;
+    case GLFW_WINDOW_BOTTOMRIGHT: wborder = HTBOTTOMRIGHT; break;
+    default: assert(0);
+  }
+
+  ReleaseCapture();
+  SendMessage(win->win32.handle, WM_NCLBUTTONDOWN, wBorder, 0);
+
+  #define GLFW_MOUSE_BUTTON_LEFT 0
+  #define GLFW_RELEASE 0
+
+  extern void _glfwInputMouseClick(GLFWwindow*, int, int, int);
+  _glfwInputMouseClick(hwnd, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0 /*getKeyMods()*/);
+
+  CAMLreturn(Val_true);
+
+#elif defined(__APPLE__)
+
+  /* There doesn't seem to be an equivalent */
+  CAMLreturn(Val_false);
+
+#elif defined(__linux__)
+
+  if (glfwGetPlatform() == GLFW_PLATFORM_X11)
+  {
+    if (!x11_init()) CAMLreturn(Val_false);
+
+    typedef struct {
+      int type;
+      unsigned long serial;
+      XBool send_event;
+      XDisplay *display;
+      XWindow window;
+      unsigned long message_type;
+      int format;
+      union {
+        char b[20];
+        short s[10];
+        long l[5];
+      } data;
+    } XClientMessageEvent;
+
+    #define ClientMessage 33
+    #define SubstructureNotifyMask 0x80000
+    #define SubstructureRedirectMask 0x100000
+    #define _NET_WM_MOVERESIZE_SIZE_TOPLEFT 0
+    #define _NET_WM_MOVERESIZE_SIZE_TOP 1
+    #define _NET_WM_MOVERESIZE_SIZE_TOPRIGHT 2
+    #define _NET_WM_MOVERESIZE_SIZE_RIGHT 3
+    #define _NET_WM_MOVERESIZE_SIZE_BOTTOMRIGHT 4
+    #define _NET_WM_MOVERESIZE_SIZE_BOTTOM 5
+    #define _NET_WM_MOVERESIZE_SIZE_BOTTOMLEFT 6
+    #define _NET_WM_MOVERESIZE_SIZE_LEFT 7
+
+    x11.XUngrabPointer(x11.display, 0);
+    x11.XFlush(x11.display);
+
+    int wx, wy;
+    double mx, my;
+    extern void glfwGetCursorPos(GLFWwindow*, double*, double*);
+    glfwGetCursorPos(win, &mx, &my);
+    extern void glfwGetWindowPos(GLFWwindow*, int*, int*);
+    glfwGetWindowPos(win, &wx, &wy);
+
+    int border = Int_val(vborder);
+    long xborder;
+    switch (border)
+    {
+      case GLFW_WINDOW_LEFT: xborder = _NET_WM_MOVERESIZE_SIZE_LEFT; break;
+      case GLFW_WINDOW_TOP: xborder = _NET_WM_MOVERESIZE_SIZE_TOP; break;
+      case GLFW_WINDOW_RIGHT: xborder = _NET_WM_MOVERESIZE_SIZE_RIGHT; break;
+      case GLFW_WINDOW_BOTTOM: xborder = _NET_WM_MOVERESIZE_SIZE_BOTTOM; break;
+      case GLFW_WINDOW_TOPLEFT: xborder = _NET_WM_MOVERESIZE_SIZE_TOPLEFT; break;
+      case GLFW_WINDOW_TOPRIGHT:xborder = _NET_WM_MOVERESIZE_SIZE_TOPRIGHT; break;
+      case GLFW_WINDOW_BOTTOMLEFT: xborder = _NET_WM_MOVERESIZE_SIZE_BOTTOMLEFT; break;
+      case GLFW_WINDOW_BOTTOMRIGHT: xborder = _NET_WM_MOVERESIZE_SIZE_BOTTOMRIGHT; break;
+      default: CAMLreturn(Val_false);
+    }
+
+    XClientMessageEvent event;
+    memset(&event, 0, sizeof(XClientMessageEvent));
+    event.type = ClientMessage;
+    event.window = glfwGetX11Window(win);
+    event.message_type = x11.XInternAtom(x11.display, "_NET_WM_MOVERESIZE", 0);
+    event.format = 32;
+    event.data.l[0] = wx + mx;
+    event.data.l[1] = wy + my;
+    event.data.l[2] = xborder;
     event.data.l[3] = 0;
     event.data.l[4] = 0;
     XWindow root = x11.XDefaultRootWindow(x11.display);

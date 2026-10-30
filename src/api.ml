@@ -243,6 +243,7 @@ type face = [`Up | `Down]
 type dir = [side | face]
 type orientation = [`Horizontal | `Vertical]
 type corner = [`NW | `NE | `SW | `SE]
+type border = [corner | `N | `S | `W | `E]
 
 let add (x1, y1) (x2, y2) = (x1 + x2, y1 + y2)
 let sub (x1, y1) (x2, y2) = (x1 - x2, y1 - y2)
@@ -501,6 +502,22 @@ struct
 
   let drag () =
     let b = Glfw.drag_window () in
+    if b then dragging := Some (Glfw.get_window_pos (), Glfw.get_cursor_pos ());
+    b
+
+  let resize () border =
+    let border' =
+      match border with
+      | `N -> Glfw.top
+      | `S -> Glfw.bottom
+      | `E -> Glfw.right
+      | `W -> Glfw.left
+      | `NW -> Glfw.topleft
+      | `NE -> Glfw.topright
+      | `SW -> Glfw.bottomleft
+      | `SE -> Glfw.bottomright
+    in
+    let b = Glfw.resize_window border' in
     if b then dragging := Some (Glfw.get_window_pos (), Glfw.get_cursor_pos ());
     b
 

@@ -315,6 +315,9 @@ let run (st : state) focus_change =
           "NATIVE MOVE", `Toggle (Ui.is_native_window_move geo.ui,
             Ui.native_window_move geo.ui
           );
+          "NATIVE RESIZE", `Toggle (Ui.is_native_window_resize geo.ui,
+            Ui.native_window_resize geo.ui
+          );
           "RESIZE BUFFER", `Toggle (Ui.is_buffered_resize geo.ui, fun b ->
             Ui.delay geo.ui (fun _ -> Ui.buffered_resize geo.ui b);
           );

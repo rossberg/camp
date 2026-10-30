@@ -9,7 +9,17 @@ external get_monitor_workarea : int -> int * int * int * int =
 external set_window_rect : int -> int -> int -> int -> unit =
   "glfw_set_window_rect"
 
+let left = 1
+let top = 2
+let right = 4
+let bottom = 8
+let topleft = top lor left
+let topright = top lor right
+let bottomleft = bottom lor left
+let bottomright = bottom lor right
+
 external drag_window : unit -> bool = "glfw_drag_window"
+external resize_window : int -> bool = "glfw_resize_window"
 
 external set_window_refresh_callback : (unit -> unit) -> unit =
   "glfw_set_window_refresh_callback"

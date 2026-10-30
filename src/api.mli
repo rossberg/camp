@@ -23,6 +23,7 @@ type face = [`Up | `Down]
 type dir = [side | face]
 type orientation = [`Horizontal | `Vertical]
 type corner = [`NW | `NE | `SW | `SE]
+type border = [corner | `N | `S | `W | `E]
 
 val add : point -> point -> point
 val sub : point -> point -> point
@@ -82,6 +83,7 @@ sig
   val is_hidden : window -> bool
 
   val drag : window -> bool
+  val resize : window -> border -> bool
 
   val scale : window -> int * int
   val rescale : window -> int -> int -> unit

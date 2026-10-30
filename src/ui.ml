@@ -21,6 +21,7 @@ type t =
   win : window;
   mutable buffered : bool;
   mutable buffered_resize : bool;
+  mutable native_window_resize : bool;
   mutable native_window_move : bool;
   mutable font_sdf : bool;
   mutable palette : int;
@@ -53,6 +54,7 @@ let make win =
   { win;
     buffered = true;
     buffered_resize = true;
+    native_window_resize = true;
     native_window_move = true;
     font_sdf = false (*Screen.is_hires (Window.screen win)*);
     palette = 0;
@@ -78,7 +80,9 @@ let make win =
 let window ui = ui.win
 
 let native_window_move ui b = ui.native_window_move <- b
+let native_window_resize ui b = ui.native_window_resize <- b
 let is_native_window_move ui = ui.native_window_move
+let is_native_window_resize ui = ui.native_window_resize
 
 
 (* Modal mode *)
@@ -619,11 +623,29 @@ let finish ui margin (varw, varh) =
           let mx, my = Mouse.abs_pos ui.win in
           let dx = if lft then mx - wx else mx - (wx + ww) in
           let dy = if top then my - wy else my - (wy + wh) in
+          if ui.native_window_resize then
+          (
+            let border =
+              match lft, top, rgt, bot with
+              | true, false, false, false -> `W
+              | false, true, false, false -> `N
+              | false, false, true, false -> `E
+              | false, false, false, true -> `S
+              | true, true, false, false -> `NW
+              | false, true, true, false -> `NE
+              | true, false, false, true -> `SW
+              | false, false, true, true -> `SE
+              | _ -> assert false
+            in
+            if not (Window.resize ui.win border) then
+              ui.native_window_resize <- false;  (* turn off if not working *)
+          );
           Resize {offset = dx, dy; edge = lft, top, rgt, bot}
         );
       wr, no_edge, screen_change
 
-    | Move {overshoot} when not ui.native_window_move ->
+    | Move {overshoot}
+      when not ui.native_window_move ->
       Mouse.set_cursor ui.win `Point;
       let mouse = Mouse.abs_pos ui.win in
       let delta = Api.add (Mouse.delta ui.win) overshoot in
@@ -636,7 +658,8 @@ let finish ui margin (varw, varh) =
       ui.drag <- Move {overshoot = wx' - wx'', wy' - wy''};
       (wx'', wy'', ww, wh), no_edge, screen_change
 
-    | Resize {offset; edge = lft, top, rgt, bot as edge} ->
+    | Resize {offset; edge = lft, top, rgt, bot as edge}
+      when not ui.native_window_resize ->
       Mouse.set_cursor ui.win (cursor varw varh lft top rgt bot);
       let scr = Window.screen ui.win in  (* snap relative to window's screen *)
       let sx, sy = Screen.min_pos scr in
