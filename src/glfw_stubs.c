@@ -350,6 +350,9 @@ CAMLprim value glfw_drag_window(void)
 
 #if defined(_WIN32)
 
+  CAMLreturn(Val_false);
+
+  #if 0  /* this is blocking, and hence useless */
   HWND hwnd = glfwGetWin32Window(win);
   if (!hwnd) CAMLreturn(Val_false);
 
@@ -363,6 +366,7 @@ CAMLprim value glfw_drag_window(void)
   _glfwInputMouseClick(win, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0 /*getKeyMods()*/);
 
   CAMLreturn(Val_true);
+  #endif
 
 #elif defined(__APPLE__)
 
@@ -463,6 +467,9 @@ CAMLprim value glfw_resize_window(value vborder)
 
 #if defined(_WIN32)
 
+  CAMLreturn(Val_false);
+
+  #if 0  /* This doesn't appear to work */
   HWND hwnd = glfwGetWin32Window(win);
   if (!hwnd) CAMLreturn(Val_false);
 
@@ -491,6 +498,7 @@ CAMLprim value glfw_resize_window(value vborder)
   _glfwInputMouseClick(win, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0 /*getKeyMods()*/);
 
   CAMLreturn(Val_true);
+  #endif
 
 #elif defined(__APPLE__)
 

@@ -412,6 +412,7 @@ struct
   let current_buffer = ref None  (* current buffer for refresh *)
   let in_frame = ref false       (* flag to assert proper frame bracketing *)
   let dragging = ref None        (* mouse origin for dragging in progress *)
+  let resizing = ref false       (* waiting for callback from set_size/rect *)
 
   let update () =
     if not (Raylib.is_window_minimized ()) then
@@ -453,9 +454,13 @@ struct
 
     let resize w h =
       Option.iter (fun buf ->
-        raylib_begin_drawing_light ();
-        !draw_buffer () 0 0 w h buf;
-        raylib_end_drawing_light ();
+        if !resizing then
+        (
+          raylib_begin_drawing_light ();
+          !draw_buffer () 0 0 w h buf;
+          raylib_end_drawing_light ();
+          resizing := false;
+        )
       ) !current_buffer
     in
     Glfw.set_window_size_callback resize;
@@ -476,11 +481,13 @@ struct
 
   let set_size () w h =
     assert (not !in_frame);
+    resizing := true;
     Raylib.set_window_size (sx w) (sy h);
     update ()
 
   let set_rect () x y w h =
     assert (not !in_frame);
+    resizing := true;
     Glfw.set_window_rect (sx x) (sy y) (sx w) (sy h);
     update ()
 
@@ -638,6 +645,7 @@ struct
     if sdf then
     (
       (* https://github.com/raysan5/raylib/blob/master/examples/text/text_font_sdf.c *)
+      Raylib.(set_trace_log_level TraceLogLevel.Error);  (* suppress warnings *)
       let font = Ctypes.make Raylib.Font.t in
       Raylib.Font.set_base_size font size;
       let data = File.load `Bin path in
@@ -646,6 +654,7 @@ struct
       Raylib.Font.set_glyphs font glyphs;
 
       let atlas, recs = Raylib.gen_image_font_atlas glyphs size 0 1 in
+      Raylib.(set_trace_log_level TraceLogLevel.Warning);
       Raylib.Font.set_texture font (Raylib.load_texture_from_image atlas);
       Raylib.Font.set_recs font (Ctypes.CArray.start recs);
       Raylib.unload_image atlas;
@@ -759,7 +768,11 @@ struct
       Raylib.Rlgl.FramebufferAttachTextureType.Texture2d 0;
     {texture = buf; scale = sx, sy}
 
-  let dispose buf = Raylib.unload_render_texture buf.texture
+  let dispose buf =
+    (* Raylib bug: For some strange reason, on Windows this seems necessary,
+     * otherwise the current render batch is lost (e.g. while resizing UI). *)
+    Raylib.Rlgl.draw_render_batch_active ();
+    Raylib.unload_render_texture buf.texture
 
   let size buf =
     let w, h = Image.size (Raylib.RenderTexture.texture buf.texture) in

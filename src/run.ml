@@ -426,8 +426,8 @@ and run' (st : state) (x, y, w, h as r) =
             (Geometry.extension_min_w geo) (Geometry.extension_min_h geo)
             (Geometry.browser_min_w geo) (Geometry.left_min_w geo);
         );
-        assert (w + dw' = geo.control_width + geo.extension_width);
-        assert (h + dh' = geo.control_height + geo.extension_height);
+        assert (w + dw' = Geometry.win_w geo);
+        assert (h + dh' = Geometry.win_h geo);
 
         x + dx', y + dy', w + dw', h + dh'
       )

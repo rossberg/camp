@@ -303,21 +303,27 @@ let run (st : state) focus_change =
             Ui.text_color geo.ui, ignore, ignore
           );
           "MOUSE", `Text (
-            Edit.make_with 0 (fmt " %d  %d" amx amy),
+            Edit.make_with 0 (fmt " %d  %d" mx my),
             Ui.text_color geo.ui, ignore, ignore
           );
-          "...RELATIVE", `Text (
-            Edit.make_with 0 (fmt " %d  %d" mx my),
+          "...ABSOLUTE", `Text (
+            Edit.make_with 0 (fmt " %d  %d" amx amy),
             Ui.text_color geo.ui, ignore, ignore
           );
         ];
         "WINDOWING IMPLEMENTATION", `Section [
-          "NATIVE MOVE", `Toggle (Ui.is_native_window_move geo.ui,
-            Ui.native_window_move geo.ui
-          );
-          "NATIVE RESIZE", `Toggle (Ui.is_native_window_resize geo.ui,
-            Ui.native_window_resize geo.ui
-          );
+          "SDF FONTS", `Choice ["  (VERY SLOW WHEN RESIZING WINDOW)",
+            Ui.font_is_sdf geo.ui,
+            fun _ -> Ui.font_sdf geo.ui (not (Ui.font_is_sdf geo.ui))
+          ];
+          "NATIVE MOVE", `Choice ["  (ONLY AVAILABLE ON SOME SYSTEMS)",
+            Ui.is_native_window_move geo.ui,
+            fun _ -> Ui.native_window_move geo.ui (not (Ui.is_native_window_move geo.ui))
+          ];
+          "NATIVE RESIZE", `Choice ["  (ONLY AVAILABLE ON SOME SYSTEMS)",
+            Ui.is_native_window_resize geo.ui,
+            fun _ -> Ui.native_window_resize geo.ui (not (Ui.is_native_window_resize geo.ui))
+          ];
           "RESIZE BUFFER", `Toggle (Ui.is_buffered_resize geo.ui, fun b ->
             Ui.delay geo.ui (fun _ -> Ui.buffered_resize geo.ui b);
           );
