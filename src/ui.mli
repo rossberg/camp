@@ -22,6 +22,9 @@ val modal_rect : t -> string -> rect option -> unit
 val has_modal_rect : t -> bool
 val except_modal : t -> string -> (unit -> 'a) -> 'a
 
+val native_window_move : t -> bool -> unit
+val is_native_window_move : t -> bool
+
 (* Snapping *)
 
 val snap : int -> int -> int -> int

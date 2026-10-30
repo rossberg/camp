@@ -500,8 +500,9 @@ struct
   let is_hidden () = Raylib.is_window_hidden ()
 
   let drag () =
-    dragging := Some (Glfw.get_window_pos (), Glfw.get_cursor_pos ());
-    Glfw.drag_window ()
+    let b = Glfw.drag_window () in
+    if b then dragging := Some (Glfw.get_window_pos (), Glfw.get_cursor_pos ());
+    b
 
   let scale () = !Screen.scale
   let rescale () dx dy =
@@ -766,8 +767,6 @@ struct
       !current_clip
 
   let shader shader_opt =  (* minimize shader changes by doing them lazily *)
-assert (shader_opt = None);
-assert (!current_shader = None);
     (match !current_shader, shader_opt with
     | None, None -> ()
     | None, Some shader -> unclipped Raylib.begin_shader_mode shader

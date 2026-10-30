@@ -672,6 +672,7 @@ let print_state geo =
     "scaling", pair int int geo.scaling;
     "buffered", bool (Ui.is_buffered geo.ui);
     "buffered_resize", bool (Ui.is_buffered_resize geo.ui);
+    "native_win_move", bool (Ui.is_native_window_move geo.ui);
     "color_palette", nat (Ui.get_palette geo.ui);
     "text_size", nat geo.text;
     "text_pad_x", nat geo.pad_x;
@@ -723,6 +724,8 @@ let parse_state geo =  (* assumes playlist and library loaded *)
       (fun b -> Ui.buffered geo.ui b);
     apply (r $? "buffered_resize") bool
       (fun b -> Ui.buffered_resize geo.ui b);
+    apply (r $? "native_win_move") bool
+      (fun b -> Ui.native_window_move geo.ui b);
     apply (r $? "text_sdf") bool
       (fun b -> Ui.font_sdf geo.ui b);
     apply (r $? "color_palette") (num 0 (Ui.num_palette geo.ui - 1))

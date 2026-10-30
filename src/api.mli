@@ -81,7 +81,7 @@ sig
   val reveal : window -> unit
   val is_hidden : window -> bool
 
-  val drag : window -> unit
+  val drag : window -> bool
 
   val scale : window -> int * int
   val rescale : window -> int -> int -> unit

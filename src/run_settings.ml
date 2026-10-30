@@ -311,8 +311,11 @@ let run (st : state) focus_change =
             Ui.text_color geo.ui, ignore, ignore
           );
         ];
-        "BUFFERING", `Section [
-          "RESIZE", `Toggle (Ui.is_buffered_resize geo.ui, fun b ->
+        "WINDOWING IMPLEMENTATION", `Section [
+          "NATIVE MOVE", `Toggle (Ui.is_native_window_move geo.ui,
+            Ui.native_window_move geo.ui
+          );
+          "RESIZE BUFFER", `Toggle (Ui.is_buffered_resize geo.ui, fun b ->
             Ui.delay geo.ui (fun _ -> Ui.buffered_resize geo.ui b);
           );
         ];

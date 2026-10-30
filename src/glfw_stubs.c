@@ -339,19 +339,19 @@ GLFW_CALLBACK_API(FramebufferSize, framebuffer_size, framebuffersize, 2)
 /* Inspired by https://github.com/glfw/glfw/pull/2152
  * and https://github.com/Seneral/glfw */
 
-CAMLprim void glfw_drag_window(void)
+CAMLprim value glfw_drag_window(void)
 {
   CAMLparam0();
 
   init_windowpos_callback();
 
   GLFWwindow *win = glfwGetCurrentContext();
-  if (!win) CAMLreturn0;
+  if (!win) CAMLreturn(Val_false);
 
 #if defined(_WIN32)
 
   HWND hwnd = glfwGetWin32Window(win);
-  if (!hwnd) CAMLreturn0;
+  if (!hwnd) CAMLreturn(Val_false);
 
   ReleaseCapture();
   SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
@@ -362,20 +362,24 @@ CAMLprim void glfw_drag_window(void)
   extern void _glfwInputMouseClick(GLFWwindow*, int, int, int);
   _glfwInputMouseClick(win, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0 /*getKeyMods()*/);
 
+  CAMLreturn(Val_true);
+
 #elif defined(__APPLE__)
 
   id owin = glfwGetCocoaWindow(win);
-  if (!owin) CAMLreturn0;
+  if (!owin) CAMLreturn(Val_false);
 
   id app = objc_send0(id, (id)objc_getClass("NSApplication"), "sharedApplication");
   id currentEvent = objc_send0(id, app, "currentEvent");
   objc_send1(void, id, owin, "performWindowDragWithEvent:", currentEvent);
 
+  CAMLreturn(Val_true);
+
 #elif defined(__linux__)
 
   if (glfwGetPlatform() == GLFW_PLATFORM_X11)
   {
-    if (!x11_init()) CAMLreturn0;
+    if (!x11_init()) CAMLreturn(Val_false);
 
     typedef struct {
       int type;
@@ -423,11 +427,14 @@ CAMLprim void glfw_drag_window(void)
   }
   else if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
   {
-    if (!wayland_init()) CAMLreturn0;
+    if (!wayland_init()) CAMLreturn(Val_false);
     /* TODO */
+    CAMLreturn(Val_false);
   }
 
-#endif
+#else
 
-  CAMLreturn0;
+  CAMLreturn(Val_false);
+
+#endif
 }

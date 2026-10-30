@@ -9,7 +9,7 @@ external get_monitor_workarea : int -> int * int * int * int =
 external set_window_rect : int -> int -> int -> int -> unit =
   "glfw_set_window_rect"
 
-external drag_window : unit -> unit = "glfw_drag_window"
+external drag_window : unit -> bool = "glfw_drag_window"
 
 external set_window_refresh_callback : (unit -> unit) -> unit =
   "glfw_set_window_refresh_callback"

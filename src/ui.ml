@@ -21,6 +21,7 @@ type t =
   win : window;
   mutable buffered : bool;
   mutable buffered_resize : bool;
+  mutable native_window_move : bool;
   mutable font_sdf : bool;
   mutable palette : int;
   mutable pane : pane;
@@ -52,6 +53,7 @@ let make win =
   { win;
     buffered = true;
     buffered_resize = true;
+    native_window_move = true;
     font_sdf = false (*Screen.is_hires (Window.screen win)*);
     palette = 0;
     pane = 0;
@@ -74,6 +76,9 @@ let make win =
   }
 
 let window ui = ui.win
+
+let native_window_move ui b = ui.native_window_move <- b
+let is_native_window_move ui = ui.native_window_move
 
 
 (* Modal mode *)
@@ -602,8 +607,12 @@ let finish ui margin (varw, varh) =
       ui.drag <-
         if cursor = `Point then
         (
-          Window.drag ui.win;
-          Move {overshoot = 0, 0}  (* overshoot unused *)
+          if ui.native_window_move then
+          (
+            if not (Window.drag ui.win) then
+              ui.native_window_move <- false;  (* turn off if not working *)
+          );
+          Move {overshoot = 0, 0}  (* overshoot param unused when native *)
         )
         else
         (
@@ -613,8 +622,8 @@ let finish ui margin (varw, varh) =
           Resize {offset = dx, dy; edge = lft, top, rgt, bot}
         );
       wr, no_edge, screen_change
-(*
-    | Move {overshoot} ->
+
+    | Move {overshoot} when not ui.native_window_move ->
       Mouse.set_cursor ui.win `Point;
       let mouse = Mouse.abs_pos ui.win in
       let delta = Api.add (Mouse.delta ui.win) overshoot in
@@ -626,7 +635,6 @@ let finish ui margin (varw, varh) =
       let wx'', wy'' = snap sx (sx + sw - ww) wx', snap sy (sy + sh - wh) wy' in
       ui.drag <- Move {overshoot = wx' - wx'', wy' - wy''};
       (wx'', wy'', ww, wh), no_edge, screen_change
-*)
 
     | Resize {offset; edge = lft, top, rgt, bot as edge} ->
       Mouse.set_cursor ui.win (cursor varw varh lft top rgt bot);
@@ -2843,9 +2851,12 @@ let rec settings_w ui sty = function
     max lw1 lw', max rw1 rw'
 
 and setting_w ui sty (name, item) =
-  let lw = Draw.text_width ui.win sty.item_h (font ui sty.item_h) name in
-  let lw', rw = item_w ui sty item in
-  max lw lw', max rw (lw - lw' - sty.sep_w)
+  let lw, rw = item_w ui sty item in
+  match item with
+  | `Section _ -> lw, rw
+  | _ ->
+    let tw = Draw.text_width ui.win sty.item_h (font ui sty.item_h) name in
+    max lw tw, rw
 
 and item_w ui sty = function
   | `Toggle _ | `Text _ | `Number _ | `Button _ -> 0, 0  (* always flat *)

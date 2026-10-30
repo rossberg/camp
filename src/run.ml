@@ -319,15 +319,6 @@ and run' (st : state) (x, y, w, h as r) =
   if Api.Window.is_hidden win then  (* after startup *)
     Api.Window.reveal win;
 
-let dw =
-if Api.Key.is_down (`Char 'A') then +5 else
-if Api.Key.is_down (`Char 'D') then -5 else 0
-and dh =
-if Api.Key.is_down (`Char 'W') then +5 else
-if Api.Key.is_down (`Char 'S') then -5 else 0
-in
-let x', y', w', h' = x'-dw, y'-dh, w'+dw, h'+dh in
-
   (* Compute new window geometry *)
   if scr' <> scr then
   (
