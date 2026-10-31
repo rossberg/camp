@@ -642,6 +642,7 @@ struct
     if sdf then
     (
       (* https://github.com/raysan5/raylib/blob/master/examples/text/text_font_sdf.c *)
+      Raylib.(set_trace_log_level TraceLogLevel.Error);  (* suppress warnings *)
       let font = Ctypes.make Raylib.Font.t in
       Raylib.Font.set_base_size font size;
       let data = File.load `Bin path in
@@ -650,6 +651,7 @@ struct
       Raylib.Font.set_glyphs font glyphs;
 
       let atlas, recs = Raylib.gen_image_font_atlas glyphs size 0 1 in
+      Raylib.(set_trace_log_level TraceLogLevel.Warning);
       Raylib.Font.set_texture font (Raylib.load_texture_from_image atlas);
       Raylib.Font.set_recs font (Ctypes.CArray.start recs);
       Raylib.unload_image atlas;
@@ -663,7 +665,9 @@ struct
     (
       let glyphs = Ctypes.(CArray.make int (max - min)) in
       for i = min to max - 1 do Ctypes.CArray.set glyphs (i - min) i done;
+      Raylib.(set_trace_log_level TraceLogLevel.Error);  (* suppress warnings *)
       let font = Raylib.load_font_ex path size (Some glyphs) in
+      Raylib.(set_trace_log_level TraceLogLevel.Warning);
       (*Raylib.(set_texture_filter (Font.texture font) TextureFilter.Bilinear);*)
       {font; shader = None}
     )
@@ -763,7 +767,11 @@ struct
       Raylib.Rlgl.FramebufferAttachTextureType.Texture2d 0;
     {texture = buf; scale = sx, sy}
 
-  let dispose buf = Raylib.unload_render_texture buf.texture
+  let dispose buf =
+    (* Raylib bug: For some strange reason, on Windows this seems necessary,
+     * otherwise the current render batch is lost (e.g. while resizing UI). *)
+    Raylib.Rlgl.draw_render_batch_active ();
+    Raylib.unload_render_texture buf.texture
 
   let size buf =
     let w, h = Image.size (Raylib.RenderTexture.texture buf.texture) in
@@ -1437,6 +1445,11 @@ end
 
 module Clipboard =
 struct
-  let read () = Raylib.get_clipboard_text ()
   let write () s = Raylib.set_clipboard_text s
+
+  let read () =
+    Raylib.(set_trace_log_level TraceLogLevel.Error);
+    let s = Raylib.get_clipboard_text () in
+    Raylib.(set_trace_log_level TraceLogLevel.Warning);
+    s
 end

@@ -239,7 +239,7 @@ struct
         Ui.button g.ui "power_but" (p, x, y, w, h) KeyBind.quit b (Some false)
       let label () =
         Ui.label g.ui (p, x, y + h + sy 3, w, lh) `Center "POWER"
-      let shadow () = Ui.box g.ui (p, x, y, w + sx 1, h + sy 2) `Black
+      let shadow () = Ui.box g.ui (p, x, y, w + smin 1, h + sy 2) `Black
       let minimize () =
         Ui.invisible_button g.ui "power_but" (p, x, y, w, h) [`Shift]
           KeyBind.min true

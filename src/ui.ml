@@ -47,7 +47,7 @@ let make win =
   Window.set_icon win icon;
   { win;
     buffered = true;
-    font_sdf = false (*Screen.is_hires (Window.screen win)*);
+    font_sdf = false; (* too slow for live resize: Screen.is_hires (Window.screen win) *)
     palette = 0;
     pane = 0;
     pane_owners = Map.empty;
@@ -69,17 +69,6 @@ let window ui = ui.win
 
 let buffered ui b = ui.buffered <- b
 let is_buffered ui = ui.buffered
-
-
-(* Mouse ownership *)
-
-let has_mouse ui owner =
-  Option.exists (String.starts_with ~prefix: owner) ui.mouse_owner
-
-let grab_mouse ui owner =
-  if not ui.modal && ui.mouse_owner = None && ui.drag = No_drag then
-    ui.mouse_owner <- Some owner;
-  has_mouse ui owner
 
 
 (* Modal mode *)
@@ -240,6 +229,17 @@ let quant_floor l v = v / l * l
 let quant_ceil l v = (v + l - 1) / l * l
 
 
+(* Mouse ownership *)
+
+let has_mouse ui owner =
+  Option.exists (String.starts_with ~prefix: owner) ui.mouse_owner
+
+let grab_mouse ui owner =
+  if not ui.modal && ui.mouse_owner = None && ui.drag = No_drag then
+    ui.mouse_owner <- Some owner;
+  has_mouse ui owner
+
+
 (* Colors *)
 
 type color = Api.color
@@ -380,10 +380,12 @@ let get_img ui rimg =
 let nocover ui = get_img ui ui.img_nocover
 
 let background ui x y w h =
+  let ww, wh = Window.size ui.win in
+  let partial = x <> 0 || y <> 0 || w < ww || h < wh in
   let bg = get_img ui ui.img_background in
   let iw, ih = Image.size bg in
 
-  Draw.clip ui.win x y w h;
+  if partial then Draw.clip ui.win x y w h;
 
   for i = 0 to (w + iw - 1)/iw - 1 do
     let dx = if w < iw then - (iw - w)/2 else i*iw in
@@ -400,7 +402,7 @@ let background ui x y w h =
 
   mouse_focus' ui ((min w h) / 4) 0x20 0;
 
-  Draw.unclip ui.win
+  if partial then Draw.unclip ui.win
 
 
 (* Window *)
@@ -2756,9 +2758,12 @@ let rec settings_w ui sty = function
     max lw1 lw', max rw1 rw'
 
 and setting_w ui sty (name, item) =
-  let lw = Draw.text_width ui.win sty.item_h (font ui sty.item_h) name in
-  let lw', rw = item_w ui sty item in
-  max lw lw', max rw (lw - lw' - sty.sep_w)
+  let lw, rw = item_w ui sty item in
+  match item with
+  | `Section _ -> lw, rw
+  | _ ->
+    let tw = Draw.text_width ui.win sty.item_h (font ui sty.item_h) name in
+    max lw tw, rw
 
 and item_w ui sty = function
   | `Toggle _ | `Text _ | `Number _ | `Button _ -> 0, 0  (* always flat *)
@@ -3019,7 +3024,6 @@ let settings ui owner area sty vscroll adjust_vscroll settings =
   let _, wdy = wheel_status ui r in
   let ext = if set_h = 0 then 1.0 else min 1.0 (float page_h /. float set_h) in
   let pos = if set_h = 0 then 0.0 else float vscroll' /. float set_h in
-(*Printf.printf "scroll=%d pos=%.2f/ext=%.2f page_h=%d/set_h=%d\n%!" set.vscroll pos ext page_h set_h;*)
   let scroll_area = (p, ax + w - sty.scroll_w - 1, ay + 2, sty.scroll_w, h - 3) in
   let pos' =
     scroll_bar ui (owner ^ ":vscroll") scroll_area sty.scroll_l `Vertical

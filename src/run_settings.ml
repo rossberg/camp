@@ -303,11 +303,11 @@ let run (st : state) focus_change =
             Ui.text_color geo.ui, ignore, ignore
           );
           "MOUSE", `Text (
-            Edit.make_with 0 (fmt " %d  %d" amx amy),
+            Edit.make_with 0 (fmt " %d  %d" mx my),
             Ui.text_color geo.ui, ignore, ignore
           );
-          "...RELATIVE", `Text (
-            Edit.make_with 0 (fmt " %d  %d" mx my),
+          "...ABSOLUTE", `Text (
+            Edit.make_with 0 (fmt " %d  %d" amx amy),
             Ui.text_color geo.ui, ignore, ignore
           );
         ];
