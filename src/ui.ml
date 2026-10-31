@@ -54,8 +54,8 @@ let make win =
   { win;
     buffered = true;
     buffered_resize = true;
-    native_window_resize = Sys.unix;
-    native_window_move = not Sys.win32;  (* does not snap on Windows *)
+    native_window_resize = Sys.unix;  (* only works on X11 *)
+    native_window_move = not Sys.win32;  (* blocks on Windows and doesn't snap *)
     font_sdf = false; (* too slow for live resize: Screen.is_hires (Window.screen win) *)
     palette = 0;
     pane = 0;
@@ -428,11 +428,11 @@ let nocover ui = get_img ui ui.img_nocover
 
 let background ui x y w h =
   let ww, wh = size ui in
-  let part = x <> 0 || y <> 0 || w < ww || h < wh in
+  let partial = x <> 0 || y <> 0 || w < ww || h < wh in
   let bg = get_img ui ui.img_background in
   let iw, ih = Image.size bg in
 
-  if part then Draw.clip ui.win x y w h;
+  if partial then Draw.clip ui.win x y w h;
 
   for i = 0 to (w + iw - 1)/iw - 1 do
     let dx = if w < iw then - (iw - w)/2 else i*iw in
@@ -449,7 +449,7 @@ let background ui x y w h =
 
   mouse_focus' ui ((min w h) / 4) 0x20 0;
 
-  if part then Draw.unclip ui.win
+  if partial then Draw.unclip ui.win
 
 
 (* Window *)
