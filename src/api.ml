@@ -498,7 +498,8 @@ struct
     let scr = !current_screen in
     let {inner; _} = Screen.mon scr in
     let scr' = Option.value (Screen.update scr) ~default: scr in
-    let scr'' = Screen.screen (!mouse_abs_pos ()) in
+    let scr'' =
+      if !dragging = None then scr' else Screen.screen (!mouse_abs_pos ()) in
     let {inner = inner'; _} = Screen.mon scr'' in
     if scr = scr' && inner = inner' then None else Some scr''
 
