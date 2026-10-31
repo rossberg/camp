@@ -354,7 +354,7 @@ struct
     current
 
   let update current =
-    let {outer; inner; _} = Iarray.get !monitors current in
+    let {outer; inner} = Iarray.get !monitors current in
     let x', y', w', h'= Glfw.get_monitor_workarea current in
     let change = inner <> (x', y', w', h') in
     if not change then None else
@@ -363,7 +363,7 @@ struct
 
       if !App.debug_layout then
       (
-        let {outer = outer'; inner = inner'; _} = Iarray.get !monitors current in
+        let {outer = outer'; inner = inner'} = Iarray.get !monitors current in
         let x, y, w, h = outer in
         let x', y', w', h' = outer' in
         Printf.eprintf
@@ -493,7 +493,14 @@ struct
   let set_screen () scr = current_screen := scr
   let set_icon () img = if not is_mac then Raylib.set_window_icon img
 
-  let update_screen () = Screen.update !current_screen
+  let mouse_abs_pos = ref (fun _ -> assert false)
+  let update_screen () =
+    let scr = !current_screen in
+    let {inner; _} = Screen.mon scr in
+    let scr' = Option.value (Screen.update scr) ~default: scr in
+    let scr'' = Screen.screen (!mouse_abs_pos ()) in
+    let {inner = inner'; _} = Screen.mon scr'' in
+    if scr = scr' && inner = inner' then None else Some scr''
 
   let min_pos () = Screen.min_pos !current_screen
   let max_size () = Screen.max_size !current_screen
@@ -869,7 +876,7 @@ struct
     current_scale := (-1, -1);
     f ();
     List.iter (fun f -> f ()) (List.rev !after_frame_finish);
-    Screen.update !Window.current_screen
+    Window.update_screen ()
 
   let finish () =
     finish' (fun () ->
@@ -1049,6 +1056,8 @@ struct
   let delta () = Screen.uxy (sub !current_pos !last_pos)
   let wheel () = Screen.ufxy (floats_of_vec2 (Raylib.get_mouse_wheel_move_v ()))
 
+  let _ = Window.mouse_abs_pos := abs_pos
+
   let button = function
     | `Left -> Raylib.MouseButton.Left
     | `Right -> Raylib.MouseButton.Right
@@ -1100,7 +1109,19 @@ struct
         match !Window.dragging with
         | None -> mouse_pos, win_pos
         | Some (win_start, mouse_start) ->
-          let win_pos = add win_start (sub mouse_pos mouse_start) in
+          let mouse_pos, win_pos =
+            if is_mac then
+              (* On Mac, the mouse pos is updated but the window pos isn't *)
+              mouse_pos,
+              add win_start (sub mouse_pos mouse_start)
+            else if Sys.unix then
+              (* On X11, it's the other way round *)
+              add (add win_start mouse_start) (sub mouse_start mouse_pos),
+              win_pos
+            else
+              (* TODO: verify on Windows *)
+              mouse_pos, win_pos
+          in
           Window.current_pos := win_pos;
           mouse_start, win_pos
       in
