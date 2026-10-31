@@ -650,9 +650,12 @@ field. And this works even with playlists.
   - `#time(e)` - extract time from a date
   - `#time([[e1,]e2,]e3)` - construct a time from (hours), (minutes), seconds
   - `#date(e1,e2,e3)` - construct a date from year, month, day
-  - `#random(e1,e2)` - a random number between e1 and e2-1
-  - `#random(e)` - a random number between 0 and e-1
-  - `#random()` - a random number between 0 and 2^32-1
+  - `#random()` - a random number between 0 and <2^32 (linear distribution)
+  - `#random(e)` - a random number, time, or date between 0 and <e
+  - `#random(e1,e2)` - a random number, time, or date between e1 and <e2
+  - `#gauss()` - a random time around 0 (Gaussian normal distribution)
+  - `#gauss(e)` - a random number, time, or date around 0 with deviation e
+  - `#gauss(e1,e2)` - a random number, time, date around e2 with deviation e1
   - `#true` - the true truth value
   - `#false` - the false truth value
   - `#bit(e)` - convert a truth value to 0 or 1

@@ -117,7 +117,7 @@ type order = Data.order
 type 'a sorting = 'a Data.sorting
 
 type fnop =
-  | True | False | Bit | Now | Random
+  | True | False | Bit | Now | Random | Gauss
   | Year | Month | Day | Hour | Minute | Second | Date | Time
   | Min | Max | Avg | If | Id
 type unop = Not | Neg
@@ -156,7 +156,7 @@ let artist_keys : keys =
 let album_keys : keys =
   [
     "fileexists", `FileExists;
-    "filetime", `FileTime; "filesize", `FileSize;
+    "filedate", `FileTime; "filesize", `FileSize;
     "filepath", `FilePath; "filedir", `FileDir;
     "filename", `FileName; "fileext", `FileExt;
     "title", `Title; "artist", `Artist;
@@ -188,7 +188,7 @@ let keys (type x a) (k : (x, a) Data.kind) : keys =
 let fns =
   [
     "true", True; "false", False; "bit", Bit;
-    "random", Random; "now", Now;
+    "now", Now; "random", Random; "gauss", Gauss;
     "year", Year; "month", Month; "day", Day;
     "hour", Hour; "minute", Minute; "second", Second;
     "date", Date; "time", Time;
@@ -286,10 +286,12 @@ let rec validate : 'x 'a. ('x, 'a) Data.kind -> expr -> type_ =
     (match fn, ts with
     | (True | False), [] -> BoolT
     | Bit, [BoolT] -> IntT
-    | Random, ts ->
-      if List.exists ((<>) IntT) ts || List.length ts > 2 then
-        raise (TypeError q);
-      IntT
+    | Random, [] -> IntT
+    | Gauss, [] -> TimeT
+    | (Random | Gauss), ([IntT] | [IntT; IntT]) -> IntT
+    | (Random | Gauss), ([TimeT] | [TimeT; TimeT]) -> TimeT
+    | Random, [DateT; DateT] -> DateT
+    | Gauss, [TimeT; DateT] -> DateT
     | Now, [] -> DateT
     | (Year | Month | Day), [DateT] -> IntT
     | (Hour | Minute | Second), [DateT | TimeT] -> IntT
@@ -333,6 +335,11 @@ let rec validate : 'x 'a. ('x, 'a) Data.kind -> expr -> type_ =
 
 (* Evaluation *)
 
+let gauss () =
+  let x = 1.0 -. Random.float 1.0 in
+  let y = Random.float 1.0 in
+  Float.(sqrt (-2.0 *. log x) *. cos (2.0 *. pi *. y))
+
 let lit = function
   | IntV (i, Some _) -> IntV (i, None)
   | TimeV (t, Some _) -> TimeV (t, None)
@@ -367,17 +374,23 @@ let rec eval : 'x 'a. ('x, 'a) Data.kind -> expr -> 'x -> value =
     | False, [] -> BoolV false
     | Bit, [BoolV b] -> IntV (Bool.to_int b, None)
     | Random, [] -> IntV (Random.int 0x1_0000_0000, None)
-    | Random, [v1] ->
-      (match v1 with
-      | IntV (i, _) -> IntV ((if i < 1 then 0 else Random.int i), None)
-      | _ -> assert false
-      )
-    | Random, [v1; v2] ->
-      (match v1, v2 with
-      | IntV (i1, _), IntV (i2, _) ->
-        IntV ((if i1 >= i2 || i2 < 1 then 0 else Random.int (i2 - i1) + i1), None)
-      | _ -> assert false
-      )
+    | Random, [IntV (i, _)] -> IntV ((if i < 1 then 0 else Random.int i), None)
+    | Random, [IntV (i1, _); IntV (i2, _)] ->
+      IntV ((if i1 >= i2 || i2 < 1 then 0 else Random.int (i2 - i1) + i1), None)
+    | Random, [TimeV (t, _)] -> TimeV (Random.float t, None)
+    | Random, [TimeV (t1, _); TimeV (t2, _)] ->
+      TimeV (Random.float (t2 -. t1) +. t1, None)
+    | Random, [DateV (t1, _); DateV (t2, _)] ->
+      DateV (Random.float (t2 -. t1) +. t1, None)
+    | Gauss, [IntV (i, _)] -> IntV (int_of_float (float i *. gauss ()), None)
+    | Gauss, [IntV (i1, _); IntV (i2, _)] ->
+      IntV (int_of_float (float i1 *. gauss () +. float i2), None)
+    | Gauss, [] -> TimeV (gauss (), None)
+    | Gauss, [TimeV (t, _)] -> TimeV (t *. gauss (), None)
+    | Gauss, [TimeV (t1, _); TimeV (t2, _)] ->
+      TimeV (t1 *. gauss () +. t2, None)
+    | Gauss, [TimeV (t1, _); DateV (t2, _)] ->
+      DateV (t1 *. gauss () +. t2, None)
     | Now, [] -> DateV (Unix.gettimeofday (), None)
     | Year, [DateV (t, _)] -> IntV ((File.local_time t).tm_year + 1900, None)
     | Month, [DateV (t, _)] -> IntV ((File.local_time t).tm_mon + 1, None)

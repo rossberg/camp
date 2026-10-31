@@ -8,7 +8,7 @@ type order = Data.order
 type 'a sorting = 'a Data.sorting
 
 type fnop =
-  | True | False | Bit | Now | Random
+  | True | False | Bit | Now | Random | Gauss
   | Year | Month | Day | Hour | Minute | Second | Date | Time
   | Min | Max | Avg | If | Id
 type unop = Not | Neg
