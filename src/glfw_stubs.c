@@ -472,7 +472,7 @@ CAMLprim value glfw_drag_window(void)
   else if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
   {
     if (!wayland_init()) CAMLreturn(Val_false);
-    /* TODO */
+    /* TODO: would need acces to GLFW/Wayland internals */
   }
 
   CAMLreturn(Val_false);
@@ -623,7 +623,7 @@ CAMLprim value glfw_resize_window(value vborder)
   else if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
   {
     if (!wayland_init()) CAMLreturn(Val_false);
-    /* TODO */
+    /* TODO: would need acces to GLFW/Wayland internals */
   }
 
   CAMLreturn(Val_false);
