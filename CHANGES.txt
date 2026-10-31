@@ -5,7 +5,11 @@ Playlist:
 - [new] On Windows, support both native (\) or portable (/) path formats
 
 Library:
-- [new] Same playlist format configuration options apply as for Playlist
+- [new] Same new playlist format configuration options as for Playlist
+- [new] Query functions for conversions: #bit, #month, #hour, #date, etc.
+- [new] Query function #gauss to generate random value with normal distribution
+- [new] #random works on time and date values
+- [chg] #filetime renamed to #filedate
 - [chg] Allow drag & drop onto Library playlist even when it is not ordered
 - [chg] Remember selection, scroll positions, and undos for every directory
 - [chg] Allow simultaneous selection in playlist and tracks view

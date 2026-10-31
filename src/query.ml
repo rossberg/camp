@@ -116,10 +116,15 @@ type artist = Data.artist
 type order = Data.order
 type 'a sorting = 'a Data.sorting
 
-type fnop = True | False | Now | Random | Min | Max | Avg | If | Id
+type fnop =
+  | True | False | Bit | Now | Random | Gauss
+  | Year | Month | Day | Hour | Minute | Second | Date | Time
+  | Min | Max | Avg | If | Id
 type unop = Not | Neg
 type binop =
-  | And | Or | EQ | NE | LT | GT | LE | GE | IN | NI | Add | Sub | Mul | Cat
+  | And | Or
+  | EQ | NE | LT | GT | LE | GE | IN | NI
+  | Add | Sub | Mul | Cat
 
 type expr =
   | Text of string
@@ -151,7 +156,7 @@ let artist_keys : keys =
 let album_keys : keys =
   [
     "fileexists", `FileExists;
-    "filetime", `FileTime; "filesize", `FileSize;
+    "filedate", `FileTime; "filesize", `FileSize;
     "filepath", `FilePath; "filedir", `FileDir;
     "filename", `FileName; "fileext", `FileExt;
     "title", `Title; "artist", `Artist;
@@ -182,8 +187,11 @@ let keys (type x a) (k : (x, a) Data.kind) : keys =
 
 let fns =
   [
-    "true", True; "false", False;
-    "random", Random; "now", Now;
+    "true", True; "false", False; "bit", Bit;
+    "now", Now; "random", Random; "gauss", Gauss;
+    "year", Year; "month", Month; "day", Day;
+    "hour", Hour; "minute", Minute; "second", Second;
+    "date", Date; "time", Time;
     "min", Min; "max", Max; "avg", Avg;
     "if", If;
     "", Id;
@@ -277,11 +285,18 @@ let rec validate : 'x 'a. ('x, 'a) Data.kind -> expr -> type_ =
     let ts = List.map (validate k) qs in
     (match fn, ts with
     | (True | False), [] -> BoolT
-    | Random, ts ->
-      if List.exists ((<>) IntT) ts || List.length ts > 2 then
-        raise (TypeError q);
-      IntT
+    | Bit, [BoolT] -> IntT
+    | Random, [] -> IntT
+    | Gauss, [] -> TimeT
+    | (Random | Gauss), ([IntT] | [IntT; IntT]) -> IntT
+    | (Random | Gauss), ([TimeT] | [TimeT; TimeT]) -> TimeT
+    | Random, [DateT; DateT] -> DateT
+    | Gauss, [TimeT; DateT] -> DateT
     | Now, [] -> DateT
+    | (Year | Month | Day), [DateT] -> IntT
+    | (Hour | Minute | Second), [DateT | TimeT] -> IntT
+    | Time, ([IntT] | [IntT; IntT] | [IntT; IntT; IntT] | [DateT]) -> TimeT
+    | Date, [IntT; IntT; IntT] -> DateT
     | (Min | Max), t::ts' ->
       if List.exists ((<>) t) ts' then raise (TypeError q);
       t
@@ -320,6 +335,11 @@ let rec validate : 'x 'a. ('x, 'a) Data.kind -> expr -> type_ =
 
 (* Evaluation *)
 
+let gauss () =
+  let x = 1.0 -. Random.float 1.0 in
+  let y = Random.float 1.0 in
+  Float.(sqrt (-2.0 *. log x) *. cos (2.0 *. pi *. y))
+
 let lit = function
   | IntV (i, Some _) -> IntV (i, None)
   | TimeV (t, Some _) -> TimeV (t, None)
@@ -352,19 +372,41 @@ let rec eval : 'x 'a. ('x, 'a) Data.kind -> expr -> 'x -> value =
     (match fn, vs with
     | True, [] -> BoolV true
     | False, [] -> BoolV false
+    | Bit, [BoolV b] -> IntV (Bool.to_int b, None)
     | Random, [] -> IntV (Random.int 0x1_0000_0000, None)
-    | Random, [v1] ->
-      (match v1 with
-      | IntV (i, _) -> IntV ((if i < 1 then 0 else Random.int i), None)
-      | _ -> assert false
-      )
-    | Random, [v1; v2] ->
-      (match v1, v2 with
-      | IntV (i1, _), IntV (i2, _) ->
-        IntV ((if i1 >= i2 || i2 < 1 then 0 else Random.int (i2 - i1) + i1), None)
-      | _ -> assert false
-      )
+    | Random, [IntV (i, _)] -> IntV ((if i < 1 then 0 else Random.int i), None)
+    | Random, [IntV (i1, _); IntV (i2, _)] ->
+      IntV ((if i1 >= i2 || i2 < 1 then 0 else Random.int (i2 - i1) + i1), None)
+    | Random, [TimeV (t, _)] -> TimeV (Random.float t, None)
+    | Random, [TimeV (t1, _); TimeV (t2, _)] ->
+      TimeV (Random.float (t2 -. t1) +. t1, None)
+    | Random, [DateV (t1, _); DateV (t2, _)] ->
+      DateV (Random.float (t2 -. t1) +. t1, None)
+    | Gauss, [IntV (i, _)] -> IntV (int_of_float (float i *. gauss ()), None)
+    | Gauss, [IntV (i1, _); IntV (i2, _)] ->
+      IntV (int_of_float (float i1 *. gauss () +. float i2), None)
+    | Gauss, [] -> TimeV (gauss (), None)
+    | Gauss, [TimeV (t, _)] -> TimeV (t *. gauss (), None)
+    | Gauss, [TimeV (t1, _); TimeV (t2, _)] ->
+      TimeV (t1 *. gauss () +. t2, None)
+    | Gauss, [TimeV (t1, _); DateV (t2, _)] ->
+      DateV (t1 *. gauss () +. t2, None)
     | Now, [] -> DateV (Unix.gettimeofday (), None)
+    | Year, [DateV (t, _)] -> IntV ((File.local_time t).tm_year + 1900, None)
+    | Month, [DateV (t, _)] -> IntV ((File.local_time t).tm_mon + 1, None)
+    | Day, [DateV (t, _)] -> IntV ((File.local_time t).tm_mday, None)
+    | Hour, [DateV (t, _)] -> IntV ((File.local_time t).tm_hour, None)
+    | Minute, [DateV (t, _)] -> IntV ((File.local_time t).tm_min, None)
+    | Second, [DateV (t, _)] -> IntV ((File.local_time t).tm_sec, None)
+    | Hour, [TimeV (t, _)] -> IntV (int_of_float t / 3600, None)
+    | Minute, [TimeV (t, _)] -> IntV (int_of_float t / 60 mod 60, None)
+    | Second, [TimeV (t, _)] -> IntV (int_of_float t mod 60, None)
+    | Time, [IntV (s, _)] -> TimeV (float s, None)
+    | Time, [IntV (m, _); IntV (s, _)] -> TimeV (float (60*m + s), None)
+    | Time, [IntV (h, _); IntV (m, _); IntV (s, _)] ->
+      TimeV (float (3600*h + 60*m + s), None)
+    | Time, [DateV (s, _)] -> TimeV (mod_float s 86400.0, None)
+    | Date, [IntV (y, _); IntV (m, _); IntV (d, _)] -> DateV (date y m d, None)
     | Min, v1::vs' -> List.fold_left min v1 vs'
     | Max, v1::vs' -> List.fold_left max v1 vs'
     | Avg, v1::vs' ->
@@ -807,13 +849,12 @@ let rec token s i =
     )
   | '#' ->
     let x, j = scan_word s (i + 1) in
-    if x = "" && not (is '(' s (i + 1)) then raise (SyntaxError i) else
-    (match List.assoc_opt x fns with
-    | Some fn -> FnToken fn, j
-    | None ->
-      match List.assoc_opt x any_keys with
-      | Some key -> KeyToken key, j
-      | None -> raise (SyntaxError i)
+    let isfn = is '(' s j in
+    if x = "" && not isfn then raise (SyntaxError i) else
+    (match List.assoc_opt x fns, List.assoc_opt x any_keys with
+    | Some fn, key_opt when isfn || key_opt = None -> FnToken fn, j
+    | _, Some key when not isfn -> KeyToken key, j
+    | _, _ -> raise (SyntaxError i)
     )
   | c when c >= '\x80' ->
     let s', j = scan_word_ex s i in
