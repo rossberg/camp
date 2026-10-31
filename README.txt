@@ -650,6 +650,7 @@ field. And this works even with playlists.
   - `#random()` - a random number between 0 and 2^32-1
   - `#true` - the true truth value
   - `#false` - the false truth value
+  - `#bit(e)` - convert a truth value to 0 or 1
   - `#min(...)` - minimum of values
   - `#max(...)` - maximum of values
   - `#avg(...)` - average of values (must be numeric or time)

@@ -116,7 +116,7 @@ type artist = Data.artist
 type order = Data.order
 type 'a sorting = 'a Data.sorting
 
-type fnop = True | False | Now | Random | Min | Max | Avg | If | Id
+type fnop = True | False | Now | Random | Bit | Min | Max | Avg | If | Id
 type unop = Not | Neg
 type binop =
   | And | Or | EQ | NE | LT | GT | LE | GE | IN | NI | Add | Sub | Mul | Cat
@@ -184,6 +184,7 @@ let fns =
   [
     "true", True; "false", False;
     "random", Random; "now", Now;
+    "bit", Bit;
     "min", Min; "max", Max; "avg", Avg;
     "if", If;
     "", Id;
@@ -282,6 +283,7 @@ let rec validate : 'x 'a. ('x, 'a) Data.kind -> expr -> type_ =
         raise (TypeError q);
       IntT
     | Now, [] -> DateT
+    | Bit, [BoolT] -> IntT
     | (Min | Max), t::ts' ->
       if List.exists ((<>) t) ts' then raise (TypeError q);
       t
@@ -365,6 +367,7 @@ let rec eval : 'x 'a. ('x, 'a) Data.kind -> expr -> 'x -> value =
       | _ -> assert false
       )
     | Now, [] -> DateV (Unix.gettimeofday (), None)
+    | Bit, [BoolV b] -> IntV (Bool.to_int b, None)
     | Min, v1::vs' -> List.fold_left min v1 vs'
     | Max, v1::vs' -> List.fold_left max v1 vs'
     | Avg, v1::vs' ->
