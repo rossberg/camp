@@ -7,10 +7,15 @@ type artist = Data.artist
 type order = Data.order
 type 'a sorting = 'a Data.sorting
 
-type fnop = True | False | Now | Random | Bit | Min | Max | Avg | If | Id
+type fnop =
+  | True | False | Bit | Now | Random
+  | Year | Month | Day | Hour | Minute | Second | Date | Time
+  | Min | Max | Avg | If | Id
 type unop = Not | Neg
 type binop =
-  | And | Or | EQ | NE | LT | GT | LE | GE | IN | NI | Add | Sub | Mul | Cat
+  | And | Or
+  | EQ | NE | LT | GT | LE | GE | IN | NI
+  | Add | Sub | Mul | Cat
 
 type expr =
   | Text of string

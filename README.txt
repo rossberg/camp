@@ -645,6 +645,11 @@ field. And this works even with playlists.
 * Functions: In addition to simple operators, formulas can also contain functions:
 
   - `#now` - the current date & time
+  - `#year(e)`, `#month(e)`, `#day(e)` - extract part of a date
+  - `#hour(e)`, `#minute(e)`, `#second(e)` - extract part of a date or time
+  - `#time(e)` - extract time from a date
+  - `#time([[e1,]e2,]e3)` - construct a time from (hours), (minutes), seconds
+  - `#date(e1,e2,e3)` - construct a date from year, month, day
   - `#random(e1,e2)` - a random number between e1 and e2-1
   - `#random(e)` - a random number between 0 and e-1
   - `#random()` - a random number between 0 and 2^32-1

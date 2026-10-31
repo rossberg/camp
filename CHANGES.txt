@@ -6,7 +6,7 @@ Playlist:
 
 Library:
 - [new] Same new playlist format configuration options as for Playlist
-- [new] Additional query function #bit
+- [new] Query functions for conversions: #bit, #month, #hour, #date, etc.
 - [chg] Allow drag & drop onto Library playlist even when it is not ordered
 - [chg] Remember selection, scroll positions, and undos for every directory
 - [chg] Allow simultaneous selection in playlist and tracks view
