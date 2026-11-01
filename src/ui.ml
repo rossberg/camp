@@ -657,12 +657,14 @@ let finish ui margin szmin szmax (varw, varh) ratio_opt =
       Mouse.set_cursor ui.win `Point;
       let delta = Api.sub origin anchor in
       let wx', wy' = add (wx, wy) delta in
-      let scr = Screen.screen origin in  (* snap relative to mouse's screen *)
-      pin ui scr;
-      let sx, sy = Screen.min_pos scr in
-      let sw, sh = Screen.max_size scr in
+      let scr = Window.screen ui.win in
+      let scr' = Screen.screen (Mouse.abs_pos ui.win) in  (* follow mouse *)
+      pin ui scr';
+      let sx, sy = Screen.min_pos scr' in
+      let sw, sh = Screen.max_size scr' in
       let wx'', wy'' = snap sx (sx + sw - ww) wx', snap sy (sy + sh - wh) wy' in
-      (wx'', wy'', ww, wh), no_edge, screen_change
+      (wx'', wy'', ww, wh), no_edge,
+        if scr' <> scr then Some scr' else screen_change
 
     | Resize {offset; edge = lft, top, rgt, bot as edge}
       when not ui.native_window_resize ->

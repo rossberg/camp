@@ -8,6 +8,7 @@ let args = Arg.align
   "--debug-storage", Arg.Set App.debug_storage, "\tLog access to storage files";
   "--debug-strict", Arg.Set App.debug_strict, "\tAbort on invariant violation";
   "--debug-perf", Arg.Set App.debug_perf, "\tLog execution times";
+  "--debug-frame", Arg.Set App.debug_frame, "\tLog frame transitions";
   "--debug-layout", Arg.Set App.debug_layout, "\tLog window layout";
   "--debug-modality", Arg.Set App.debug_modality, "\tLog modality changes";
 ]

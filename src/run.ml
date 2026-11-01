@@ -194,6 +194,16 @@ and run' (st : state) (x, y, w, h as r) =
   );
 
   (* Start drawing *)
+  if !App.debug_frame then
+  (
+    Printf.eprintf "[run.frame %d start] ==================================\n%!"
+      (Api.Draw.frame win + 1);
+    let x, y, w, h = r in
+    let ax, ay, aw, ah = geo.window in
+    let sx, sy, sw, sh = Api.Screen.rect (Api.Window.screen win) in
+    Printf.eprintf "  window=%.2f,%.2f,%.2f,%.2f ~ %d,%d,%d,%d @ %d,%d,%d,%d\n%!"
+      ax ay aw ah x y w h sx sy sw sh;
+  );
   Ui.start geo.ui r;
 
   let module WindowUi = Layout.Window (struct let it = geo end) in
@@ -312,6 +322,16 @@ and run' (st : state) (x, y, w, h as r) =
       (if Geometry.(extension_shown_w geo || extension_shown_h geo)
         then None else geo.control_ratio)
   in
+  if !App.debug_frame then
+  (
+    Printf.eprintf "[run.frame %d finish] =================================\n%!"
+      (Api.Draw.frame win);
+    let ax, ay, aw, ah = geo.window in
+    let sx, sy, sw, sh = Api.Screen.rect (Api.Window.screen win) in
+    Printf.eprintf
+      "  window=%.2f,%.2f,%.2f,%.2f ~ %d,%d,%d,%d @ %d,%d,%d,%d\n%!"
+      ax ay aw ah x' y' w' h' sx sy sw sh;
+  );
   let x', y', w', h' =
     if not extension_change || screen_change <> None then x', y', w', h' else
     (Ui.pin geo.ui scr; x, y, w, h)  (* undo move or resize *)
@@ -323,9 +343,6 @@ and run' (st : state) (x, y, w, h as r) =
   (* Compute new window geometry *)
   if screen_change <> None then
   (
-    (* Resolution change or window was dragged to another screen: adapt size *)
-    assert ((w', h') = (w, h));  (* can only happen on move *)
-
     let scr' = Option.get screen_change in
     let x'', y'', w'', h'' = Geometry.apply_geo geo scr' geo.window in
     let x'', y'' =
@@ -342,12 +359,11 @@ and run' (st : state) (x, y, w, h as r) =
 
     if !App.debug_layout then
     (
-      let sx, sy = Api.Screen.pos scr in
-      let sw, sh = Api.Screen.size scr in
-      let sx', sy' = Api.Screen.pos scr' in
-      let sw', sh' = Api.Screen.size scr' in
+      let sx, sy, sw, sh = Api.Screen.rect scr in
+      let sx', sy', sw', sh' = Api.Screen.rect scr' in
+      Printf.eprintf "[run.win screen]\n";
       Printf.eprintf
-        "[run.win screen] %d,%d,%d,%d @ %d,%d,%d,%d -> %d,%d,%d,%d @ %d,%d,%d,%d\n%!"
+        "  %d,%d,%d,%d @ %d,%d,%d,%d ->\n  %d,%d,%d,%d @ %d,%d,%d,%d\n%!"
         x y w h sx sy sw sh x'' y'' w'' h'' sx' sy' sw' sh';
     );
 

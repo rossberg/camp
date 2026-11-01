@@ -302,6 +302,7 @@ struct
   let sxy (x, y) = (sx x, sy y)
   let uxy (x, y) = (ux x, uy y)
   let ufxy (x, y) = (ufx x, ufy y)
+  let uxywh (x, y, w, h) = (ux x, uy y, ux w, uy h)
 
   let monitors = ref ([||] : monitor iarray)
 
@@ -390,6 +391,7 @@ struct
   let mon scr = Iarray.get !monitors scr
   let pos scr = let {outer = x, y, _, _; _} = mon scr in uxy (x, y)
   let size scr = let {outer = _, _, w, h; _} = mon scr in uxy (w, h)
+  let rect scr = let {outer = r; _} = mon scr in uxywh r
   let min_pos scr = let {inner = x, y, _, _; _} = mon scr in uxy (x, y)
   let max_size scr = let {inner = _, _, w, h; _} = mon scr in uxy (w, h)
 end

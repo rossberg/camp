@@ -42,6 +42,7 @@ sig
   val screen : point -> screen
   val pos : screen -> point
   val size : screen -> size
+  val rect : screen -> rect
   val min_pos : screen -> point
   val max_size : screen -> size
 end
