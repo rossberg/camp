@@ -321,21 +321,24 @@ and run' (st : state) (x, y, w, h as r) =
     if not extension_change || screen_change <> None then x', y', w', h' else
     (Ui.pin geo.ui scr; x, y, w, h)  (* undo move or resize *)
   in
-  let scr' = Api.Window.screen win in
+
   if Api.Window.is_hidden win then  (* after startup *)
     Api.Window.reveal win;
 
   (* Compute new window geometry *)
-  if scr' <> scr then
+  if screen_change <> None then
   (
-    (* Window was dragged to another screen: adapt size *)
+    (* Resolution change or window was dragged to another screen: adapt size *)
     assert ((w', h') = (w, h));  (* can only happen on move *)
 
-    let _, _, w'', h'' = Geometry.apply_geo geo scr' geo.window in
-    (* Subtract mouse delta to get position relative to current geometry *)
-    let origin = Api.Mouse.(Api.sub (pos win) (delta win)) in
-    let dx, dy = Ui.resize_repos geo.ui origin (w'' - w, h'' - h) in
-    let x'', y'' = x' + dx, y' + dy in
+    let scr' = Option.get screen_change in
+    let x'', y'', w'', h'' = Geometry.apply_geo geo scr' geo.window in
+    let x'', y'' =
+      if not (Ui.is_moved geo.ui) then x'', y'' else
+      (* Reposition to resize relative to current mouse anchor *)
+      let dx, dy = Ui.resize_while_moved geo.ui (w'' - w, h'' - h) in
+      x' + dx, y' + dy
+    in
 
     if !App.debug_layout then
     (
@@ -349,11 +352,6 @@ and run' (st : state) (x, y, w, h as r) =
     );
 
     x'', y'', w'', h''
-  )
-  else if screen_change <> None then
-  (
-    (* Resolution change: adapt geometry *)
-    Geometry.apply_geo geo (Option.get screen_change) geo.window
   )
   else if scale_delta <> 0 then
   (
@@ -369,7 +367,7 @@ and run' (st : state) (x, y, w, h as r) =
     || List.fold_left max 0.0 scaled_dims > 1.0 then
 *)
     Ui.rescale geo.ui (scale_delta, scale_delta);
-    Geometry.apply_geo geo scr' geo.window
+    Geometry.apply_geo geo (Ui.screen geo.ui) geo.window
   )
   else
   (

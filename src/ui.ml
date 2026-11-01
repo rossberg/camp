@@ -454,9 +454,14 @@ let background ui x y w h =
 
 (* Window *)
 
-type drag += Move of {overshoot : size}
+type drag += Move of {anchor : point}
 type drag += Resize of {offset : size; edge : bool * bool * bool * bool}
 type drag += Abort
+
+let is_moved ui =
+  match ui.drag with
+  | Move _ -> true
+  | _ -> false
 
 let delay ui f =
   ui.delayed <- f :: ui.delayed
@@ -471,6 +476,9 @@ let rescale ui (dx, dy) =
     Window.rescale ui.win dx dy;
     font_purge ui;
   )
+
+let screen ui =
+  Window.screen ui.win
 
 let pin ui scr =
   Window.set_screen ui.win scr
@@ -493,8 +501,7 @@ let start ui (wx', wy', ww', wh' as wr') =
     ui.modal <- true;
     if not ui.buffered_resize || ww = ww' && wh = wh' then
     (
-      Window.set_pos ui.win wx' wy';
-      Window.set_size ui.win ww' wh';
+      Window.set_rect ui.win wx' wy' ww' wh';
 
       Draw.start ui.win c;
     )
@@ -616,7 +623,7 @@ let finish ui margin szmin szmax (varw, varh) ratio_opt =
             if not (Window.drag ui.win) then
               ui.native_window_move <- false;  (* turn off if not working *)
           );
-          Move {overshoot = 0, 0}  (* overshoot param unused when native *)
+          Move {anchor = origin}  (* anchor param unused when native *)
         )
         else
         (
@@ -645,18 +652,16 @@ let finish ui margin szmin szmax (varw, varh) ratio_opt =
         );
       wr, no_edge, screen_change
 
-    | Move {overshoot}
+    | Move {anchor}
       when not ui.native_window_move ->
       Mouse.set_cursor ui.win `Point;
-      let mouse = Mouse.abs_pos ui.win in
-      let delta = Api.add (Mouse.delta ui.win) overshoot in
-      let wx', wy' = add pos delta in
-      let scr = Screen.screen mouse in  (* snap relative to mouse's screen *)
+      let delta = Api.sub origin anchor in
+      let wx', wy' = add (wx, wy) delta in
+      let scr = Screen.screen origin in  (* snap relative to mouse's screen *)
       pin ui scr;
       let sx, sy = Screen.min_pos scr in
       let sw, sh = Screen.max_size scr in
       let wx'', wy'' = snap sx (sx + sw - ww) wx', snap sy (sy + sh - wh) wy' in
-      ui.drag <- Move {overshoot = wx' - wx'', wy' - wy''};
       (wx'', wy'', ww, wh), no_edge, screen_change
 
     | Resize {offset; edge = lft, top, rgt, bot as edge}
@@ -678,7 +683,7 @@ let finish ui margin szmin szmax (varw, varh) ratio_opt =
   )
 
 
-let resize_repos ui (ox, oy) (dw, dh) =
+let resize_while_moved ui (dw, dh) =
   (* Figure out whether origin sticks to upper/left or lower/right.
    * If the former, respective window position coordinate remains unchanged.
    * If the latter, move window position along respective axis.
@@ -688,13 +693,20 @@ let resize_repos ui (ox, oy) (dw, dh) =
    * widget after resize!)
    * TODO: Declare pivot explicitly with pane geometry and check widgets?
    *)
-  match find_pane ui (ox, oy) with
-  | Some ((rx, ry, rw, rh), (x, y, w, h)) ->
-    (if rx < 0 || rw < 0 && 2*(ox - x) > w then -dw else 0),
-    (if ry < 0 || rh < 0 && 2*(oy - y) > h then -dh else 0)
-  | None ->
-    (if ox < 0 then 0 else -dw),
-    (if oy < 0 then 0 else -dh)
+  match ui.drag with
+  | Move {anchor = ox, oy} ->
+    let dx, dy =
+      match find_pane ui (ox, oy) with
+      | Some ((rx, ry, rw, rh), (x, y, w, h)) ->
+        (if rx < 0 || rw < 0 && 2*(ox - x) > w then -dw else 0),
+        (if ry < 0 || rh < 0 && 2*(oy - y) > h then -dh else 0)
+      | None ->
+        (if ox < 0 then 0 else -dw),
+        (if oy < 0 then 0 else -dh)
+    in
+    ui.drag <- Move {anchor = ox + dx, oy + dy};  (* adjust mouse anchor *)
+    dx, dy
+  | _ -> assert false
 
 
 (* Input Status *)
@@ -3209,7 +3221,7 @@ let popup ui owner r bw (varw, varh, mov) greyout =
           Mouse.set_cursor ui.win cursor';
           ui.drag <-
             if cursor' = `Point then
-              Move {overshoot = 0, 0}
+              Move {anchor = sub origin (x', y')}
             else
             (
               let mx, my = Mouse.abs_pos ui.win in
@@ -3219,12 +3231,11 @@ let popup ui owner r bw (varw, varh, mov) greyout =
             );
           Some (r, (lft, top, rgt, bot))
 
-        | Move {overshoot} when grab_mouse ui owner ->
+        | Move {anchor} when grab_mouse ui owner ->
           Mouse.set_cursor ui.win `Point;
-          let delta = Api.add (Mouse.delta ui.win) overshoot in
+          let delta = Api.(sub (sub origin (x', y')) anchor) in
           let x'', y'' = add (x', y') delta in
           let x''', y''' = clamp 0 (ww - w') x'', clamp 0 (wh - h') y'' in
-          ui.drag <- Move {overshoot = x'' - x''', y'' - y'''};
           Some ((x''', y''', w, h), (false, false, false, false))
 
         | Resize {offset; edge = lft, top, rgt, bot} when grab_mouse ui owner ->

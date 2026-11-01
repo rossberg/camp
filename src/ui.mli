@@ -43,7 +43,6 @@ val popup :
 
 val popup_rect : t -> rect -> int -> rect
 
-
 (* Areas *)
 
 type area = pane * int * int * int * int
@@ -105,10 +104,12 @@ val finish : t -> int -> size -> size -> bool * bool -> float option ->
 
 val rescale : t -> size -> unit
 val pin : t -> screen -> unit
+val screen : t -> screen
 
 val delay : t -> (unit -> unit) -> unit
 
-val resize_repos : t -> point -> size -> size
+val is_moved : t -> bool
+val resize_while_moved : t -> size -> size
 
 (* Simple Widgets *)
 
