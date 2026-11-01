@@ -332,10 +332,14 @@ and run' (st : state) (x, y, w, h as r) =
       "  window=%.2f,%.2f,%.2f,%.2f ~ %d,%d,%d,%d @ %d,%d,%d,%d\n%!"
       ax ay aw ah x' y' w' h' sx sy sw sh;
   );
+
+(*
+  (* TODO: why this? Gets in the way of delayed moves *)
   let x', y', w', h' =
     if not extension_change || screen_change <> None then x', y', w', h' else
     (Ui.pin geo.ui scr; x, y, w, h)  (* undo move or resize *)
   in
+*)
 
   if Api.Window.is_hidden win then  (* after startup *)
     Api.Window.reveal win;

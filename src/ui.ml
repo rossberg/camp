@@ -549,19 +549,15 @@ let finish ui margin szmin szmax (varw, varh) ratio_opt =
   let screen_change =
     match ui.resizing with
     | None -> Draw.finish ui.win
-    | Some (wx, wy, ww, wh) ->
+    | Some (x, y, w, h) ->
       ignore (Draw.finish_buffered ui.win);
-(*
-      Window.set_pos ui.win wx wy;
-      Window.set_size ui.win ww wh;
-*)
-      Window.set_rect ui.win wx wy ww wh;
+      Window.set_rect ui.win x y w h;
       ui.resizing <- None;
       ui.buffering <- false;
 (*
       (* Draw again immeditately to flush stale frame buffer and poll events *)
       Draw.start ui.win `Black;
-      Draw.buffer ui.win 0 0 ww wh ui.buffer;
+      Draw.buffer ui.win 0 0 w h ui.buffer;
       Draw.finish ui.win
 *)
       Raylib.poll_input_events ();
@@ -569,15 +565,12 @@ let finish ui margin szmin szmax (varw, varh) ratio_opt =
   in
   Option.iter (pin ui) screen_change;
 
-  let (wx, wy) as pos = Window.pos ui.win in
-  let (ww, wh) as size = Window.size ui.win in
-  let wr = (wx, wy, ww, wh) in
-
-  let origin = Mouse.pos ui.win in
-  let lft = inside origin (0, 0, margin, wh) in
-  let rgt = inside origin (ww - margin, 0, margin, wh) in
-  let top = inside origin (0, 0, ww, margin) in
-  let bot = inside origin (0, wh - margin, ww, margin) in
+  let wx, wy, ww, wh as wr = Window.rect ui.win in
+  let mouse = Mouse.pos ui.win in
+  let lft = inside mouse (0, 0, margin, wh) in
+  let rgt = inside mouse (ww - margin, 0, margin, wh) in
+  let top = inside mouse (0, 0, ww, margin) in
+  let bot = inside mouse (0, wh - margin, ww, margin) in
   let no_edge = (false, false, false, false) in
 
   let owner = ui.mouse_owner in
@@ -593,7 +586,7 @@ let finish ui margin szmin szmax (varw, varh) ratio_opt =
   );
 
   if owner <> None || ui.modal_save
-  || Option.exists (inside origin) ui.modal_rect then
+  || Option.exists (inside mouse) ui.modal_rect then
   (
     wr, no_edge, screen_change
   )
@@ -623,7 +616,7 @@ let finish ui margin szmin szmax (varw, varh) ratio_opt =
             if not (Window.drag ui.win) then
               ui.native_window_move <- false;  (* turn off if not working *)
           );
-          Move {anchor = origin}  (* anchor param unused when native *)
+          Move {anchor = mouse}  (* anchor param unused when native *)
         )
         else
         (
@@ -655,7 +648,7 @@ let finish ui margin szmin szmax (varw, varh) ratio_opt =
     | Move {anchor}
       when not ui.native_window_move ->
       Mouse.set_cursor ui.win `Point;
-      let delta = Api.sub origin anchor in
+      let delta = Api.sub mouse anchor in
       let wx', wy' = add (wx, wy) delta in
       let scr = Window.screen ui.win in
       let scr' = Screen.screen (Mouse.abs_pos ui.win) in  (* follow mouse *)
@@ -696,17 +689,17 @@ let resize_while_moved ui (dw, dh) =
    * TODO: Declare pivot explicitly with pane geometry and check widgets?
    *)
   match ui.drag with
-  | Move {anchor = ox, oy} ->
+  | Move {anchor = mx, my} ->
     let dx, dy =
-      match find_pane ui (ox, oy) with
+      match find_pane ui (mx, my) with
       | Some ((rx, ry, rw, rh), (x, y, w, h)) ->
-        (if rx < 0 || rw < 0 && 2*(ox - x) > w then -dw else 0),
-        (if ry < 0 || rh < 0 && 2*(oy - y) > h then -dh else 0)
+        (if rx < 0 || rw < 0 && 2*(mx - x) > w then -dw else 0),
+        (if ry < 0 || rh < 0 && 2*(my - y) > h then -dh else 0)
       | None ->
-        (if ox < 0 then 0 else -dw),
-        (if oy < 0 then 0 else -dh)
+        (if mx < 0 then 0 else -dw),
+        (if my < 0 then 0 else -dh)
     in
-    ui.drag <- Move {anchor = ox + dx, oy + dy};  (* adjust mouse anchor *)
+    ui.drag <- Move {anchor = mx + dx, my + dy};  (* adjust mouse anchor *)
     dx, dy
   | _ -> assert false
 
