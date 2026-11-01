@@ -3,7 +3,7 @@
 type t =
 {
   ui : Ui.t;
-  mutable scaling : int * int;
+  mutable scaling : int;
   mutable margin : int;
   mutable text : int;
   mutable pad_x : int;
@@ -47,7 +47,7 @@ let control_min_h = 160
 let make ui =
   {
     ui;
-    scaling = 0, 0;
+    scaling = 1;
     margin = 10;
     text = 14;
     pad_x = 0;
@@ -220,6 +220,19 @@ let win_min_x g = fst (Api.Window.min_pos (Ui.window g.ui))
 let win_min_y g = snd (Api.Window.min_pos (Ui.window g.ui))
 let win_max_x g = win_min_x g + fst (Api.Window.max_size (Ui.window g.ui))
 let win_max_y g = win_min_y g + snd (Api.Window.max_size (Ui.window g.ui))
+
+let scale_max g =
+  let win = Ui.window g.ui in
+  let sw, sh = Api.(mul (Window.max_size win) (Window.scale win)) in
+  (* Temporarily reset control size to get minimal results for extension_min *)
+  let cw, ch = g.control_width, g.control_height in
+  g.control_width <- control_min_w;
+  g.control_height <- control_min_h;
+  let minw = control_min_w + extension_min_w g in
+  let minh = control_min_h + extension_min_h g in
+  g.control_width <- cw;
+  g.control_height <- ch;
+  max 1 (min (sw / minw) (sh / minh))
 
 
 (* Validation *)
@@ -669,7 +682,7 @@ let print_state geo =
   let ax, ay, aw, ah = abstract_geo geo scr (wx, wy, ww, wh) in
   record (fun geo -> [
     "win_pos", pair float float (ax, ay);
-    "scaling", pair int int geo.scaling;
+    "scaling", int geo.scaling;
     "buffered", bool (Ui.is_buffered geo.ui);
     "buffered_resize", bool (Ui.is_buffered_resize geo.ui);
     "native_win_resize", bool (Ui.is_native_window_resize geo.ui);
@@ -714,11 +727,13 @@ let parse_state geo =  (* assumes playlist and library loaded *)
   let open Text.Parse in
   let scr = Api.Window.screen (Ui.window geo.ui) in
   let sw, sh = Api.Screen.max_size scr in
+  let smax = scale_max geo in
   let ax, ay, aw, ah = geo.window in
   let rax, ray, raw, rah = ref ax, ref ay, ref aw, ref ah in
   record (fun r ->
-    apply (r $? "scaling") (pair (num (-1) 8) (num (-1) 8))
-      (fun delta -> geo.scaling <- delta);
+    apply (r $? "scaling")
+      (num 1 smax ||| (pair (num 1 smax) (num 1 smax) >-> fst))
+      (fun scale -> geo.scaling <- scale);
     apply (r $? "win_pos") (pair float float)
       (fun (x, y) -> rax := x; ray := y);
     apply (r $? "buffered") bool
@@ -782,7 +797,7 @@ let pre_init geo =
   geo.window <- abstract_geo geo scr (wx, wy, ww, wh)
 
 let init geo =
-  Ui.rescale geo.ui geo.scaling;
+  if geo.scaling <> 1 then Ui.rescale geo.ui (geo.scaling - 1);
   let scr = Api.Window.screen (Ui.window geo.ui) in
   let r = apply_geo geo scr geo.window in
   if !App.debug_layout then

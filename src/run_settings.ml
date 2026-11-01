@@ -30,7 +30,8 @@ let init (st : state) =
   Edit.set set.spec_bands (string_of_int ctl.spec_bands);
   Edit.set set.exec_tag cfg.exec_tag;
   Edit.set set.exec_tag_flags cfg.exec_tag_flags;
-  Edit.set set.fps (string_of_int cfg.fps)
+  Edit.set set.fps (string_of_int cfg.fps);
+  Edit.set set.scaling (string_of_int geo.scaling)
 
 
 (* Runner *)
@@ -280,8 +281,7 @@ let run (st : state) focus_change =
             Ui.text_color geo.ui, ignore, ignore
           );
           "DESKTOP", `Text (
-            Edit.make_with 0
-              (fmt " %d  %d  %d  %d" dx dy dw dh),
+            Edit.make_with 0 (fmt " %d  %d  %d  %d" dx dy dw dh),
             Ui.text_color geo.ui, ignore, ignore
           );
           "PLACEMENT", `Text (
@@ -312,6 +312,14 @@ let run (st : state) focus_change =
           );
         ];
         "WINDOWING IMPLEMENTATION", `Section [
+          "SCALING", `Number (
+            let s = string_of_int geo.scaling in
+            if set.scaling.text <> s then Edit.set set.scaling s;
+            Edit.defocus set.scaling;
+            "  ", set.scaling, geo.scaling,
+            1, Geometry.scale_max geo,
+            ignore, fun n -> geo.scaling <- n
+          );
           "SDF FONTS", `Choice ["  (VERY SLOW WHEN RESIZING WINDOW)",
             Ui.font_is_sdf geo.ui,
             fun _ -> Ui.font_sdf geo.ui (not (Ui.font_is_sdf geo.ui))

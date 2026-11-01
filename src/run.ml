@@ -204,6 +204,7 @@ and run' (st : state) (x, y, w, h as r) =
   let extension_shown_h = Geometry.extension_shown_h geo in
   let extension_side = geo.extension_side in
   let popup_shown = geo.popup_shown <> None in
+  let scaling = geo.scaling in
 
   (* Global keys *)
   if WindowUi.Key.settings () then
@@ -291,13 +292,7 @@ and run' (st : state) (x, y, w, h as r) =
     Bool.to_int (WindowUi.Key.enlarge_scale ()) -
     Bool.to_int (WindowUi.Key.reduce_scale ())
   in
-  let scale_old = Api.Window.scale win in
-  let scale_new = Api.Window.scale win in
-  let scaling' =
-    fst geo.scaling + (fst scale_new - fst scale_old),
-    snd geo.scaling + (snd scale_new - snd scale_old)
-  in
-  geo.scaling <- scaling';
+  geo.scaling <- geo.scaling + scale_delta;
 
   (* Finish drawing *)
   let shift = Api.Key.is_modifier_down `Shift in
@@ -340,6 +335,11 @@ and run' (st : state) (x, y, w, h as r) =
       x' + dx, y' + dy
     in
 
+    (* Adjust scaling factor, in case new screen is too small *)
+    let smax = Geometry.scale_max geo in
+    geo.scaling <- Geometry.clamp 1 smax geo.scaling;
+    Ui.rescale geo.ui (geo.scaling - scaling);
+
     if !App.debug_layout then
     (
       let sx, sy = Api.Screen.pos scr in
@@ -353,7 +353,7 @@ and run' (st : state) (x, y, w, h as r) =
 
     x'', y'', w'', h''
   )
-  else if scale_delta <> 0 then
+  else if geo.scaling <> scaling then
   (
     (* Scaling was changed: adapt geometry, ignore movement or resize *)
     assert (not extension_change);
@@ -366,7 +366,9 @@ and run' (st : state) (x, y, w, h as r) =
     if List.fold_left max 0.0 dims >= 0.97 (* = 1.0 +- eps *)
     || List.fold_left max 0.0 scaled_dims > 1.0 then
 *)
-    Ui.rescale geo.ui (scale_delta, scale_delta);
+    let smax = Geometry.scale_max geo in
+    geo.scaling <- Geometry.clamp 1 smax geo.scaling;
+    Ui.rescale geo.ui (geo.scaling - scaling);
     Geometry.apply_geo geo (Ui.screen geo.ui) geo.window
   )
   else

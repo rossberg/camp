@@ -102,7 +102,7 @@ val start : t -> rect -> unit
 val finish : t -> int -> size -> size -> bool * bool -> float option ->
   rect * (bool * bool * bool * bool) * screen option
 
-val rescale : t -> size -> unit
+val rescale : t -> int -> unit
 val pin : t -> screen -> unit
 val screen : t -> screen
 

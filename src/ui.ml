@@ -470,10 +470,10 @@ let reset ui (wx, wy, ww, wh) =
   Window.set_pos ui.win wx wy;
   Window.set_size ui.win ww wh
 
-let rescale ui (dx, dy) =
-  if dx <> 0 || dy <> 0 then
+let rescale ui delta =
+  if delta <> 0 then
   (
-    Window.rescale ui.win dx dy;
+    Window.rescale ui.win delta delta;
     font_purge ui;
   )
 
