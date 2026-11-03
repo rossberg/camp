@@ -1141,7 +1141,13 @@ struct
   let local c =
     let open Char in
     let c' = locale.(code c) in
-    if c' <> '\x00' && Raylib.(get_key_name (Key.of_int (code c'))).[0] = c then
+    (* recheck binding in case keyboard mapping was changed *)
+    if
+      c' <> '\x00' &&
+      match Raylib.(get_key_name (Key.of_int (code c'))) with
+      | Some s -> s.[0] = c
+      | None -> false
+    then
       c'
     else
     (
@@ -1149,10 +1155,10 @@ struct
       locale.(32) <- ' ';  (* get_key_name does not like Space *)
       for k = 33 to 127 do
         match Raylib.(get_key_name (Key.of_int k)) with
-        | s when String.length s = 1 ->
+        | Some s when String.length s = 1 ->
           locale.(code (Char.lowercase_ascii s.[0])) <- chr k;
           locale.(code (Char.uppercase_ascii s.[0])) <- chr k;
-        | s -> ()
+        | _ -> ()
         | exception _ -> ()
       done;
       locale.(code c)
@@ -1233,11 +1239,14 @@ struct
     | `None -> ""
     | `Char ' ' -> "Space"  (* "␣" *)
     | `Char c as k ->
-      let s = Raylib.get_key_name (key k) in
-      if s = "-" then "−" (* proper minus sign *) else
-      if s = "=" && c = '+' then "+" (* looks nicer :) *) else
-      let s' = Unicode.uppercase_utf_8 s in
-      if s = Unicode.lowercase_utf_8 s' then s' else s
+      (match Raylib.get_key_name (key k) with
+      | Some s ->
+        if s = "-" then "−" (* proper minus sign *) else
+        if s = "=" && c = '+' then "+" (* looks nicer :) *) else
+        let s' = Unicode.uppercase_utf_8 s in
+        if s = Unicode.lowercase_utf_8 s' then s' else s
+      | None -> ""
+      )
     | `Local c -> name (`Char (local c))
     | `Arrow `Left -> "←"
     | `Arrow `Right -> "→"
