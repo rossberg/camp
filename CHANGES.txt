@@ -22,6 +22,9 @@ UI:
 - [new] Automativally adapt to live resolution changes
 - [chg] Draw shadow header when dragging column header for reordering
 
+Build:
+- [chg] Upgrade to Raylib-OCaml 2.3.0
+
 
 === 0.9.7 (2026-10-05) ===
 
