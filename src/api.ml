@@ -319,7 +319,9 @@ struct
       let sx, sy = point_of_vec2 (Raylib.get_monitor_position i) in
       let sw, sh = Raylib.(get_monitor_width i, get_monitor_height i) in
       let outer = sx, sy, sw, sh in
-      let inner = Glfw.get_monitor_workarea i in
+      let inner' = Glfw.get_monitor_workarea i in
+      let _, _, iw, ih = inner' in
+      let inner = if iw * ih = 0 then outer else inner' in
 
       if !App.debug_layout then
       (
@@ -356,9 +358,8 @@ struct
 
   let update current =
     let {outer; inner} = Iarray.get !monitors current in
-    let x', y', w', h'= Glfw.get_monitor_workarea current in
-    let change = inner <> (x', y', w', h') in
-    if not change then None else
+    let _, _, w', h' as inner' = Glfw.get_monitor_workarea current in
+    if inner = inner' || w' * h' = 0 then None else
     (
       let current' = init_monitors (Some current) in
 
