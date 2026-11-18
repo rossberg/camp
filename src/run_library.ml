@@ -978,11 +978,11 @@ let run_view (st : state)
         when mode = `Table
         && (fst view.columns.$(j) :> Data.any_attr_ex) = `Cover ->
         (* Click on cover cell: open zoom popup *)
-        Option.iter (Run_popup.zoom st) (zoom entries.(i));
+        Option.iter (Run_popup.zoom st false) (zoom entries.(i));
       (* Don't do zoom pop-up on grid, since that interferes with drag & drop
       | Some i, None when mode = `Grid ->
         (* Click on grid cell: open zoom popup *)
-        Option.iter (Run_popup.zoom st) (zoom entries.(i));
+        Option.iter (Run_popup.zoom st false) (zoom entries.(i));
       *)
       | _ -> ()
     );
@@ -1131,7 +1131,8 @@ let run_view (st : state)
   if busy then
     spinner (Run_view.spin st);
 
-  if geo.popup_shown <> None && Api.Mouse.is_down `Left && mode = `Table then
+  if geo.popup_shown <> None && Api.Mouse.is_down `Left && mode = `Table
+  && Api.Window.is_fullscreen win then
   (
     (*
     match
@@ -1145,7 +1146,7 @@ let run_view (st : state)
       (* Drag with active zoom popup: update cover *)
       Option.iter (fun z' ->
         Ui.nonmodal geo.ui "lib.view/drag-zoom";
-        Run_popup.zoom st z';
+        Run_popup.zoom st false z';
       ) (zoom entries.(i));
     | _, _ -> ()
   )

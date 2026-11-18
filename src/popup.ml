@@ -24,6 +24,7 @@ type custom =
 type t =
 {
   mutable kind : [`Menu of menu | `Zoom of zoom | `Custom of custom] option;
+  mutable fullscreen : bool;
 }
 
 
@@ -32,13 +33,15 @@ type t =
 let make () =
   {
     kind = None;
+    fullscreen = false;
   }
 
 
 (* Accessors *)
 
 let clear pop =
-  pop.kind <- None
+  pop.kind <- None;
+  pop.fullscreen <- false
 
 let set_menu pop items op =
   pop.kind <- Some (`Menu {hscroll = 0; vscroll = 0; items; op})
@@ -54,6 +57,9 @@ let set_custom pop l s valid ok =
   Edit.move_end expr;
   pop.kind <- Some (`Custom {name; expr; valid; ok})
 
+let fullscreen pop b =
+  pop.fullscreen <- b
+
 
 (* Validation *)
 
@@ -63,9 +69,9 @@ let check msg b = if b then [] else [msg]
 
 let ok pop =
   List.concat (Option.to_list (Option.map (function
-    | `Menu _menu -> []
+    | `Menu _menu -> check "menu not fullscreen" (not pop.fullscreen)
     | `Zoom _zoom -> []
-    | `Custom _custom -> []
+    | `Custom _custom -> check "custom not fullscreen" (not pop.fullscreen)
   ) pop.kind)) @
   []
 

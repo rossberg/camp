@@ -189,37 +189,19 @@ let run (st : state) =
     not Geometry.(extension_shown_w geo || extension_shown_h geo)
   in
 
-  (* LCD *)
+  (* Time *)
   ControlUi.Info.box ();
-  let sign, d1, d2, d3, d4 =
-    if paused && int_of_float (time ()) mod 2 = 0 then
-      '+', ' ', ' ', ' ', ' ' else
-    let sign, time =
-      match ctl.timemode with
-      | `Elapse -> '+', elapsed
-      | `Remain -> '-', remaining
-    in
-    ControlUi.Info.Lcd.colon ':';
-    let seconds = int_of_float (Float.round time) in
-    sign,
-    (Char.chr (Char.code '0' + seconds mod 6000 / 600)),
-    (Char.chr (Char.code '0' + seconds mod 600 / 60)),
-    (Char.chr (Char.code '0' + seconds mod 60 / 10)),
-    (Char.chr (Char.code '0' + seconds mod 10))
+  let t =
+    match ctl.timemode with
+    | `Elapse -> elapsed
+    | `Remain -> -.remaining (* generates -0.0 as desired *)
   in
-  ControlUi.Info.Lcd.sign sign;
-  ControlUi.Info.Lcd.min1 d1;
-  ControlUi.Info.Lcd.min2 d2;
-  ControlUi.Info.Lcd.sec1 d3;
-  ControlUi.Info.Lcd.sec2 d4;
+  ControlUi.Info.Time.time (Float.rem t 6000.0);
 
-  if ControlUi.Info.Lcd.button () then
+  if ControlUi.Info.Time.button () then
   (
     (* Click on time LCD: toggle time mode *)
-    ctl.timemode <-
-      match ctl.timemode with
-      | `Elapse -> `Remain
-      | `Remain -> `Elapse
+    Control.toggle_timemode ctl;
   );
 
   if ControlUi.Info.Button.color () then
@@ -631,10 +613,11 @@ let run (st : state) =
         (fun () -> shift_volume st (-1.0));
     |]))
   )
-  else if ctl.visual <> `Oscilloscope && old_visual = ctl.visual && ctl.current <> None
+  else if ctl.visual <> `Oscilloscope && old_visual = ctl.visual
+    && ctl.current <> None
     && ControlUi.Info.Button.zoom () then
   (
-    Run_popup.zoom st Popup.Current
+    Run_popup.zoom st (ControlUi.Info.Button.zoom ()) Popup.Current
   )
 
 

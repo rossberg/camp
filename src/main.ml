@@ -10,7 +10,7 @@ let args = Arg.align
   "--debug-perf", Arg.Set App.debug_perf, "\tLog execution times";
   "--debug-frame", Arg.Set App.debug_frame, "\tLog frame transitions";
   "--debug-layout", Arg.Set App.debug_layout, "\tLog window layout";
-  "--debug-modality", Arg.Set App.debug_modality, "\tLog modality changes";
+  "--debug-modal", Arg.Set App.debug_modality, "\tLog modality changes";
 ]
 
 let _main =

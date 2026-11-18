@@ -76,8 +76,10 @@ sig
   val max_size : window -> size
 
   val minimize : window -> unit
+  val fullscreen : window -> unit
   val restore : window -> unit
   val is_minimized : window -> bool
+  val is_fullscreen : window -> bool
 
   val hide : window -> unit
   val reveal : window -> unit

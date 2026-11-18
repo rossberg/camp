@@ -412,6 +412,7 @@ struct
   let current_pos = ref (0, 0)   (* buffered during minimization *)
   let current_size = ref (0, 0)  (* target (virtual current) size for drawing *)
   let current_buffer = ref None  (* current buffer for refresh *)
+  let fullscreened = ref false
   let in_frame = ref false       (* flag to assert proper frame bracketing *)
   let dragging = ref None        (* mouse origin for dragging in progress *)
   let resizing = ref false       (* waiting for callback from set_size/rect *)
@@ -471,10 +472,11 @@ struct
 
   let closed () = Raylib.window_should_close ()
 
-  let pos () = uxy !current_pos
-  let size () = uxy !current_size
-  let rect () = let x, y = pos () and w, h = size () in x, y, w, h
   let screen () = !current_screen
+  let pos () = uxy (if !fullscreened then 0, 0 else !current_pos)
+  let size () =
+    uxy (if !fullscreened then Screen.size !current_screen else !current_size)
+  let rect () = let x, y = pos () and w, h = size () in x, y, w, h
 
   let set_pos () x y =
     assert (not !in_frame);
@@ -483,6 +485,7 @@ struct
 
   let set_size () w h =
     assert (not !in_frame);
+    assert (not !fullscreened);
     resizing := true;
     Raylib.set_window_size (sx w) (sy h);
     update ()
@@ -509,9 +512,26 @@ struct
   let min_pos () = Screen.min_pos !current_screen
   let max_size () = Screen.max_size !current_screen
 
-  let minimize () = Raylib.minimize_window ()
-  let restore () = Raylib.restore_window ()
   let is_minimized () = Raylib.is_window_minimized ()
+  let is_fullscreen () = !fullscreened
+
+  let minimize () = Raylib.minimize_window ()
+  let fullscreen () =
+    if not !fullscreened then
+    (
+      Raylib.toggle_borderless_windowed ();
+      fullscreened := true;
+    )
+
+  let restore () =
+    if is_minimized () then Raylib.restore_window () else
+    if !fullscreened then
+    (
+      Raylib.toggle_borderless_windowed ();
+      (* This appers to vanish, at least on Mac *)
+      Raylib.(set_window_state ConfigFlags.window_undecorated);
+      fullscreened := false;
+    )
 
   let hide () = Raylib.(set_window_state ConfigFlags.window_hidden)
   let reveal () = Raylib.(clear_window_state ConfigFlags.window_hidden)

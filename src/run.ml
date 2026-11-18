@@ -250,7 +250,7 @@ and run' (st : state) (x, y, w, h as r) =
 
   (* Run panes *)
   Run_control.run st;
-  if not (Api.Window.is_minimized win) then
+  if not Api.Window.(is_minimized win || is_fullscreen win) then
   (
     if geo.settings_shown then Run_settings.run st focus_change
     else if geo.playlist_shown then Run_playlist.run st;
@@ -259,6 +259,10 @@ and run' (st : state) (x, y, w, h as r) =
     if geo.playlist_shown && not geo.settings_shown then
       Run_view.run_edit_panel st;
     Run_control.run_toggle_panel st;
+    if popup_shown then Run_popup.run st;
+  )
+  else if Api.Window.is_fullscreen win then
+  (
     if popup_shown then Run_popup.run st;
   );
   List.iter (fun f -> f ()) st.delayed;

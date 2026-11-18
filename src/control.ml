@@ -190,6 +190,15 @@ let ok ctl =
   check "oscillator y in range" (ctl.osc_y >= 0.2 && ctl.osc_x <= 10.0)
 
 
+(* Time Mode *)
+
+let toggle_timemode ctl =
+  ctl.timemode <-
+    match ctl.timemode with
+    | `Elapse -> `Remain
+    | `Remain -> `Elapse
+
+
 (* Volume Control *)
 
 let adjust_volume ctl =
