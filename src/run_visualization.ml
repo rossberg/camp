@@ -98,11 +98,14 @@ let run (st : State.t) area vis buf img_opt =
       let f, sin, cos = float, Float.sin, Float.cos in
       let dx = int_of_float ((f w -. f w' *. cos a +. f h' *. sin a) /. 2.0) in
       let dy = int_of_float ((f w -. f h' *. cos a -. f w' *. sin a) /. 2.0) in
-      Api.Draw.clip win x y w h;
+      (* There seems to be a weird bug with Raylib in fullscreen on MacOS
+       * where clipping would clip parts of the top of the image even if y is 0
+       * (not camera notch). Hence don't clip if in fullscreen mode anyway. *)
+      if x * y <> 0 then Api.Draw.clip win x y w h;
       Api.Draw.image_part win (x + dx) (y + dy) w' h' 0 0 iw ih rot img;
       let fat = int_of_float (Float.sqrt 2.0 *. float w) + 3 in
       Api.Draw.fill_ring win (x - fat) (y - fat) (w + 2*fat) fat `Black;
-      Api.Draw.unclip win;
+      if x * y <> 0 then Api.Draw.unclip win;
     ) img_opt
 
   | `Spectrum ->

@@ -24,6 +24,7 @@ type custom =
 type t = private
 {
   mutable kind : [`Menu of menu | `Zoom of zoom | `Custom of custom] option;
+  mutable fullscreen : bool;
 }
 
 
@@ -36,6 +37,8 @@ val set_menu : t -> Ui.menu_entry iarray -> (int -> unit) -> unit
 val set_zoom : t -> zoom -> unit
 val set_custom : t -> string -> string ->
   (string -> bool) -> (string -> string -> unit) -> unit
+
+val fullscreen : t -> bool -> unit
 
 
 (* Validation *)

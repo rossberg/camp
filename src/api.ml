@@ -456,6 +456,7 @@ struct
   let current_screen = ref (-1)
   let current_pos = ref (0, 0)   (* buffered during minimization *)
   let current_size = ref (0, 0)  (* target (virtual current) size for drawing *)
+  let fullscreened = ref false
   let in_frame = ref false       (* flag to assert proper frame bracketing *)
 
   let update () =
@@ -497,9 +498,10 @@ struct
 
   let closed () = Raylib.window_should_close ()
 
-  let pos () = uxy !current_pos
-  let size () = uxy !current_size
   let screen () = !current_screen
+  let pos () = uxy !current_pos
+  let size () =
+    uxy (if !fullscreened then Screen.size !current_screen else !current_size)
 
   let set_pos () x y =
     assert (not !in_frame);
@@ -508,6 +510,7 @@ struct
 
   let set_size () w h =
     assert (not !in_frame);
+    assert (not !fullscreened);
     Raylib.set_window_size (sx w) (sy h);
     update ()
 
@@ -517,9 +520,26 @@ struct
   let min_pos () = Screen.min_pos !current_screen
   let max_size () = Screen.max_size !current_screen
 
-  let minimize () = Raylib.minimize_window ()
-  let restore () = Raylib.restore_window ()
   let is_minimized () = Raylib.is_window_minimized ()
+  let is_fullscreen () = !fullscreened
+
+  let minimize () = Raylib.minimize_window ()
+  let fullscreen () =
+    if not !fullscreened then
+    (
+      Raylib.toggle_borderless_windowed ();
+      fullscreened := true;
+    )
+
+  let restore () =
+    if is_minimized () then Raylib.restore_window () else
+    if !fullscreened then
+    (
+      Raylib.toggle_borderless_windowed ();
+      (* This appers to vanish, at least on Mac *)
+      Raylib.(set_window_state ConfigFlags.window_undecorated);
+      fullscreened := false;
+    )
 
   let hide () = Raylib.(set_window_state ConfigFlags.window_hidden)
   let reveal () = Raylib.(clear_window_state ConfigFlags.window_hidden)

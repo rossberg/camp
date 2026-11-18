@@ -9,7 +9,7 @@ let args = Arg.align
   "--debug-strict", Arg.Set App.debug_strict, "\tAbort on invariant violation";
   "--debug-perf", Arg.Set App.debug_perf, "\tLog execution times";
   "--debug-layout", Arg.Set App.debug_layout, "\tLog window layout";
-  "--debug-modality", Arg.Set App.debug_modality, "\tLog modality changes";
+  "--debug-modal", Arg.Set App.debug_modality, "\tLog modality changes";
 ]
 
 let _main =

@@ -112,12 +112,14 @@ type adjustment = [`Crop of orientation | `Shrink]
 val label : t -> area -> align -> string -> unit
 val indicator : t -> color -> area -> bool -> unit
 val lcd : t -> area -> char -> unit
+val time : t -> area -> align -> bool -> time -> unit
 val image : t -> area -> adjustment -> Api.image -> unit
 val image_size : t -> size -> adjustment -> Api.image -> size
 
 val box : t -> area -> color -> unit
 val text : t -> area -> align -> inversion -> bool -> string -> unit
 val color_text : t -> area -> align -> color -> inversion -> bool -> string -> unit
+val trans_text : t -> area -> align -> color -> inversion -> bool -> string -> unit
 val ticker : t -> area -> string -> unit
 
 (*

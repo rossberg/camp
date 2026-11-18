@@ -430,29 +430,21 @@ struct
       end
 
       (* Time *)
-      module Lcd =
+      module Time =
       struct
-        let space = sx 3
-        let col = sx 4
-        let w = sx 14
-        let h = sy 20
-        let x i = margin + margin' + i * (w + space)
+        let x = margin + margin'
         let y = margin + margin' + sy 10
+        let w = 5 * (sx 14 + sx 3) + sx 4  (* cf. Ui.time *)
+        let h = sy 20
 
-        let sign = Ui.lcd g.ui (p, x 0, y, w, h)
-        let min1 = Ui.lcd g.ui (p, x 1, y, w, h)
-        let min2 = Ui.lcd g.ui (p, x 2, y, w, h)
-        let colon = Ui.lcd g.ui (p, x 3, y, col, h)
-        let sec1 = Ui.lcd g.ui (p, x 3 + col + space, y, w, h)
-        let sec2 = Ui.lcd g.ui (p, x 4 + col + space, y, w, h)
-
-        let button () = Ui.mouse g.ui "lcd_but" (p, x 0, y, col + x 4, h) `Left
+        let time = Ui.time g.ui (p, x, y, w, h) `Left true
+        let button () = Ui.mouse g.ui "time_but" (p, x, y, w, h) `Left
       end
 
       (* Visuals *)
       module Visual =
       struct
-        let x = Lcd.x 5 + sx 28
+        let x = Time.x + Time.w + sx 28
         let y = y + margin'
         let w = Volume.x - sx 16
         let h = Prop.y - margin'
@@ -481,6 +473,7 @@ struct
         let sdf = key KeyBind.sdf
 
         let zoom () = Ui.mouse g.ui "zoom_but" Visual.area `Left
+        let full_zoom () = zoom () && Api.Mouse.is_double_click `Left
         let color () =
           Ui.mouse g.ui "color_but"
             (p, margin, Prop.y, Mute.x, Ticker.y + Ticker.h) `Left
@@ -1078,6 +1071,36 @@ struct
     let cycle () = Ui.mouse g.ui "zoom" image_area `Right
     let drag () = Ui.drag g.ui "zoom" area (1, 1)
     let refl () = Ui.mouse_focus g.ui area (control_h g) 0x30 0
+  end
+
+
+  (* Fullscreen Zoom *)
+
+  module Fullscreen (Z : sig val size : int -> int -> int -> int * int * bool end) =
+  struct
+    let p = Ui.pane g.ui "full" (0, 0, -1, -1)
+
+    let area = (p, 0, 0, -1, -1)
+    let background () = Ui.box g.ui area `Black
+
+    let text' = if g.zoom_info then 2 * text else 0
+    let _, _, ww, wh = Ui.dim g.ui area
+    let w, h, text_bot = Z.size ww wh (2 * text')
+    let vis_area =
+      p, (ww - w)/2, (wh - h - if text_bot then 2*text' else 0)/2, w, h
+
+    let c = Ui.text_color g.ui
+    let line i align =
+      Ui.trans_text g.ui (p, 0, i * text', -1, text') align c `Regular true
+    let line1 = line (-2)
+    let line2 = line (-1)
+    let ticker = Ui.ticker g.ui (p, 0, -text', -1, text')
+    let time = Ui.time g.ui (p, 0, 0, -1, text') `Right
+
+    let close () = Ui.key g.ui KeyBind.cancel true
+    let toggle () = Ui.key g.ui KeyBind.ok true
+    let cycle () = Ui.mouse g.ui "full" area `Right
+    let timemode () = Ui.mouse g.ui "lcd_but" (p, ww/2, 0, -1, text') `Left
   end
 
 

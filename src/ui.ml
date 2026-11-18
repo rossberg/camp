@@ -125,6 +125,9 @@ let modal_rect ui label r =
 let has_modal_rect ui =
   ui.modal_rect <> None
 
+let mouse_accessible ui =
+  not (ui.modal || Option.exists (inside (Mouse.pos ui.win)) ui.modal_rect)
+
 
 (* Panes *)
 
@@ -200,7 +203,7 @@ let dim ui (p, x, y, w, h) =
 
 let mouse_inside ui r =
   let pos = Mouse.pos ui.win in
-  inside pos r && not (Option.exists (inside pos) ui.modal_rect)
+  inside pos r && mouse_accessible ui
 
 let mouse_over ui area =
   mouse_inside ui (dim ui area)
@@ -433,7 +436,7 @@ let start ui (wx', wy', ww', wh' as wr') =
   let ww, wh = Window.size ui.win in
   ui.modal <- ui.modal_save;
   ui.modal_resize <- wr' <> (wx, wy, ww, wh);
-  if ui.modal_resize then
+  if ui.modal_resize && not (Window.is_fullscreen ui.win) then
   (
     if !App.debug_layout then
     (
@@ -474,11 +477,11 @@ let finish ui margin (varw, varh) =
   let (ww, wh) as size = Window.size ui.win in
   let wr = (wx, wy, ww, wh) in
 
-  let origin = Mouse.pos ui.win in
-  let lft = inside origin (0, 0, margin, wh) in
-  let rgt = inside origin (ww - margin, 0, margin, wh) in
-  let top = inside origin (0, 0, ww, margin) in
-  let bot = inside origin (0, wh - margin, ww, margin) in
+  let mouse = Mouse.pos ui.win in
+  let lft = inside mouse (0, 0, margin, wh) in
+  let rgt = inside mouse (ww - margin, 0, margin, wh) in
+  let top = inside mouse (0, 0, ww, margin) in
+  let bot = inside mouse (0, wh - margin, ww, margin) in
   let no_edge = (false, false, false, false) in
 
   let owner = ui.mouse_owner in
@@ -494,7 +497,7 @@ let finish ui margin (varw, varh) =
   );
 
   if owner <> None || ui.modal_save
-  || Option.exists (inside origin) ui.modal_rect then
+  || Option.exists (inside mouse) ui.modal_rect then
   (
     wr, no_edge, screen_change
   )
@@ -601,7 +604,7 @@ let key_status ui (modifiers, key) focus =
     key_status' ui key
 
 let mouse_status ui owner r (#side as side) =
-  if ui.modal
+  if not (mouse_accessible ui)
   || not (has_mouse ui owner || mouse_inside ui r && (side = `Right || grab_mouse ui owner)) then
     `Untouched
   else if Mouse.is_down side && (side = `Left || not (Mouse.is_down `Middle)) then
@@ -634,7 +637,7 @@ let unexpected_drag ui owner s =
   )
 
 let drag_status ui owner r (stepx, stepy) =
-  if ui.modal || ui.drag = Abort
+  if not (mouse_accessible ui) || ui.drag = Abort
   || not (has_mouse ui owner || mouse_inside ui r && grab_mouse ui owner) then
     `None
   else if Mouse.is_released `Left then
@@ -686,7 +689,7 @@ let drag_status ui owner r (stepx, stepy) =
   )
 
 let wheel_status ui r =
-  if not ui.modal && mouse_inside ui r then
+  if mouse_inside ui r && mouse_accessible ui then
     Mouse.wheel ui.win
   else
     (0.0, 0.0)
@@ -796,6 +799,47 @@ let lcd ui area d =
     | _ -> []
     )
 
+let time ui area align signed t =
+  let x, y, w, h = dim ui area in
+  let cw = h * 2 / 3 in
+  let colonw = h / 5 in
+  let spacew = h / 7 in
+  let t' = abs (int_of_float (Float.round t)) in
+  let hour, min, sec = t' / 3600, t' / 60 mod 60, t' mod 60 in
+  let rec log10 n = if n < 10 then 1 else 1 + log10 (n / 10) in
+  let digits = log10 hour + 2 + 2 + Bool.to_int signed in
+  let colons = if hour = 0 then 1 else 2 in
+  let tw = cw * digits + colonw * colons + spacew * (digits + colons - 1) in
+  let x' =
+    match align with
+    | `Left -> x
+    | `Center -> x + max 0 (w - tw) / 2
+    | `Right -> x + (w - tw)
+  in
+  let cx = ref x' in
+  if signed then
+  (
+    lcd ui (-1, !cx, y, cw, h) (if 1.0/.t >= 0.0 then '+' else '-');
+    cx := !cx + cw + spacew;
+  );
+  if hour <> 0 then
+  (
+    let s = string_of_int hour in
+    String.iteri (fun i -> lcd ui (-1, !cx + i * (cw + spacew), y, cw, h)) s;
+    cx := !cx + (cw + spacew) * String.length s;
+    lcd ui (-1, !cx, y, colonw, h) ':';
+    cx := !cx + colonw + spacew;
+  );
+  let s = string_of_int (min + 100) in
+  lcd ui (-1, !cx, y, cw, h) s.[1];
+  lcd ui (-1, !cx + cw + spacew, y, cw, h) s.[2];
+  lcd ui (-1, !cx + 2*(cw + spacew), y, colonw, h) ':';
+  cx := !cx + 2*cw + colonw + 3*spacew;
+  let s = string_of_int (sec + 100) in
+  lcd ui (-1, !cx, y, cw, h) s.[1];
+  lcd ui (-1, !cx + cw + spacew, y, cw, h) s.[2]
+
+
 type adjustment = [`Crop of orientation | `Shrink]
 
 let image_size' ui (w, h) adjust img =
@@ -850,10 +894,9 @@ let box ui area c =
   let (x, y, w, h), _ = widget ui None area no_modkey in
   Draw.fill_rect ui.win x y w h c
 
-let color_text ui area align c inv active s =
+let color_text' ui area align c bg inv active s =
   let (x, y, w, h), _status = widget ui None area no_modkey in
   let fg = mode c active in
-  let bg = `Black in
   let fg, bg = if inv = `Inverted then bg, fg else fg, bg in
   Draw.fill_rect ui.win x y w h bg;
   let tw = Draw.text_width ui.win h (font ui h) s in
@@ -867,8 +910,14 @@ let color_text ui area align c inv active s =
   Draw.text ui.win (x + dx) y h fg (font ui h) s;
   if tw > w then Draw.unclip ui.win
 
+let color_text ui area align c =
+  color_text' ui area align c `Black
+
 let text ui area align =
   color_text ui area align (text_color ui)
+
+let trans_text ui area align c =
+  color_text' ui area align c (`Trans (`Black, 0))
 
 let ticker ui area s =
   let (x, y, w, h), _status = widget ui None area no_modkey in
@@ -1594,7 +1643,7 @@ let header ui owner area ph gw cols (titles, sorting) hscroll =
     `None
   else
   match ui.drag with
-  | No_drag when not (ui.modal || Option.exists (inside mouse) ui.modal_rect) ->
+  | No_drag when mouse_accessible ui ->
     (match find_gutter cols mx with
     | `None when status = `Released ->
       (match find_column cols mx with
@@ -1818,7 +1867,7 @@ let rich_table ui owner area (sty : rich_table_style) cols header_opt
       find_column w sty.gutter_w cols tab.hscroll (mx - x) in
 
     let result =
-      if not ui.modal && ui.drag = No_drag
+      if ui.drag = No_drag && mouse_accessible ui
       && Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
       (
         if mouse_inside ui r then
@@ -1888,7 +1937,7 @@ let rich_table ui owner area (sty : rich_table_style) cols header_opt
 
         | `Abort -> `Abort
       )
-      else if command && not ui.modal && Mouse.is_pressed `Left then
+      else if command && Mouse.is_pressed `Left && mouse_accessible ui then
       (
         (* Cmd-click on entry: toggle selection of clicked entry *)
         let col = find_column cols mx in
@@ -1906,7 +1955,7 @@ let rich_table ui owner area (sty : rich_table_style) cols header_opt
           `Click (Some i, col);
         )
       )
-      else if shift && not ui.modal && Mouse.is_down `Left then
+      else if shift && Mouse.is_down `Left && mouse_accessible ui then
       (
         (* Shift-click/drag on playlist: adjust selection range *)
         let default = if i < len then (i, i) else (0, 0) in
@@ -1925,7 +1974,7 @@ let rich_table ui owner area (sty : rich_table_style) cols header_opt
           Table.select tab pos2 i';
           Table.deselect tab pos1 i'
         );
-        if not ui.modal && Mouse.is_pressed `Left then
+        if Mouse.is_pressed `Left then
           `Click ((if i < len then Some i else None), find_column cols mx)
         else if Table.IntSet.equal tab.selected old_selection then
           `None
@@ -2204,16 +2253,17 @@ let browser ui owner area sty (tab : _ Table.t) pp_entry =
   | `Click (None, _) -> `Click (None, None)
   | `Click (Some i, _) ->
     (* Click on entry *)
-    let mx, _ = Mouse.pos ui.win in
+    let mx, _ as mouse = Mouse.pos ui.win in
     let x, _, _, _ = dim ui area in
     let nest, folded, _, _ = pp_entry i in
     let tw =
       Draw.text_width ui.win sty.text_h (font ui sty.text_h)
         (browser_pp_pre nest folded) in
     if mx + tab.hscroll < x + tw
-    && not ui.modal && Mouse.(is_down `Left || is_released `Left) then
+    && Mouse.(is_down `Left || is_released `Left) then
     (
-      (* CLick on triangle *)
+      (* Click on triangle *)
+      assert (mouse_accessible ui);
       Table.reset_selected tab selected;  (* override selection change*)
       if Mouse.is_released `Left then
         `Fold i
@@ -2442,7 +2492,7 @@ let grid_table ui owner area (sty : grid_table_style) header_opt
     let result =
       if resized then
         `Resize ([|img_h'|] : _ iarray)
-      else if ui.modal || Option.exists (inside mouse) ui.modal_rect then
+      else if not (mouse_accessible ui) then
         `None
       else if Mouse.is_pressed `Right && not (Mouse.is_down `Middle) then
       (
@@ -2470,7 +2520,7 @@ let grid_table ui owner area (sty : grid_table_style) header_opt
       (
         match drag_status ui (owner ^ ":body") r (iw, ih) with
         | `None ->
-          if find_gutter mx <> None then
+          if mouse_accessible ui && find_gutter mx <> None then
             Mouse.set_cursor ui.win (`Resize `E_W);
           `None
 
@@ -2517,7 +2567,7 @@ let grid_table ui owner area (sty : grid_table_style) header_opt
 
         | `Abort -> `Abort
       )
-      else if command && not ui.modal && Mouse.is_pressed `Left then
+      else if command && Mouse.is_pressed `Left && mouse_accessible ui then
       (
         (* Cmd-click on entry: toggle selection of clicked entry *)
         if on_bg then
@@ -2531,7 +2581,7 @@ let grid_table ui owner area (sty : grid_table_style) header_opt
           `Click (Some k, None);
         )
       )
-      else if shift && not ui.modal && Mouse.is_down `Left then
+      else if shift && Mouse.is_down `Left && mouse_accessible ui then
       (
         (* Shift-click/drag on playlist: adjust selection range *)
         let default = if k < len then (k, k) else (0, 0) in
@@ -2550,7 +2600,7 @@ let grid_table ui owner area (sty : grid_table_style) header_opt
           Table.select tab pos2 k';
           Table.deselect tab pos1 k'
         );
-        if not ui.modal && Mouse.is_pressed `Left then
+        if Mouse.is_pressed `Left then
           `Click ((if k < len then Some k else None), None)
         else if Table.IntSet.equal tab.selected old_selection then
           `None

@@ -53,6 +53,11 @@ val print_intern : t -> Text.t
 val parse_state : t -> Text.t -> unit
 
 
+(* Time mode *)
+
+val toggle_timemode : t -> unit
+
+
 (* Volume Control *)
 
 val mute : t -> bool -> unit
@@ -73,7 +78,7 @@ val min_spec_bands : int
 val max_spec_bands : int
 
 
-(* Track Control *)
+(* Track Navigation *)
 
 val pause : t -> unit
 val resume : t -> unit

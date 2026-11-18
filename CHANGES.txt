@@ -1,5 +1,8 @@
 === 0.9.8 (WIP) ===
 
+Control:
+- [new] Visualisations can be zoomed into fullscreen
+
 Playlist:
 - [new] Support relative and absolute track paths when writing playlist files
 - [new] On Windows, support both native (\) or portable (/) path formats

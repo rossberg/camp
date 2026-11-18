@@ -36,6 +36,7 @@ type t =
   mutable grid : int;
   mutable zoom_size : int;
   mutable zoom_pos : Api.point option;
+  mutable zoom_info : bool;
 }
 
 
@@ -80,6 +81,7 @@ let make ui =
     grid = 100;
     zoom_size = 500;
     zoom_pos = None;
+    zoom_info = false;
   }
 
 
