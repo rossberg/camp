@@ -447,7 +447,7 @@ struct
       (* Visuals *)
       module Visual =
       struct
-        let x = Time.x + Time.w + sx 28
+        let x = Time.x + Time.w + sx 12
         let y = y + margin'
         let w = Volume.x - sx 16
         let h = Prop.y - margin'
