@@ -309,9 +309,11 @@ struct
     match uo with
     | Some u -> f u
     | _ -> x
+    | exception Type_error -> x
 
   let apply uo f g =
     match uo with
     | Some u -> g (f u)
     | _ -> ()
+    | exception Type_error -> ()
 end
