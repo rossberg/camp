@@ -242,10 +242,8 @@ and run' (st : state) (x, y, w, h as r) =
   );
 
   let focus_change =
-    Ui.except_modal geo.ui "focus_change" (fun () ->
-      if WindowUi.Key.next_focus () then (State.focus_next st; true) else
-      if WindowUi.Key.prev_focus () then (State.focus_prev st; true) else false
-    )
+    if WindowUi.Key.next_focus () then (State.focus_next st; true) else
+    if WindowUi.Key.prev_focus () then (State.focus_prev st; true) else false
   in
 
   (* Run panes *)
@@ -339,7 +337,7 @@ and run' (st : state) (x, y, w, h as r) =
 
 (*
   (* TODO: why this? Gets in the way of delayed moves *)
-  let x', y', w', h' =
+  let x', y', w', h' as r' =
     if not extension_change || screen_change <> None then x', y', w', h' else
     (Ui.pin geo.ui scr; x, y, w, h)  (* undo move or resize *)
   in
@@ -349,7 +347,9 @@ and run' (st : state) (x, y, w, h as r) =
     Api.Window.reveal win;
 
   (* Compute new window geometry *)
-  if screen_change <> None then
+  if Api.Window.is_fullscreen win then
+    r
+  else if screen_change <> None then
   (
     let scr' = Option.get screen_change in
     let x'', y'', w'', h'' = Geometry.apply_geo geo scr' geo.window in

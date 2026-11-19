@@ -104,8 +104,15 @@ let next_visual = function
   | `Waveform -> `Oscilloscope
   | `Oscilloscope -> `Cover
 
+let prev_visual vis =
+  let rec loop vis' =
+    let vis'' = next_visual vis' in
+    if vis'' = vis then vis' else loop vis''
+  in loop vis
+
 let cycle_visual ctl = set_visual ctl (next_visual ctl.visual)
 let cycle_zoom ctl = set_zoom ctl (next_visual ctl.zoom)
+let uncycle_zoom ctl = set_zoom ctl (prev_visual ctl.zoom)
 
 
 let set_osc ctl x y =

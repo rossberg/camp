@@ -186,7 +186,8 @@ let run (st : state) =
   let remaining = length -. elapsed in
   let focus =
     pl.table.focus ||
-    not Geometry.(extension_shown_w geo || extension_shown_h geo)
+    not Geometry.(extension_shown_w geo || extension_shown_h geo) ||
+    State.focus_none st
   in
 
   (* Time *)
@@ -613,11 +614,15 @@ let run (st : state) =
         (fun () -> shift_volume st (-1.0));
     |]))
   )
-  else if ctl.visual <> `Oscilloscope && old_visual = ctl.visual
-    && ctl.current <> None
-    && ControlUi.Info.Button.zoom () then
+  else if
+    old_visual = ctl.visual &&
+    ctl.current <> None &&
+    ControlUi.Info.Button.(
+      zoom () && ctl.visual <> `Oscilloscope || full_zoom ())
+  then
   (
-    Run_popup.zoom st (ControlUi.Info.Button.zoom ()) Popup.Current
+    Run_popup.zoom st Popup.Current;
+    if ControlUi.Info.Button.full_zoom () then Run_popup.fullscreen st;
   )
 
 

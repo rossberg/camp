@@ -418,7 +418,7 @@ struct
   let resizing = ref false       (* waiting for callback from set_size/rect *)
 
   let update () =
-    if not (Raylib.is_window_minimized ()) then
+    if not (!fullscreened || Raylib.is_window_minimized ()) then
     (
       if !dragging = None then current_pos := Glfw.get_window_pos ();
       current_size := Glfw.get_window_size ();
@@ -475,7 +475,15 @@ struct
   let screen () = !current_screen
   let pos () = uxy (if !fullscreened then 0, 0 else !current_pos)
   let size () =
-    uxy (if !fullscreened then Screen.size !current_screen else !current_size)
+    let size =
+      (* Make sure to bypass any of Raylib's or our buffering *)
+      if !fullscreened then
+        Raylib.(
+          get_monitor_width !current_screen,
+          get_monitor_height !current_screen
+        )
+      else !current_size
+    in uxy size
   let rect () = let x, y = pos () and w, h = size () in x, y, w, h
 
   let set_pos () x y =

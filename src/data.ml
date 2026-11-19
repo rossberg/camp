@@ -425,10 +425,8 @@ let name_attr_string (meta : Meta.t) attr =
   in
   if artist <> "" && title <> "" then
     artist ^ " - " ^ title
-  else if title <> "" then
-    title
   else
-    ""
+    title
 
 let artist_attr_string' attr path meta =
   let s = nonempty meta_attr_string meta attr in
