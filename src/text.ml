@@ -307,11 +307,11 @@ struct
 
   let default x f uo =
     match uo with
-    | Some u -> f u
-    | _ -> x
+    | None -> x
+    | Some u -> try f u with Type_error -> x
 
   let apply uo f g =
     match uo with
-    | Some u -> g (f u)
-    | _ -> ()
+    | None -> ()
+    | Some u -> try g (f u) with Type_error -> ()
 end
