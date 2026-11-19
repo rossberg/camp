@@ -40,7 +40,9 @@ struct
   let ff = ([], `Arrow `Right)
 
   let ok = ([], `Return)
+  let ok2 = ([], `Enter)
   let overwrite = ([`Shift], `Return)
+  let overwrite2 = ([`Shift], `Enter)
   let cancel = ([], `Escape)
   let leave = ([`Shift], `Escape)
 
@@ -895,6 +897,7 @@ struct
             (button_label_h g) (color g.ui) label key true
 
         let ok = button 0 Ui.active_color "OK" KeyBind.ok
+        let ok2 () = Ui.key g.ui KeyBind.ok2 true
         let cancel = button 1 Ui.inactive_color "CANCEL" KeyBind.cancel
       end
     end
@@ -1026,6 +1029,9 @@ struct
     module Key =
     struct
       let return = key KeyBind.ok
+      let return2 = key KeyBind.ok2
+      let ok2 = key KeyBind.ok2
+      let overwrite2 = key KeyBind.overwrite2
     end
 
     (* Divider *)
@@ -1105,6 +1111,7 @@ struct
     let close () = Ui.key g.ui KeyBind.cancel true
     let exit () = Ui.key g.ui KeyBind.leave true
     let info () = Ui.key g.ui KeyBind.ok true
+    let info2 () = Ui.key g.ui KeyBind.ok2 true
     let cycle () = Ui.mouse g.ui "full" area `Right
     let timemode () =
       Ui.mouse g.ui "full:time" (p, -8*text'*3/4, 0, -1, text') `Left
@@ -1141,6 +1148,7 @@ struct
     module Key =
     struct
       let ok = key KeyBind.ok
+      let ok2 = key KeyBind.ok2
       let cancel = key KeyBind.cancel
     end
   end

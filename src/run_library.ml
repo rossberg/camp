@@ -1514,7 +1514,9 @@ let run_log_buttons (st : state) =
   let module LogUi = WindowUi.Library.Log in
 
   let ok = log.completed in
-  let ok' = LogUi.Button.ok (if ok then Some true else None) in
+  let ok1 = LogUi.Button.ok (if ok then Some true else None) in
+  let ok2 = LogUi.Button.ok (if ok then Some true else None) in
+  let ok' = ok1 || ok2 in
   let cancel = LogUi.Button.cancel (Some false) in
 
   if cancel then log.cancel <- true;

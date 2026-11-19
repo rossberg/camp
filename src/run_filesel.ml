@@ -216,16 +216,16 @@ let run (st : state) =
   in
 
   let ok_button () =
-    ok_avail && not (FileselUi.Button.ok (Some true)) ||
-    not ok_avail && FileselUi.Button.ok None
+    ok_avail && not FileselUi.(Button.ok (Some true) || Key.ok2 ()) ||
+    not ok_avail && FileselUi.(Button.ok None || Key.ok2 ())
   and overwrite_button () =
-    not (FileselUi.Button.overwrite (Some true))
+    not FileselUi.(Button.overwrite (Some true) || Key.overwrite2 ())
   in
 
   if
     overwrite_avail && overwrite_button () ||
     not overwrite_avail && ok_button () ||
-    dir_avail && FileselUi.Key.return () ||
+    dir_avail && FileselUi.Key.(return () || return2 ()) ||
     (ok_avail || dir_avail) && ok
   then
   (

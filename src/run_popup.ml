@@ -290,7 +290,7 @@ let run_zoom (st : state) (zoom : Popup.zoom) fullscreened =
           closing := true
         else if Fullscreen.exit () then
           exit_full := true
-        else if Fullscreen.info () then
+        else if Fullscreen.(info () || info2 ()) then
           geo.zoom_info <- not geo.zoom_info
         else if Fullscreen.cycle () then
         (
@@ -441,7 +441,7 @@ let run_custom (st : state) (custom : Popup.custom) =
   let _ = CustomUi.Text.edit (expr_color geo.ui) custom.expr in
   if custom.expr.focus then Edit.defocus custom.name;
 
-  let ok = CustomUi.Key.ok () in
+  let ok = CustomUi.Key.(ok () || ok2 ()) in
   let cancel = CustomUi.Key.cancel () in
 
   if custom.name.text <> name || custom.expr.text <> expr then
