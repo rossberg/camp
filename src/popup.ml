@@ -44,10 +44,12 @@ let clear pop =
   pop.fullscreen <- false
 
 let set_menu pop items op =
-  pop.kind <- Some (`Menu {hscroll = 0; vscroll = 0; items; op})
+  pop.kind <- Some (`Menu {hscroll = 0; vscroll = 0; items; op});
+  pop.fullscreen <- false
 
 let set_zoom pop zoom =
-  pop.kind <- Some (`Zoom zoom)
+  pop.kind <- Some (`Zoom zoom);
+  pop.fullscreen <- false
 
 let set_custom pop l s valid ok =
   let name = Edit.make_with 100 l in
@@ -55,7 +57,8 @@ let set_custom pop l s valid ok =
   Edit.focus (if l = "" then name else expr);
   Edit.move_end name;
   Edit.move_end expr;
-  pop.kind <- Some (`Custom {name; expr; valid; ok})
+  pop.kind <- Some (`Custom {name; expr; valid; ok});
+  pop.fullscreen <- false
 
 let fullscreen pop b =
   pop.fullscreen <- b

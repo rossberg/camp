@@ -129,12 +129,19 @@ let foci st =
   (if Geometry.filesel_shown geo then foci_filesel st.filesel else
    if Geometry.library_shown geo then foci_library st.library else [])
 
+
+let focus_find foci =
+  let rec loop = function
+    | f::f'::_ when fst f -> Some f'
+    | _::fs -> loop fs
+    | [] -> None
+  in loop foci
+
+let focus_none st =
+  focus_find (foci st) = None
+
 let focus_switch st foci =
-  let rec find = function
-    | f::f'::_ when fst f -> f'
-    | _::fs -> find fs
-    | [] -> List.hd foci
-  in snd (find foci) st
+  snd (Option.value (focus_find foci) ~default: (List.hd foci)) st
 
 let focus_next st = focus_switch st (foci st)
 let focus_prev st = focus_switch st (List.rev (foci st))

@@ -460,7 +460,7 @@ struct
   let in_frame = ref false       (* flag to assert proper frame bracketing *)
 
   let update () =
-    if not (Raylib.is_window_minimized ()) then
+    if not (!fullscreened || Raylib.is_window_minimized ()) then
     (
       current_pos := point_of_vec2 (Raylib.get_window_position ());
       current_size := Raylib.(get_screen_width (), get_screen_height ());
@@ -499,9 +499,17 @@ struct
   let closed () = Raylib.window_should_close ()
 
   let screen () = !current_screen
-  let pos () = uxy !current_pos
+  let pos () = uxy (if !fullscreened then 0, 0 else !current_pos)
   let size () =
-    uxy (if !fullscreened then Screen.size !current_screen else !current_size)
+    let size =
+      (* Make sure to bypass any of Raylib's or our buffering *)
+      if !fullscreened then
+        Raylib.(
+          get_monitor_width !current_screen,
+          get_monitor_height !current_screen
+        )
+      else !current_size
+    in uxy size
 
   let set_pos () x y =
     assert (not !in_frame);

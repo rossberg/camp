@@ -42,6 +42,7 @@ struct
   let ok = ([], `Return)
   let overwrite = ([`Shift], `Return)
   let cancel = ([], `Escape)
+  let leave = ([`Shift], `Escape)
 
   let all = cmd 'A'
   let rev = cmd 'B'
@@ -1068,7 +1069,11 @@ struct
     let area = (p, 0, 0, -1, -1)
     let image_area = (p, 0, 0, -1, -line)
     let text = Ui.ticker g.ui (p, 0, -text, -1, -1)
+
+    let close () = Ui.key g.ui KeyBind.cancel true
     let cycle () = Ui.mouse g.ui "zoom" image_area `Right
+    let full () =
+      Ui.mouse g.ui "zoom" area `Left && Api.Mouse.is_double_click `Left
     let drag () = Ui.drag g.ui "zoom" area (1, 1)
     let refl () = Ui.mouse_focus g.ui area (control_h g) 0x30 0
   end
@@ -1098,9 +1103,11 @@ struct
     let time = Ui.time g.ui (p, 0, 0, -1, text') `Right
 
     let close () = Ui.key g.ui KeyBind.cancel true
-    let toggle () = Ui.key g.ui KeyBind.ok true
+    let exit () = Ui.key g.ui KeyBind.leave true
+    let info () = Ui.key g.ui KeyBind.ok true
     let cycle () = Ui.mouse g.ui "full" area `Right
-    let timemode () = Ui.mouse g.ui "lcd_but" (p, ww/2, 0, -1, text') `Left
+    let timemode () =
+      Ui.mouse g.ui "full:time" (p, -8*text'*3/4, 0, -1, text') `Left
   end
 
 

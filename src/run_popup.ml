@@ -5,24 +5,23 @@ type state = State.t
 
 (* Zoom creation *)
 
-let zoom (st : state) fullscreen zoom =
+let zoom (st : state) zoom =
   let geo = st.geometry in
   Popup.set_zoom st.popup zoom;
-  Popup.fullscreen st.popup fullscreen;
   geo.popup_shown <-
     if zoom = Current && geo.zoom_pos <> None then geo.zoom_pos else
     Some (Api.Mouse.pos (Ui.window geo.ui));
   if zoom <> Current then
     Ui.modal geo.ui "popup.zoom"
-  else if not fullscreen then
-    Ui.modal_rect geo.ui "run.zoom" (Some (0, 0, 0, 0))  (* one-frame dummy *)
   else
-  (
-    let win = Ui.window st.geometry.ui in
-    State.defocus_all st;
-    Api.Window.fullscreen win;
-    Ui.modal_rect geo.ui "run.zoom" (Some (0, 0, max_int, max_int))
-  )
+    Ui.modal_rect geo.ui "run.zoom" (Some (0, 0, 0, 0))  (* one-frame dummy *)
+
+let fullscreen (st : state) =
+  let geo = st.geometry in
+  let win = Ui.window geo.ui in
+  Popup.fullscreen st.popup true;
+  Api.Window.fullscreen win;
+  Ui.modal_rect geo.ui "run.full" (Some (0, 0, max_int, max_int))
 
 
 (* Custom Column edit creation *)
@@ -191,212 +190,224 @@ let run_menu (st : state) (menu : Popup.menu) =
     menu.vscroll <- v
 
 
-let run_zoom (st : state) (zoom : Popup.zoom) fullscreen =
+let run_zoom (st : state) (zoom : Popup.zoom) fullscreened =
   let geo = st.geometry in
   let ctl = st.control in
 
   let resizing = ref false in
   let closing = ref false in
-  let zoom_opt =
+  let zoom' =
     match zoom with
-    | Track _ | Album _ as zoom -> Some zoom
-    | Current -> Option.map (fun track -> Popup.Track track) ctl.current
+    | Track _ | Album _ as zoom -> zoom
+    | Current ->
+      match ctl.current with
+      | Some track -> Popup.Track track
+      | None -> Current
   in
-  Option.iter (fun zoom' ->
-    let path, aartist, atitle, year, artist, title, num =
-      match zoom' with
-      | Popup.Track track ->
-        let artist = Data.track_attr_string track `Artist in
-        let title = Data.track_attr_string track `Title in
-        let aartist = Data.track_attr_string track `AlbumArtist in
-        let atitle = Data.track_attr_string track `AlbumTitle in
-        let num = String.trim (Data.track_attr_string track `DiscTrack) in
-        track.path, aartist, atitle, Data.track_attr_string track `Year,
-        artist, title,
-        (if aartist = artist && atitle = title then "" else num)
+  let path, aartist, atitle, year, artist, title, num =
+    match zoom' with
+    | Popup.Track track ->
+      let artist = Data.track_attr_string track `Artist in
+      let title = Data.track_attr_string track `Title in
+      let aartist = Data.track_attr_string track `AlbumArtist in
+      let atitle = Data.track_attr_string track `AlbumTitle in
+      let num = String.trim (Data.track_attr_string track `DiscTrack) in
+      track.path, aartist, atitle, Data.track_attr_string track `Year,
+      artist, title,
+      (if aartist = artist && atitle = title then "" else num)
 
-      | Popup.Album (album : Data.album) ->
-        album.path,
-        Data.album_attr_string album `AlbumArtist,
-        Data.album_attr_string album `AlbumTitle,
-        Data.album_attr_string album `Year,
-        "", "", ""
+    | Popup.Album (album : Data.album) ->
+      album.path,
+      Data.album_attr_string album `AlbumArtist,
+      Data.album_attr_string album `AlbumTitle,
+      Data.album_attr_string album `Year,
+      "", "", ""
 
-      | Popup.Current -> assert false
+    | Popup.Current ->
+      "", "", "", "", "", "", ""
+  in
+  let img_opt = Library.load_cover st.library (Ui.window geo.ui) path in
+  let var = (zoom = Current) in
+  let vis = if zoom = Current then ctl.zoom else `Cover in
+
+  if fullscreened then
+  (
+    let size ww wh th =
+      match vis with
+      | `Cover ->
+        let img = Option.value img_opt ~default: (Ui.nocover geo.ui) in
+        let w, h = Ui.image_size geo.ui (ww, wh - th) `Shrink img in
+        w, h, true
+      | `Turntable -> let d = min ww wh in d, d, false
+      | `Waveform | `Oscilloscope -> ww, wh, false
+      | `Spectrum -> ww, wh * 4 / 5, true
     in
-    let img_opt = Library.load_cover st.library (Ui.window geo.ui) path in
-    let var = (zoom = Current) in
-    let vis = if zoom = Current then ctl.zoom else `Cover in
 
-    if fullscreen then
+    let (module WindowUi) = Option.get st.layout in
+    let module Fullscreen = WindowUi.Fullscreen(struct let size = size end) in
+
+    Fullscreen.background ();
+    Run_visualization.run st Fullscreen.vis_area vis ctl.zoom_buffer img_opt;
+
+    if geo.zoom_info then
     (
-      let size ww wh th =
-        match vis with
-        | `Cover ->
-          let img = Option.value img_opt ~default: (Ui.nocover geo.ui) in
-          let w, h = Ui.image_size geo.ui (ww, wh - th) `Shrink img in
-          w, h, true
-        | `Turntable -> let d = min ww wh in d, d, false
-        | `Waveform | `Oscilloscope -> ww, wh, false
-        | `Spectrum -> ww, wh * 4 / 5, true
+      let t =
+        let ctl = st.control in
+        match ctl.timemode with
+        | `Elapse -> Control.(elapsed ctl)
+        | `Remain -> -.Control.(length ctl -. elapsed ctl) (* generate -0.0 *)
       in
+      Fullscreen.time true t;
 
-      let (module WindowUi) = Option.get st.layout in
-      let module Fullscreen = WindowUi.Fullscreen(struct let size = size end) in
-
-      Fullscreen.background ();
-      Run_visualization.run st Fullscreen.vis_area vis ctl.zoom_buffer img_opt;
-
-      if geo.zoom_info then
-      (
-        let t =
-          let ctl = st.control in
-          match ctl.timemode with
-          | `Elapse -> Control.(elapsed ctl)
-          | `Remain -> -.Control.(length ctl -. elapsed ctl) (* generate -0.0 *)
-        in
-        Fullscreen.time (1.0/.t < 0.0) t; (* condition detects -0.0 correctly *)
-
-        let text1 = artist ^ " - " ^ title in
-        let text2 =
-          atitle ^
-          (if year = "" then "" else " (" ^ year ^ ")") ^
-          (if num = "" then "" else ", track " ^ num)
-        in
-        let align = if Fullscreen.text_bot then `Center else `Right in
-        Fullscreen.line1 align text1;
-        Fullscreen.line2 align text2;
-      );
-
-      if zoom = Current then
-      (
-        Ui.except_modal geo.ui "zoom.close" (fun () ->
-          (* Avoid interfering with popup movement,
-           * hence only grab mouse after release. *)
-          if geo.zoom_info && Fullscreen.timemode () then
-            Control.toggle_timemode ctl
-          else
-            closing := Api.Mouse.is_released `Left;
-          let win = Ui.window st.geometry.ui in
-          if Fullscreen.close () then
-          (
-            Api.Window.restore win;
-            Popup.fullscreen st.popup false;
-          )
-          else if Fullscreen.toggle () then
-          (
-            geo.zoom_info <- not geo.zoom_info;
-          )
-          else if Fullscreen.cycle () then
-          (
-            if Api.Mouse.is_double_click `Right then
-            (
-              Api.Window.restore win;
-              Popup.fullscreen st.popup false;
-            )
-            else
-              Control.cycle_zoom st.control;
-          )
-        );
-      )
-    )
-    else
-    (
-      let size w =
-        match vis with
-        | `Cover ->
-          let img = Option.value img_opt ~default: (Ui.nocover geo.ui) in
-          Ui.image_size geo.ui (w, w) `Shrink img
-        | `Turntable | `Oscilloscope -> w, w
-        | `Spectrum | `Waveform -> w, w/2
-      in
-      let inv_size (w, h) =
-        match vis with
-        | `Cover ->
-          let img = Option.value img_opt ~default: (Ui.nocover geo.ui) in
-          let w', h' = Ui.image_size geo.ui (w, w) `Shrink img in
-          if w' = w then w else h
-        | `Turntable | `Oscilloscope -> w
-        | `Spectrum | `Waveform -> w
-      in
-
-      let (module WindowUi) = Option.get st.layout in
-      let module Zoom =
-        WindowUi.Zoom(struct let size = size let var = var end) in
-
-      let text =
-        aartist ^ " - " ^ atitle ^
+      let text1 =
+        if artist <> "" && title <> "" then
+          artist ^ " - " ^ title
+        else if zoom' = Current then
+          "(ejected)"
+        else
+          title
+      and text2 =
+        atitle ^
         (if year = "" then "" else " (" ^ year ^ ")") ^
         (if num = "" then "" else ", track " ^ num)
       in
-      Run_visualization.run st Zoom.image_area vis ctl.zoom_buffer img_opt;
-      Zoom.text text;
-      Zoom.refl ();
+      let align = if Fullscreen.text_bot then `Center else `Right in
+      Fullscreen.line1 align text1;
+      Fullscreen.line2 align text2;
+    );
 
-      (* Resize *)
-      if zoom = Current then
-      (
-        let go_full = ref false in
-        Ui.except_modal geo.ui "zoom.close" (fun () ->
-          (* Avoid interfering with popup movement,
-           * hence only grab mouse after release. *)
-          closing := (Api.Mouse.is_released `Left && Zoom.drag () = `Click);
-          if Zoom.cycle () then
-          (
-            if Api.Mouse.is_double_click `Right then
-              go_full := true
-            else
-              Control.cycle_zoom st.control
-          )
-        );
-        if !go_full then
+    if zoom = Current then
+    (
+      let exit_full = ref false in
+      Ui.except_modal geo.ui "full.click" (fun () ->
+        if geo.zoom_info && Fullscreen.timemode () then
+          Control.toggle_timemode ctl
+        else
+          (* Make sure click isn't part of double click opening it *)
+          closing :=
+            Api.Mouse.(is_released `Left && not (is_double_click `Left));
+        if Fullscreen.close () then
+          closing := true
+        else if Fullscreen.exit () then
+          exit_full := true
+        else if Fullscreen.info () then
+          geo.zoom_info <- not geo.zoom_info
+        else if Fullscreen.cycle () then
         (
-          let win = Ui.window st.geometry.ui in
-          Api.Window.fullscreen win;
-          Popup.fullscreen st.popup true;
-          Ui.modal_rect geo.ui "run.zoom" (Some (0, 0, max_int, max_int));
-        );
-
-        Option.iter (fun ((x', y', w', h'), (lft, top, rgt, bot)) ->
-          resizing := true;
-
-          let ww, wh = Api.Window.size (Ui.window geo.ui) in
-          let w, h = size geo.zoom_size in
-
-          (* Correct ratio *)
-          let ratio = float w /. float h in
-          let ratio' = float w' /. float h' in
-          let w'', h'' =
-            let adapt_w () = int_of_float (float h' *. ratio), h' in
-            let adapt_h () = w', int_of_float (float w' /. ratio) in
-            if (lft || rgt) && not (top || bot) then
-              adapt_h ()
-            else if (top || bot) && not (lft || rgt) then
-              adapt_w ()
-            else if ratio' >= ratio then
-              adapt_h ()
-            else
-              adapt_w ()
-          in
-
-          (* Adjust position *)
-          let to_top = top || not bot && y' >= wh - h'' in
-          let to_lft = lft || not rgt && x' >= ww - w'' in
-          let x'' = max 0 (x' - if to_lft then w'' - w' else 0) in
-          let y'' = max 0 (y' - if to_top then h'' - h' else 0) in
-
-          geo.zoom_pos <- Some (x'', y'');
-          geo.zoom_size <- inv_size (w'', h'');
-          geo.popup_shown <- geo.zoom_pos;
-        ) Zoom.resize
+          if Api.Mouse.is_double_click `Right then
+            exit_full := true
+          else
+            Control.cycle_zoom st.control;
+        )
+      );
+      if !exit_full then
+      (
+        Api.Window.restore (Ui.window geo.ui);
+        Popup.fullscreen st.popup false;
       )
     )
-  ) zoom_opt;
+  )
+  else
+  (
+    let size w =
+      match vis with
+      | `Cover ->
+        let img = Option.value img_opt ~default: (Ui.nocover geo.ui) in
+        Ui.image_size geo.ui (w, w) `Shrink img
+      | `Turntable | `Oscilloscope -> w, w
+      | `Spectrum | `Waveform -> w, w/2
+    in
+    let inv_size (w, h) =
+      match vis with
+      | `Cover ->
+        let img = Option.value img_opt ~default: (Ui.nocover geo.ui) in
+        let w', h' = Ui.image_size geo.ui (w, w) `Shrink img in
+        if w' = w then w else h
+      | `Turntable | `Oscilloscope -> w
+      | `Spectrum | `Waveform -> w
+    in
 
-  if zoom_opt = None
-  || zoom = Current && ctl.current = None || !closing
-  || zoom <> Current && Api.Mouse.is_released `Left
-  then
+    let (module WindowUi) = Option.get st.layout in
+    let module Zoom =
+      WindowUi.Zoom(struct let size = size let var = var end) in
+
+    let text =
+      (if aartist <> "" && atitle <> "" then
+        aartist ^ " - " ^ atitle
+      else
+        atitle
+      ) ^
+      (if year = "" then "" else " (" ^ year ^ ")") ^
+      (if num = "" then "" else ", track " ^ num)
+    in
+    Run_visualization.run st Zoom.image_area vis ctl.zoom_buffer img_opt;
+    Zoom.text text;
+    Zoom.refl ();
+
+    (* Resize *)
+    if zoom = Current then
+    (
+      let enter_full = ref false in
+      Ui.except_modal geo.ui "zoom.click" (fun () ->
+        (* Make sure click isn't part of double click opening it
+         * and avoid interfering with popup movement. *)
+        closing :=
+          Api.Mouse.(is_released `Left && not (is_double_click `Left)) &&
+          Zoom.drag () = `Click;
+        if Zoom.cycle () then
+        (
+          if Api.Mouse.is_double_click `Right then
+          (
+            (* Undo previous cycling *)
+            Control.uncycle_zoom st.control;
+            enter_full := true;
+          )
+          else
+            Control.cycle_zoom st.control
+        );
+        if Zoom.close () then
+          closing := true
+        else if Zoom.full () then
+          enter_full := true;
+      );
+      if !enter_full then fullscreen st;
+
+      Option.iter (fun ((x', y', w', h'), (lft, top, rgt, bot)) ->
+        resizing := true;
+
+        let ww, wh = Api.Window.size (Ui.window geo.ui) in
+        let w, h = size geo.zoom_size in
+
+        (* Correct ratio *)
+        let ratio = float w /. float h in
+        let ratio' = float w' /. float h' in
+        let w'', h'' =
+          let adapt_w () = int_of_float (float h' *. ratio), h' in
+          let adapt_h () = w', int_of_float (float w' /. ratio) in
+          if (lft || rgt) && not (top || bot) then
+            adapt_h ()
+          else if (top || bot) && not (lft || rgt) then
+            adapt_w ()
+          else if ratio' >= ratio then
+            adapt_h ()
+          else
+            adapt_w ()
+        in
+
+        (* Adjust position *)
+        let to_top = top || not bot && y' >= wh - h'' in
+        let to_lft = lft || not rgt && x' >= ww - w'' in
+        let x'' = max 0 (x' - if to_lft then w'' - w' else 0) in
+        let y'' = max 0 (y' - if to_top then h'' - h' else 0) in
+
+        geo.zoom_pos <- Some (x'', y'');
+        geo.zoom_size <- inv_size (w'', h'');
+        geo.popup_shown <- geo.zoom_pos;
+      ) Zoom.resize
+    )
+  );
+
+  if !closing || zoom' = Current (* ejected *) then
   (
     if zoom = Current then
       Ui.modal_rect geo.ui "run.zoom" None

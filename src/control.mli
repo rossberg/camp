@@ -70,6 +70,7 @@ val set_visual : t -> visual -> unit
 val set_zoom : t -> visual -> unit
 val cycle_visual : t -> unit
 val cycle_zoom : t -> unit
+val uncycle_zoom : t -> unit
 
 val set_osc : t -> float -> float -> unit
 val reset_osc : t -> unit
