@@ -280,12 +280,13 @@ let run_zoom (st : state) (zoom : Popup.zoom) fullscreened =
     (
       let exit_full = ref false in
       Ui.except_modal geo.ui "full.click" (fun () ->
-        if geo.zoom_info && Fullscreen.timemode () then
+        if Fullscreen.infomode () then
+          geo.zoom_info <- not geo.zoom_info
+        else if geo.zoom_info && Fullscreen.timemode () then
           Control.toggle_timemode ctl
-        else
+        else if Api.Mouse.is_released `Left then
           (* Make sure click isn't part of double click opening it *)
-          closing :=
-            Api.Mouse.(is_released `Left && not (is_double_click `Left));
+          closing := not (Api.Mouse.is_double_click `Left);
         if Fullscreen.close () then
           closing := true
         else if Fullscreen.exit () then
@@ -298,7 +299,10 @@ let run_zoom (st : state) (zoom : Popup.zoom) fullscreened =
             exit_full := true
           else
             Control.cycle_zoom st.control;
-        )
+        );
+        let vol_delta = snd (Fullscreen.wheel ()) in
+        if vol_delta <> 0.0 then  (* cf. Run_control.shift_volume *)
+          Control.volume st.control (ctl.volume +. 0.05 *. vol_delta)
       );
       if !exit_full then
       (
