@@ -1112,9 +1112,12 @@ struct
     let exit () = Ui.key g.ui KeyBind.leave true
     let info () = Ui.key g.ui KeyBind.ok true
     let info2 () = Ui.key g.ui KeyBind.ok2 true
-    let cycle () = Ui.mouse g.ui "full" area `Right
+    let cycle () = Ui.mouse g.ui "full:cycle" area `Right
     let timemode () =
-      Ui.mouse g.ui "full:time" (p, -8*text'*3/4, 0, -1, text') `Left
+      Ui.mouse g.ui "full:time" (p, -8*text'*3/4, 0, -1, text' + margin) `Left
+    let infomode () =
+      Ui.mouse g.ui "full:info" (p, ww/2, -4*text - margin, -1, -1) `Left
+    let wheel () = Ui.wheel g.ui area
   end
 
 
