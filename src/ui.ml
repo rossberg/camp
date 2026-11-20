@@ -932,7 +932,8 @@ let time ui area align signed t =
   let spacew = h / 7 in
   let t' = abs (int_of_float (Float.round t)) in
   let hour, min, sec = t' / 3600, t' / 60 mod 60, t' mod 60 in
-  let rec log10 n = if n < 10 then 1 else 1 + log10 (n / 10) in
+  let rec log10 n =
+    if n = 0 then 0 else if n < 10 then 1 else 1 + log10 (n / 10) in
   let digits = log10 hour + 2 + 2 + Bool.to_int signed in
   let colons = if hour = 0 then 1 else 2 in
   let tw = cw * digits + colonw * colons + spacew * (digits + colons - 1) in
