@@ -527,18 +527,40 @@ struct
   let fullscreen () =
     if not !fullscreened then
     (
-      Raylib.toggle_borderless_windowed ();
       fullscreened := true;
+      if not is_mac then
+        Raylib.toggle_borderless_windowed ()
+      else
+      (
+        (* On Mac, toggling to borderless windowed is too expensive *)
+        let scr = !current_screen in
+        let x, y = point_of_vec2 (Raylib.get_monitor_position scr) in
+        let w, h = Raylib.(get_monitor_width scr, get_monitor_height scr) in
+        Glfw.set_window_rect x y w h;
+        Raylib.(set_window_state ConfigFlags.window_topmost);
+        Glfw.set_window_kiosk_mode true;
+      )
     )
 
   let restore () =
     if is_minimized () then Raylib.restore_window () else
     if !fullscreened then
     (
-      Raylib.toggle_borderless_windowed ();
-      (* This appers to vanish, at least on Mac *)
-      Raylib.(set_window_state ConfigFlags.window_undecorated);
       fullscreened := false;
+      if not is_mac then
+      (
+        Raylib.toggle_borderless_windowed ();
+        (* This appers to vanish, at least on Mac *)
+        Raylib.(set_window_state ConfigFlags.window_undecorated);
+      )
+      else
+      (
+        let x, y = !current_pos in
+        let w, h = !current_size in
+        Glfw.set_window_rect x y w h;
+        Raylib.(clear_window_state ConfigFlags.window_topmost);
+        Glfw.set_window_kiosk_mode false;
+      )
     )
 
   let hide () = Raylib.(set_window_state ConfigFlags.window_hidden)
@@ -1429,6 +1451,16 @@ struct
       if not (Unicode.is_ascii path) then Storage.copy_to_temp path else path in
     let format = try Format.read path' with _ -> Format.unknown in
     let music = Raylib.load_music_stream path' in
+
+(*
+    (* Test for using (a fixed version of) load_music_stream_from_memory *)
+    let file = File.load `Bin path' in
+    let carray = Ctypes.CArray.of_string file in
+    keep_alive := Some carray;
+    let load = Foreign.foreign "LoadMusicStreamFromMemory" Ctypes.(string @-> ptr char @-> int @-> returning Raylib_types.Music.t) in
+    let music = load (Filename.extension path') (Ctypes.CArray.start carray) (Ctypes.CArray.length carray) in
+*)
+
     if Raylib.Music.ctx_type music = 0 then silence () else
     (
       let s = Raylib.Music.stream music in

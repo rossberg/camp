@@ -634,3 +634,37 @@ CAMLprim value glfw_resize_window(value vborder)
 
 #endif
 }
+
+
+/* Lightweight Fullscreen for Mac */
+
+CAMLprim void glfw_set_window_kiosk_mode(value vflag)
+{
+  CAMLparam1(vflag);
+
+  GLFWwindow *win = glfwGetCurrentContext();
+  if (!win) CAMLreturn0;
+
+#if defined(__APPLE__)
+
+  id owin = glfwGetCocoaWindow(win);
+  if (!owin) CAMLreturn0;
+
+  id app = objc_send0(id, (id)objc_getClass("NSApplication"), "sharedApplication");
+
+  enum {
+    NSApplicationPresentationDefault = 0,
+    NSApplicationPresentationAutoHideDock = 1,
+    NSApplicationPresentationAutoHideMenuBar = 4,
+  };
+
+  unsigned long pres =
+      Bool_val(vflag)
+      ? (NSApplicationPresentationAutoHideDock | NSApplicationPresentationAutoHideMenuBar)
+      : NSApplicationPresentationDefault;
+  objc_send1(void, unsigned long, app, "setPresentationOptions:", pres);
+
+#endif
+
+  CAMLreturn0;
+}
