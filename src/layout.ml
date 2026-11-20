@@ -1102,11 +1102,12 @@ struct
 
     let c = Ui.text_color g.ui
     let line i align =
-      Ui.trans_text g.ui (p, 0, i * text', -1, text') align c `Regular true
-    let line1 = line (-2)
-    let line2 = line (-1)
+      Ui.trans_text g.ui (p, 0, -i * text' - margin, -margin, text')
+        align c `Regular true
+    let line1 = line 2
+    let line2 = line 1
     let ticker = Ui.ticker g.ui (p, 0, -text', -1, text')
-    let time = Ui.time g.ui (p, 0, 0, -1, text') `Right
+    let time = Ui.time g.ui (p, 0, margin, -margin, text') `Right
 
     let close () = Ui.key g.ui KeyBind.cancel true
     let exit () = Ui.key g.ui KeyBind.leave true
