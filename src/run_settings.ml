@@ -26,6 +26,7 @@ let init (st : state) =
   Edit.set set.text_gutter (string_of_int geo.gutter);
   Edit.set set.grid_size (string_of_int geo.grid);
   Edit.set set.zoom_size (string_of_int geo.zoom_size);
+  Edit.set set.zoom_text_size (string_of_int geo.zoom_text);
   Edit.set set.scroll_width (string_of_int geo.scrollbar);
   Edit.set set.spec_bands (string_of_int ctl.spec_bands);
   Edit.set set.exec_tag cfg.exec_tag;
@@ -65,7 +66,10 @@ let run (st : state) focus_change =
             Ui.get_palette geo.ui = i,
             fun _ -> Ui.set_palette geo.ui i
           ));
-          "TEXT", `Number ("SIZE", set.text_size, geo.text, 6, 64,
+          "TEXT", `Number (
+            let s = string_of_int geo.text in
+            if set.text_size.text <> s then Edit.set set.text_size s;
+            "SIZE", set.text_size, geo.text, 6, 64,
             focus_edit, fun n -> geo.text <- n
           );
           "", `Number ("PADDING", set.text_padding, geo.pad_y, 0, 12,
@@ -126,6 +130,12 @@ let run (st : state) focus_change =
             "OSCILLOSCOPE", ctl.zoom = `Oscilloscope,
               (fun _ -> Control.set_zoom ctl `Oscilloscope);
           ];
+          "ZOOM TEXT", `Number (
+            let s = string_of_int geo.zoom_text in
+            if set.zoom_text_size.text <> s then Edit.set set.zoom_text_size s;
+            "SIZE", set.zoom_text_size, geo.zoom_text, 6, 64,
+            focus_edit, fun n -> geo.zoom_text <- n
+          );
           "TURNTABLE", `Choice [
             (* Don't use more precision than the state save file! *)
             "16 RPM", ctl.turn_rpm = 16.666,

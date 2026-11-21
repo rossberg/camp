@@ -12,7 +12,9 @@ struct
   let na = ([], `None)
   let plain ch = ([], `Char ch)
   let shift ch = ([`Shift], `Char ch)
+  let cmd' ch = ([`Command], `Char ch)
   let cmd ch = ([`Command], `Local ch)
+  let shiftcmd' ch = ([`Shift; `Command], `Char ch)
   let shiftcmd ch = ([`Shift; `Command], `Local ch)
 
   let bwd = plain 'Z'
@@ -80,16 +82,16 @@ struct
   let append_right = plain '>'
   let replace_left = shift '<'
   let replace_right = shift '>'
-  let text_up = cmd '+'
-  let text_dn = cmd '-'
+  let text_up = cmd' '+'
+  let text_dn = cmd' '-'
   let pad_up = na
   let pad_dn = na
-  let grid_up = shiftcmd '+'
-  let grid_dn = shiftcmd '-'
+  let grid_up = shiftcmd' '+'
+  let grid_dn = shiftcmd' '-'
   let zoom_up = cmd ']'
   let zoom_dn = cmd '['
-  let scale_up = shiftcmd ']'
-  let scale_dn = shiftcmd '['
+  let scale_up = shiftcmd' ']'
+  let scale_dn = shiftcmd' '['
   let settings = cmd ','
   let dev_settings = shiftcmd ','
 
@@ -1089,19 +1091,20 @@ struct
 
   module Fullscreen () =
   struct
-    let p = Ui.pane g.ui "full" (0, 0, -1, -1)
-
+    let p = Ui.pane g.ui "full" (margin, margin, -margin, -margin)
     let area = (p, 0, 0, -1, -1)
-    let background () = Ui.box g.ui area `Black
 
-    let text' = if g.zoom_info then 2 * text else 0
+    let bg = Ui.pane g.ui "full:bg" (0, 0, -1, -1)
+    let background () = Ui.box g.ui (bg, 0, 0, -1, -1) `Black
+
+    let text = zoom_text_h g
+    let text' = if g.zoom_info then text else 0
     let c = Ui.text_color g.ui
     let line i align =
-      Ui.trans_text g.ui (p, 0, -i * text' - margin, -margin, text')
-        align c `Regular true
+      Ui.trans_text g.ui (p, 0, -i * text', -1, text') align c `Regular true
     let line1 = line 2
     let line2 = line 1
-    let time = Ui.time g.ui (p, 0, margin, -margin, text') `Right
+    let time = Ui.time g.ui (p, 0, 0, -1, text') `Right
 
     let close () = Ui.key g.ui KeyBind.cancel true
     let exit () = Ui.key g.ui KeyBind.leave true

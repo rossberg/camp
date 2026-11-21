@@ -117,7 +117,10 @@ let resize_text_avail (st : state) delta =
   clamp_text (st.geometry.text + delta) <> st.geometry.text
 
 let resize_text (st : state) delta =
-  st.geometry.text <- clamp_text (st.geometry.text + delta)
+  if not (Api.Window.is_fullscreen (Ui.window st.geometry.ui)) then
+    st.geometry.text <- clamp_text (st.geometry.text + delta)
+  else
+    st.geometry.zoom_text <- clamp_text (st.geometry.zoom_text + delta)
 
 let resize_pad_avail (st : state) delta =
   clamp_pad (st.geometry.pad_y + delta) <> st.geometry.pad_y

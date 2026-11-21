@@ -37,6 +37,7 @@ type t =
   mutable zoom_size : int;
   mutable zoom_pos : Api.point option;
   mutable zoom_info : bool;
+  mutable zoom_text : int;
 }
 
 
@@ -81,7 +82,8 @@ let make ui =
     grid = 100;
     zoom_size = 500;
     zoom_pos = None;
-    zoom_info = false;
+    zoom_info = true;
+    zoom_text = 28;
   }
 
 
@@ -107,6 +109,7 @@ let zoom_margin g = margin g / 2
 let divider_w g = margin g
 
 let text_h g = min max_text_size (smin g g.text)
+let zoom_text_h g = min max_text_size (smin g g.zoom_text)
 let pad_w g = smin g g.pad_x
 let pad_h g = smin g g.pad_y
 let line_h g = text_h g + 2 * pad_h g
@@ -710,6 +713,7 @@ let print_state geo =
     "repair_cols", iarray nat geo.repair_log_columns;
     "zoom_size", nat geo.zoom_size;
     "zoom_pos", option (pair nat nat) geo.zoom_pos;
+    "zoom_text_size", nat geo.zoom_text;
   ]) geo
 
 let print_intern geo =
@@ -788,6 +792,8 @@ let parse_state geo =  (* assumes playlist and library loaded *)
       (fun w -> geo.zoom_size <- w);
     apply (r $? "zoom_pos") (option (pair nat nat))
       (fun po -> geo.zoom_pos <- po);
+    apply (r $? "zoom_text_size") (num min_text_size max_text_size)
+      (fun h -> geo.zoom_text <- h);
     geo.window <- (!rax, !ray, !raw, !rah);
   )
 

@@ -243,14 +243,13 @@ let run_zoom (st : state) (zoom : Popup.zoom) fullscreened =
       | `Elapse -> Control.(elapsed ctl)
       | `Remain -> -.Control.(length ctl -. elapsed ctl) (* generate -0.0 *)
     in
-    let text_h = Geometry.text_h geo in
-    let text_h' = Fullscreen.text' in
+    let text_h, text_h' = Fullscreen.(text, text') in
     let time_w, time_h =
       if not geo.zoom_info then 0, 0 else
       Ui.time_width geo.ui text_h' true t, text_h'
     in
 
-    let _, _, ww, wh = Ui.dim geo.ui Fullscreen.area in
+    let wx, wy, ww, wh = Ui.dim geo.ui Fullscreen.area in
     let w, h, annot =
       match vis with
       | `Cover ->
@@ -263,7 +262,7 @@ let run_zoom (st : state) (zoom : Popup.zoom) fullscreened =
           let w, h =
             Ui.image_size geo.ui (ww, wh - time_w - 2*text_h) `Shrink img in
           w, h, `Right
-      | `Turntable -> let d = min ww wh in d, d, `Right
+      | `Turntable -> let d = min ww wh - 2*text_h in d, d, `Right
       | `Waveform | `Oscilloscope -> ww, wh, `Top
       | `Spectrum -> ww, min (wh * 4 / 5) (wh - 2*text_h'), `Bot
     in
@@ -295,19 +294,19 @@ let run_zoom (st : state) (zoom : Popup.zoom) fullscreened =
       let win = Ui.window geo.ui in
       match vis with
       | `Cover ->
-        let th = 2 * geo.text in
+        let th = text_h in
         let font = Ui.font geo.ui th in
         let c = `White in
         let w1 = Api.Draw.text_width win th font text1 in
         let w2 = Api.Draw.text_width win th font text2 in
         let xx = if w1 + w2 + 3 * geo.margin > h then - w - th else 0 in
-        let x1, y1 = float (x + w), float (y + h) in
-        let x2, y2 = float (x + w + xx), float (y + w2) in
+        let x1, y1 = float (wx + x + w), float (wy + y + h) in
+        let x2, y2 = float (wx + x + w + xx), float (wy + y + w2) in
         Api.Draw.rotate_text win x1 y1 th 270.0 c font text1;
         Api.Draw.rotate_text win x2 y2 th 270.0 c font text2;
 
       | `Turntable ->
-        let th = 2 * geo.text in
+        let th = text_h in
         let font = Ui.font geo.ui th in
         let c = `White in
         let xspace = 2 in
@@ -318,7 +317,7 @@ let run_zoom (st : state) (zoom : Popup.zoom) fullscreened =
         let f, sin, cos = float, Float.sin, Float.cos in
         let circum = Float.pi *. f w in
         let r = f w /. 2.0 in
-        let ox, oy = f x +. r, f y +. r in
+        let ox, oy = f (wx + x) +. r, f (wy + y) +. r in
         let rec circ_text r' d sgn s i =
           if i < String.length s then
           (
