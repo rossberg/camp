@@ -271,9 +271,12 @@ let run_zoom (st : state) (zoom : Popup.zoom) fullscreened =
         (if year = "" then "" else " (" ^ year ^ ")") ^
         (if num = "" then "" else ", track " ^ num)
       in
-      let align = if Fullscreen.text_bot then `Center else `Right in
-      Fullscreen.line1 align text1;
-      Fullscreen.line2 align text2;
+
+      match vis with
+      | _ ->
+        let align = if Fullscreen.text_bot then `Center else `Right in
+        Fullscreen.line1 align text1;
+        Fullscreen.line2 align text2;
     );
 
     if zoom = Current then

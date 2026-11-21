@@ -1097,16 +1097,17 @@ struct
     let text' = if g.zoom_info then 2 * text else 0
     let _, _, ww, wh = Ui.dim g.ui area
     let w, h, text_bot = Z.size ww wh (2 * text')
-    let vis_area =
-      p, (ww - w)/2, (wh - h - if text_bot then 2*text' else 0)/2, w, h
+    let x = (ww - w)/2
+    let y = min ((wh - h)/2) (wh - h - if text_bot then 2*text' else 0)
+    let vis_area = p, x, y, w, h
 
     let c = Ui.text_color g.ui
+    let bot_margin = if text_bot then 0 else margin
     let line i align =
-      Ui.trans_text g.ui (p, 0, -i * text' - margin, -margin, text')
+      Ui.trans_text g.ui (p, 0, -i * text' - bot_margin, -margin, text')
         align c `Regular true
     let line1 = line 2
     let line2 = line 1
-    let ticker = Ui.ticker g.ui (p, 0, -text', -1, text')
     let time = Ui.time g.ui (p, 0, margin, -margin, text') `Right
 
     let close () = Ui.key g.ui KeyBind.cancel true
