@@ -24,7 +24,14 @@ let fmt_time t =
 
 (* Display operations *)
 
-let quit _st =
+let quit (st : state) =
+  let win = Ui.window st.geometry.ui in
+  if Api.Window.is_fullscreen win then
+  (
+    (* Make sure to save correct window geometry *)
+    Api.Window.restore win;
+    State.save st;
+  );
   exit 0
 
 let minimize (st : state) =

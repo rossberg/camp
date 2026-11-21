@@ -232,31 +232,49 @@ let run_zoom (st : state) (zoom : Popup.zoom) fullscreened =
 
   if fullscreened then
   (
-    let size ww wh th =
+    let (module WindowUi) = Option.get st.layout in
+    let module Fullscreen = WindowUi.Fullscreen() in
+
+    let t =
+      let ctl = st.control in
+      match ctl.timemode with
+      | `Elapse -> Control.(elapsed ctl)
+      | `Remain -> -.Control.(length ctl -. elapsed ctl) (* generate -0.0 *)
+    in
+    let text_h = Geometry.text_h geo in
+    let text_h' = Fullscreen.text' in
+    let time_w, time_h =
+      if not geo.zoom_info then 0, 0 else
+      Ui.time_width geo.ui text_h' true t, text_h'
+    in
+
+    let _, _, ww, wh = Ui.dim geo.ui Fullscreen.area in
+    let w, h, annot =
       match vis with
       | `Cover ->
         let img = Option.value img_opt ~default: (Ui.nocover geo.ui) in
-        let w, h = Ui.image_size geo.ui (ww, wh - th) `Shrink img in
-        w, h, true
-      | `Turntable -> let d = min ww wh in d, d, false
-      | `Waveform | `Oscilloscope -> ww, wh, false
-      | `Spectrum -> ww, wh * 4 / 5, true
+        let w, h = Ui.image_size geo.ui (ww, wh) `Shrink img in
+        if w + time_w + 2*text_h <= ww
+        || w + 2*text_h <= ww && h + time_h <= wh then
+          w, h, `Right
+        else
+          let w, h =
+            Ui.image_size geo.ui (ww, wh - time_w - 2*text_h) `Shrink img in
+          w, h, `Right
+      | `Turntable -> let d = min ww wh in d, d, `Right
+      | `Waveform | `Oscilloscope -> ww, wh, `Top
+      | `Spectrum -> ww, min (wh * 4 / 5) (wh - 2*text_h'), `Bot
     in
 
-    let (module WindowUi) = Option.get st.layout in
-    let module Fullscreen = WindowUi.Fullscreen(struct let size = size end) in
+    let x = (ww - w (*- if annot = `Right then 4*text_h' else 0*))/2 in
+    let y = (wh - h (*- if annot = `Bot then 4*text_h' else 0*))/2 in
+    let vis_area = Fullscreen.p, (max 0 x), (max 0 y), w, h in
 
     Fullscreen.background ();
-    Run_visualization.run st Fullscreen.vis_area vis ctl.zoom_buffer img_opt;
+    Run_visualization.run st vis_area vis ctl.zoom_buffer img_opt;
 
     if geo.zoom_info then
     (
-      let t =
-        let ctl = st.control in
-        match ctl.timemode with
-        | `Elapse -> Control.(elapsed ctl)
-        | `Remain -> -.Control.(length ctl -. elapsed ctl) (* generate -0.0 *)
-      in
       Fullscreen.time true t;
 
       let text1 =
@@ -271,18 +289,69 @@ let run_zoom (st : state) (zoom : Popup.zoom) fullscreened =
         (if year = "" then "" else " (" ^ year ^ ")") ^
         (if num = "" then "" else ", track " ^ num)
       in
-      let align = if Fullscreen.text_bot then `Center else `Right in
-      Fullscreen.line1 align text1;
-      Fullscreen.line2 align text2;
+
+      let win = Ui.window geo.ui in
+      match vis with
+      | `Cover ->
+        let th = 2 * geo.text in
+        let font = Ui.font geo.ui th in
+        let c = `White in
+        let w1 = Api.Draw.text_width win th font text1 in
+        let w2 = Api.Draw.text_width win th font text2 in
+        let xx = if w1 + w2 + 3 * geo.margin > h then - w - th else 0 in
+        let x1, y1 = float (x + w), float (y + h) in
+        let x2, y2 = float (x + w + xx), float (y + w2) in
+        Api.Draw.rotate_text win x1 y1 th 270.0 c font text1;
+        Api.Draw.rotate_text win x2 y2 th 270.0 c font text2;
+
+      | `Turntable ->
+        let th = 2 * geo.text in
+        let font = Ui.font geo.ui th in
+        let c = `White in
+        let xspace = 2 in
+(*
+        let _w1 = Api.Draw.text_width win th font text1 + xspace * String.length text1 in
+        let _w2 = Api.Draw.text_width win th font text2 + xspace * String.length text1 in
+*)
+        let f, sin, cos = float, Float.sin, Float.cos in
+        let circum = Float.pi *. f w in
+        let r = f w /. 2.0 in
+        let ox, oy = f x +. r, f y +. r in
+        let rec circ_text r' d sgn s i =
+          if i < String.length s then
+          (
+            let si = String.of_char s.[i] in
+            let cw = Api.Draw.text_width win th font si in
+            let rot = 270.0 +. sgn *. 90.0 -. 360.0 *. d /. circum in
+            let a = d /. circum *. 2.0 *. Float.pi in
+            let x = ox +. r' *. sin a in
+            let y = oy +. r' *. cos a in
+            Api.Draw.rotate_text win x y th rot c font si;
+            circ_text r' (d +. sgn *. (f cw +. f (1 + xspace))) sgn s (i + 1)
+          )
+        in
+        circ_text (r +. 1.0) (circum /. 23.0) (+1.0) text1 0;
+        circ_text (r +. 2.0 +. f th) (circum *. 0.75) (-1.0) text2 0;
+
+      | _ ->
+        Fullscreen.line1 `Right text1;
+        Fullscreen.line2 `Right text2;
     );
 
     if zoom = Current then
     (
+      let p = Fullscreen.p in
+      let m = geo.margin in
+      let timemode () =
+        Ui.mouse geo.ui "full:time" (p, -time_w - m, 0, -1, time_h + m) `Left in
+      let infomode () =
+        Ui.mouse geo.ui "full:info" (p, ww/2, -2*text_h' - m, -1, -1) `Left in
+
       let exit_full = ref false in
       Ui.except_modal geo.ui "full.click" (fun () ->
-        if Fullscreen.infomode () then
+        if infomode () then
           geo.zoom_info <- not geo.zoom_info
-        else if geo.zoom_info && Fullscreen.timemode () then
+        else if geo.zoom_info && timemode () then
           Control.toggle_timemode ctl
         else if Api.Mouse.is_released `Left then
           (* Make sure click isn't part of double click opening it *)
