@@ -1087,7 +1087,7 @@ struct
 
   (* Fullscreen Zoom *)
 
-  module Fullscreen (Z : sig val size : int -> int -> int -> int * int * bool end) =
+  module Fullscreen () =
   struct
     let p = Ui.pane g.ui "full" (0, 0, -1, -1)
 
@@ -1095,16 +1095,9 @@ struct
     let background () = Ui.box g.ui area `Black
 
     let text' = if g.zoom_info then 2 * text else 0
-    let _, _, ww, wh = Ui.dim g.ui area
-    let w, h, text_bot = Z.size ww wh (2 * text')
-    let x = (ww - w)/2
-    let y = min ((wh - h)/2) (wh - h - if text_bot then 2*text' else 0)
-    let vis_area = p, x, y, w, h
-
     let c = Ui.text_color g.ui
-    let bot_margin = if text_bot then 0 else margin
     let line i align =
-      Ui.trans_text g.ui (p, 0, -i * text' - bot_margin, -margin, text')
+      Ui.trans_text g.ui (p, 0, -i * text' - margin, -margin, text')
         align c `Regular true
     let line1 = line 2
     let line2 = line 1
@@ -1115,10 +1108,6 @@ struct
     let info () = Ui.key g.ui KeyBind.ok true
     let info2 () = Ui.key g.ui KeyBind.ok2 true
     let cycle () = Ui.mouse g.ui "full:cycle" area `Right
-    let timemode () =
-      Ui.mouse g.ui "full:time" (p, -8*text'*3/4, 0, -1, text' + margin) `Left
-    let infomode () =
-      Ui.mouse g.ui "full:info" (p, ww/2, -4*text - margin, -1, -1) `Left
     let wheel () = Ui.wheel g.ui area
   end
 

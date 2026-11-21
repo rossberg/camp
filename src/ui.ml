@@ -799,8 +799,7 @@ let lcd ui area d =
     | _ -> []
     )
 
-let time ui area align signed t =
-  let x, y, w, h = dim ui area in
+let time_width' ui h signed t =
   let cw = h * 2 / 3 in
   let colonw = h / 5 in
   let spacew = h / 7 in
@@ -810,7 +809,18 @@ let time ui area align signed t =
     if n = 0 then 0 else if n < 10 then 1 else 1 + log10 (n / 10) in
   let digits = log10 hour + 2 + 2 + Bool.to_int signed in
   let colons = if hour = 0 then 1 else 2 in
-  let tw = cw * digits + colonw * colons + spacew * (digits + colons - 1) in
+  cw, colonw, spacew,
+    cw * digits + colonw * colons + spacew * (digits + colons - 1)
+
+let time_width ui h signed t =
+  let _, _, _, tw = time_width' ui h signed t in
+  tw
+
+let time ui area align signed t =
+  let x, y, w, h = dim ui area in
+  let t' = abs (int_of_float (Float.round t)) in
+  let hour, min, sec = t' / 3600, t' / 60 mod 60, t' mod 60 in
+  let cw, colonw, spacew, tw = time_width' ui h signed t in
   let x' =
     match align with
     | `Left -> x

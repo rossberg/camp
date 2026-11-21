@@ -235,7 +235,6 @@ type side = [`Left | `Right]
 type face = [`Up | `Down]
 type dir = [side | face]
 type orientation = [`Horizontal | `Vertical]
-type corner = [`NW | `NE | `SW | `SE]
 
 let add (x1, y1) (x2, y2) = (x1 + x2, y1 + y2)
 let sub (x1, y1) (x2, y2) = (x1 - x2, y1 - y2)
@@ -952,6 +951,12 @@ struct
   let text () x y h c f s =
     shader f.shader;
     Raylib.draw_text_ex f.font s (vec2_of_point (x, y)) (float h) 1.0 (color c)
+
+  let rotate_text () x y h a c f s =
+    shader f.shader;
+    let p = Raylib.Vector2.create x y in
+    let o = vec2_of_point (0, 0) in
+    Raylib.draw_text_pro f.font s p o a (float h) 1.0 (color c)
 
   let text_width () h f s : int =
     fst (point_of_vec2 (Raylib.measure_text_ex f.font s (float h) 1.0))

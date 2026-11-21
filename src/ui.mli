@@ -113,6 +113,7 @@ val label : t -> area -> align -> string -> unit
 val indicator : t -> color -> area -> bool -> unit
 val lcd : t -> area -> char -> unit
 val time : t -> area -> align -> bool -> time -> unit
+val time_width : t -> int -> bool -> time -> int
 val image : t -> area -> adjustment -> Api.image -> unit
 val image_size : t -> size -> adjustment -> Api.image -> size
 
