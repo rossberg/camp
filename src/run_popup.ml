@@ -330,7 +330,7 @@ let run_zoom (st : state) (zoom : Popup.zoom) fullscreened =
             circ_text r' (d +. sgn *. (f cw +. f (1 + xspace))) sgn s (i + 1)
           )
         in
-        circ_text (r +. 1.0) (circum /. 23.0) (+1.0) text1 0;
+        circ_text (r +. 1.0) (circum /. 20.0) (+1.0) text1 0;
         circ_text (r +. 2.0 +. f th) (circum *. 0.75) (-1.0) text2 0;
 
       | _ ->
@@ -345,7 +345,7 @@ let run_zoom (st : state) (zoom : Popup.zoom) fullscreened =
       let timemode () =
         Ui.mouse geo.ui "full:time" (p, -time_w - m, 0, -1, time_h + m) `Left in
       let infomode () =
-        Ui.mouse geo.ui "full:info" (p, ww/2, -2*text_h' - m, -1, -1) `Left in
+        Ui.mouse geo.ui "full:info" (p, ww/2, -2*text_h - m, -1, -1) `Left in
 
       let exit_full = ref false in
       Ui.except_modal geo.ui "full.click" (fun () ->
