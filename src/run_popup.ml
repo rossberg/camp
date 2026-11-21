@@ -1,5 +1,7 @@
 (* Run Popup UI *)
 
+open Audio_file
+
 type state = State.t
 
 
@@ -310,8 +312,8 @@ let run_zoom (st : state) (zoom : Popup.zoom) fullscreened =
         let c = `White in
         let xspace = 2 in
 (*
-        let _w1 = Api.Draw.text_width win th font text1 + xspace * String.length text1 in
-        let _w2 = Api.Draw.text_width win th font text2 + xspace * String.length text1 in
+        let _w1 = Api.Draw.text_width win th font text1 + xspace * Unicode.utf8_length text1 in
+        let _w2 = Api.Draw.text_width win th font text2 + xspace * Unicode.utf8_length text1 in
 *)
         let f, sin, cos = float, Float.sin, Float.cos in
         let circum = Float.pi *. f w in
@@ -320,14 +322,15 @@ let run_zoom (st : state) (zoom : Popup.zoom) fullscreened =
         let rec circ_text r' d sgn s i =
           if i < String.length s then
           (
-            let si = String.of_char s.[i] in
-            let cw = Api.Draw.text_width win th font si in
+            let n = Unicode.utf8_code_length_from s i in
+            let ss = String.sub s i n in
+            let cw = Api.Draw.text_width win th font ss in
             let rot = 270.0 +. sgn *. 90.0 -. 360.0 *. d /. circum in
             let a = d /. circum *. 2.0 *. Float.pi in
             let x = ox +. r' *. sin a in
             let y = oy +. r' *. cos a in
-            Api.Draw.rotate_text win x y th rot c font si;
-            circ_text r' (d +. sgn *. (f cw +. f (1 + xspace))) sgn s (i + 1)
+            Api.Draw.rotate_text win x y th rot c font ss;
+            circ_text r' (d +. sgn *. (f cw +. f (1 + xspace))) sgn s (i + n)
           )
         in
         circ_text (r +. 1.0) (circum /. 20.0) (+1.0) text1 0;

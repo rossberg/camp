@@ -30,6 +30,12 @@ let rec is_utf8' s i =
 let is_utf8 s = is_utf8' s 0
 
 
+let rec utf8_code_length_from s i =
+  if i = String.length s then 0 else utf8_code_length_from' s (i + 1) 1
+and utf8_code_length_from' s i n =
+  if i = String.length s || not (is_con s.[i]) then n else
+  utf8_code_length_from' s (i + 1) (n + 1)
+
 let rec utf8_length' s i n =
   if i = String.length s then n else
   utf8_length' s (i + 1) (if is_con s.[i] then n else n + 1)
