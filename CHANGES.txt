@@ -1,4 +1,8 @@
-=== 0.9.8 (WIP) ===
+=== 0.9.8 (2026-11-22) ===
+
+This update brings fullscreen visualisations, new query functions, and options
+for writing playlists in OS-neutral format. In addition, window resizing and
+moving is smoother than before.
 
 Control:
 - [new] Visualisations can be zoomed into fullscreen
@@ -22,7 +26,7 @@ Library:
 
 UI:
 - [new] Smoother window moving and resizing
-- [new] Automativally adapt to live resolution changes
+- [new] Automatically adapt to live resolution changes
 - [chg] Draw shadow header when dragging column header for reordering
 
 Build:

@@ -4,7 +4,7 @@
 / /    / /_| || |\/| || |_/ /  |  \
 \ \   / ___  || |  | ||  __/   |  /
  \ \_/ /   | || |  | || |      | /
-  \___/    |_||_|  |_||_|      |/ 0.9.7
+  \___/    |_||_|  |_||_|      |/ 0.9.8
    _                    _ 
   / \_/ A MUSIC PLAYER / \_/
 
@@ -54,9 +54,7 @@ On Windows, no way around Cygwin and make. And you'll probably need to manually
 install the mingw64-x86_64-winpthreads package to have libwinpthread.dll in the
 path, although to be honest, I never quite understand why that is so.
 
-Camp is tested on Windows, Mac, and Linux with X11. I haven't had a chance to
-try Linux with Wayland, and expect issues with window positioning and resizing
-due to Wayland's lacking abilities to control them.
+Camp is tested on Windows, Mac, and Linux with X11/Xwayland.
 
 
 2.2 Building
@@ -204,9 +202,10 @@ Most controls around the Playlist should be intuitive. A few extra tips:
 
 * Zoom: Clicking on a visualisation will zoom it into a pop-up; a double-click
   even goes fullscreen. Click into the zoom window or screen to close it. The
-  pop-up you can also resize or move around. Cycle through the zoomed
+  pop-up you can also be resized or moved around. Cycle through the zoomed
   visualisation mode with a right click or Ctrl/Command-Y. In fullscreen mode,
-  Return switches track info on or off.
+  Return switches track info off or on, Ctrl/Command with `+` or `-` change
+  text size.
 
 * Oscilloscope: Dragging the mouse horizontally or vertically on it adjusts
   its scaling in the respective direction.
