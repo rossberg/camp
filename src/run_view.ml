@@ -626,7 +626,7 @@ let modify ops (st : state) dir on_start on_pl =
 
       if !modifications = [] then
       (
-        log.info <- "No playlist modifications needed or applicable";
+        log.info <- "No playlist repairs needed or possible";
         Library.error st.library "";
       )
       else
@@ -638,7 +638,7 @@ let modify ops (st : state) dir on_start on_pl =
             List.iter (fun f -> if log.cancel then raise Cancel; f ())
               (List.rev !modifications);
           with Cancel ->
-            Library.error st.library "Playlist modifications aborted"
+            Library.error st.library "Playlist repairs aborted"
           );
 
           (*Library.refresh_artists_albums_tracks st.library;*)
@@ -654,7 +654,7 @@ let modify ops (st : state) dir on_start on_pl =
         );
         log.completed <- true;
       )
-    with Cancel -> Library.error st.library "Playlist modifications aborted"
+    with Cancel -> Library.error st.library "Playlist repairs aborted"
   ))
 
 let modify_simple f ops (st : state) dir =

@@ -1985,18 +1985,26 @@ type repair_map = track list Map.t
 
 let key_subst = List.map (fun (re, s) -> Str.regexp re, s)
   [
-    "  +", " ";
-    "[?!]", "";
-    "[´`]", "'";
-    "[[{]", "(";
-    "[]}]", ")";
-    "\\u{2026}", "...";
-    "\\(-\\|\u{2012}\\|\u{2013}\\|\u{2014}\\)+", "-";
-  ]
+    "[?!]", "";            (* ignore ? and ! *)
+    "\\(\u{60}\\|\u{b4}\\|\u{2018}\\|\u{2019}\\)", "'";  (* unify accents *)
+    "\\(\u{201c}\\|\u{201d}\\)", "''";                   (* unify quotes *)
+    "\\((.*)\\|\\[.*\\]\\|{.*}\\)", "";    (* drop possible version parts *)
+    "[[{]", "(";           (* unify opening brackets *)
+    "[]}]", ")";           (* unify closing brackets *)
+    "\\(-\\|\u{2012}\\|\u{2013}\\|\u{2014}\\)+", "-";  (* unify unicode dashes *)
+    " \\(and\\|feat[.]?\\|vs[.]?\\) ", " & ";  (* unify collaborators *)
+    "\\(\\u{2026}\\|[.][.][.]\\)", " ";  (* drop dots *)
+    "[.] ", " ";           (* drop trailing periods *)
+    " & .+ - ", " - ";     (* drop possible collaborators *)
+    "^the ", "";           (* drop possible "The" prefix *)
+    "  +", " ";            (* drop repeated spaces *)
+    "\\(^ \\| $\\)", "";   (* drop leading or trailing spaces *)
+  ] |> List.rev
 
 let repair_key path =
-  Unicode.search_key_utf_8 (File.name path) |>
-  List.fold_right (fun (re, s) -> Str.global_replace re s) key_subst
+  Unicode.lowercase_utf_8 File.(remove_extension (name path)) |>
+  List.fold_right (fun (re, s) -> Str.global_replace re s) key_subst |>
+  Unicode.search_key_utf_8
 
 let repair_map lib on_busy =
   let map = ref Map.empty in
