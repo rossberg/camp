@@ -28,7 +28,7 @@ If you have not yet been sucked in by the streaming cartels, you might
 find it useful.
 
 Camp is entirely written in OCaml [2] and portable across Windows, Mac and
-Linux.
+Linux. No A.I. has touched this code.
 
 I use it every day, but there may be bugs. You have been warned.
 

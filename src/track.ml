@@ -80,22 +80,19 @@ let to_m3u_item_reloc dir track =
   to_m3u_item' (M3u.reloc_path !m3u_reloc dir) track
 
 let of_m3u_item (item : M3u.item) =
-  if M3u.is_separator item.path then
-    Data.make_separator ()
-  else
-  (
-    let track = Data.make_track item.path in
-    if not (Format.is_known_ext track.path) then
-      track.status <- `Invalid
-    else
-      Option.iter (fun (info : M3u.info) ->
-        Option.iter (fun (artist, title) ->
-          let meta = Meta.meta track.path None in
-          track.meta <- Some {meta with artist; title; length = float info.time}
-        ) (artist_title (fields_of_name info.title))
-      ) item.info;
-    track
-  )
+  let track = Data.make_track item.path in
+  if M3u.is_separator track.path then
+    track.status <- `Det
+  else if not (Format.is_known_ext track.path) then
+    track.status <- `Invalid;
+  Option.iter (fun (info : M3u.info) ->
+    Option.iter (fun (artist, title) ->
+      let meta = Meta.meta track.path None in
+      track.meta <- Some {meta with artist; title; length = float info.time}
+    ) (artist_title (fields_of_name info.title))
+  ) item.info;
+  track
+
 
 let of_pos_m3u_item i item =
   let track = of_m3u_item item in

@@ -1,3 +1,9 @@
+=== 0.9.9 (WIP) ===
+
+Playlist:
+- [chg] Show extended info even for separator entries
+
+
 === 0.9.8 (2026-11-22) ===
 
 This update brings fullscreen visualisations, new query functions, and options

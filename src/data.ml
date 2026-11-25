@@ -318,6 +318,7 @@ let string_of_date_time t =
 let name_separator = String.make 80 '-'
 *)
 let name_separator = String.concat "" (List.init 80 (Fun.const "·"))
+let name_separator_lead = String.take_first 8 name_separator ^ " "
 
 let fields_of_name name =
   let len = String.length name in
@@ -428,23 +429,34 @@ let name_attr_string (meta : Meta.t) attr =
   else
     title
 
+let wrap_string path default s =
+  if M3u.is_separator path then
+    if s = "" then name_separator else
+    name_separator_lead ^ s ^ " " ^ name_separator
+  else
+    if s = "" then default else s
+
 let artist_attr_string' attr path meta =
   let s = nonempty meta_attr_string meta attr in
+  wrap_string path "[unknown]" @@
   if s <> "" then s else
   match pos_artist_title (fields_of_path path) with
   | Some (_, artist, _) -> artist
-  | None -> "[unknown]"
+  | None -> ""
 
 let title_attr_string' attr path meta =
   let s = nonempty meta_attr_string meta attr in
+  wrap_string path "[unknown]" @@
   if s <> "" then s else
   match pos_artist_title (fields_of_path path) with
   | Some (_, _, title) -> title
-  | None -> "[unknown]"
+  | None -> ""
 
 let name_attr_string' attr path meta =
   let s = nonempty name_attr_string meta attr in
+  wrap_string path "" @@
   if s <> "" then s else
+  if M3u.is_separator path then "" else
   match pos_artist_title (fields_of_path path) with
   | Some (_, artist, title) -> artist ^ " - " ^ title
   | None when attr = `Name ->
@@ -473,10 +485,10 @@ let album_attr_string' (album : album) = function
 let track_attr_string' (track : track) = function
   | `Playlist -> track.playlist
   | `Pos -> nonzero_pos 3 (track.pos + 1)
-  | #track_attr when M3u.is_separator track.path -> name_separator
   | `Artist -> artist_attr_string' `Artist track.path track.meta
   | `Title -> title_attr_string' `Title track.path track.meta
   | `Name -> name_attr_string' `Name track.path track.meta
+  | #track_attr when M3u.is_separator track.path -> name_separator
   | `Length -> length_attr_string' track.format track.meta
   | `AlbumArtist -> unknown meta_attr_string track.meta `AlbumArtist
   | `AlbumTitle -> unknown meta_attr_string track.meta `AlbumTitle
