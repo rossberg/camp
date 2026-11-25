@@ -2033,10 +2033,38 @@ let repair_path (map : repair_map) base_path path =
   let path' = M3u.absolute_path base_path path in
   if M3u.is_separator path
   || File.(exists path' && name (real path') = name path') then `Ok else
-  match Map.find_opt (repair_key path') map with
-  | None -> `Missing 
-  | Some [track] -> `Replace track
-  | Some _ -> `Ambiguous
+  let key = repair_key path' in
+  let tracks =
+    match Map.find_opt key map with
+    | Some tracks -> tracks
+    | None ->
+      if key = "" then [] else
+      (* Extend candidate set to same start letter and small edit distance *)
+      let first = String.sub key 0 1 in
+      Map.to_seq_from first map |>
+      Seq.take_while (fun (key', _) -> key' <> "" && key'.[0] = key.[0]) |>
+      Seq.filter_map (fun (key', tracks) ->
+        let limit = 11 in
+        if String.edit_distance ~limit key key' < limit then
+          Some tracks
+        else None
+      ) |>
+      List.of_seq |> List.flatten
+  in
+  if tracks = [] then `Missing else
+  (* Sort by edit distance *)
+  let name' = File.name path' in
+  let score (track : track) =
+    String.edit_distance name' (File.name track.path)
+  in
+  let tracks' = List.map (fun track -> score track, track) tracks in
+  let tracks'' = List.sort compare tracks' in
+  let best = List.hd tracks'' in
+  if fst best <= 3
+  && (List.tl tracks'' = [] || fst (List.nth tracks'' 1) >= 10) then
+    `Replace (snd best)
+  else
+    `Ambiguous (List.map snd tracks'')
 (*
     let score (track : track) =
       let path_score = path_distance item.path track.path in

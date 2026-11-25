@@ -242,7 +242,7 @@ type repair_map = track list Map.Make(String).t
 val repair_key : path -> string
 val repair_map : t -> (dir -> unit) -> repair_map
 val repair_path : repair_map -> path -> path ->
-  [`Ok | `Replace of track | `Ambiguous | `Missing]
+  [`Ok | `Replace of track | `Ambiguous of track list | `Missing]
 
 
 (* Covers *)

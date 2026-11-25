@@ -605,8 +605,10 @@ let modify ops (st : state) dir on_start on_pl =
           in
           protect (fun () ->
             let cell1 : _ iarray = if ops.show_path then [|`Text path|] else [||] in
-            let extend_log c s1 s2 =
-              Log.append log [|c, Iarray.append cell1 [|`Text s1; `Text s2|]|];
+            let cell1' : _ iarray = if ops.show_path then [|`Text ""|] else [||] in
+            let extend_log c is_sub s1 s2 =
+              let cell1'' = if is_sub then cell1' else cell1 in
+              Log.append log [|c, Iarray.append cell1'' [|`Text s1; `Text s2|]|];
             in
             let items = ops.load dir in
             let items' =
@@ -668,7 +670,7 @@ let modify_simple f ops (st : state) dir =
           if path = path' then item else
           (
             incr count;
-            extend_log (Ui.text_color st.geometry.ui) path path';
+            extend_log (Ui.text_color st.geometry.ui) false path path';
             ops.set_item_path item path'
           )
         ) items
@@ -697,13 +699,15 @@ let modify_repair ops (st : state) dir =
     (fun extend_log update_info map path items ->
       ops.map_items (fun item ->
         let item_path = ops.item_path item in
-        let item', color, path' =
+        let item', color, path', paths' =
           match Library.repair_path map path item_path with
-          | `Ok -> item, Ui.text_color, item_path
+          | `Ok -> item, Ui.text_color, item_path, []
           | `Replace track ->
-            incr success; ops.set_item item track, Ui.text_color, track.path
-          | `Missing -> incr fail; item, Ui.error_color, "(not found)"
-          | `Ambiguous -> incr fuzzy; item, Ui.warn_color, "(multiple found)"
+            incr success; ops.set_item item track, Ui.text_color, track.path, []
+          | `Missing -> incr fail; item, Ui.error_color, "(not found)", []
+          | `Ambiguous tracks ->
+            incr fuzzy; item, Ui.warn_color, "(multiple found)",
+              List.map (fun (track : Data.track) -> track.path) tracks
         in
         if path' <> item_path then
         (
@@ -713,7 +717,10 @@ let modify_repair ops (st : state) dir =
             (if !fuzzy = 0 then [] else [fmt "%d entries ambiguous" !fuzzy])
           in
           update_info (String.concat ", " ss);
-          extend_log (color st.geometry.ui) item_path path';
+          extend_log (color st.geometry.ui) false item_path path';
+          List.iter (fun path'' ->
+            extend_log (color st.geometry.ui) true "" path'';
+          ) paths';
         );
         item'
       ) items
