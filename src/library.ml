@@ -1188,9 +1188,11 @@ let select_dir lib i =
 
 
 let refresh_browser lib =
+  let current = lib.current in
+  lib.current <- None;
   let rec entries (dir : dir) acc =
     Option.iter (fun (cur : dir) ->
-      if cur.path = dir.path then lib.current <- Some dir) lib.current;
+      if cur.path = dir.path then lib.current <- Some dir) current;
     dir ::
     (if dir.view.folded then acc else Iarray.fold_right entries dir.children acc)
   in
@@ -2044,7 +2046,7 @@ let repair_path (map : repair_map) base_path path =
       Map.to_seq_from first map |>
       Seq.take_while (fun (key', _) -> key' <> "" && key'.[0] = key.[0]) |>
       Seq.filter_map (fun (key', tracks) ->
-        let limit = 11 in
+        let limit = 5 in
         if String.edit_distance ~limit key key' < limit then
           Some tracks
         else None
@@ -2060,7 +2062,7 @@ let repair_path (map : repair_map) base_path path =
   let tracks' = List.map (fun track -> score track, track) tracks in
   let tracks'' = List.sort compare tracks' in
   let best = List.hd tracks'' in
-  if fst best <= 3
+  if fst best <= 4
   && (List.tl tracks'' = [] || fst (List.nth tracks'' 1) >= 10) then
     `Replace (snd best)
   else

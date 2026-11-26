@@ -485,10 +485,10 @@ let album_attr_string' (album : album) = function
 let track_attr_string' (track : track) = function
   | `Playlist -> track.playlist
   | `Pos -> nonzero_pos 3 (track.pos + 1)
-  | `Artist -> artist_attr_string' `Artist track.path track.meta
   | `Title -> title_attr_string' `Title track.path track.meta
   | `Name -> name_attr_string' `Name track.path track.meta
   | #track_attr when M3u.is_separator track.path -> name_separator
+  | `Artist -> artist_attr_string' `Artist track.path track.meta
   | `Length -> length_attr_string' track.format track.meta
   | `AlbumArtist -> unknown meta_attr_string track.meta `AlbumArtist
   | `AlbumTitle -> unknown meta_attr_string track.meta `AlbumTitle

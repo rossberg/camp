@@ -3,6 +3,9 @@
 Playlist:
 - [chg] Show extended info even for separator entries
 
+Library:
+- [fix] Crash when currently selected directory is gone after browser refresh
+
 
 === 0.9.8 (2026-11-22) ===
 
