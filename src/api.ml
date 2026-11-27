@@ -1602,3 +1602,11 @@ struct
     Raylib.(set_trace_log_level TraceLogLevel.Warning);
     s
 end
+
+
+(* Web *)
+
+module Web =
+struct
+  let browse = Raylib.open_url
+end

@@ -2918,7 +2918,7 @@ and setting_item =
   | `Choice of (string * bool * (string -> unit)) list
   | `Text of Edit.t * color * (Edit.t -> unit) * (string -> unit)
   | `Number of string * Edit.t * int * int * int * (Edit.t -> unit) * (int -> unit)
-  | `Button of string * (unit -> unit)
+  | `Buttons of (string * (unit -> unit)) list
   | `Section of setting list
   ]
 
@@ -2951,11 +2951,18 @@ and setting_w ui sty (name, item) =
     max lw tw, rw
 
 and item_w ui sty = function
-  | `Toggle _ | `Text _ | `Number _ | `Button _ -> 0, 0  (* always flat *)
+  | `Toggle _ | `Text _ | `Number _ -> 0, 0  (* always flat *)
+  | `Buttons buttons -> 0, buttons_w ui sty buttons
   | `Choice choices -> 0, choices_w ui sty choices
   | `Section settings ->
     let lw, _ = settings_w ui sty settings in
     lw + sty.indent_w, max_int  (* never flat *)
+
+and buttons_w ui sty = function
+  | [] -> 0
+  | (name, _) :: buttons ->
+    let tw = Draw.text_width ui.win sty.item_h (font ui sty.item_h) name in
+    tw + 2 * sty.margin
 
 and choices_w ui sty = function
   | [] -> 0
@@ -2980,7 +2987,9 @@ and setting_h ui sty xr xmax (_name, item) =
     item_h ui sty xr xmax item + sty.sep_h
 
 and item_h ui sty xr xmax = function
-  | `Toggle _ | `Text _ | `Number _ | `Button _ -> sty.item_h
+  | `Toggle _ | `Text _ | `Number _ -> sty.item_h
+  | `Buttons buttons ->
+    sty.item_h + (List.length buttons - 1) * (sty.item_h + 2 * sty.pad_h)
   | `Choice choices ->
     sty.item_h + (List.length choices - 1) * (sty.item_h + 2 * sty.pad_h)
   | `Section settings ->
@@ -3002,7 +3011,7 @@ and setting_focus_dy ui sty xr xmax (_name, item) =
 and item_focus_dy ui sty xr xmax = function
   | `Text (ed, _, _, _) | `Number (_, ed, _, _, _, _, _) when ed.Edit.focus ->
     Some 0
-  | `Toggle _ | `Choice _ | `Button _ | `Text _ | `Number _ -> None
+  | `Toggle _ | `Choice _ | `Buttons _ | `Text _ | `Number _ -> None
   | `Section settings ->
     Option.map ((+) (sty.item_h + 2 * sty.sep_h))
       (settings_focus_dy ui sty xr xmax settings)
@@ -3012,14 +3021,17 @@ let scrolled_area x y w h ymin ymax vscroll f =
   let y' = y - vscroll in
   if y' >= ymin && y' + h <= ymax then f (-1, x, y', w, h)
 
-let rec draw_settings ui sty owner xl xr y xmax ymin ymax vscroll = function
+let rec draw_settings ui sty owner xl xr y xmax ymin ymax vscroll i = function
   | [] -> y
   | setting :: settings ->
-    let y' = draw_setting ui sty owner xl xr y xmax ymin ymax vscroll setting in
-    draw_settings ui sty owner xl xr (y' + sty.pad_h) xmax ymin ymax vscroll settings
+    let y' =
+      draw_setting ui sty owner xl xr y xmax ymin ymax vscroll i setting in
+    draw_settings ui sty owner xl xr (y' + sty.pad_h) xmax ymin ymax vscroll
+      (i + 1) settings
 
-and draw_setting ui sty owner xl xr y xmax ymin ymax vscroll (name, item) =
-  let owner' = owner ^ ":" ^ name in
+and draw_setting ui sty owner xl xr y xmax ymin ymax vscroll i (name, item) =
+  let owner' = owner ^ ":" ^
+    if name <> "" then name else "[" ^ string_of_int i ^ "]" in
   scrolled_area xl y (xr - xl) sty.item_h ymin ymax vscroll (fun area ->
     label ui area `Left name
   );
@@ -3044,6 +3056,8 @@ and draw_setting ui sty owner xl xr y xmax ymin ymax vscroll (name, item) =
   )
 
 and draw_item_flat ui sty owner xl xr y xmax ymin ymax vscroll = function
+  | `Buttons buttons ->
+    draw_buttons_flat ui sty owner xr y xmax ymin ymax vscroll buttons
   | `Choice choices ->
     draw_choices_flat ui sty owner xr y xmax ymin ymax vscroll choices
   | `Section _ ->
@@ -3124,19 +3138,35 @@ and draw_item ui sty owner xl xr y xmax ymin ymax vscroll = function
     );
     y + sty.item_h
 
-  | `Button (name, f) ->
-    let tw = Draw.text_width ui.win sty.item_h (font ui sty.item_h) name in
-    scrolled_area xr y (tw + 2 * sty.margin) sty.item_h ymin ymax vscroll (fun area ->
-      if
-        labeled_button ui (owner ^ ":" ^ name) area sty.label_h `White name
-          no_modkey false (Some false)
-      then f ()
-    );
-    y + sty.item_h
+  | `Buttons buttons ->
+    draw_buttons ui sty owner xr y xmax ymin ymax vscroll buttons
 
   | `Section settings ->
     let y' = y + sty.item_h + 2 * sty.sep_h in
-    draw_settings ui sty owner xl xr y' xmax ymin ymax vscroll settings + sty.sep_h
+    draw_settings ui sty owner xl xr y' xmax ymin ymax vscroll 1 settings + sty.sep_h
+
+and draw_buttons_flat ui sty owner x y xmax ymin ymax vscroll = function
+  | [] -> y + sty.item_h
+  | button :: buttons ->
+    let x' = draw_button ui sty owner x y xmax ymin ymax vscroll button in
+    draw_buttons_flat ui sty owner x' y xmax ymin ymax vscroll buttons
+
+and draw_buttons ui sty owner x y xmax ymin ymax vscroll = function
+  | [] -> y
+  | button :: buttons ->
+    let _ = draw_button ui sty owner x y xmax ymin ymax vscroll button in
+    let y' = y + sty.item_h + if buttons = [] then 0 else 2 * sty.pad_h in
+    draw_buttons ui sty owner x y' xmax ymin ymax vscroll buttons
+
+and draw_button ui sty owner x y xmax ymin ymax vscroll (name, f) =
+  let tw = Draw.text_width ui.win sty.item_h (font ui sty.item_h) name in
+  scrolled_area x y (tw + 2 * sty.margin) sty.item_h ymin ymax vscroll (fun area ->
+    if
+      labeled_button ui (owner ^ ":" ^ name) area sty.label_h `White name
+        no_modkey false (Some false)
+    then f ()
+  );
+  x + tw + 2 * sty.margin
 
 and draw_choices_flat ui sty owner x y xmax ymin ymax vscroll = function
   | [] -> y + sty.item_h
@@ -3199,7 +3229,7 @@ let settings ui owner area sty vscroll adjust_vscroll settings =
 
   let y' =
     draw_settings ui sty owner xl xr (y + sty.margin)
-      xmax ymin ymax vscroll' settings
+      xmax ymin ymax vscroll' 1 settings
   in
 
   (* Vertical scrollbar *)

@@ -9,6 +9,7 @@ type t =
   mutable exec_tag : path;
   mutable exec_tag_flags : string;
   mutable exec_max_len : int;
+  mutable web_searches : string list;
   mutable fps : int;
 }
 

@@ -844,7 +844,7 @@ let run_view (st : state)
     (tab : _ Table.t) busy_tab dep_tab
     refresh_is_busy refresh_deps
     reorder (view : (_, [< Data.any_attr_ex]) Library.view) (views : Library.views)
-    kind attr_string prim_attr all_attrs
+    kind attr_string prim_attr all_attrs row_attr
     path_of text_of color_of
     selected_tracks clicked_tracks
     is_filter editable zoom make_view =
@@ -1098,17 +1098,21 @@ let run_view (st : state)
       State.focus_library st tab;
       if not (Table.IntSet.equal tab.selected old_selected) then
         refresh_deps lib;
-      let search =
+      let cell_search =
         match i_opt, j_opt with
         | Some i, Some j ->
           let s = attr_string entries.(i) (fst view.columns.$(j)) in
           if s = "" then [] else [s]
         | _, _ -> []
+      and row_search =
+        match i_opt with
+        | Some i -> Track.split_name (attr_string entries.(i) row_attr)
+        | _ -> []
       in
       if editable then
-        Run_view.(edit_menu st (make_view st) search i_opt)
+        Run_view.(edit_menu st (make_view st) cell_search row_search i_opt)
       else
-        Run_view.(list_menu st (make_view st) search)
+        Run_view.(list_menu st (make_view st) cell_search row_search)
     )
 
   | `HeadMenu i_opt ->
@@ -1203,7 +1207,7 @@ let run_views (st : state) =
       lib.artists busy_artists lib.albums
       Library.refresh_artists_is_busy Library.refresh_albums_tracks
       Library.reorder_artists view.artists view
-      Artist Query.artist_attr_ex_string (Some `Artist) Data.artist_attrs
+      Artist Query.artist_attr_ex_string (Some `Artist) Data.artist_attrs `Artist
       (fun _ -> "") (fun _ -> "") color_of
       (fun lib -> lib.tracks.entries) (fun lib _ -> lib.tracks.entries)
       true false (fun _ -> None) Run_view.artists_view;
@@ -1234,7 +1238,7 @@ let run_views (st : state) =
       lib.albums busy_albums busy_tracks
       Library.refresh_albums_is_busy Library.refresh_tracks
       Library.reorder_albums view.albums view
-      Album Query.album_attr_ex_string None Data.album_attrs
+      Album Query.album_attr_ex_string None Data.album_attrs `AlbumName
       (fun (album : Data.album) -> album.path) text_of color_of
       (fun lib -> lib.tracks.entries) (fun lib _ -> lib.tracks.entries)
       true false (fun album -> Some (Popup.Album album)) Run_view.albums_view;
@@ -1300,7 +1304,7 @@ let run_views (st : state) =
       lib.tracks busy_tracks busy_tracks
       Library.refresh_tracks_is_busy ignore
       Library.reorder_tracks view.tracks view
-      Track Query.track_attr_ex_string (Some prim_attr) Data.track_attrs
+      Track Query.track_attr_ex_string (Some prim_attr) Data.track_attrs `Name
       (fun (track : Data.track) -> track.path) text_of color_of
       Library.selected (fun lib i -> [|lib.tracks.entries.(i)|])
       false (Library.current_is_plain_playlist lib)

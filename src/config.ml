@@ -9,6 +9,7 @@ type t =
   mutable exec_tag : path;
   mutable exec_tag_flags : string;
   mutable exec_max_len : int;
+  mutable web_searches : string list;
   mutable fps : int;
 }
 
@@ -21,6 +22,13 @@ let make () =
     exec_tag = if Sys.win32 then "C:\\Program Files\\Mp3tag\\Mp3tag.exe" else "";
     exec_tag_flags = if Sys.win32 then "/add" else "";
     exec_max_len = if Sys.win32 then 8000 else 100_000;
+    web_searches =
+    [
+      "discogs.com/search?q=%s";
+      "last.fm/search?q=%s";
+      "genius.com/search?q=%s";
+      "youtube.com/results?search_query=%s";
+    ];
     fps = 60;
   }
 
@@ -45,6 +53,7 @@ let print_state =
     "exec_tag", string cfg.exec_tag;
     "exec_tag_flags", string cfg.exec_tag_flags;
     "exec_max_len", nat cfg.exec_max_len;
+    "web_searches", list string cfg.web_searches;
     "fps", nat cfg.fps;
   ])
 
@@ -61,6 +70,8 @@ let parse_state cfg =
       (fun s -> cfg.exec_tag_flags <- s);
     apply (r $? "exec_max_len") nat
       (fun n -> cfg.exec_max_len <- n);
+    apply (r $? "web_searches") (list string)
+      (fun ss -> cfg.web_searches <- ss);
     apply (r $? "fps") nat
       (fun n -> cfg.fps <- max 30 n);
   )

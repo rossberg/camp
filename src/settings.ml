@@ -14,6 +14,7 @@ type t =
   spec_bands : Edit.t;
   exec_tag : Edit.t;
   exec_tag_flags : Edit.t;
+  mutable web_searches : Edit.t list;
   fps : Edit.t;
   scaling : Edit.t;
 }
@@ -35,6 +36,7 @@ let make () =
     spec_bands = Edit.make 10;
     exec_tag = Edit.make 100;
     exec_tag_flags = Edit.make 10;
+    web_searches = [];
     fps = Edit.make 10;
     scaling = Edit.make 10;
   }
@@ -63,11 +65,12 @@ let foci set =  (* needs to be in order of appearance *)
     (*set.zoom_size;*)
     set.zoom_text_size;
     set.spec_bands;
-    set.exec_tag;
-    set.exec_tag_flags;
     set.fps;
     (*set.scaling;*)
-  ]
+    set.exec_tag;
+    set.exec_tag_flags;
+  ] @
+  set.web_searches
 
 let defocus set =
   List.iter Edit.defocus (foci set)

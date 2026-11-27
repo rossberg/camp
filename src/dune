@@ -13,7 +13,7 @@
     run_playlist run_settings run_visualization
     run main
   )
-  (libraries unix directories audio_file raylib raylib-callbacks)
+  (libraries unix directories uri audio_file raylib raylib-callbacks)
   (link_deps (include link_deps.sexp))
   (link_flags (:include link_flags.sexp))
   (foreign_stubs

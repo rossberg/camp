@@ -283,7 +283,7 @@ and setting_item =
   | `Choice of (string * bool * (string -> unit)) list
   | `Text of Edit.t * color * (Edit.t -> unit) * (string -> unit)
   | `Number of string * Edit.t * int * int * int * (Edit.t -> unit) * (int -> unit)
-  | `Button of string * (unit -> unit)
+  | `Buttons of (string * (unit -> unit)) list
   | `Section of setting list
   ]
 

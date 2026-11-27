@@ -278,7 +278,7 @@ let run (st : state) =
         Track.split_name (Track.name tab.entries.(i))
       | _ -> []
     in
-    Run_view.(edit_menu st (playlist_view st) search i_opt)
+    Run_view.(edit_menu st (playlist_view st) search search i_opt)
 
   | `HeadMenu i_opt ->
     (* Right-click on header: header menu *)

@@ -29,8 +29,8 @@ val playlist_view : State.t -> view
 
 (* Initiate Edit Menu *)
 
-val list_menu : State.t -> view -> string list -> unit
-val edit_menu : State.t -> view -> string list -> int option -> unit
+val list_menu : State.t -> view -> string list -> string list -> unit
+val edit_menu : State.t -> view -> string list -> string list -> int option -> unit
 
 
 (* Tagging *)

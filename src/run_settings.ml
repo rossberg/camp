@@ -31,6 +31,8 @@ let init (st : state) =
   Edit.set set.spec_bands (string_of_int ctl.spec_bands);
   Edit.set set.exec_tag cfg.exec_tag;
   Edit.set set.exec_tag_flags cfg.exec_tag_flags;
+  set.web_searches <- List.map (fun _ -> Edit.make 10) cfg.web_searches;
+  List.iter2 Edit.set set.web_searches cfg.web_searches;
   Edit.set set.fps (string_of_int cfg.fps);
   Edit.set set.scaling (string_of_int geo.scaling)
 
@@ -225,7 +227,7 @@ let run (st : state) focus_change =
               (fun _ -> geo.extension_side <- `Right);
           ];
         ];
-        "PROGRAMS", `Section [
+        "PROGRAMS", `Section ([
           "TAGGING", `Text (set.exec_tag,
             (if File.exists set.exec_tag.text then
               Ui.text_color geo.ui
@@ -234,7 +236,7 @@ let run (st : state) focus_change =
             ),
             focus_edit, fun s -> cfg.exec_tag <- s
           );
-          "", `Button ("BROWSE",
+          "", `Buttons ["BROWSE",
             fun () ->
               Run_filesel.filesel st `File `Read "" "" (fun path ->
                 cfg.exec_tag <- path;
@@ -244,17 +246,47 @@ let run (st : state) focus_change =
                 set.vscroll <- max_int;  (* assume it's at bottom *)
                 State.focus_edit st set.exec_tag;
               )
-          );
+          ];
           "...FLAGS", `Text (set.exec_tag_flags, Ui.text_color geo.ui,
             focus_edit, fun s -> cfg.exec_tag_flags <- s
           );
-        ];
-        "DEVELOPER", `Section [
-          "SHOW", `Toggle (set.developer, fun b ->
-            set.developer <- b;
-            if b then Ui.delay geo.ui (fun _ -> set.vscroll <- max_int);
-          );
-        ]
+        ] @
+        let searches =
+          List.mapi (fun i ed ->
+            `Text (ed, Ui.text_color geo.ui,
+              focus_edit, fun s ->
+                cfg.web_searches <-
+                  List.mapi (fun j s' -> if i = j then s else s') cfg.web_searches
+            )
+          ) set.web_searches @
+          [
+            `Buttons [
+              "+",
+                (fun _ ->
+                  cfg.web_searches <- cfg.web_searches @ [""];
+                  set.web_searches <- set.web_searches @ [Edit.make 10];
+                );
+              "−",
+                (fun _ ->
+                  let n = max 0 (List.length cfg.web_searches - 1) in
+                  cfg.web_searches <- List.take n cfg.web_searches;
+                  set.web_searches <- List.take n set.web_searches;
+                );
+            ]
+          ]
+        in
+        [
+          "WEB SEARCH", List.hd searches;
+        ] @
+        List.map (fun x -> "", x) (List.tl searches) @
+        [
+          "DEVELOPER", `Section [
+            "SHOW", `Toggle (set.developer, fun b ->
+              set.developer <- b;
+              if b then Ui.delay geo.ui (fun _ -> set.vscroll <- max_int);
+            );
+          ]
+        ])
       ] @
       if not set.developer then [] else
       let win = Ui.window geo.ui in

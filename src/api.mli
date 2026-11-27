@@ -318,3 +318,11 @@ sig
   val read : window -> string option
   val write : window -> string -> unit
 end
+
+
+(* Web *)
+
+module Web :
+sig
+  val browse : string -> unit
+end

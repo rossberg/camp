@@ -14,6 +14,7 @@ type t =
   spec_bands : Edit.t;
   exec_tag : Edit.t;
   exec_tag_flags : Edit.t;
+  mutable web_searches : Edit.t list;
   fps : Edit.t;
   scaling : Edit.t;
 }

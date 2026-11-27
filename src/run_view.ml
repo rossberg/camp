@@ -491,6 +491,39 @@ let set_drop_cursor (st : state) outside =
   )
 
 
+(* Web search menus *)
+
+let replace_punct = function
+  | '.' | '_' as c -> c
+  | '\x00'..'@' | '['..'`' | '{'..'\x7f' -> ' '
+  | c -> c
+
+let search_of_name name =
+  name |> String.map replace_punct |>
+  String.split_on_char ' ' |> List.filter ((<>) "")
+
+let web_search_entries (st : state) searches : _ iarray =
+  if searches = [] then [||] else
+  let search = String.concat " " (List.concat_map search_of_name searches) in
+  let c = Ui.text_color st.geometry.ui in
+  Iarray.of_list @@
+  List.filter_map (fun url ->
+    let url' =
+      if String.starts_with ~prefix: "https://" url then url else
+      if String.starts_with ~prefix: "http://" url then url else
+      "https://" ^url
+    in
+    Option.map (fun host ->
+      `Entry (c, "Search on " ^ host, Layout.KeyBind.na, true),
+      fun () ->
+        let search' =
+          Uri.pct_encode (String.replace_all ~sub: " " ~by: "+" search) in
+        let url'' = String.replace_all ~sub: "%s" ~by: search' url' in
+        Api.Web.browse url''
+    ) (Uri.host (Uri.of_string url'))
+  ) st.config.web_searches
+
+
 (* Playlist modification *)
 
 type ('dir, 'pl, 'item) pl_ops =
@@ -510,11 +543,6 @@ type ('dir, 'pl, 'item) pl_ops =
 }
 
 exception Cancel
-
-let replace_punct = function
-  | '.' | '_' as c -> c
-  | '\x00'..'@' | '['..'`' | '{'..'\x7f' -> ' '
-  | c -> c
 
 let modify ops (st : state) dir on_start on_pl =
   ignore (Domain.spawn (fun () ->
@@ -537,15 +565,13 @@ let modify ops (st : state) dir on_start on_pl =
           (* Right-click on log entry: open context menu *)
           let lib = st.library in
           let c = Ui.text_color st.geometry.ui in
-          let search =
-            File.(remove_extension (name (Log.text log i 1))) |>
-            String.map replace_punct |>
-            String.split_on_char ' ' |> List.filter ((<>) "") |>
-            List.map Query.quote |> String.concat " "
-          in
+          let text1 = Log.text log i 1 in
+          let text = if text1 <> "" then text1 else Log.text log i 2 in
+          let search = search_of_name File.(remove_extension (name text)) in
           Table.select log.table i i;
-          Run_popup.command_menu st (Iarray.append
-            (if not ops.show_path then [||] else
+          Run_popup.command_menu st (Iarray.concat
+          [
+            if not ops.show_path then [||] else
             [|
               `Entry (c, "Show Playlist", Layout.KeyBind.na, true),
               (fun () ->
@@ -559,19 +585,23 @@ let modify ops (st : state) dir on_start on_pl =
                 close false log;
               );
               `Separator, ignore;
-            |])
-            (Iarray.init (Iarray.length lib.root.children + 1) (fun j ->
+            |];
+            Iarray.init (Iarray.length lib.root.children + 1) (fun j ->
               let dir =
                 if j = 0 then lib.root else Iarray.get lib.root.children (j - 1) in
-              `Entry (c, "Search for Song in " ^ dir.name, Layout.KeyBind.na, true),
+              `Entry (c, "Search in " ^ dir.name, Layout.KeyBind.na, true),
               fun () ->
                 Table.deselect_all log.table;
                 Option.iter (Library.select_dir lib)
                   (Library.find_entry_dir lib dir);
-                Library.set_search lib search;
+                Library.set_search lib (String.concat " " (List.map Query.quote search));
                 close false log;
-            ))
-          )
+            );
+            (match web_search_entries st search with
+            | [||] -> [||]
+            | entries -> Iarray.append [|`Separator, ignore|] entries
+            );
+          ])
         ) i_opt
       )
     in
@@ -706,7 +736,7 @@ let modify_repair ops (st : state) dir =
             incr success; ops.set_item item track, Ui.text_color, track.path, []
           | `Missing -> incr fail; item, Ui.error_color, "(not found)", []
           | `Ambiguous tracks ->
-            incr fuzzy; item, Ui.warn_color, "(multiple found)",
+            incr fuzzy; item, Ui.warn_color, "(ambiguous)",
               List.map (fun (track : Data.track) -> track.path) tracks
         in
         if path' <> item_path then
@@ -1088,7 +1118,7 @@ let search_for_avail st =
 
 let search_for (st : state) ss =
   if not st.geometry.library_shown then Run_control.toggle_library st;
-  let s = String.concat " " (List.map (fun s -> "\"" ^ s ^ "\"") ss) in
+  let s = String.concat " " (List.map Query.quote ss) in
   Library.set_search st.library s
 
 
@@ -1146,7 +1176,7 @@ let tag_button (st : state) view =
   let all, _, get_tracks = subject_tracks view in
   tag st (get_tracks ()) (not all)
 
-let list_menu (st : state) view searches =
+let list_menu (st : state) view cell_searches row_searches =
   let geo = st.geometry in
   let (module WindowUi) = Option.get st.layout in
   let module CopyUi = WindowUi.Library.Copy in
@@ -1179,13 +1209,14 @@ let list_menu (st : state) view searches =
       `Entry (c, "Search...", Layout.KeyBind.search, search_avail st),
         (fun () -> search st);
     |];
-    (if searches = [] || not (search_for_avail st) then [||] else
-      let s = String.concat " " (List.map (fun s -> "\"" ^ s ^ "\"") searches) in
+    (if cell_searches = [] || not (search_for_avail st) then [||] else
+      let s = String.concat " " (List.map (fun s -> "\"" ^ s ^ "\"") cell_searches) in
       [|
         `Entry (c, "Search for " ^ s, Layout.KeyBind.na, search_for_avail st),
-          (fun () -> search_for st searches)
+          (fun () -> search_for st cell_searches)
       |]
     );
+    web_search_entries st row_searches;
     [|
       `Separator, ignore;
       `Entry (c, "Save as Playlist...", Layout.KeyBind.save, save_avail st view),
@@ -1212,7 +1243,7 @@ let list_menu (st : state) view searches =
 *)
   ])
 
-let edit_menu (st : state) view searches pos_opt =
+let edit_menu (st : state) view cell_searches row_searches pos_opt =
   let geo = st.geometry in
   let (module WindowUi) = Option.get st.layout in
   let module CopyUi = WindowUi.Library.Copy in
@@ -1222,6 +1253,7 @@ let edit_menu (st : state) view searches pos_opt =
   let c = Ui.text_color geo.ui in
   let all, quant, get_tracks = subject_tracks view in
   let all_a, quant_a, _ = subject_absent_tracks view in
+  let web_searches = web_search_entries st row_searches in
   Run_popup.command_menu st (Iarray.concat [
     [|
       `Entry (c, "Insert Separator", Layout.KeyBind.sep, separator_avail st view),
@@ -1275,11 +1307,16 @@ let edit_menu (st : state) view searches pos_opt =
         (fun () -> redo st view);
       `Separator, ignore;
     |];
-    (if searches = [] || not (search_for_avail st) then [||] else
-      let s = String.concat " " (List.map (fun s -> "\"" ^ s ^ "\"") searches) in
+    (if cell_searches = [] || not (search_for_avail st) then [||] else
+      let s = String.concat " " (List.map (fun s -> "\"" ^ s ^ "\"") cell_searches) in
       [|
         `Entry (c, "Search for " ^ s, Layout.KeyBind.na, search_for_avail st),
-          (fun () -> search_for st searches);
+          (fun () -> search_for st cell_searches);
+      |]
+    );
+    web_searches;
+    (if cell_searches = [] && web_searches = [||] then [||] else
+      [|
         `Separator, ignore;
       |]
     );
