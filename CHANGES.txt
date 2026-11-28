@@ -4,6 +4,7 @@ Playlist:
 - [chg] Show extended info even for separator entries
 
 Library:
+- [new] Playlist Repair can be interactively refined in various ways
 - [new] Context menus include web searches on relevant sites
 - [fix] Crash when currently selected directory is gone after browser refresh
 

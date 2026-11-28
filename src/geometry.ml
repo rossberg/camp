@@ -70,7 +70,7 @@ let make ui =
     library_shown = false;
     settings_shown = false;
     window = 1.0, 1.0, 1.0, 1.0;
-    repair_log_columns = [|200; 300; 300|];
+    repair_log_columns = [|200; 30; 300; 300|];
     filesel_shown = false;
     popup_shown = None;
     browser_width = 160;
@@ -787,7 +787,7 @@ let parse_state geo =  (* assumes playlist and library loaded *)
     apply (r $? "grid") (num min_grid_size max_grid_size)
       (fun w -> geo.grid <- w);
     apply (r $? "repair_cols") (iarray (num 10 1000))
-      (fun ws -> if Iarray.length ws = 3 then geo.repair_log_columns <- ws);
+      (fun ws -> if Iarray.length ws = 4 then geo.repair_log_columns <- ws);
     apply (r $? "zoom_size") (num min_zoom_size max_zoom_size)
       (fun w -> geo.zoom_size <- w);
     apply (r $? "zoom_pos") (option (pair nat nat))

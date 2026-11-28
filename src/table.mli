@@ -99,7 +99,7 @@ val mark_selected : ('a, 'b) t -> unit
 
 val set : ('a, 'b) t -> 'a array -> unit
 val insert : ('a, 'b) t -> int -> 'a array -> unit
-
+val remove : ('a, 'b) t -> int -> int -> unit
 val remove_all : ('a, 'b) t -> unit
 val remove_if : (int -> bool) -> ('a, 'b) t -> int -> int array
 

@@ -887,6 +887,7 @@ struct
       let area = (p, 0, margin, -1, -1)
       let table args =
         Ui.rich_table g.ui "log_tbl" area (rich_table_style 1 true) args
+      let error_box () = Ui.box g.ui area (Ui.error_color g.ui)
 
       module Button =
       struct

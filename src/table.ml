@@ -421,6 +421,27 @@ let insert tab pos entries =
     )
   )
 
+let remove tab pos n =
+  assert (pos + n <= Array.length tab.entries);
+  if n > 0 then
+  (
+    dirty tab;
+    push_undo tab;
+    for i = pos to pos + n - 1 do
+      deselect tab i i;
+      unmark tab i i;
+    done;
+    let len = Array.length tab.entries in
+    tab.entries <-
+      Array.init (len - n) (fun i ->
+        tab.entries.(if i < pos then i else i + n)
+      );
+    for i = pos to len - 1 do
+      move_pos tab (i + n) i (len - n)
+    done;
+    if len - n = 0 then tab.pos <- None;
+    tab.vscroll <- max 0 (min (len - n - 1) tab.vscroll);
+  )
 
 let remove_all tab =
   if tab.entries <> [||] then

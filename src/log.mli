@@ -10,7 +10,9 @@ type t =
   mutable info : string;
   mutable cancel : bool;
   mutable completed : bool;
+  mutable sortable : bool;
   mutable on_completion : t -> unit;
+  mutable on_click : t -> int -> unit;
   mutable on_menu : t -> int option * int option -> unit;
 }
 
@@ -18,7 +20,8 @@ type t =
 (* Constructor *)
 
 val make : Ui.heading option -> Ui.column iarray ->
-  (t -> unit) -> (t -> int option * int option -> unit) -> t
+  (t -> unit) -> (t -> int -> unit) ->
+  (t -> int option * int option -> unit) -> t
 
 
 (* Manipulation *)
@@ -26,6 +29,8 @@ val make : Ui.heading option -> Ui.column iarray ->
 val length : t -> int
 val append : t -> entry array -> unit
 val insert : t -> int -> entry array -> unit
+val update : t -> int -> entry -> unit
+val remove : t -> int -> int -> unit
 
 val text : t -> int -> int -> string
 

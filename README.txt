@@ -726,10 +726,15 @@ goes through all the tracks and checks if their files still exist. Where not, it
 searches the library for a file with the same or a similar name.
 
 * Once the search is complete, it shows a log of all missing files and whether
-  they have been found somewhere else in the library. If you select OK, it will
-  modify all missing entries for which substitutes were found.
+  they have been found somewhere else in the library. Ambiguous or inexact
+  matches are shown in yellow. You can click on one of these to pick them as
+  replacement. Inversely, you can unpick (and hence skip) any chosen replacement
+  by clicking on it as well.
 
 * No regrets: The log is just a preview, if you Cancel nothing will be modified.
+
+* If you select OK, all missing entries for which substitutes were found or
+  selected are replaced.
 
 * The Repair command is also available in the browser. When requested on a real
   folder (as opposed to a single playlist), it applies to all playlists in that

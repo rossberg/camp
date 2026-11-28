@@ -1351,23 +1351,31 @@ let run_log (st : state) =
   | `Reorder _ | `HeadMenu _ ->
     ()
 
+  | `Click (Some i, _)  ->
+    (* Click: ignore selection and handle click *)
+    Table.deselect_all log.table;
+    log.on_click log i;
+
   | `Select | `Click _ ->
     (* New selection: ignore *)
     Table.deselect_all log.table;
 
   | `Sort i ->
     (* Click on column header: reorder log accordingly *)
-    Option.iter (fun (headers, sorting) ->
-      let order' =
-       match sorting with
-         | [j, order] when i = j -> if order = `Asc then `Desc else `Asc
-        | _ -> `Asc
-      in
-      log.heading <- Some (headers, [i, order']);
-      let coeff = match order' with `Asc -> +1 | `Desc -> -1 in
-      let cmp (_, x) (_, y) = coeff * compare x.$(i) y.$(i) in
-      Array.stable_sort cmp log.table.entries;
-    ) log.heading;
+    if log.sortable then
+    (
+      Option.iter (fun (headers, sorting) ->
+        let order' =
+         match sorting with
+           | [j, order] when i = j -> if order = `Asc then `Desc else `Asc
+          | _ -> `Asc
+        in
+        log.heading <- Some (headers, [i, order']);
+        let coeff = match order' with `Asc -> +1 | `Desc -> -1 in
+        let cmp (_, x) (_, y) = coeff * compare x.$(i) y.$(i) in
+        Array.stable_sort cmp log.table.entries;
+      ) log.heading
+    )
 
   | `Resize ws ->
     (* Column resizing: update column widths *)

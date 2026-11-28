@@ -1086,10 +1086,6 @@ let rec rescan_dir' lib mode (origin : dir) =
     true
 
 
-and rescan_dir lib mode (dir : dir) =
-  Safe_queue.add (false, dir.path, fun () ->
-    rescan_dir' lib (mode :> [scan_mode | `VeryQuick]) dir) lib.scan.dir_queue
-
 and rescan_playlist lib mode (dir : dir) =
   Safe_queue.add (true, dir.path, fun () -> rescan_playlist' lib mode dir)
     lib.scan.file_queue
@@ -1105,6 +1101,15 @@ and rescan_track lib mode (track : track) =
 and rescan_dir_tracks lib mode (dir : dir) =
   Safe_queue.add (true, dir.path, fun () -> rescan_dir_tracks' lib mode dir)
     lib.scan.dir_queue
+
+and rescan_dir lib mode (dir : dir) =
+  if Data.is_playlist dir then
+    rescan_playlist lib `Thorough dir
+  else if Data.is_viewlist dir then
+    rescan_viewlist lib `Thorough dir
+  else
+    Safe_queue.add (false, dir.path, fun () ->
+      rescan_dir' lib (mode :> [scan_mode | `VeryQuick]) dir) lib.scan.dir_queue
 
 
 let rescan_dirs lib mode dirs = Array.iter (rescan_dir lib mode) dirs
@@ -2046,8 +2051,11 @@ let repair_path (map : repair_map) base_path path =
       Map.to_seq_from first map |>
       Seq.take_while (fun (key', _) -> key' <> "" && key'.[0] = key.[0]) |>
       Seq.filter_map (fun (key', tracks) ->
-        let limit = 5 in
-        if String.edit_distance ~limit key key' < limit then
+        let limit = 6 in
+        if
+          String.edit_distance ~limit key key'
+            < min limit (String.length key / 2)
+        then
           Some tracks
         else None
       ) |>

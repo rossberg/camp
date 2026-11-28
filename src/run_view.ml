@@ -530,11 +530,13 @@ type ('dir, 'pl, 'item) pl_ops =
 {
   iter_dir : ('dir -> unit) -> 'dir -> unit;
   is_pl : 'dir -> bool;
-  show_path : bool;
+  show_path : bool;  (* whether to show path column in log *)
+  editable : bool;
   dir_path : 'dir -> path;
   load : 'dir -> 'pl;
   save : 'dir -> 'pl -> 'pl -> unit;
-  map_items : ('item -> 'item) -> 'pl -> 'pl;
+  nth_item : 'pl -> int -> 'item;
+  mapi_items : (int -> 'item -> 'item) -> 'pl -> 'pl;
   exists2_items : ('item -> 'item -> bool) -> 'pl -> 'pl -> bool;
   item_path : 'item -> path;
   set_item_path : 'item -> path -> 'item;
@@ -544,15 +546,34 @@ type ('dir, 'pl, 'item) pl_ops =
 
 exception Cancel
 
-let modify ops (st : state) dir on_start on_pl =
+let protect path f =
+  try f ()  with
+  | Cancel -> raise Cancel  (* propagate *)
+  | exn -> Storage.log_exn "file" exn ("modifying playlist " ^ path)
+
+let error_flash (st : state) =
+  let (module WindowUi) = Option.get st.layout in
+  WindowUi.Library.Log.error_box ()
+
+let modify ops (st : state) dir on_start on_pl on_pick =
   ignore (Domain.spawn (fun () ->
+    let modifications = ref Map.empty in
+    let started = ref None in
+    let ready = ref false in
+
+    let pos_col, from_col, to_col = if ops.show_path then 1, 2, 3 else 0, 1, 2 in
     let header1 : _ iarray = if ops.show_path then [|"Playlist"|] else [||] in
-    let heading = Iarray.append header1 [|"Entry"; "Replacement"|], [] in
-    let columns = Iarray.map (fun w -> (w, `Left)) st.geometry.repair_log_columns in
+    let heading = Iarray.append header1 [|"#"; "Entry"; "Replacement"|], [] in
+    let align : _ iarray = [|`Left; `Right; `Left; `Left|] in
+    let columns = Iarray.combine st.geometry.repair_log_columns align in
     let columns, mk_columns =
       if ops.show_path then columns, Fun.id else
-      Iarray.sub columns ~pos: 1 ~len: 2,
+      Iarray.sub columns ~pos: 1 ~len: (Iarray.length columns - 1),
       Iarray.append [|Iarray.get st.geometry.repair_log_columns 0|]
+    in
+    let entry c ss =
+      c, Iarray.map (fun s -> `Text s)
+        (Iarray.of_list (if ops.show_path then ss else List.tl ss))
     in
     let close b (log : Log.t) =
       st.geometry.repair_log_columns <- mk_columns (Iarray.map fst log.columns);
@@ -560,13 +581,56 @@ let modify ops (st : state) dir on_start on_pl =
       ops.final b;
     in
     let log = Log.make (Some heading) columns (close true)
-      (fun log (i_opt, _) ->
+      (fun log i ->  (* on_click *)
+        (* Click on log entry: pick choice if available *)
+        if Api.Mouse.is_pressed `Left then
+        if not !ready then error_flash st else
+        let j = ref i in
+        while Log.text log !j from_col = "" do decr j done;
+        let path =
+          if ops.show_path then Log.text log !j 0 else ops.dir_path dir in
+        let pos =
+          int_of_string (String.drop_last 1 (Log.text log !j pos_col)) - 1 in
+Printf.eprintf "[click] path=%s pos=%d\n%!" path pos;
+Map.iter (fun k _ -> Printf.eprintf "  %s\n%!" k) !modifications;
+        let dir', items, items' = Map.find path !modifications in
+        on_pick (fun s -> log.info <- s) (Option.get !started) path
+          pos (ops.nth_item items pos) (ops.item_path (ops.nth_item items' pos))
+          (Log.text log i to_col) |>
+        Option.iter (fun (c', item'', text, subs, remove) ->
+          let items'' = 
+            ops.mapi_items
+              (fun k item' -> if k = pos then item'' else item') items'
+          in
+          modifications :=
+            Map.add path (dir', items, items'') !modifications;
+          let _c, cols = log.table.entries.(!j) in
+          let cols' =
+            Iarray.mapi (fun k x -> if k = to_col then `Text text else x) cols
+          in
+          Log.update log !j (c', cols');
+          if remove then Log.remove log i 1;
+          Log.insert log (!j + 1)
+            (Array.of_list (List.filter_map (fun s2 ->
+              (* Suppress if sub entry already exists *)
+              let found = ref false in
+              let k = ref (!j + 1) in
+              while not !found && Log.text log !k from_col = "" do
+                found := (Log.text log !k to_col = s2);
+                incr k;
+              done;
+              if !found then None else Some (entry c' [""; ""; ""; s2])
+            ) subs));
+        )
+      )
+      (fun log (i_opt, _) ->  (* on_menu *)
+        if not !ready then error_flash st else
         Option.iter (fun i ->
           (* Right-click on log entry: open context menu *)
           let lib = st.library in
           let c = Ui.text_color st.geometry.ui in
-          let text1 = Log.text log i 1 in
-          let text = if text1 <> "" then text1 else Log.text log i 2 in
+          let text1 = Log.text log i from_col in
+          let text = if text1 <> "" then text1 else Log.text log i to_col in
           let search = search_of_name File.(remove_extension (name text)) in
           Table.select log.table i i;
           Run_popup.command_menu st (Iarray.concat
@@ -618,9 +682,9 @@ let modify ops (st : state) dir on_start on_pl =
     let playlist = String.concat "/" (List.rev (playlist_names dir)) in
 *)
     try
-      let started = on_start log in
+      let started' = on_start log in
+      started := Some started';
 
-      let modifications = ref [] in
       let info = ref "" in
       ops.iter_dir (fun dir ->
         if log.cancel then raise Cancel;
@@ -628,35 +692,27 @@ let modify ops (st : state) dir on_start on_pl =
         log.info <- !info ^ " " ^ spin st ^ " " ^ path;
         if ops.is_pl dir then
         (
-          let protect f =
-            try f ()  with
-            | Cancel -> raise Cancel  (* propagate *)
-            | exn -> Storage.log_exn "file" exn ("modifying playlist " ^ path)
-          in
-          protect (fun () ->
-            let cell1 : _ iarray = if ops.show_path then [|`Text path|] else [||] in
-            let cell1' : _ iarray = if ops.show_path then [|`Text ""|] else [||] in
-            let extend_log c is_sub s1 s2 =
-              let cell1'' = if is_sub then cell1' else cell1 in
-              Log.append log [|c, Iarray.append cell1'' [|`Text s1; `Text s2|]|];
+          protect path (fun () ->
+            let extended = ref false in
+            let extend_log c pos s1 s2 subs =
+              extended := true;
+              Log.append log
+                (Array.of_list
+                  (entry c [path; string_of_int (pos + 1) ^ "."; s1; s2] ::
+                    List.map (fun s2 -> entry c [""; ""; ""; s2]) subs)
+                )
             in
             let items = ops.load dir in
-            let items' =
-              on_pl extend_log ((:=) info) started (File.dir path) items in
-            if
-              ops.exists2_items (fun item item' ->
-                ops.item_path item <> ops.item_path item'
-              ) items items'
-            then
-              modifications := (fun () ->
-                protect (fun () -> ops.save dir items items')
-              ) :: !modifications
+            let items' = on_pl extend_log ((:=) info) started' path items in
+            if !extended then
+              modifications := Map.add path (dir, items, items') !modifications
           )
         )
       ) dir;
       log.info <- !info;
 
-      if !modifications = [] then
+      ready := true;
+      if !modifications = Map.empty then
       (
         log.info <- "No playlist repairs needed or possible";
         Library.error st.library "";
@@ -667,22 +723,25 @@ let modify ops (st : state) dir on_start on_pl =
           log.completed <- false;
           Library.error st.library "";
           (try
-            List.iter (fun f -> if log.cancel then raise Cancel; f ())
-              (List.rev !modifications);
+            Map.iter (fun path (dir, items, items') ->
+              if log.cancel then raise Cancel;
+              protect path (fun () -> ops.save dir items items');
+            ) !modifications;
           with Cancel ->
             Library.error st.library "Playlist repairs aborted"
           );
+
+          close true log;
 
           (*Library.refresh_artists_albums_tracks st.library;*)
           let path = ops.dir_path dir in
           if path <> "" then
           (
             Option.iter (fun dir ->
+Printf.eprintf "[rescan %s]\n%!" path;
               Library.rescan_dirs st.library `Quick [|dir|];
             ) (Library.find_dir st.library path)
           );
-
-          close true log;
         );
         log.completed <- true;
       )
@@ -691,16 +750,17 @@ let modify ops (st : state) dir on_start on_pl =
 
 let modify_simple f ops (st : state) dir =
   let count = ref 0 in
-  modify ops st dir ignore
-    (fun extend_log update_info () base_path items ->
+  modify ops st dir
+    ignore  (* on_start *)
+    (fun extend_log update_info () path items ->  (* on_pl *)
       let items' =
-        ops.map_items (fun item ->
+        ops.mapi_items (fun i item ->
           let path = ops.item_path item in
-          let path' = f base_path path in
+          let path' = f (File.dir path) path in
           if path = path' then item else
           (
             incr count;
-            extend_log (Ui.text_color st.geometry.ui) false path path';
+            extend_log (Ui.text_color st.geometry.ui) i path path' [];
             ops.set_item_path item path'
           )
         ) items
@@ -708,6 +768,7 @@ let modify_simple f ops (st : state) dir =
       update_info (fmt "%d entries to be updated" !count);
       items'
     )
+    (fun _ _ _ _ _ _ _ -> None)  (* on_pick *)
 
 let modify_absolute st = modify_simple M3u.absolute_path st
 let modify_relative st = modify_simple M3u.relative_path st
@@ -717,8 +778,15 @@ let modify_portable st =
 
 let modify_repair ops (st : state) dir =
   let success, fail, fuzzy = ref 0, ref 0, ref 0 in
+  let info () =
+    let ss =
+      (if !success = 0 then [] else [fmt "%d entries can be repaired" !success]) @
+      (if !fail = 0 then [] else [fmt "%d entries not found" !fail]) @
+      (if !fuzzy = 0 then [] else [fmt "%d entries ambiguous or skipped" !fuzzy])
+    in String.concat ", " ss
+  in
   modify ops st dir
-    (fun log ->
+    (fun log ->  (* on_start *)
       let map = Library.repair_map st.library (fun _ ->
         if log.cancel then raise Cancel;
         log.info <- spin st;
@@ -726,11 +794,11 @@ let modify_repair ops (st : state) dir =
       log.info <- "";
       map
     )
-    (fun extend_log update_info map path items ->
-      ops.map_items (fun item ->
+    (fun extend_log update_info map path items ->  (* on_pl *)
+      ops.mapi_items (fun i item ->
         let item_path = ops.item_path item in
         let item', color, path', paths' =
-          match Library.repair_path map path item_path with
+          match Library.repair_path map (File.dir path) item_path with
           | `Ok -> item, Ui.text_color, item_path, []
           | `Replace track ->
             incr success; ops.set_item item track, Ui.text_color, track.path, []
@@ -741,46 +809,69 @@ let modify_repair ops (st : state) dir =
         in
         if path' <> item_path then
         (
-          let ss =
-            (if !success = 0 then [] else [fmt "%d entries can be repaired" !success]) @
-            (if !fail = 0 then [] else [fmt "%d entries not found" !fail]) @
-            (if !fuzzy = 0 then [] else [fmt "%d entries ambiguous" !fuzzy])
-          in
-          update_info (String.concat ", " ss);
-          extend_log (color st.geometry.ui) false item_path path';
-          List.iter (fun path'' ->
-            extend_log (color st.geometry.ui) true "" path'';
-          ) paths';
+          update_info (info ());
+          extend_log (color st.geometry.ui) i item_path path' paths';
         );
         item'
       ) items
     )
+    (fun update_info map path _pos item item_path item_path' ->  (* on_pick *)
+      let base_path = File.dir path in
+Printf.eprintf "from = %s\nto   = %s\nto'  = %s\n%!" (ops.item_path item) item_path item_path';
+      if item_path = item_path' then
+      (
+        (* Unpick *)
+        decr success; incr fuzzy;
+        update_info (info ());
+        Some (
+          Ui.warn_color st.geometry.ui,
+          ops.set_item_path item (ops.item_path item),
+          "(skipped)",
+          [item_path],
+          false
+        )
+      )
+      else if Library.repair_path map base_path item_path' = `Ok then
+      (
+        (* Pick *)
+        if Library.repair_path map base_path item_path <> `Ok then
+        (
+          incr success; decr fuzzy;
+          update_info (info ());
+        );
+        Some (Ui.text_color st.geometry.ui,
+          ops.set_item_path item item_path', item_path', [], true)
+      )
+      else None
+    )
 
 
-let modify_dir modify =
+let modify_dir modify editable st dir =
   modify
   {
     iter_dir = Data.iter_dir;
     is_pl = Data.is_playlist;
-    show_path = true;
+    show_path = not (Data.is_playlist dir);
+    editable;
     dir_path = (fun (dir : dir) -> dir.path);
     load = (fun (dir : dir) -> M3u.parse_ext M3u.Native (File.load `Bin dir.path));
     save = (fun (dir : dir) _ items' -> File.save_safe `Bin dir.path (M3u.make_ext !Track.m3u_format items'));
-    map_items = List.map;
+    nth_item = List.nth;
+    mapi_items = List.mapi;
     exists2_items = List.exists2;
     item_path = (fun (item : M3u.item) -> item.path);
     set_item_path = (fun (item : M3u.item) path -> {item with path});
     set_item = (fun (item : M3u.item) track -> {item with path = track.path});
     final = ignore;
-  }
+  } st dir
 
-let absolute_dir = modify_dir modify_absolute
-let relative_dir = modify_dir modify_relative
-let driveless_dir = modify_dir modify_driveless
-let portable_dir = modify_dir modify_portable
-let repair_dir = modify_dir modify_repair
+let absolute_dir = modify_dir modify_absolute false
+let relative_dir = modify_dir modify_relative false
+let driveless_dir = modify_dir modify_driveless false
+let portable_dir = modify_dir modify_portable false
+let repair_dir = modify_dir modify_repair true
 
-let modify_view modify (st : state) view all =
+let modify_view modify editable (st : state) view all =
   let lib_shown = Geometry.library_shown st.geometry in
   if not lib_shown then Run_control.toggle_library st;
   modify
@@ -788,6 +879,7 @@ let modify_view modify (st : state) view all =
     iter_dir = (@@);
     is_pl = Fun.const true;
     show_path = false;
+    editable;
     dir_path = Fun.const "";
     load = (fun (module View : View) -> View.(if all then tracks it else selected it));
     save = (fun (module View : View) tracks tracks' ->
@@ -798,7 +890,8 @@ let modify_view modify (st : state) view all =
         ) tracks tracks';
         View.(replace_map it !map all)
     );
-    map_items = Array.map;
+    nth_item = Array.get;
+    mapi_items = Array.mapi;
     exists2_items = Array.exists2;
     item_path = (fun (track : Data.track) -> track.path);
     set_item_path = (fun (track : Data.track) path -> {track with path});
@@ -806,10 +899,10 @@ let modify_view modify (st : state) view all =
     final = (fun b -> if b && not lib_shown then Run_control.toggle_library st);
   } st view
 
-let _relative_view = modify_view modify_relative
-let _driveless_view = modify_view modify_driveless
-let _absolute_view = modify_view modify_absolute
-let repair_view = modify_view modify_repair
+let _relative_view = modify_view modify_relative false
+let _driveless_view = modify_view modify_driveless false
+let _absolute_view = modify_view modify_absolute false
+let repair_view = modify_view modify_repair true
 
 
 (* Edit Operations *)

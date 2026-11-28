@@ -10,14 +10,16 @@ type t =
   mutable info : string;
   mutable cancel : bool;
   mutable completed : bool;
+  mutable sortable : bool;
   mutable on_completion : t -> unit;
+  mutable on_click : t -> int -> unit;
   mutable on_menu : t -> int option * int option -> unit;
 }
 
 
 (* Constructor *)
 
-let make heading columns on_completion on_menu =
+let make heading columns on_completion on_click on_menu =
   {
     table = Table.make 0;
     columns;
@@ -25,7 +27,9 @@ let make heading columns on_completion on_menu =
     info = "";
     cancel = false;
     completed = false;
+    sortable = false;
     on_completion;
+    on_click;
     on_menu;
   }
 
@@ -36,6 +40,12 @@ let length log = Table.length log.table
 
 let insert log i entries =
   Mutex.protect log.table.mutex (fun () -> Table.insert log.table i entries)
+
+let update log i entry =
+  Mutex.protect log.table.mutex (fun () -> log.table.entries.(i) <- entry)
+
+let remove log i n =
+  Mutex.protect log.table.mutex (fun () -> Table.remove log.table i n)
 
 let append log entries = insert log (length log) entries
 
